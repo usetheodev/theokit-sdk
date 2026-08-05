@@ -7,4 +7,4 @@ completion_promise: "TODAS AS TASKS, CRITERIOS DE ACEITES, DODs CONCLUIDAS E VAL
 started_at: "2026-05-17T15:40:51Z"
 ---
 
-Implemente o plano @.claude/knowledge-base/plans/examples-helper-migration-plan.md QUANDO CONCLUIR AS TASKS ATUALIZE O PLANO
+Implement the plan @.claude/knowledge-base/plans/examples-helper-migration-plan.md. WHEN THE TASKS ARE DONE, UPDATE THE PLAN.

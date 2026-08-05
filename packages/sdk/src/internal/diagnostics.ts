@@ -1,71 +1,85 @@
 /**
- * Canal único de diagnóstico da biblioteca — silencioso por padrão (#147).
+ * The library's single diagnostics channel — silent by default (#147).
  *
  * ## O problema
  *
- * O SDK escrevia diagnósticos direto em `process.stderr` a partir de caminhos quentes —
- * 92 sítios em 51 arquivos sob `internal/`. Numa host de TUI (Ink, alternate screen), essas
- * escritas se intercalam com o render e **corrompem o frame**. E o host não tinha como
- * interceptá-las: não havia logger injetável. Um consumidor chegou a instalar
- * `proper-lockfile` só para calar UMA delas.
+ * The SDK wrote diagnostics straight to `process.stderr` from hot paths — 92 sites across 51
+ * files under `internal/`. In a TUI host (Ink, alternate screen), those writes interleave with the
+ * render and **corrupt the frame**. And the host had no way to intercept them: there was no
+ * injectable logger. One consumer went as far as installing `proper-lockfile` just to silence ONE
+ * of them.
  *
- * Uma biblioteca não pode assumir que `stdout`/`stderr` são sinks livres. Quem é dono do
- * terminal é a aplicação, não a dependência.
+ * A library cannot assume `stdout`/`stderr` are free sinks. The application owns the terminal, not
+ * the dependency.
  *
  * ## O contrato
  *
- * - **`setDiagnosticsSink(fn)`** entrega as mensagens à aplicação, que decide onde colocá-las
- *   (uma linha de status, um arquivo, um painel). É o que faltava para uma TUI conviver com o SDK.
- * - **Sem sink, vai para o `stderr`** — exatamente como antes desta mudança.
+ * - **`setDiagnosticsSink(fn)`** hands the messages to the application, which decides where to put
+ *   them (a status line, a file, a panel). It is what was missing for a TUI to coexist with the SDK.
+ * - **With no sink, nothing is emitted.** A library does not own the host's terminal.
  *
- * ## Por que o padrão NÃO mudou (ainda), e isso é deliberado
+ * ## Silent by default, and how 36 suites survived the flip
  *
- * A #147 pede silêncio por padrão, e é o alvo certo. Mas **58 arquivos de teste** asseram hoje
- * que estes diagnósticos chegam ao `stderr` — eles codificam o contrato "o aviso É emitido", que
- * continua valendo e não deve ser perdido. Virar o padrão sem migrá-los reprovaria ~53 testes, e
- * migrá-los às pressas, em quatro formas diferentes de espionar o `stderr`, é a receita para
- * enfraquecer 58 suítes de uma vez.
+ * The default WAS `stderr`, and 36 test files spy on `process.stderr.write` to assert a given
+ * warning is emitted. That contract is real and had to survive; migrating all 36 by hand, across
+ * four different spy styles, is how you weaken 36 suites in one commit.
  *
- * Então esta mudança entrega a metade que DESTRAVA o consumidor — o host de TUI agora consegue
- * interceptar, que era o bloqueio relatado ("no way to intercept these; no injectable logger") — e
- * deixa a virada do padrão como migração própria, com custo medido. Um host que quer silêncio
- * hoje instala `setDiagnosticsSink(() => {})`.
+ * So the flip happened at the default, and `vitest.setup.ts` installs a sink that FORWARDS to
+ * `stderr` for the duration of every test. Those assertions still test what they always tested —
+ * "this condition emits a diagnostic" — through the channel a host would use, while production
+ * emits nothing unless asked.
  *
- * ## O que isto NÃO é
+ * The cost is stated rather than hidden: no test observes the production default by accident, so
+ * `tests/diagnostics-public-entry.test.ts` pins it explicitly by clearing the sink first.
  *
- * Não é um logger com níveis, formatação ou destinos múltiplos. É o mínimo que resolve o
- * bloqueio relatado; um logger completo aqui seria inventar requisito que ninguém pediu.
+ * ## Coverage is the whole guarantee
+ *
+ * The first sweep migrated the 92 sites under `internal/` and left `src/`'s own modules —
+ * `event-bus.ts`, `batch.ts`, `compaction.ts`, `internal/workflow/step-branch.ts`. A host could
+ * therefore install a sink and still have its frame corrupted by a batch run, which is the reported
+ * defect with a smaller blast radius. Those are routed here too, and
+ * `tests/lint/no-direct-terminal-write.test.ts` is what keeps the next hot path from
+ * reintroducing one. "Mostly interceptable" is not interceptable.
+ *
+ * The remaining direct writers are allowlisted there with a reason, and every one of them is a seam
+ * whose destination the CALLER already chooses (`opts.warn`, `opts.logger`, the Workflow logger).
+ *
+ * ## What this is NOT
+ *
+ * It is not a logger with levels, formatting or multiple destinations. It is the minimum that
+ * resolves the reported blocker; a full logger here would be inventing a requirement nobody asked
+ * for.
  */
 
-/** Recebe cada mensagem de diagnóstico já formatada, com o `\n` final. */
+/** Receives each diagnostic message already formatted, with the trailing `\n`. */
 export type DiagnosticsSink = (message: string) => void;
 
 let sink: DiagnosticsSink | undefined;
 
 /**
- * Instala (ou remove, passando `undefined`) o destino dos diagnósticos.
+ * Installs (or removes, by passing `undefined`) the diagnostics destination.
  *
- * Quando há sink, ele é o ÚNICO destino — o `stderr` não recebe cópia. Duplicar destinos
- * devolveria o problema à TUI que instalou o sink justamente para tirar as mensagens do terminal.
+ * When a sink is present it is the ONLY destination — `stderr` gets no copy. Duplicating
+ * destinations would hand the problem back to the TUI that installed the sink precisely to get the
+ * messages out of the terminal.
  */
 export function setDiagnosticsSink(next: DiagnosticsSink | undefined): void {
   sink = next;
 }
 
 /**
- * Emite uma mensagem de diagnóstico da biblioteca.
+ * Emits a library diagnostic message.
  *
- * Substitui `process.stderr.write` nos caminhos internos. Nunca lança: um sink defeituoso não
- * pode derrubar o run que ele apenas observa.
+ * Replaces `process.stderr.write` on internal paths. Never throws: a faulty sink must not
+ * must not take down the run it merely observes.
  */
 export function diag(message: string): void {
-  if (sink !== undefined) {
-    try {
-      sink(message);
-    } catch {
-      // Observabilidade nunca quebra o run — mesmo princípio de `emitRunEvent`.
-    }
-    return;
+  // Silent by default (#147): with no sink installed the message is dropped. A library must not
+  // assume the host's stdout/stderr are free-form log sinks — in a TUI they are the render surface.
+  if (sink === undefined) return;
+  try {
+    sink(message);
+  } catch {
+    // Observability never breaks the run — same principle as `emitRunEvent`.
   }
-  process.stderr.write(message);
 }

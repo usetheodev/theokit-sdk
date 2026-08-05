@@ -30,6 +30,11 @@ import {
   computeCost, normalizeUsage, getPricingEntry, // cost helpers (never 0 when pricing unknown)
   Squad, Task,                // Squad.create(...) multi-agent + task primitives (SE36)
   Theokit, Cron,              // top-level namespaces (Theokit.models.list(), Cron.create(...))
+  type SessionMessage,        // one turn of a persisted transcript: { role, text, parts? }
+  type SessionMessagePart,    // structured part: text | tool_use (id/name/input) | tool_result (toolUseId/content)
+  type AgentDescription,      // Agent.describe(id) → { agentId, runtime, model?, tools, subagents }
+  type AgentToolDescription,  // { name, description, inputSchema } — handler stripped
+  type AgentSubagentDescription, // { name, description, model?, tools? } — prompt stripped
 } from "@theokit/sdk";
 
 // Step cap fail-closed in one line:
@@ -38,6 +43,23 @@ const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
   budgetTracker: createCounterBudgetTracker({ maxIterations: 50 }), // stops + sets RunResult.stoppedAtIterationLimit
 });
+
+// Re-render a resumed session as tool CARDS, not prose (theokit#146). `text` is the flat
+// projection the model replay uses; `parts` keeps the call id, tool name and arguments, plus the
+// `toolUseId` that correlates a result back to its call. Local sessions only; read-only.
+for (const message of await Agent.transcript("agent-abc123")) {
+  for (const part of message.parts ?? []) {
+    if (part.type === "tool_use") renderCard(part.name, part.input, part.id);
+  }
+}
+
+// Reflect the live registry — what an agent can call, without reading source (theokit#123).
+// A projection: tool handlers and subagent prompts never leave the process.
+const { tools, subagents } = await Agent.describe("agent-abc123");
+
+// A committed workflow describes its own shape (theokit#161). No registry exists on purpose — the
+// host holds the workflows it defined, so it maps over its own and calls this.
+const { name, steps } = myWorkflow.describe();   // steps: [{ id, kind, steps? }]
 ```
 
 ## Errors & transient classification — `@theokit/sdk/errors`

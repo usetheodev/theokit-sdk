@@ -71,18 +71,18 @@ export function loadJsonl<T = Record<string, unknown>>(
     tolerateTrailingPartialLine?: boolean;
   } = {},
 ): T[] {
-  const linhas = readFileSync(path, "utf8").split("\n");
+  const lines = readFileSync(path, "utf8").split("\n");
   const out: T[] = [];
-  for (let i = 0; i < linhas.length; i += 1) {
+  for (let i = 0; i < lines.length; i += 1) {
     const lineNumber = i + 1;
-    const line = (linhas[i] ?? "").trim();
+    const line = (lines[i] ?? "").trim();
     if (line.length === 0) continue;
-    // M81 — `undefined` = linha inválida tolerada (última, truncada por crash). Qualquer outra
-    // linha inválida já lançou dentro de `parsearLinha`.
-    const parsed = parsearLinha(
+    // M81 — `undefined` = a tolerated invalid line (the last one, truncated by a crash). Any other
+    // invalid line has already thrown inside `parseLine`.
+    const parsed = parseLine(
       line,
       lineNumber,
-      opts.tolerateTrailingPartialLine === true && lineNumber === linhas.length,
+      opts.tolerateTrailingPartialLine === true && lineNumber === lines.length,
     );
     if (parsed === undefined) break;
     out.push(opts.map ? opts.map(parsed, lineNumber) : (parsed as unknown as T));
@@ -91,22 +91,22 @@ export function loadJsonl<T = Record<string, unknown>>(
 }
 
 /**
- * Parse de UMA linha, devolvendo `undefined` quando ela é uma última-linha-truncada tolerada.
+ * Parses ONE line, returning `undefined` when it is a tolerated truncated last line.
  *
- * Extraído porque `loadJsonl` passou do teto de complexidade cognitiva quando ganhou a tolerância —
- * e porque parse-de-linha e iteração-do-arquivo são duas responsabilidades que só estavam juntas
- * por hábito.
+ * Extracted because `loadJsonl` went over the cognitive-complexity ceiling once it gained the
+ * tolerance — and because parsing a line and iterating a file are two responsibilities that were
+ * only together out of habit.
  */
-function parsearLinha(
+function parseLine(
   line: string,
   lineNumber: number,
-  tolerar: boolean,
+  tolerate: boolean,
 ): Record<string, unknown> | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
   } catch {
-    if (tolerar) return undefined;
+    if (tolerate) return undefined;
     throw new JsonlParseError(`line ${lineNumber}: invalid JSON`, lineNumber);
   }
   if (!isPlainObject(parsed)) {
@@ -125,45 +125,46 @@ function parsearLinha(
  */
 export function appendJsonl(path: string, record: unknown): void {
   mkdirSync(dirname(path), { recursive: true });
-  const prefixo = precisaDeQuebraAntes(path) ? "\n" : "";
-  // M93 (revisão adversarial, H1) — `0o600`. `appendFileSync` não aceita `mode`, então a permissão
-  // vinha do umask: sob `umask 022` o transcript nascia `0664`, world-readable. O caminho anterior
-  // (`replaceFileAtomic`) fixava `0o600` de propósito — "holds the FULL in-flight content
-  // (credential snapshots, OAuth tokens)" (`atomic-write.ts:107`) — e trocar para append perdeu isso
-  // em silêncio. A mesma classe já havia sido pega no consumidor (`atomic-sync.ts`, M88 HIGH-1).
+  const prefix = needsLineBreakBefore(path) ? "\n" : "";
+  // M93 (adversarial review, H1) — `0o600`. `appendFileSync` takes no `mode`, so the permission came
+  // from the umask: under `umask 022` the transcript was born `0664`, world-readable. The previous
+  // path (`replaceFileAtomic`) pinned `0o600` on purpose — "holds the FULL in-flight content
+  // (credential snapshots, OAuth tokens)" (`atomic-write.ts:107`) — and switching to append lost
+  // that silently. The same class had already been caught in the consumer (`atomic-sync.ts`, M88
+  // HIGH-1).
   //
-  // `mode` só vale na CRIAÇÃO; um arquivo pré-existente mantém a permissão que já tem.
+  // `mode` only applies on CREATION; a pre-existing file keeps whatever permission it already has.
   const fd = openSync(path, "a", 0o600);
   try {
-    writeSync(fd, `${prefixo}${JSON.stringify(record)}\n`);
+    writeSync(fd, `${prefix}${JSON.stringify(record)}\n`);
   } finally {
     closeSync(fd);
   }
 }
 
 /**
- * O arquivo termina sem `\n`? Então a última linha está truncada — um crash no meio de um append.
+ * Does the file end without a `\n`? Then the last line is truncated — a crash mid-append.
  *
- * Sem esta checagem o append seguinte **cola** no meio da linha partida, produzindo uma linha
- * inválida que o leitor descarta: o registro NOVO some junto com o parcial. O caminho anterior
- * (read-modify-write) se auto-curava disso porque reescrevia o arquivo inteiro. Medido na revisão
- * adversarial do M93 (H2): após um append sobre arquivo truncado, o registro recém-escrito não era
- * mais legível.
+ * Without this check the next append **glues** itself onto the middle of the broken line, producing
+ * an invalid line the reader discards: the NEW record disappears along with the partial one. The
+ * previous path (read-modify-write) self-healed from this because it rewrote the whole file.
+ * Measured in M93's adversarial review (H2): after an append over a truncated file, the
+ * just-written record was no longer readable.
  *
- * Lê **um byte**, não o arquivo.
+ * Reads **one byte**, not the file.
  */
-function precisaDeQuebraAntes(path: string): boolean {
+function needsLineBreakBefore(path: string): boolean {
   let fd: number;
   try {
     fd = openSync(path, "r");
   } catch {
-    return false; // arquivo ainda não existe: nada a emendar
+    return false; // the file does not exist yet: nothing to splice onto
   }
   try {
-    const tamanho = fstatSync(fd).size;
-    if (tamanho === 0) return false;
+    const size = fstatSync(fd).size;
+    if (size === 0) return false;
     const buf = Buffer.alloc(1);
-    readSync(fd, buf, 0, 1, tamanho - 1);
+    readSync(fd, buf, 0, 1, size - 1);
     return buf[0] !== 0x0a;
   } finally {
     closeSync(fd);

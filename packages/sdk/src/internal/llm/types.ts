@@ -47,7 +47,30 @@ export interface LlmImagePart {
   source: { type: "base64"; media_type: string; data: string } | { type: "url"; url: string };
 }
 
-export type LlmContentPart = LlmTextPart | LlmToolCallPart | LlmToolResultPart | LlmImagePart;
+/**
+ * theokit#122 — an extended-thinking block, carried WITH its provider-issued signature.
+ *
+ * The signature is the whole reason this part exists. Anthropic requires a resumed conversation to
+ * replay each `thinking` block byte-identically, signature included; replaying the text alone is
+ * rejected with `400 "thinking blocks cannot be modified"` (anthropics/claude-code#63147). So a
+ * session that used extended thinking could be persisted but never resumed.
+ *
+ * `signature` is optional because not every provider issues one — the OpenAI-compatible reasoning
+ * channel streams `reasoning`/`reasoning_content` text with no signature at all. A part without a
+ * signature is display-only history; it must not be replayed to Anthropic as a thinking block.
+ */
+export interface LlmThinkingPart {
+  type: "thinking";
+  text: string;
+  signature?: string;
+}
+
+export type LlmContentPart =
+  | LlmTextPart
+  | LlmToolCallPart
+  | LlmToolResultPart
+  | LlmImagePart
+  | LlmThinkingPart;
 
 export interface LlmMessage {
   role: "system" | "user" | "assistant";
@@ -129,11 +152,35 @@ export interface LlmRequest {
   toolChoice?: "auto" | "none" | "required";
 }
 
+/**
+ * What a provider stream reports WHILE it is running. Tool calls are deliberately absent.
+ *
+ * theokit#144: this union used to declare `tool_use` and `stop` variants. Only two providers ever
+ * yielded them (`responses.ts`, `fault-injection.ts`), the loop's collector
+ * (`loop-llm-stream.ts`) never read them, and the tool calls they carried were duplicates of what
+ * `LlmFinish.toolCalls` already returned. So they were not a live tool channel — they were a
+ * declaration of one, which is worse: it told implementers a provider-level channel existed and
+ * cost `@theokit/agents` a workaround (holding every `text_delta` until the stream drained, which
+ * broke live token streaming on text-only turns — issue #47).
+ *
+ * Wiring them instead of deleting them was rejected: `openai.ts` and `anthropic.ts` cannot produce
+ * them at all (their tool calls only resolve at completion), so a live provider-level channel would
+ * exist on some providers and not others — a worse contract than a uniform one.
+ *
+ * **The canonical live tool channel is `onDelta`**: `tool-call-started` / `tool-call-completed`
+ * `InteractionUpdate`s, emitted by `runToolWithLifecycle` (`agent-loop/tool-dispatch.ts`) between
+ * LLM rounds. It is uniform across providers, carries a `callId` correlating the two ends, and
+ * fires before the post-tool answer text. `Run.events()` (theokit#140) merges it with the
+ * structural `SDKMessage`s into one ordered timeline.
+ *
+ * The stop reason is not an event either — it is returned once, on `LlmFinish.stopReason`.
+ */
 export type LlmEvent =
   | { type: "text_delta"; text: string }
-  | { type: "reasoning_delta"; text: string }
-  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-  | { type: "stop"; reason: LlmStopReason }
+  // theokit#122 — `signature` rides the reasoning channel because Anthropic delivers it as a
+  // `signature_delta` on the SAME content block as the thinking text. Present only on the delta
+  // that carries it, so the accumulator keeps the last one seen for the block.
+  | { type: "reasoning_delta"; text: string; signature?: string }
   | { type: "error"; message: string };
 
 export type LlmStopReason = "end_turn" | "tool_use" | "max_tokens" | "stop_sequence" | "error";
@@ -150,6 +197,13 @@ export interface LlmFinish {
   cacheWriteTokens?: number;
   /** Reasoning tokens (OpenAI o-series). ADR D376. */
   reasoningTokens?: number;
+  /**
+   * theokit#122 — the turn's extended-thinking block, with the provider's signature when it issued
+   * one. Returned on the finish value rather than reconstructed from the `reasoning_delta` text,
+   * because the signature arrives once for the whole block and only the provider adapter knows
+   * which block it belongs to.
+   */
+  thinking?: LlmThinkingPart;
 }
 
 export interface LlmClient {

@@ -57,13 +57,13 @@ jobs:
         run: pnpm rebuild better-sqlite3 || echo "::warning::native rebuild failed — preflight will surface details at test time"
 
       # M75 — os 10 itLive de tests/linux-sandbox-integration.test.ts provam confinamento REAL de
-      # kernel (bloqueia escrita fora do workspace, bloqueia rede, seccomp bloqueia ptrace e AF_INET).
-      # Sem bwrap eles PULAM, e teste que pula e reportado verde: o review do M75 provou por mutacao
-      # que, sem este passo, trocar buildSeccompFilter por um filtro que nao nega NADA passava.
+      # kernel (blocks writes outside the workspace, blocks network, seccomp blocks ptrace and AF_INET).
+      # Without bwrap they SKIP, and a skipped test is reported green: the M75 review proved by mutation
+      # that, without this step, swapping buildSeccompFilter for a filter denying NOTHING passed.
       #
-      # `apt install` sozinho nao basta: o Ubuntu 24.04 bloqueia user namespaces nao-privilegiados via
-      # AppArmor e a deteccao ativa falha. O smoke no fim FALHA o passo se o userns seguir bloqueado —
-      # sem ele voltariamos ao verde vazio.
+      # `apt install` alone is not enough: Ubuntu 24.04 blocks unprivileged user namespaces via
+      # AppArmor and the active detection fails. The smoke test at the end FAILS the step if userns stays blocked —
+      # without it we would be back to empty green.
       - name: Install bubblewrap + enable unprivileged userns (kernel-confinement tests)
         run: |
           sudo apt-get update && sudo apt-get install -y bubblewrap

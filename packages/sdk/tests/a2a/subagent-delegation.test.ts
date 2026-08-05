@@ -1,12 +1,32 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
-  inheritSubAgentCredentials,
   MaxDelegationDepthError,
   SubAgent,
   subAgentToolsFromDefinitions,
 } from "../../src/a2a/subagent.js";
+import {
+  type InheritedCredentials,
+  withInheritedSubAgentCredentials,
+} from "../../src/internal/runtime/concurrency/subagent-credentials.js";
 import type { AgentFacadePort } from "../../src/internal/runtime/registry/agent-factory-registry.js";
 import { setAgentFacade } from "../../src/internal/runtime/registry/agent-factory-registry.js";
+import type { CustomTool } from "../../src/types/agent.js";
+
+/**
+ * theokit#148 — dispatch a subagent tool the way a run does: inside the parent's credential scope.
+ *
+ * These tests used to call `inheritSubAgentCredentials(tool, creds)` and then the handler, which
+ * exercised a channel that rode the tool object. That channel is gone: any layer rebuilding the
+ * object dropped it (including the SDK's own rebuild), so credentials now travel with the call.
+ */
+async function delegateWithParent(
+  tool: CustomTool,
+  credentials: InheritedCredentials,
+  input: string,
+): Promise<unknown> {
+  return withInheritedSubAgentCredentials(credentials, async () => tool.handler({ input }));
+}
 
 describe("SubAgent", () => {
   it("returns a CustomTool with name and description", () => {
@@ -64,31 +84,44 @@ describe("SubAgent", () => {
     setAgentFacade({ create: mockCreate } as unknown as AgentFacadePort);
 
     const tool = SubAgent.create({ name: "t", description: "d", instructions: "i" });
-    // The parent runtime injects its resolved credentials before the handler runs.
-    inheritSubAgentCredentials(tool, {
-      apiKey: "theo_test_parent",
-      model: { id: "openai/gpt-4o-mini" },
-    });
-
-    await tool.handler({ input: "task" });
+    // The parent run publishes its resolved credentials for the duration of the loop.
+    await delegateWithParent(
+      tool,
+      { apiKey: "theo_test_parent", model: { id: "openai/gpt-4o-mini" } },
+      "task",
+    );
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: "theo_test_parent", model: { id: "openai/gpt-4o-mini" } }),
     );
   });
 
-  it("installs the credential sink under a GLOBAL Symbol.for key (cross-bundle safe) — regression #143", () => {
-    // With `tsup splitting: false`, `.` and `./a2a` inline SEPARATE copies of this module. A unique
-    // `Symbol()` sink key would differ per copy: the local runtime (bundled in `.`) calls
-    // `inheritSubAgentCredentials` with the `.`-copy key, but a `SubAgent` from `@theokit/sdk/a2a`
-    // installed its sink under the `/a2a`-copy key → the lookup missed and the child inherited no
-    // apiKey (`provider_unresolved` → "(no response)"). The key MUST be the shared `Symbol.for` so
-    // `tool[Symbol.for("theokit.subagent.inheritCredentials")]` resolves across copies.
+  it("keeps `splitting: true`, which the ALS store's singleton identity depends on — regression #142/#143", () => {
+    // The old cross-bundle guard asserted a global `Symbol.for` sink key, and was deleted with the
+    // symbol. Its FAILURE MODE was not deleted: `withInheritedSubAgentCredentials` holds a
+    // module-level `AsyncLocalStorage`, so if the bundler inlines a copy of that module per public
+    // entry, the `.` copy publishes into a store the `./a2a` copy never reads — the #142/#143 shape,
+    // reproduced exactly. `tsup.config.ts` already documents `splitting: true` as load-bearing for
+    // `TheokitAgentError` identity; it is load-bearing for this too, and nothing asserted it.
+    const config = readFileSync(new URL("../../tsup.config.ts", import.meta.url), "utf8");
+
+    expect(config).toMatch(/splitting:\s*true/);
+  });
+
+  it("carries NO credential channel on the tool object at all — regression #142/#143/#148", () => {
+    // The previous fix pinned a `Symbol.for` key and asserted it was installed. That kept the
+    // fragile shape: a channel riding the object, which #148 then lost to a layer that rebuilt the
+    // object from its known fields. The invariant now is the absence of any such channel — a tool
+    // is four public fields and nothing else, so there is nothing left to drop.
     const tool = SubAgent.create({ name: "t", description: "d", instructions: "i" });
-    const sink = (tool as unknown as Record<PropertyKey, unknown>)[
-      Symbol.for("theokit.subagent.inheritCredentials")
-    ];
-    expect(typeof sink).toBe("function");
+
+    expect(Object.getOwnPropertySymbols(tool)).toHaveLength(0);
+    expect(Object.getOwnPropertyNames(tool).sort()).toEqual([
+      "description",
+      "handler",
+      "inputSchema",
+      "name",
+    ]);
   });
 
   it("surfaces a child run error instead of swallowing it to '(no response)' — regression #143", async () => {
@@ -119,12 +152,11 @@ describe("SubAgent", () => {
       instructions: "i",
       model: "anthropic/claude-3-5-haiku",
     });
-    inheritSubAgentCredentials(tool, {
-      apiKey: "theo_test_parent",
-      model: { id: "openai/gpt-4o-mini" },
-    });
-
-    await tool.handler({ input: "task" });
+    await delegateWithParent(
+      tool,
+      { apiKey: "theo_test_parent", model: { id: "openai/gpt-4o-mini" } },
+      "task",
+    );
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -161,13 +193,15 @@ describe("SubAgent", () => {
 
     const tool = SubAgent.create({ name: "t", description: "d", instructions: "i" });
     const permissionPlugin = { name: "perm", hooks: {} };
-    inheritSubAgentCredentials(tool, {
-      apiKey: "theo_test_parent",
-      // biome-ignore lint/suspicious/noExplicitAny: minimal plugin stand-in for the wiring assertion.
-      plugins: [permissionPlugin as any],
-    });
-
-    await tool.handler({ input: "task" });
+    await delegateWithParent(
+      tool,
+      {
+        apiKey: "theo_test_parent",
+        // biome-ignore lint/suspicious/noExplicitAny: minimal plugin stand-in for the wiring assertion.
+        plugins: [permissionPlugin as any],
+      },
+      "task",
+    );
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({ plugins: [permissionPlugin] }),
@@ -204,8 +238,7 @@ describe("SubAgent", () => {
         { translator: { description: "d", prompt: "Translate English to French." } },
         [],
       )[0]!;
-      inheritSubAgentCredentials(tool, { apiKey: "theo_test_parent" });
-      await tool.handler({ input: "good morning" });
+      await delegateWithParent(tool, { apiKey: "theo_test_parent" }, "good morning");
 
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -226,11 +259,7 @@ describe("SubAgent", () => {
         { a: { description: "d", prompt: "p", model: { id: "anthropic/claude-3-5-haiku" } } },
         [],
       )[0]!;
-      inheritSubAgentCredentials(explicit, {
-        apiKey: "k",
-        model: { id: "openai/gpt-4o-mini" },
-      });
-      await explicit.handler({ input: "x" });
+      await delegateWithParent(explicit, { apiKey: "k", model: { id: "openai/gpt-4o-mini" } }, "x");
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({ model: { id: "anthropic/claude-3-5-haiku" } }),
       );
@@ -240,8 +269,11 @@ describe("SubAgent", () => {
         { b: { description: "d", prompt: "p", model: "inherit" } },
         [],
       )[0]!;
-      inheritSubAgentCredentials(inheriting, { apiKey: "k", model: { id: "openai/gpt-4o-mini" } });
-      await inheriting.handler({ input: "x" });
+      await delegateWithParent(
+        inheriting,
+        { apiKey: "k", model: { id: "openai/gpt-4o-mini" } },
+        "x",
+      );
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({ model: { id: "openai/gpt-4o-mini" } }),
       );
@@ -262,25 +294,34 @@ describe("SubAgent", () => {
         { reader: { description: "d", prompt: "p", tools: ["read_file"] } },
         parentTools,
       )[0]!;
-      inheritSubAgentCredentials(reader, { apiKey: "k" });
-      await reader.handler({ input: "x" });
+      await delegateWithParent(reader, { apiKey: "k" }, "x");
 
       const passedTools = mockCreate.mock.calls[0]![0].tools as Array<{ name: string }>;
       expect(passedTools.map((t) => t.name)).toEqual(["read_file"]);
     });
   });
 
-  it("inheritSubAgentCredentials is a no-op on a non-subagent tool", () => {
-    const plainTool = {
+  it("a third-party tool dispatched in a parent scope never sees the parent's key", async () => {
+    // Was "inheritSubAgentCredentials is a no-op on a non-subagent tool". The guarantee is the same
+    // and now structural rather than conditional: credentials live in a module-private store that
+    // only the subagent handler reads. A third-party tool receives its input and `ctx`, and there
+    // is no code path that puts a credential in either.
+    const seen: unknown[] = [];
+    const plainTool: CustomTool = {
       name: "plain",
       description: "d",
       inputSchema: {},
-      handler: () => "x",
+      handler: (input, ctx) => {
+        seen.push(input, ctx);
+        return "x";
+      },
     };
-    // Must not throw — third-party tools never receive the parent's key.
-    expect(() =>
-      inheritSubAgentCredentials(plainTool, { apiKey: "theo_test_parent" }),
-    ).not.toThrow();
+
+    await withInheritedSubAgentCredentials({ apiKey: "theo_test_parent" }, async () =>
+      plainTool.handler({ any: "arg" }, { signal: undefined }),
+    );
+
+    expect(JSON.stringify(seen)).not.toContain("theo_test_parent");
   });
 
   it("disposes child agent after completion", async () => {

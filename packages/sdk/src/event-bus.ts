@@ -5,6 +5,8 @@
  * Each handler is try-caught (EC-2) so one failing handler cannot break others.
  */
 
+import { diag } from "./internal/diagnostics.js";
+
 type EventHandler<T> = (payload: T) => void;
 
 export class EventBus<Events extends Record<string, unknown>> {
@@ -48,9 +50,9 @@ export class EventBus<Events extends Record<string, unknown>> {
         // instead of the pre-M3 empty catch that discarded it without a trace.
         this.#handlerErrorCount += 1;
         const message = cause instanceof Error ? cause.message : String(cause);
-        process.stderr.write(
-          `[theokit-sdk] event-bus: handler for "${String(event)}" threw: ${message}\n`,
-        );
+        // theokit#147 — through the interceptable channel, not straight at the terminal: a TUI
+        // host installs a diagnostics sink precisely so a stray write cannot corrupt its frame.
+        diag(`[theokit-sdk] event-bus: handler for "${String(event)}" threw: ${message}\n`);
       }
     }
   }

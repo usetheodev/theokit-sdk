@@ -1,3 +1,4 @@
+import type { MemoryEmbeddingProviderAdapter } from "./embedding-adapter.js";
 import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
 
 // Iter 74 rollup-plugin-dts workaround: see openai-embedding.ts header.
@@ -21,7 +22,7 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "mistral-embed": 1024,
 };
 
-export const mistralMemoryEmbeddingProviderAdapter = {
+export const mistralMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "mistral",
   defaultModel: DEFAULT_MISTRAL_EMBEDDING_MODEL,
   transport: "remote" as const,

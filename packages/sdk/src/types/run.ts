@@ -521,6 +521,18 @@ export interface CompletionCheckResult {
  *
  * @public
  */
+/**
+ * theokit#140 - one element of {@link Run.events}: either a structural SDK message or a live delta.
+ *
+ * A discriminated union rather than a widened `SDKMessage`, because a token delta is not a message
+ * and pretending otherwise would force every consumer to guess which of the two it is holding.
+ *
+ * @public
+ */
+export type RunTimelineEvent =
+  | { kind: "message"; message: SDKMessage }
+  | { kind: "delta"; update: import("./updates.js").InteractionUpdate };
+
 export interface Run {
   readonly id: string;
   readonly agentId: string;
@@ -532,6 +544,18 @@ export interface Run {
   readonly createdAt?: number;
   /** AsyncGenerator of normalized stream events. Discriminate on `event.type`. */
   stream(): AsyncGenerator<SDKMessage, void>;
+  /**
+   * theokit#140 - every event of this run in TRUE order, from one source: structural messages and
+   * live token/tool deltas interleaved as they occurred.
+   *
+   * Use this instead of fusing `stream()` with `SendOptions.onDelta` by hand. Neither of those is
+   * complete alone - `onDelta` carries no `run_started`/`system`, `stream()` carries no token
+   * granularity - and reconciling them in the consumer is what produced the ordering and dedup
+   * bugs this replaces.
+   *
+   * `stream()` is unchanged and remains the SDKMessage-only view.
+   */
+  events(): AsyncGenerator<RunTimelineEvent, void>;
   /** Resolves to the terminal {@link RunResult}. */
   wait(): Promise<RunResult>;
   /** Move status to `"cancelled"`, abort the stream, stop in-flight tool calls. */

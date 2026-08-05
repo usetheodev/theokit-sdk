@@ -164,6 +164,16 @@ export interface AgentLoopInputs {
   onStep?: SendOptions["onStep"];
   /** Fires per raw incremental update (text-delta, …) — finer than onStep. */
   onDelta?: SendOptions["onDelta"];
+  /**
+   * theokit#140 - live subscriber for the loop's own events, invoked as each one is appended.
+   *
+   * The loop still returns the full list on AgentLoopOutput.events; this is additive. It exists so
+   * the run that owns the loop can surface events in true order instead of receiving one batch
+   * after completion - which is what forced consumers to fuse this surface with onDelta by hand.
+   *
+   * Assigned by the caller after building the inputs, so it is mutable.
+   */
+  onLoopEvent?: (event: SDKMessage) => void;
   /** Step-cap force-close: per-run tool gate forwarded to the LLM request (`tool_choice`). */
   toolChoice?: SendOptions["toolChoice"];
   /**

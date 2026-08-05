@@ -1,12 +1,13 @@
 import type { ToolContextMessage } from "../../types/agent-prims.js";
 import { IterationBudget } from "../budget/tracker/budget.js";
-import type { LlmContentPart, LlmMessage, LlmToolCallPart } from "../llm/types.js";
+import type { LlmContentPart, LlmMessage, LlmThinkingPart, LlmToolCallPart } from "../llm/types.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { validateResponse } from "../runtime/validation/validate-response.js";
 import { evaluateBudgetGate } from "./budget-gate.js";
 import { firstDoomLoopVerdict } from "./doom-loop-tracker.js";
 import { initLoopContext, type LoopContext } from "./loop-context-init.js";
 import { type LlmTurnOutput, streamLlmTurn } from "./loop-llm-stream.js";
+import { recordThinkingOnSilentToolRound, thinkingStep } from "./loop-thinking-steps.js";
 import type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import { buildAssistantEvent, buildAssistantTurn } from "./message-builders.js";
 import { dispatchTools } from "./tool-dispatch.js";
@@ -194,12 +195,17 @@ async function emitAssistantTextStep(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
   text: string,
+  thinking: LlmThinkingPart | undefined,
 ): Promise<void> {
   ctx.events.push(buildAssistantEvent(inputs, text));
-  ctx.conversation.push({
-    type: "agentConversationTurn",
-    turn: { steps: [{ type: "assistantMessage", message: { text } }] },
-  });
+  // theokit#122 — thinking and text belong to ONE assistant message. Anthropic requires the
+  // thinking block to come first in the message it belongs to, and `mapAgentTurn` folds one
+  // conversation turn into one assistant record — so they must share a turn, in this order.
+  const steps: import("../../types/conversation.js").ConversationStep[] = [
+    ...(thinking !== undefined ? [thinkingStep(thinking)] : []),
+    { type: "assistantMessage" as const, message: { text } },
+  ];
+  ctx.conversation.push({ type: "agentConversationTurn", turn: { steps } });
   ctx.finalText = text;
   if (inputs.onStep === undefined) return;
   const cb = inputs.onStep;
@@ -434,13 +440,18 @@ export async function continueOrTerminate(
     llmOutput.text.length > 0
       ? await transformLlmOutputText(inputs, llmOutput.text, tCtx)
       : llmOutput.text;
+  // theokit#122 — the round's block, consumed exactly once, on whichever path closes this round.
+  const thinking = llmOutput.thinking;
   if (text.length > 0) {
-    await emitAssistantTextStep(inputs, ctx, text);
+    await emitAssistantTextStep(inputs, ctx, text, thinking);
   }
   if (llmOutput.stopReason !== "tool_use" || llmOutput.toolCalls.length === 0) {
     return finishOrReflect(inputs, ctx, llmOutput);
   }
-  ctx.messages.push(buildAssistantTurn(text, llmOutput.toolCalls));
+  recordThinkingOnSilentToolRound(ctx, text, thinking);
+  // theokit#122 — and the REPLAY must carry it too: Anthropic verifies the signed block on the next
+  // request, so an assistant turn that reaches the provider without it is rejected outright.
+  ctx.messages.push(buildAssistantTurn(text, llmOutput.toolCalls, thinking));
   const rawResults = await dispatchTools(
     // SE12 — forward a read-only text projection of the transcript-so-far to tool
     // handlers via `ctx.messages` (consumed by defineSubAgent's messageFilter).
@@ -490,6 +501,8 @@ async function inspectDoomLoop(
       inputs,
       ctx,
       verdict.message ?? "Stopped: repeated identical tool calls made no progress.",
+      // The doom-loop stop message is the SDK's own text, not a model turn — it has no thinking.
+      undefined,
     );
     return "stop";
   }

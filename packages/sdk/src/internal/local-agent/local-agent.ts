@@ -52,10 +52,10 @@ import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstra
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { invalidateCacheImpl } from "./local-agent-invalidate.js";
 import {
-  adquirirLeaseSePossivel,
+  acquireLeaseIfPossible,
   disposeLocalAgentSession,
+  releaseLeaseIfPossible,
   reloadLocalAgent,
-  soltarLeaseSePossivel,
 } from "./local-agent-lifecycle.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
@@ -215,27 +215,27 @@ export class LocalAgent implements SDKAgent {
     );
     // SE40 — hydrate persisted session history from the native transcript so a
     // resumed agent sees the conversation from the previous process.
-    // M95 — o lease de escritor é tomado no INIT, antes de qualquer turno.
+    // M95 — the writer lease is taken at INIT, before any turn.
     //
-    // Aqui, e não no `appendRecords`: o contrato de `SessionStore` torna a rejeição de append
-    // best-effort (logada em stderr, não lançada), então adquirir lá fazia o `SessionBusyError`
-    // ser engolido e o turno do usuário sumir em silêncio. No init o erro chega a quem pode
-    // decidir — o `exec` forka para um id novo, que é o que a mensagem do erro prescreve.
-    await adquirirLeaseSePossivel(this.sessionStore, this.agentId);
-    // Tudo depois da aquisição roda sob `try`: um init que falha DEPOIS de tomar o lease deixaria
-    // o lock com o próprio processo — vivo, mesmo host — e `reclamavel` seria `false` para sempre.
-    // A sessão ficaria trancada pelo tempo de vida do processo, sem crash e sem recuperação: a
+    // Here, and not in `appendRecords`: the `SessionStore` contract makes an append rejection
+    // best-effort (logged to stderr, not thrown), so acquiring there made the `SessionBusyError`
+    // get swallowed and the user's turn vanish silently. At init the error reaches whoever can
+    // decide — `exec` forks to a new id, which is what the error message prescribes.
+    await acquireLeaseIfPossible(this.sessionStore, this.agentId);
+    // Everything after the acquisition runs under `try`: an init failing AFTER taking the lease would leave
+    // the lock held by this very process — alive, same host — and `reclaimable` would be `false` forever.
+    // The session would stay locked for the process's lifetime, with no crash and no recovery: the
     // mesma classe que este milestone existe para eliminar, entrando por outra porta.
     //
-    // Medido com transcript ilegível (EACCES), que `readRecords` deve lançar por contrato.
+    // Measured with an unreadable transcript (EACCES), which `readRecords` must throw on by contract.
     try {
       await hydrateSession(this.agentId, { store: this.sessionStore, cwd: this.workspaceCwd });
       // ADR D163 — hydrate previously-active personality slug (no-op if none).
       await this.personalityStore.hydrate(this.agentId);
     } catch (err) {
-      // Solta o lease DESTE agente, não todos os do store: um store injetado pode servir vários
-      // agentes, e um init que falha para B não pode liberar o lease de A, que segue escrevendo.
-      await soltarLeaseSePossivel(this.sessionStore, this.agentId);
+      // Releases THIS agent's lease, not all of the store's: an injected store may serve several
+      // agents, and an init that fails for B must not free A's lease, which is still writing.
+      await releaseLeaseIfPossible(this.sessionStore, this.agentId);
       throw err;
     }
   }
@@ -285,16 +285,16 @@ export class LocalAgent implements SDKAgent {
   }
 
   /**
-   * A janela de contexto declarada na seleção de modelo, no formato de spread condicional.
+   * The context window declared on the model selection, in conditional-spread form.
    *
-   * M94 — sem isto, o `override` de `resolveEffectiveContextWindow` existia desde o M77 e nenhum
-   * call site de produção o passava: um modelo de 400k sem entrada de catálogo era orçado contra o
-   * piso de 128k. Método próprio porque o spread inline empurrava `runLockedSendCycle` para além do
-   * teto de complexidade cognitiva do projeto.
+   * M94 — without this, `resolveEffectiveContextWindow`'s `override` had existed since M77 and no
+   * production call site passed it: a 400k model with no catalog entry was budgeted against the
+   * 128k floor. Its own method because the inline spread pushed `runLockedSendCycle` past the
+   * project's cognitive-complexity ceiling.
    */
-  #janelaDeclarada(): { contextWindow?: number } {
-    const declarada = this.model?.contextWindow;
-    return declarada !== undefined ? { contextWindow: declarada } : {};
+  #declaredWindow(): { contextWindow?: number } {
+    const declared = this.model?.contextWindow;
+    return declared !== undefined ? { contextWindow: declared } : {};
   }
 
   private async runLockedSendCycle(
@@ -338,7 +338,7 @@ export class LocalAgent implements SDKAgent {
         workspaceCwd: this.workspaceCwd,
         sessionStore: this.sessionStore,
         model: this.model?.id ?? "unknown",
-        ...this.#janelaDeclarada(),
+        ...this.#declaredWindow(),
         // M50 — the auto-compaction summarizer resolves credentials like the run itself.
         ...(this.options.apiKey !== undefined ? { apiKey: this.options.apiKey } : {}),
         ...(options.onRunEvent !== undefined ? { onRunEvent: options.onRunEvent } : {}),

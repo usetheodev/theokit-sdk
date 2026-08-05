@@ -39,6 +39,14 @@ export const azureOpenAiMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderA
         defaultModel: DEFAULT_AZURE_OPENAI_EMBEDDING_MODEL,
         embeddingsPath: "/openai/deployments/{model}/embeddings?api-version=2024-02-01",
         dimensionByModel: DIMENSION_BY_MODEL,
+        // theokit#159 — Azure is NOT OpenAI on the wire, despite the name. It authenticates an API
+        // key with the `api-key` header (`Authorization: Bearer` is for Entra ID tokens, not for
+        // AZURE_OPENAI_API_KEY), and the deployment already rides in the path, so `model` has no
+        // place in the body. Sending the OpenAI shape meant every request was rejected.
+        dialect: {
+          authHeaders: (apiKey) => ({ "api-key": apiKey }),
+          body: (_model, inputs) => ({ input: inputs }),
+        },
       },
       options,
     ),

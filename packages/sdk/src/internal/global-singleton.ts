@@ -1,14 +1,14 @@
 /**
  * Singleton por realm, chaveado por `Symbol.for`.
  *
- * Existe porque um pacote pode ser carregado mais de uma vez no mesmo processo (duas cópias em
- * `node_modules`, ESM e CJS lado a lado, monorepo com versões distintas) — e aí `const x = new Map()`
- * a nível de módulo produz DUAS caches que não se enxergam. `Symbol.for` usa o registro global de
- * símbolos, que é do realm e não do módulo, então todas as cópias convergem para a mesma instância.
+ * It exists because a package can be loaded more than once in the same process (two copies in
+ * `node_modules`, ESM and CJS side by side, a monorepo with distinct versions) — and then a module-level
+ * `const x = new Map()` produces TWO caches that cannot see each other. `Symbol.for` uses the global
+ * symbol registry, which belongs to the realm and not the module, so every copy converges on one instance.
  *
- * Estava copiado verbatim em `providers/discovery.ts` e `providers/catalog-loader.ts`. Isso é
- * duplicação de CONHECIMENTO, não coincidência de forma: as duas cópias precisam concordar sobre o
- * mecanismo, e uma corrigida sem a outra produz exatamente o bug que a função existe para evitar.
+ * It was copied verbatim into `providers/discovery.ts` and `providers/catalog-loader.ts`. That is
+ * duplicated KNOWLEDGE, not a coincidence of shape: the two copies have to agree on the
+ * mechanism, and one fixed without the other produces exactly the bug the function exists to avoid.
  */
 export function globalSingleton<T>(key: string, create: () => T): T {
   const g = globalThis as unknown as Record<symbol, T>;

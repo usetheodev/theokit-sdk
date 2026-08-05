@@ -1,13 +1,13 @@
 // MIGRADO do agent-builder no M75 T4.1. A regra do plano (D4) e que os testes atravessem SEM
-// reescrita de assercao: se um teste precisasse mudar para passar, isso seria ACHADO, nao ajuste — e
+// assertion rewriting: if a test had to change in order to pass, that would be a FINDING, not an adjustment — and
 // e a unica defesa contra afrouxar silenciosamente uma garantia de seguranca numa migracao.
 //
 // Mudancas permitidas e efetivamente feitas: as linhas de `import` e o nome da classe
 // (BwrapSandbox -> LinuxSandbox). Nenhum corpo de teste, nenhuma assercao.
 //
-// Estes sao os 10 `itLive` que provam confinamento REAL via execute(): bloqueia escrita fora do
+// These are the 10 `itLive` tests proving REAL confinement via execute(): it blocks writes outside the
 // workspace, permite no cwd, bloqueia rede, .git read-only, aspas sobrevivem ao duplo shell, seccomp
-// bloqueia ptrace e AF_INET mas permite AF_UNIX. Eles nunca tinham rodado em CI ate o M75.
+// blocks ptrace and AF_INET but allows AF_UNIX. They had never run in CI until M75.
 
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -37,7 +37,7 @@ const itLive = HAS_BWRAP ? it : it.skip;
 const workDir = mkdtempSync(path.join(tmpdir(), "m53-sbx-"));
 afterAll(() => rmSync(workDir, { recursive: true, force: true }));
 
-describe("LinuxSandbox (integração real com bwrap)", () => {
+describe("LinuxSandbox (real integration with bwrap)", () => {
   itLive("execute_blocks_write_outside_workspace", async () => {
     const sbx = new LinuxSandbox({ workDir, timeoutMs: 10_000 }, { mode: "workspace-write" });
     const r = await sbx.execute("touch /usr/m53-should-fail");
@@ -55,7 +55,7 @@ describe("LinuxSandbox (integração real com bwrap)", () => {
 
   itLive("execute_blocks_network_and_signals_child", async () => {
     const sbx = new LinuxSandbox({ workDir, timeoutMs: 10_000 }, { mode: "workspace-write" });
-    // /proc/net/route vazio ou curl falhando prova o namespace; a flag Codex sinaliza o filho (spawn.rs:20,79)
+    // an empty /proc/net/route or a failing curl proves the namespace; the Codex flag signals the child (spawn.rs:20,79)
     const r = await sbx.execute(
       'echo "flag=$CODEX_SANDBOX_NETWORK_DISABLED"; curl -sm 2 https://example.com >/dev/null 2>&1 && echo NET-LEAK || echo NET-BLOCKED',
     );
@@ -73,8 +73,8 @@ describe("LinuxSandbox (integração real com bwrap)", () => {
 
   itLive("git_dir_is_read_only_under_workspace_write", async () => {
     const sbx = new LinuxSandbox({ workDir, timeoutMs: 10_000 }, { mode: "workspace-write" });
-    await sbx.execute("mkdir -p .git"); // .git não existia no mkdtemp — cria fora do teste de proteção
-    // nova instância re-avalia gitDirExists no momento do execute
+    await sbx.execute("mkdir -p .git"); // .git did not exist in the mkdtemp — created outside the protection test
+    // a new instance re-evaluates gitDirExists at execute time
     const r = await sbx.execute("touch .git/m53-hook");
     expect(r.exitCode).not.toBe(0); // permissions.rs:22-31 — .git RO por cima do bind RW
   });
@@ -100,7 +100,7 @@ describe("createSandboxBackend (fallback honesto)", () => {
       });
     expect(make()).toBeInstanceOf(LocalSandbox);
     expect(make()).toBeInstanceOf(LocalSandbox);
-    expect(warns.length).toBe(1); // WARN 1× (padrão Codex MISSING_BWRAP_WARNING)
+    expect(warns.length).toBe(1); // WARN once (Codex MISSING_BWRAP_WARNING pattern)
     expect(warns[0]).toMatch(/bwrap not found/);
   });
 
@@ -114,7 +114,7 @@ describe("createSandboxBackend (fallback honesto)", () => {
     });
     expect(b).toBeInstanceOf(LocalSandbox);
     expect(b).not.toBeInstanceOf(LinuxSandbox);
-    expect(warns).toEqual([]); // opt-out explícito não é anomalia
+    expect(warns).toEqual([]); // an explicit opt-out is not an anomaly
   });
 
   it("available_returns_bwrap_backend", () => {
@@ -130,7 +130,7 @@ describe("createSandboxBackend (fallback honesto)", () => {
 
 describe("M53 review fixes — MEDIUM-1 absolute bin + MEDIUM-2 posture", () => {
   it("execute_uses_absolute_bin_from_detection", () => {
-    // MEDIUM-1: o bin absoluto validado (anti-hijack) DEVE ser o executado, não `bwrap` do PATH
+    // MEDIUM-1: the validated absolute bin (anti-hijack) MUST be the one executed, not PATH's `bwrap`
     const sbx = new LinuxSandbox(
       { workDir: "/home/u/proj" },
       { mode: "workspace-write", bin: "/opt/trusted/bwrap" },
@@ -165,17 +165,17 @@ describe("M53 review fixes — MEDIUM-1 absolute bin + MEDIUM-2 posture", () => 
   });
 });
 
-describe("M63 — seccomp via bwrap --seccomp (integração REAL)", () => {
+describe("M63 — seccomp via bwrap --seccomp (REAL integration)", () => {
   const wd = mkdtempSync(path.join(tmpdir(), "m63-"));
   afterAll(() => rmSync(wd, { recursive: true, force: true }));
 
   itLive("seccomp_blocks_ptrace", async () => {
     const sbx = new LinuxSandbox({ workDir: wd, timeoutMs: 10_000 }, { mode: "workspace-write" });
-    // strace usa ptrace(PTRACE_TRACEME) → EPERM sob o filtro
-    const r = await sbx.execute("strace /bin/true 2>&1 | head -3");
-    expect(r.stdout.toLowerCase()).toMatch(
-      /não permitida|not permitted|operation not permitted|eperm/,
-    );
+    // strace uses ptrace(PTRACE_TRACEME) -> EPERM under the filter.
+    // `LC_ALL=C` pins the locale: strace's message is localized, so without it this assertion
+    // depended on the host's language and only passed by also matching the translation.
+    const r = await sbx.execute("LC_ALL=C strace /bin/true 2>&1 | head -3");
+    expect(r.stdout.toLowerCase()).toMatch(/not permitted|operation not permitted|eperm/);
   });
 
   itLive("seccomp_blocks_socket_af_inet_but_allows_af_unix", async () => {
@@ -188,8 +188,8 @@ describe("M63 — seccomp via bwrap --seccomp (integração REAL)", () => {
       'try:\n socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); print(\\"UNIX-OK\\")\n' +
       'except OSError as e: print(\\"UNIX-DENIED\\", e.errno)"';
     const r = await sbx.execute(probe);
-    expect(r.stdout).toContain("INET-DENIED"); // AF_INET negado (EPERM=1)
-    expect(r.stdout).toContain("UNIX-OK"); // AF_UNIX permitido
+    expect(r.stdout).toContain("INET-DENIED"); // AF_INET denied (EPERM=1)
+    expect(r.stdout).toContain("UNIX-OK"); // AF_UNIX allowed
   });
 
   itLive("normal_command_still_runs_under_seccomp", async () => {
@@ -204,13 +204,13 @@ describe("M63 — seccomp via bwrap --seccomp (integração REAL)", () => {
 
   itLive("read_only_mode_also_installs_seccomp", async () => {
     const sbx = new LinuxSandbox({ workDir: wd, timeoutMs: 10_000 }, { mode: "read-only" });
-    const r = await sbx.execute("strace /bin/true 2>&1 | head -2");
-    expect(r.stdout.toLowerCase()).toMatch(/não permitida|not permitted|eperm/);
+    const r = await sbx.execute("LC_ALL=C strace /bin/true 2>&1 | head -2");
+    expect(r.stdout.toLowerCase()).toMatch(/not permitted|eperm/);
   });
 
   it("danger_full_access_has_no_seccomp", () => {
     const sbx = new LinuxSandbox({ workDir: wd }, { mode: "danger-full-access" });
-    expect(sbx.wrapCommand("echo x")).toBeNull(); // bwrap pulado inteiro
+    expect(sbx.wrapCommand("echo x")).toBeNull(); // bwrap skipped entirely
   });
 
   it("wrapCommand_workspace_write_has_seccomp_flag_and_redirect", () => {
@@ -222,7 +222,7 @@ describe("M63 — seccomp via bwrap --seccomp (integração REAL)", () => {
   });
 });
 
-describe("M57 T0.1 — wrapCommandForSandbox (função pura, fonte única do wrap)", () => {
+describe("M57 T0.1 — wrapCommandForSandbox (pure function, single source of the wrap)", () => {
   it("workspace_write_produces_bwrap_seccomp_redirect", () => {
     const w = wrapCommandForSandbox(
       "workspace-write",
@@ -252,8 +252,8 @@ describe("M57 T0.1 — wrapCommandForSandbox (função pura, fonte única do wra
   });
 
   it("LinuxSandbox_wrapCommand_delegates_byte_identical", () => {
-    // a saída da instância DEVE bater com a da função pura c/ os mesmos campos (prova a delegação).
-    // env explícito injetado p/ o teste ser determinístico (o default allowlistedEnv() varia por host).
+    // the instance's output MUST match the pure function's with the same fields (proves delegation).
+    // an explicit env is injected so the test is deterministic (the default allowlistedEnv() varies per host).
     const env = { PATH: "/usr/bin", HOME: "/home/u" };
     const sbx = new LinuxSandbox(
       { workDir: "/home/u/proj" },
@@ -274,12 +274,12 @@ describe("M57 T0.1 — wrapCommandForSandbox (função pura, fonte única do wra
   });
 });
 
-describe("M63 review HIGH — sem brick em arch não-x86_64", () => {
+describe("M63 review HIGH — no brick on non-x86_64 arch", () => {
   it("non_x64_arch_skips_seccomp_and_warns (fallback honesto, nunca brick)", () => {
     const warns: string[] = [];
-    // aarch64: gerar o filtro x86_64 mataria TODO syscall → deve pular (undefined), nunca brick
+    // aarch64: generating the x86_64 filter would kill EVERY syscall -> it must skip (undefined), never brick
     expect(seccompPathForArch("arm64", (m) => warns.push(m))).toBeUndefined();
-    expect(seccompPathForArch("ppc64", () => {})).toBeUndefined(); // qualquer não-x64
+    expect(seccompPathForArch("ppc64", () => {})).toBeUndefined(); // any non-x64
     // x64: gera normalmente (path .bpf)
     const p = seccompPathForArch("x64", () => {});
     expect(typeof p).toBe("string");

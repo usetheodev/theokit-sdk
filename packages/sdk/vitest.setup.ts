@@ -39,6 +39,7 @@ import { ensureNativeBindings } from "../../tools/preflight-native-bindings.mjs"
 // Import directly from the canonical module (not via the `_test-reset.ts`
 // re-export shim) to avoid any possibility of a separate module instance
 // between setup and tests when path-resolvers normalize differently.
+import { setDiagnosticsSink } from "./src/internal/diagnostics.js";
 import { _resetForTests } from "./src/internal/security/redact.js";
 
 await ensureNativeBindings();
@@ -75,6 +76,14 @@ beforeEach((ctx) => {
   process.env.THEOKIT_HOME = tempHome;
   // Secret-redaction EC-3: clear user-added patterns + force ON.
   _resetForTests({ enabled: true, clearExtras: true });
+  // theokit#147 — diagnostics are SILENT by default in production. 36 test files assert a given
+  // condition emits a warning by spying on `process.stderr.write`, and that contract is real. This
+  // forwards the channel to stderr for the duration of each test so those assertions keep testing
+  // what they always tested, through the same channel a host installs. A test that wants to observe
+  // the production default clears the sink itself.
+  setDiagnosticsSink((message) => {
+    process.stderr.write(message);
+  });
 });
 
 afterEach((ctx) => {

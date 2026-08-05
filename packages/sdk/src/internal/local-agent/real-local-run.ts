@@ -1,5 +1,6 @@
 import { ConfigurationError } from "../../errors.js";
 import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
+import type { SDKMessage } from "../../types/messages.js";
 import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { emitRunEvent } from "../../types/run-events.js";
 import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
@@ -13,6 +14,10 @@ import { createMcpClient, type McpClient } from "../mcp/client.js";
 import { getProviderProfile, registerBuiltins } from "../providers/index.js";
 import { registerPluginProviderProfiles } from "../providers/register-plugin-providers.js";
 import { withToolWhitelist } from "../runtime/concurrency/async-local-storage.js";
+import {
+  type InheritedCredentials,
+  withInheritedSubAgentCredentials,
+} from "../runtime/concurrency/subagent-credentials.js";
 import { isFixtureApiKey } from "../runtime/fixtures/fixture-mode.js";
 import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-run-base.js";
 import type { FixtureScript } from "../runtime/fixtures/fixture-types.js";
@@ -22,7 +27,7 @@ import type { SessionMessage } from "../session/index.js";
 import { createTelemetry } from "../telemetry/tracer.js";
 import { McpClientPool } from "./mcp-pool.js";
 import { detectPrimaryProvider, inferProviderFromApiKey } from "./real-local-run-provider.js";
-import { buildCustomToolsInput } from "./real-local-run-tools.js";
+import { buildCustomToolsInput, resolveInheritedCredentials } from "./real-local-run-tools.js";
 
 /**
  * Real local Run. When the local agent has a non-fixture API key plus at
@@ -96,6 +101,8 @@ export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
       startTime,
     },
     () => buildLoopInputs(options, id, userText, userImages),
+    runOwnsMcpClients(options.agentOptions),
+    resolveInheritedCredentials(options.agentOptions),
   );
   handle.bootstrap();
   registerRun(handle);
@@ -372,6 +379,19 @@ export function _buildMcpMapForTests(options: CreateRealLocalRunOptions): Map<st
   return buildMcpMap(options);
 }
 
+/**
+ * theokit#155 — does THIS RUN own the MCP clients it was handed?
+ *
+ * Under the default `'run'` lifecycle the client is built for this send and dies with it, so the
+ * run closes it. Under `'session'` the pool owns it: closing it at the end of the turn SIGTERMs the
+ * child process, and the next turn spawns a new one — which is exactly why the option measured
+ * 0 ms of savings. Ownership is derived here, once, so `buildMcpMap` and the run's `finally` cannot
+ * disagree about who releases the resource.
+ */
+function runOwnsMcpClients(agentOptions: AgentOptions): boolean {
+  return agentOptions.mcpLifecycle !== "session";
+}
+
 function buildMcpMap(options: CreateRealLocalRunOptions): Map<string, McpClient> {
   const map = new Map<string, McpClient>();
   const inline = options.sendOptions.mcpServers ?? options.agentOptions.mcpServers;
@@ -381,7 +401,7 @@ function buildMcpMap(options: CreateRealLocalRunOptions): Map<string, McpClient>
   // `mcpLifecycle: 'session'` reaches the pool, because pooling changes the failure model (see the
   // option's docblock). The reap runs on acquisition rather than on a timer: a timer would keep the
   // process alive, and a pool nobody touches has nothing worth reaping.
-  const pooled = options.agentOptions.mcpLifecycle === "session";
+  const pooled = !runOwnsMcpClients(options.agentOptions);
   if (pooled) sessionMcpPool.reapIdle((c) => void c.close());
 
   for (const [name, config] of Object.entries(inline)) {
@@ -397,13 +417,21 @@ function buildMcpMap(options: CreateRealLocalRunOptions): Map<string, McpClient>
 
 class RealLocalRun extends FixtureRunBase {
   private readonly buildInputs: () => AgentLoopInputs;
+  /** theokit#155 — whether this turn releases its MCP clients, or the session pool does. */
+  private readonly ownsMcpClients: boolean;
+  /** theokit#148 — what a delegated child inherits from this parent, scoped to the loop. */
+  private readonly inheritedCredentials: InheritedCredentials;
 
   constructor(
     options: ConstructorParameters<typeof FixtureRunBase>[0],
     buildInputs: () => AgentLoopInputs,
+    ownsMcpClients: boolean,
+    inheritedCredentials: InheritedCredentials,
   ) {
     super(options);
     this.buildInputs = buildInputs;
+    this.ownsMcpClients = ownsMcpClients;
+    this.inheritedCredentials = inheritedCredentials;
   }
 
   bootstrap(): void {
@@ -449,23 +477,63 @@ class RealLocalRun extends FixtureRunBase {
     }
   }
 
+  /**
+   * theokit#140 - events already handed to stream() by the live subscriber.
+   *
+   * The loop still RETURNS its full event list, and that batch path is deliberately kept: it is the
+   * fallback if a live event is ever lost, and removing it would make the live channel a single
+   * point of failure for the whole transcript.
+   */
+  private readonly liveDelivered = new Set<SDKMessage>();
+
   private async executeAgentLoop(inputs: AgentLoopInputs): Promise<void> {
+    // theokit#140 - subscribe BEFORE the loop runs, so nothing is missed between start and the
+    // first await. Events now reach stream() in true order as they happen, instead of arriving as
+    // one post-completion batch while onDelta streamed tokens on a separate clock.
+    inputs.onLoopEvent = (event: SDKMessage) => {
+      this.liveDelivered.add(event);
+      this.script.events.push(event);
+      // theokit#140 - the same event on the complete timeline. Both views are fed from the one
+      // place the loop reports, so they cannot disagree about order or contents.
+      this.pushTimeline({ kind: "message", message: event });
+      this.notifyNewEvents();
+    };
+    // theokit#140 - the OTHER half of the timeline. Deltas were only ever reachable through the
+    // caller's own `onDelta`, which is why a consumer had to fuse two surfaces to see tokens and
+    // tool calls in one order. The caller's callback is preserved and still fires first: this wraps
+    // it, never replaces it.
+    const callerOnDelta = inputs.onDelta;
+    inputs.onDelta = (delta) => {
+      callerOnDelta?.(delta);
+      this.pushTimeline({ kind: "delta", update: delta.update });
+    };
     try {
       // SE18 — when the send set `activeTools`, run the loop inside a tool-whitelist
       // scope so a call to a tool outside the set is vetoed at dispatch (same path as
       // `Agent.fork`'s `allowedTools`). Absent ⇒ the full toolset is available.
-      const output =
+      const runLoop = (): Promise<Awaited<ReturnType<typeof runAgentLoop>>> =>
         inputs.activeTools !== undefined
-          ? await withToolWhitelist(new Set(inputs.activeTools), () => runAgentLoop(inputs))
-          : await runAgentLoop(inputs);
+          ? withToolWhitelist(new Set(inputs.activeTools), () => runAgentLoop(inputs))
+          : runAgentLoop(inputs);
+      // theokit#148 — publish the parent's delegation credentials for the duration of the loop.
+      // A subagent tool reads them at dispatch, so they survive every layer that rebuilds the tool
+      // object (including the SDK's own rebuild in `real-local-run-tools.ts`), and two concurrent
+      // runs sharing one tool instance each see their own.
+      const output = await withInheritedSubAgentCredentials(this.inheritedCredentials, runLoop);
       this.applyAgentLoopOutput(output);
       this.transitionTo(output.finalStatus);
     } catch (cause) {
       this.emitErrorEvent(cause, "Agent loop failed", "", "agent_loop_failed");
       this.transitionTo("error" satisfies RunStatus);
     } finally {
-      for (const client of inputs.mcp.values()) {
-        await client.close().catch(() => undefined);
+      // theokit#155 — release only what this TURN owns. Under `mcpLifecycle: 'session'` the pool
+      // owns the client and releases it via `disposeSessionMcpClients` (`LocalAgent.dispose()`) plus
+      // `reapIdle` on the next acquire; closing it here would kill the child the next turn expects
+      // to still be running.
+      if (this.ownsMcpClients) {
+        for (const client of inputs.mcp.values()) {
+          await client.close().catch(() => undefined);
+        }
       }
     }
   }
@@ -479,10 +547,7 @@ class RealLocalRun extends FixtureRunBase {
    * Finding-B fix (sdk-error-packaging v1.1): set-once errorDetail copy.
    */
   private applyAgentLoopOutput(output: Awaited<ReturnType<typeof runAgentLoop>>): void {
-    for (const event of output.events) {
-      this.script.events.push(event);
-      this.notifyNewEvents();
-    }
+    this.deliverUndeliveredEvents(output.events);
     this.script.conversation.push(...output.conversation);
     if (output.result.length > 0) this.script.result = output.result;
     if (output.usage !== undefined) this.script.usage = output.usage;
@@ -497,6 +562,26 @@ class RealLocalRun extends FixtureRunBase {
         ...(output.error.code !== undefined ? { code: output.error.code } : {}),
         cause: output.error.cause,
       };
+    }
+  }
+
+  /**
+   * theokit#140 - deliver only what the live subscriber has NOT already handed to `stream()`.
+   *
+   * The loop now reports each event as it happens, so this batch is the SAME list, replayed.
+   * Without the guard every event would reach `stream()` twice: once live, once here.
+   *
+   * Identity, not deep equality: these are the very objects the live sink saw, and two genuinely
+   * distinct events can be structurally identical (the same tool called twice with the same args
+   * is not a duplicate).
+   *
+   * Extracted because the guard pushed `applyAgentLoopOutput` past the cognitive-complexity cap.
+   */
+  private deliverUndeliveredEvents(events: readonly SDKMessage[]): void {
+    for (const event of events) {
+      if (this.liveDelivered.has(event)) continue;
+      this.script.events.push(event);
+      this.notifyNewEvents();
     }
   }
 

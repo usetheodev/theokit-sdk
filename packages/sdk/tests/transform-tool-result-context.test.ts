@@ -3,27 +3,27 @@
  *
  * ## A assimetria que este teste fecha
  *
- * Dois canais observam o fim de uma tool, e cada um tem METADE do que uma política precisa:
+ * Two channels observe the end of a tool, and each has HALF of what a policy needs:
  *
  * | | `post_tool_call` | `transform_tool_result` |
  * |---|---|---|
- * | sabe a tool | **sim** (`name`, `args`, `result`) | não |
- * | retorno honrado | **não** (`#runFireAndForget` descarta) | **sim** (`#runTransform` dobra) |
+ * | knows the tool | **yes** (`name`, `args`, `result`) | no |
+ * | return honored | **no** (`#runFireAndForget` discards) | **yes** (`#runTransform` folds) |
  *
- * Consequência a jusante: um hook `PostToolUse` COM matcher — isto é, uma política com escopo — só
- * podia ser registrado no canal que descarta o retorno, virando observação silenciosa. O consumidor
- * chegou a emitir um WARN pedindo ao usuário para REMOVER o escopo para receber feedback: o produto
- * instruindo a enfraquecer a própria política.
+ * Downstream consequence: a `PostToolUse` hook WITH a matcher — that is, a scoped policy — could only
+ * be registered on the channel that discards the return, becoming silent observation. The consumer
+ * went as far as emitting a WARN asking the user to REMOVE the scope in order to get feedback: the product
+ * instructing them to weaken their own policy.
  *
- * ## Por que `toolCalls` (plural) e não `name` (singular)
+ * ## Why `toolCalls` (plural) and not `name` (singular)
  *
- * O seam NÃO é por tool. `guardAndTransformToolResults` recebe o LOTE de resultados do turn
+ * The seam is NOT per tool. `guardAndTransformToolResults` receives the turn's BATCH of results
  * (`dispatchTools` roda todas as tool calls juntas). Num turn com duas tools, um campo `name`
- * singular teria de mentir sobre uma delas — pior que a lacuna, porque dá ao autor de hook a
- * impressão de escopo preciso que o dado não sustenta.
+ * a singular one would have to lie about one of them — worse than the gap, because it gives the hook author the
+ * impression of precise scope the data does not support.
  *
- * A correlação exata já existe no formato: `LlmToolResultPart.toolUseId` ↔ `LlmToolCallPart.id`. O
- * que faltava não era um nome, era a LISTA de chamadas do turn — que o chamador do seam já tinha em
+ * The exact correlation already exists in the format: `LlmToolResultPart.toolUseId` <-> `LlmToolCallPart.id`. What
+ * was missing was not a name, it was the turn's LIST of calls — which the seam's caller already had in
  * escopo (`llmOutput.toolCalls`) e simplesmente descartava.
  */
 import { describe, expect, it } from "vitest";
@@ -36,23 +36,23 @@ import type { Plugin } from "../src/internal/plugins/types.js";
 import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
 import type { ToolResultTransformContext, TransformContext } from "../src/types/plugin.js";
 
-/** A forma que o seam realmente carrega: partes de conteúdo, das quais só `tool_result` interessa. */
+/** The shape the seam actually carries: content parts, of which only `tool_result` matters. */
 interface ParteDeResultado {
   type: string;
   toolUseId?: string;
   content?: unknown;
 }
 
-/** `toolUseId` → conteúdo, resolvido pelo NOME da tool. É a correlação inteira, isolada do teste. */
+/** `toolUseId` -> content, resolved by the tool's NAME. It is the whole correlation, isolated from the test. */
 function porNomeDeTool(results: unknown, ctx: ToolResultTransformContext): Record<string, string> {
   const porId = new Map(ctx.toolCalls.map((t) => [t.id, t.name]));
-  const saida: Record<string, string> = {};
-  for (const parte of results as ParteDeResultado[]) {
-    if (parte.type !== "tool_result") continue;
-    const nome = porId.get(parte.toolUseId ?? "");
-    if (nome !== undefined) saida[nome] = String(parte.content);
+  const output: Record<string, string> = {};
+  for (const part of results as ParteDeResultado[]) {
+    if (part.type !== "tool_result") continue;
+    const name = porId.get(part.toolUseId ?? "");
+    if (name !== undefined) output[name] = String(part.content);
   }
-  return saida;
+  return output;
 }
 
 /** LLM que emite as tool calls pedidas no 1º turn e encerra no 2º. */
@@ -116,11 +116,11 @@ function pluginTransform(fn: (results: unknown, ctx: unknown) => unknown): Plugi
 
 describe("M82 — transform_tool_result recebe o contexto de tool call", () => {
   it("test_transform_tool_result_recebe_as_toolCalls_do_turn", async () => {
-    let visto: ToolResultTransformContext | undefined;
+    let seen: ToolResultTransformContext | undefined;
     const mgr = new PluginManager();
     await mgr.initialize([
       pluginTransform((results, ctx) => {
-        visto = ctx as ToolResultTransformContext;
+        seen = ctx as ToolResultTransformContext;
         return results;
       }),
     ]);
@@ -131,16 +131,16 @@ describe("M82 — transform_tool_result recebe o contexto de tool call", () => {
       ]),
     );
 
-    expect(visto, "o hook nem rodou — o seam não foi exercitado").toBeDefined();
+    expect(seen, "the hook did not even run — the seam was not exercised").toBeDefined();
     expect(
-      visto?.toolCalls,
+      seen?.toolCalls,
       "sem as tool calls do turn nenhum hook consegue honrar um matcher",
     ).toEqual([{ id: "call-1", name: "alpha", args: {} }]);
   });
 
   it("test_ctx_correlaciona_toolUseId_com_o_nome_da_tool_em_turn_de_DUAS_tools", async () => {
-    // O caso que um campo `name` singular não conseguiria representar (ADR-2), e o mesmo caso do
-    // risco R1: se a correlação falhar, um hook com escopo transforma o resultado da tool ERRADA.
+    // The case a singular `name` field could not represent (ADR-2), and the same case as
+    // risk R1: if the correlation fails, a scoped hook transforms the WRONG tool's result.
     const correlacionado: Record<string, string> = {};
     const mgr = new PluginManager();
     await mgr.initialize([
@@ -165,12 +165,12 @@ describe("M82 — transform_tool_result recebe o contexto de tool call", () => {
     expect(correlacionado.beta).toContain("resultado-de-beta");
   });
 
-  it("test_CONTRAPROVA_TransformContext_compartilhado_NAO_ganhou_toolCalls", () => {
-    // ADR-1: `TransformContext` também serve `transform_llm_output`, que não tem tool call nenhuma.
-    // Um `toolCalls?` opcional lá seria sempre `undefined` para metade dos consumidores — o tipo
-    // mentiria. Sem esta contraprova, resolver T1.1 poluindo o tipo compartilhado passaria.
+  it("test_COUNTERPROOF_the_shared_TransformContext_did_NOT_gain_toolCalls", () => {
+    // ADR-1: `TransformContext` also serves `transform_llm_output`, which has no tool call at all.
+    // An optional `toolCalls?` there would always be `undefined` for half the consumers — the type
+    // would lie. Without this counter-proof, solving T1.1 by polluting the shared type would pass.
     const base: TransformContext = { agentId: "a", runId: "r" };
-    // @ts-expect-error — `toolCalls` NÃO pertence ao contexto compartilhado.
+    // @ts-expect-error — `toolCalls` does NOT belong to the shared context.
     const proibido = base.toolCalls;
     expect(proibido).toBeUndefined();
     expect(base.agentId).toBe("a");

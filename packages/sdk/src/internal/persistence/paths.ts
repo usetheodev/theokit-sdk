@@ -10,15 +10,15 @@
  *     `path.join(cwd, ".theokit")` in callers — use this function so tests
  *     and overrides stay consistent.
  *
- *     M94 — este comentário dizia "the ONLY canonical resolver", e deixou de ser verdade: o
- *     transcript ganhou `transcriptRoot()`, que é **home-ancorado** (`~/.theokit`) com o mesmo
- *     override por `THEOKIT_HOME`. Os dois defaults diferem de propósito — unificar moveria o
- *     transcript de todo mundo que NÃO define a variável, que é uma migração de dados e não um
+ *     M94 — this comment said "the ONLY canonical resolver", and stopped being true: the
+ *     transcript gained `transcriptRoot()`, which is **home-anchored** (`~/.theokit`) with the same
+ *     `THEOKIT_HOME` override. The two defaults differ on purpose — unifying would move the
+ *     transcript of everyone who does NOT set the variable, which is a data migration and not a
  *     re-export.
  *
- *     Consequência que merece estar escrita: **sem `THEOKIT_HOME` o estado segue partido em dois**
- *     — registry em `<cwd>/.theokit`, transcript em `~/.theokit`. O M94 unifica só para quem define
- *     a variável. Unificar os dois defaults é trabalho de outro milestone.
+ *     A consequence worth writing down: **without `THEOKIT_HOME` the state stays split in two**
+ *     — registry in `<cwd>/.theokit`, transcript in `~/.theokit`. M94 unifies only for those who set
+ *     the variable. Unifying both defaults is another milestone's work.
  *   - `getProfilesRoot()` is intentionally home-anchored (not affected by
  *     `THEOKIT_HOME`) so `theokit profile list` discovers all profiles
  *     regardless of which is active.

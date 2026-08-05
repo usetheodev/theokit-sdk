@@ -14,6 +14,7 @@ import type {
   StepResult,
   WorkflowOptions,
 } from "../../types/workflow.js";
+import { diag } from "../diagnostics.js";
 import { redactSecrets } from "../security/redact.js";
 import { errToShape } from "./error-shape.js";
 import type { DispatchFn } from "./step-parallel.js";
@@ -37,9 +38,11 @@ export async function runBranchStep(
       matched = await Promise.resolve(predicate(input));
     } catch (err) {
       const errText = err instanceof Error ? err.message : String(err);
-      console.warn(
+      // theokit#147 — the interceptable channel, so a workflow running under a TUI cannot
+      // corrupt its frame with a predicate warning.
+      diag(
         redactSecrets(
-          `[workflow] branch "${step.id}" predicate ${i} threw, treating as no-match: ${errText}`,
+          `[workflow] branch "${step.id}" predicate ${i} threw, treating as no-match: ${errText}\n`,
         ),
       );
     }

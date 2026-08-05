@@ -13,7 +13,7 @@ argument-hint: "[plan-slug] (optional — bind analysis to a plan's architecture
 > **INQUEBRÁVEL — 95% Confidence Gate**
 >
 > NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
-> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> WHENEVER YOU NEED A DECISION FROM THE USER, PRESENT
 > OPÇÕES PARA ELE ESCOLHER.
 >
 > Ver `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).

@@ -42,11 +42,11 @@ export interface PostRunLifecycleInputs {
   /** SE40 — model id stamped into the assistant records. */
   model: string;
   /**
-   * M94 — janela declarada na definição do agente, em tokens.
+   * M94 — window declared on the agent definition, in tokens.
    *
-   * Repassada como `override` ao resolvedor. Existe porque um modelo sem entrada de catálogo
-   * (OpenRouter) ficava preso no piso de 128k mesmo tendo 400k — compactando ~3× mais do que
-   * precisa. O clamp por catálogo continua protegendo contra valor inflado.
+   * Forwarded as `override` to the resolver. It exists because a model with no catalog entry
+   * (OpenRouter) stayed pinned to the 128k floor despite having 400k — compacting ~3x more than
+   * needs it. The catalog clamp still protects against an inflated value.
    */
   contextWindow?: number | undefined;
   /** M50 — provider key for the auto-compaction summarizer (absent ⇒ env-resolved by the router). */
@@ -87,14 +87,14 @@ export interface PostRunLifecycleInputs {
  * @internal
  */
 /**
- * Resolve a janela a orçar para um run — o ponto onde a janela declarada encontra o catálogo.
+ * Resolves the window to budget for a run — the point where the declared window meets the catalog.
  *
- * Existe como função própria porque a FIAÇÃO é o que estava quebrado: `resolveEffectiveContextWindow`
- * aceita `override` desde o M77 e o único call site nunca o passava. Uma função pura torna esse
- * repasse testável sem reconstruir metade do runtime — um mutante que pare de repassar reprova.
+ * It exists as its own function because the WIRING is what was broken: `resolveEffectiveContextWindow`
+ * has accepted `override` since M77 and the only call site never passed it. A pure function makes that
+ * forwarding testable without rebuilding half the runtime — a mutant that stops forwarding fails.
  *
- * `contextWindow` não-positivo é ignorado: como override ele produziria um orçamento que dispara
- * compactação a cada turno, que é pior que o piso conservador.
+ * A non-positive `contextWindow` is ignored: as an override it would produce a budget that triggers
+ * compaction every turn, which is worse than the conservative floor.
  *
  * @internal
  */
@@ -130,18 +130,18 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   try {
     result = await run.wait();
   } catch {
-    // M93 — persiste o que o turno JÁ PRODUZIU antes de sair.
+    // M93 — persists what the turn HAS ALREADY PRODUCED before leaving.
     //
-    // O `flushSessionWrites` abaixo sempre esteve aqui, e sempre drenou um conjunto **vazio**:
-    // `persistTurnToTranscript` é chamado só mais adiante nesta função — o **único** chamador no
-    // repositório —, depois deste `return`. Um 429 depois de oito tool calls destruía o turno inteiro
-    // sem deixar nada em disco, e combinado com a ausência de retry no caminho de chave única (também
+    // The `flushSessionWrites` below has always been here, and always drained an **empty** set:
+    // `persistTurnToTranscript` is only called later in this function — the **only** caller in the
+    // repository — after this `return`. A 429 after eight tool calls destroyed the whole turn
+    // leaving nothing on disk, and combined with the absent retry on the single-key path (also
     // fechada no M93) a perda era total.
     //
-    // Persiste o **parcial**, sem reconstruir: um turno que falhou em `run.wait()` tem histórico real
-    // — user + tool calls concluídas. Descartá-lo é a perda; inventar o resto seria pior que a perda.
-    // O `catch` interno existe porque uma falha ao gravar não pode mascarar o erro do turno, que é o
-    // que o chamador está esperando (`error-handling.md`: cleanup não propaga sobre o erro original).
+    // Persists the **partial**, without reconstructing: a turn that failed in `run.wait()` has real history
+    // — user + completed tool calls. Discarding it is the loss; inventing the rest would be worse than the loss.
+    // The inner `catch` exists because a write failure must not mask the turn's error, which is what
+    // the caller is waiting on (`error-handling.md`: cleanup does not propagate over the original error).
     try {
       const parcial = await safeConversation(run);
       if (parcial !== undefined) {
@@ -179,7 +179,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   // PROVIDER rejects it — fail-OPEN, and silent. It now resolves to a floor and says so, so the
   // budget degrades instead of disappearing.
   const resolvedWindow = resolveWindowForRun(model, contextWindow);
-  const janelaEfetiva = resolvedWindow.window;
+  const effectiveWindow = resolvedWindow.window;
   const budgetEvent = buildContextBudgetEvent(model, resolvedWindow);
   if (budgetEvent !== undefined && onRunEvent !== undefined) {
     emitRunEvent(onRunEvent, budgetEvent);
@@ -198,9 +198,9 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
       conversation,
       autoCompact: {
         usageTotal: usageForTrigger,
-        // A janela EFETIVA (após override, clamp e margem) — não a declarada. Trocar por
-        // `contextWindow` aqui orçaria contra um número que o clamp já rejeitou.
-        contextWindow: janelaEfetiva,
+        // The EFFECTIVE window (after override, clamp and margin) — not the declared one. Swapping for
+        // `contextWindow` here would budget against a number the clamp already rejected.
+        contextWindow: effectiveWindow,
         summarize: buildDefaultSummarizer({
           agentModel: model,
           ...(inputs.apiKey !== undefined ? { apiKey: inputs.apiKey } : {}),

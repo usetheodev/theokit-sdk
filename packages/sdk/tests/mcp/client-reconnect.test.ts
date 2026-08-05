@@ -187,6 +187,10 @@ describe("MCP stdio reconnect-after-drop (#59)", () => {
       ({
         ok: true,
         status: 200,
+        // `headers` is not decoration: `readBody` reads `content-type` to tell JSON from SSE, and
+        // `captureSession` reads `mcp-session-id`. A fake without it throws a TypeError BEFORE the
+        // behaviour under test runs — which is how this test started measuring nothing.
+        headers: new Headers(),
         json: () => Promise.resolve({ jsonrpc: "2.0", id: calls, result }),
       }) as unknown as Response;
     const flaky: typeof fetch = () => {

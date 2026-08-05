@@ -1,24 +1,24 @@
 /**
- * M75 T3.2 — `interactiveWrapCommand`: a composição que faltava.
+ * M75 T3.2 — `interactiveWrapCommand`: the missing composition.
  *
  * ## Por que ela existe, e por que no SDK
  *
- * `createSandboxBackend` já faz esta composição para o caminho **não-interativo**: detecta o bwrap,
- * decide entre confinar e degradar honestamente, e devolve um backend pronto. O caminho interativo
- * (PTY) precisa exatamente da mesma decisão, mas entregue como **função de wrap** — porque o PTY é
- * dono do spawn e só aceita transformar o comando (`PtyInteractiveBackend({ wrapCommand })`).
+ * `createSandboxBackend` already does this composition for the **non-interactive** path: it detects bwrap,
+ * decides between confining and degrading honestly, and returns a ready backend. The interactive path
+ * (PTY) needs exactly the same decision, but delivered as a **wrap function** — because the PTY
+ * owns the spawn and only accepts transforming the command (`PtyInteractiveBackend({ wrapCommand })`).
  *
- * Sem esta função, todo consumidor que quisesse shell interativo confinado reescreveria a mesma
- * sequência: `detectBwrapMemoizado` → `if (!ok) WARN-once` → `wrapCommandForSandbox` com
+ * Without this function, every consumer wanting a confined interactive shell would rewrite the same
+ * sequence: `detectBwrapMemoized` -> `if (!ok) WARN-once` -> `wrapCommandForSandbox` with
  * `allowlistedEnv` e `restrictedSeccompPath`. Era o que o agent-builder fazia em 99 linhas de
- * subclasse, e é precisamente o que o M75 existe para eliminar — "o que todo consumidor do theokit
+ * subclass, and it is precisely what M75 exists to eliminate — "what every theokit consumer
  * que rode comandos vai reimplementar".
  *
  * ## O invariante que os testes protegem
  *
- * As duas rotas de "não confinar" são **semanticamente diferentes** e o código não pode fundi-las:
- * `danger-full-access` é opt-out explícito (não avisa), enquanto bwrap indisponível é uma falha
- * (avisa, uma vez). Ambas devolvem `null` — o valor é o mesmo, o significado não.
+ * The two "do not confine" routes are **semantically different** and the code must not merge them:
+ * `danger-full-access` is an explicit opt-out (no warning), while bwrap being unavailable is a
+ * failure (warns, once). Both return `null` — the value is the same, the meaning is not.
  */
 import { describe, expect, it } from "vitest";
 
@@ -29,119 +29,119 @@ import {
 } from "../src/sandbox/index.js";
 
 const detectaOk = (): BwrapDetection => ({ ok: true, bin: "/usr/bin/bwrap" });
-const detectaFalha = (): BwrapDetection => ({ ok: false, reason: "bwrap not found in PATH" });
+const detectFailure = (): BwrapDetection => ({ ok: false, reason: "bwrap not found in PATH" });
 
 describe("M75 T3.2 — interactiveWrapCommand", () => {
-  it("test_confina_quando_bwrap_existe", () => {
+  it("test_confines_when_bwrap_exists", () => {
     const wrap = interactiveWrapCommand({ mode: "workspace-write", detect: detectaOk });
     const out = wrap("python3 -i", "/w");
-    expect(out, "com bwrap disponível o comando TEM de ser embrulhado").not.toBeNull();
+    expect(out, "with bwrap available the command MUST be wrapped").not.toBeNull();
     expect(out).toContain("/usr/bin/bwrap");
     expect(out).toContain("--unshare-net");
-    // O cwd recebido é o que o PTY vai usar: os binds precisam mirar o MESMO diretório, senão o
-    // confinamento aponta para um lugar e o processo roda em outro.
+    // The cwd received is what the PTY will use: the binds must target the SAME directory, otherwise
+    // the confinement points one way and the process runs another.
     expect(out).toContain("/w");
   });
 
-  it("test_danger_full_access_devolve_null_e_NAO_avisa", () => {
+  it("test_danger_full_access_returns_null_and_does_NOT_warn", () => {
     resetInteractiveWarnLatch();
-    const avisos: string[] = [];
+    const warnings: string[] = [];
     const wrap = interactiveWrapCommand({
       mode: "danger-full-access",
       detect: detectaOk,
-      warn: (m) => avisos.push(m),
+      warn: (m) => warnings.push(m),
     });
     expect(wrap("bash", "/w")).toBeNull();
-    // A distinção que o código não pode perder: "o usuário desligou" não é anomalia.
-    expect(avisos, "opt-out explícito não é anomalia e não deve avisar").toHaveLength(0);
+    // The distinction the code must not lose: "the user turned it off" is not an anomaly.
+    expect(warnings, "an explicit opt-out is not an anomaly and must not warn").toHaveLength(0);
   });
 
-  it("test_bwrap_ausente_devolve_null_e_avisa_UMA_vez", () => {
+  it("test_absent_bwrap_returns_null_and_warns_ONCE", () => {
     resetInteractiveWarnLatch();
-    const avisos: string[] = [];
+    const warnings: string[] = [];
     const wrap = interactiveWrapCommand({
       mode: "workspace-write",
-      detect: detectaFalha,
-      warn: (m) => avisos.push(m),
+      detect: detectFailure,
+      warn: (m) => warnings.push(m),
     });
     expect(wrap("bash", "/w")).toBeNull();
     expect(wrap("python3", "/w")).toBeNull();
-    // Uma vez por processo: repetir a cada sessão interativa vira ruído que ninguém lê.
-    expect(avisos, "o aviso repetiu — vira ruído e deixa de ser lido").toHaveLength(1);
-    expect(avisos[0], "o aviso precisa dizer POR QUE e em que modo").toMatch(
+    // Once per process: repeating it every interactive session becomes noise nobody reads.
+    expect(warnings, "the warning repeated — it becomes noise and stops being read").toHaveLength(
+      1,
+    );
+    expect(warnings[0], "the warning must say WHY and in which mode").toMatch(
       /PATH.*workspace-write/s,
     );
-    expect(avisos[0], "o aviso precisa deixar claro que NÃO há confinamento").toMatch(
+    expect(warnings[0], "the warning must make clear there is NO confinement").toMatch(
       /WITHOUT|sem confinamento|not confined/i,
     );
   });
 
-  it("test_read_only_nao_da_escrita_nem_no_cwd", () => {
+  it("test_read_only_grants_no_write_even_on_the_cwd", () => {
     const out = interactiveWrapCommand({ mode: "read-only", detect: detectaOk })("bash", "/w");
-    // `wrapCommandForSandbox` devolve a string SHELL-QUOTED (cada flag entre aspas simples), não o
-    // argv cru. A primeira versão deste teste asseverava a forma crua — e a asserção NEGATIVA
-    // passava por vacuidade: `not.toContain("--bind /w /w")` seria verdadeira mesmo com o bind
-    // presente, porque a forma real é `'--bind' '/w' '/w'`. Um teste que não pode falhar não prova
-    // nada, e este era justamente o que protege o modo somente-leitura.
+    // `wrapCommandForSandbox` returns the SHELL-QUOTED string (each flag in single quotes), not the
+    // raw argv. The first version of this test asserted the raw form — and the NEGATIVE assertion
+    // passed vacuously: `not.toContain("--bind /w /w")` would be true even with the bind
+    // present, because the real form is `'--bind' '/w' '/w'`. A test that cannot fail proves
+    // nothing, and this was precisely the one protecting read-only mode.
     expect(out).toContain("'--ro-bind' '/' '/'");
-    expect(out, "read-only não pode dar bind de escrita no cwd").not.toContain(
-      "'--bind' '/w' '/w'",
-    );
+    expect(out, "read-only must not write-bind the cwd").not.toContain("'--bind' '/w' '/w'");
   });
 
   it("test_a_lente_negativa_do_read_only_e_capaz_de_falhar", () => {
-    // Prova de que a asserção acima NÃO é vácua: no modo que DEVE dar escrita no cwd, a mesma
-    // string procurada aparece. Sem esta contraprova, `not.toContain` continuaria verde para sempre.
+    // Proof the assertion above is NOT vacuous: in the mode that MUST write to the cwd, the same
+    // the searched string does appear. Without this counter-proof, `not.toContain` would stay green forever.
     const rw = interactiveWrapCommand({ mode: "workspace-write", detect: detectaOk })("bash", "/w");
-    expect(rw, "workspace-write TEM de dar bind de escrita no cwd").toContain("'--bind' '/w' '/w'");
+    expect(rw, "workspace-write MUST write-bind the cwd").toContain("'--bind' '/w' '/w'");
   });
 
-  it("test_a_deteccao_e_consultada_por_wrap_nao_congelada_na_construcao", () => {
-    // Uma sessão interativa vive por horas. Congelar a detecção na construção significaria que
-    // instalar o bwrap no meio da sessão nunca passaria a valer — e, pior, que uma detecção positiva
-    // obsoleta continuaria afirmando confinamento depois de o binário sumir.
-    let chamadas = 0;
+  it("test_detection_is_consulted_per_wrap_not_frozen_at_construction", () => {
+    // An interactive session lives for hours. Freezing detection at construction would mean that
+    // installing bwrap mid-session would never take effect — and, worse, that a stale positive
+    // detection would keep asserting confinement after the binary vanished.
+    let calls = 0;
     const wrap = interactiveWrapCommand({
       mode: "workspace-write",
       detect: () => {
-        chamadas++;
+        calls++;
         return detectaOk();
       },
     });
     wrap("a", "/w");
     wrap("b", "/w");
-    expect(chamadas, "a detecção foi congelada na construção").toBe(2);
+    expect(calls, "detection was frozen at construction").toBe(2);
   });
 });
 
 /**
- * M75 review (arquitetura, MEDIUM) — a regra "seccomp só com rede restrita" tinha DUAS cópias.
+ * M75 review (architecture, MEDIUM) — the rule "seccomp only with a restricted network" had TWO copies.
  *
  * O construtor de `LinuxSandbox` decidia condicionalmente; `interactiveWrapCommand` instalava
- * incondicionalmente. Divergiram já na primeira versão, e o efeito é a pior combinação possível: com
+ * unconditionally. They diverged in the very first version, and the effect is the worst possible combination: with
  * `network: true` o bwrap **permite** a rede (sem `--unshare-net`) e o seccomp a **nega** com EPERM.
- * O usuário pede rede, recebe o bind, e as chamadas morrem sem explicação.
+ * The user asks for network, gets the bind, and the calls die with no explanation.
  *
- * Este teste trava os dois caminhos na MESMA decisão. Se alguém voltar a duplicar a regra, ele cai.
+ * This test locks both paths to the SAME decision. If anyone duplicates the rule again, it fails.
  */
 describe("M75 review — seccomp e rede decidem juntos nos dois caminhos", () => {
-  it("test_rede_liberada_NAO_instala_seccomp_no_interativo", () => {
+  it("test_an_open_network_does_NOT_install_seccomp_interactively", () => {
     const out = interactiveWrapCommand({
       mode: "workspace-write",
       network: true,
       detect: detectaOk,
     })("bash", "/w");
-    expect(out, "com a rede liberada o bwrap não deve isolá-la").not.toContain("--unshare-net");
+    expect(out, "with the network open bwrap must not isolate it").not.toContain("--unshare-net");
     expect(
       out,
-      "o filtro cBPF nega syscalls de rede: instalá-lo com a rede liberada faz o bwrap permitir e o " +
+      "the cBPF filter denies network syscalls: installing it with the network open makes bwrap allow and " +
         "seccomp negar a MESMA coisa",
     ).not.toContain("--seccomp");
   });
 
   it("test_rede_restrita_instala_seccomp_no_interativo", () => {
-    // CONTRAPROVA: sem ela o `not.toContain` acima ficaria verde mesmo se o seccomp nunca fosse
-    // instalado — e aí o teste protegeria a ausência do filtro em vez da coerência da regra.
+    // COUNTER-PROOF: without it the `not.toContain` above would stay green even if seccomp were never
+    // installed — and then the test would protect the filter's absence instead of the rule's coherence.
     const out = interactiveWrapCommand({
       mode: "workspace-write",
       network: false,

@@ -55,10 +55,10 @@ export interface PlanModeToolWithStore {
  * @public
  */
 export interface PlanModeToolOptions {
-  /** M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo). O nome é contrato: chave
-   *  de approval, o que o modelo vê e o que o telemetry registra. */
+  /** M76 — name exposed to the model. Omitted => today's literal (additive). The name is a contract:
+   *  the approval key, what the model sees and what telemetry records. */
   name?: string;
-  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  /** M76 — description exposed to the model. Omitted => today's literal (additive). */
   description?: string;
   /** Store the submitted `plan` is persisted to on `exit`. */
   artifactStore: SessionArtifactStore;

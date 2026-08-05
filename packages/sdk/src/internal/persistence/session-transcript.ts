@@ -38,6 +38,12 @@ export interface SessionTranscriptOptions {
 export interface AssistantTurn {
   text?: string;
   thinking?: string;
+  /**
+   * theokit#122 — the provider's signature for the thinking block. Written into the `thinking`
+   * record block (`Block` already declared `signature?`), so a resumed session can replay the block
+   * exactly as the provider issued it.
+   */
+  thinkingSignature?: string;
   toolCalls?: Array<{ id: string; name: string; input: Record<string, unknown> }>;
 }
 
@@ -62,9 +68,9 @@ function redactValue(value: unknown): unknown {
   }
 }
 
-// M94 — era `Record<string, unknown>`. O tipo publicado descreve a mesma forma que este arquivo
-// sempre produziu; o alias local passa a apontar para ele para que escritor e leitor não possam
-// divergir em silêncio.
+// M94 — it was `Record<string, unknown>`. The published type describes the same shape this file
+// has always produced; the local alias now points at it so writer and reader cannot
+// diverge silently.
 type Block = TranscriptBlock;
 
 /**
@@ -124,7 +130,27 @@ export class SessionTranscript {
 
   appendAssistantTurn(turn: AssistantTurn): SessionRecord {
     const content: Block[] = [];
-    if (turn.thinking) content.push({ type: "thinking", thinking: red(turn.thinking) });
+    if (turn.thinking) {
+      // theokit#122 — the signature is computed by the provider over the ORIGINAL text, so it is
+      // only valid while the text is byte-identical. Redaction rewrites the text; keeping the
+      // signature next to a masked body persists a pair that Anthropic rejects with
+      // `400 "thinking blocks cannot be modified"` — the very failure this issue exists to remove.
+      //
+      // So redaction WINS and the signature is dropped. The block survives as display-only history
+      // (`thinkingToWireBlock` already refuses to replay an unsigned block), which loses one block
+      // of context; keeping a signature that cannot verify would lose the whole turn.
+      //
+      // The signature itself is never redacted — it is an opaque provider token with no user
+      // content — but that was only half the reasoning the first version of this fix wrote down.
+      const redactedThinking = red(turn.thinking);
+      const signatureStillValid =
+        turn.thinkingSignature !== undefined && redactedThinking === turn.thinking;
+      content.push({
+        type: "thinking",
+        thinking: redactedThinking,
+        ...(signatureStillValid ? { signature: turn.thinkingSignature } : {}),
+      });
+    }
     if (turn.text) content.push({ type: "text", text: red(turn.text) });
     for (const c of turn.toolCalls ?? []) {
       content.push({ type: "tool_use", id: c.id, name: c.name, input: redactValue(c.input) });
@@ -204,9 +230,25 @@ function dedupByUuid(records: readonly SessionRecord[]): Map<string, SessionReco
   return byUuid;
 }
 
-/** Map one structured block to an LlmContentPart (`undefined` for thinking — dropped on read, SE42/#122). */
+/**
+ * Map one structured block to an `LlmContentPart`.
+ *
+ * theokit#122 — thinking blocks used to be DROPPED here, which is why an extended-thinking session
+ * could not be resumed: the block never made it back into the replayed messages, so the provider saw
+ * a conversation whose assistant turn had lost its thinking. They are now reconstructed with their
+ * signature; the Anthropic wire re-serializes signed blocks and skips unsigned ones.
+ */
+function thinkingBlockToPart(b: Extract<Block, { type: "thinking" }>): LlmContentPart {
+  return {
+    type: "thinking",
+    text: String(b.thinking ?? ""),
+    ...(b.signature !== undefined ? { signature: String(b.signature) } : {}),
+  };
+}
+
 function blockToPart(b: Block): LlmContentPart | undefined {
   if (b.type === "text") return { type: "text", text: String(b.text ?? "") };
+  if (b.type === "thinking") return thinkingBlockToPart(b);
   if (b.type === "tool_use") {
     return {
       type: "tool_use",
@@ -286,13 +328,13 @@ export function reconstructMessages(records: readonly SessionRecord[]): LlmMessa
 /**
  * Raiz do estado de transcript.
  *
- * `THEOKIT_HOME` vence; o fallback é `~/.theokit`. Home-ancorado de propósito, e NÃO
- * `getTheokitHome(cwd)` de `paths.ts`: aquele faz fallback para `<cwd>/.theokit`, e trocar
- * por ele moveria o transcript de todo mundo que **não** define a variável. O irmão com a
- * forma certa é `catalog-source-models-dev.ts` (M94 ADR-2).
+ * `THEOKIT_HOME` wins; the fallback is `~/.theokit`. Home-anchored on purpose, and NOT
+ * `paths.ts`'s `getTheokitHome(cwd)`: that one falls back to `<cwd>/.theokit`, and switching
+ * by it would move the transcript of everyone who does **not** set the variable. The sibling with the
+ * right shape is `catalog-source-models-dev.ts` (M94 ADR-2).
  *
- * Antes do M94 esta função ignorava a env, então quem a definia tinha o estado partido em
- * dois em silêncio — as sessões continuavam em `~/.theokit` enquanto o resto do SDK migrava.
+ * Before M94 this function ignored the env var, so whoever set it had their state split in
+ * two silently — sessions stayed in `~/.theokit` while the rest of the SDK migrated.
  */
 export function transcriptRoot(): string {
   const override = process.env.THEOKIT_HOME?.trim();
@@ -300,7 +342,7 @@ export function transcriptRoot(): string {
   return join(homedir(), ".theokit");
 }
 
-/** @deprecated Use {@link transcriptRoot}. Mantido como alias — mesmo valor. */
+/** @deprecated Use {@link transcriptRoot}. Kept as an alias — same value. */
 export function defaultBaseDir(): string {
   return transcriptRoot();
 }

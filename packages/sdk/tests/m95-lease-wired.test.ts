@@ -1,10 +1,10 @@
 /**
- * M95 Fase 2 — o lease é de fato **ligado**.
+ * M95 Phase 2 — the lease is actually **wired**.
  *
- * `acquireSessionWriter` existe desde o M81 e tinha **zero** chamadores de produção — medido por
- * grep: só a definição e o re-export em `persistence.ts`. A garantia de escritor único estava
- * escrita e desligada desde o dia em que foi escrita, e o roadmap a registrava como entregue. É a
- * pior forma de dívida: a que se apresenta como cobertura.
+ * `acquireSessionWriter` has existed since M81 and had **zero** production callers — measured by
+ * grep: only the definition and the re-export in `persistence.ts`. The single-writer guarantee was
+ * written and switched off from the day it was written, and the roadmap recorded it as delivered. It is the
+ * worst kind of debt: the kind that presents itself as coverage.
  */
 
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -35,7 +35,7 @@ function novoStore(baseDir: string): FsSessionStore {
   return s;
 }
 
-describe("M95 — o lease está ligado", () => {
+describe("M95 — the lease is wired", () => {
   it("acquire() toma o lease", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
     const store = novoStore(base);
@@ -43,9 +43,9 @@ describe("M95 — o lease está ligado", () => {
     expect(existsSync(`${transcriptPath(base, "/algum/cwd", "ag")}.writer.lock`)).toBe(true);
   });
 
-  it("appendRecords NUNCA lança SessionBusyError — o turno não some em silêncio", async () => {
-    // BLOCKER-1 da revisão adversarial. O contrato de `SessionStore` diz que rejeição de append é
-    // best-effort: "logged to stderr, NOT thrown to the caller". Adquirir o lease ali fazia o
+  it("appendRecords NEVER throws SessionBusyError — the turn does not vanish silently", async () => {
+    // BLOCKER-1 from adversarial review. The `SessionStore` contract says an append rejection is
+    // best-effort: "logged to stderr, NOT thrown to the caller". Acquiring the lease there made the
     // SessionBusyError ser ENGOLIDO, e o perdedor perdia o turno inteiro sem nada em disco e sem
     // como reagir — pior que o problema original, que era intercalar linhas.
     const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
@@ -67,10 +67,10 @@ describe("M95 — o lease está ligado", () => {
     expect(existsSync(`${transcriptPath(base, "/algum/cwd", "ag")}.writer.lock`)).toBe(false);
   });
 
-  it("um OUTRO PROCESSO vivo segurando o lock produz SessionBusyError", async () => {
-    // O lease protege contra outro PROCESSO — dois stores no MESMO processo são padrão legítimo
-    // (os testes golden de compactação fazem isso, e reprovaram quando a primeira versão recusava
-    // o próprio dono). Então o dono alheio é simulado pelo pid do processo pai: vivo, e não nós.
+  it("ANOTHER live PROCESS holding the lock produces SessionBusyError", async () => {
+    // The lease protects against another PROCESS — two stores in the SAME process are a legitimate pattern
+    // (the golden compaction tests do exactly that, and failed when the first version refused
+    // its own owner). So a foreign owner is simulated by the parent process's pid: alive, and not us.
     const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
     const path = transcriptPath(base, "/algum/cwd", "ag");
     mkdirSync(dirname(path), { recursive: true });
@@ -82,14 +82,14 @@ describe("M95 — o lease está ligado", () => {
     await expect(store.acquire("ag")).rejects.toBeInstanceOf(SessionBusyError);
   });
 
-  it("ler NÃO adquire lease — leitura concorrente continua livre", async () => {
+  it("reading does NOT acquire a lease — concurrent reads stay free", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
     const store = novoStore(base);
     await store.readRecords("ag");
     expect(existsSync(`${transcriptPath(base, "/algum/cwd", "ag")}.writer.lock`)).toBe(false);
   });
 
-  it("dispose é idempotente", async () => {
+  it("dispose is idempotent", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
     const store = new FsSessionStore({ baseDir: base, cwd: "/algum/cwd" });
     await store.acquire("ag");

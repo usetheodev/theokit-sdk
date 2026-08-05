@@ -3,32 +3,36 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { diag, setDiagnosticsSink } from "../src/internal/diagnostics.js";
 
 /**
- * theokit-sdk#147 — a biblioteca não é dona do terminal.
+ * theokit-sdk#147 — the library does not own the terminal.
  *
- * O SDK escrevia diagnósticos direto em `process.stderr` a partir de caminhos quentes (92 sítios
- * em 51 arquivos sob `internal/`). Numa host de TUI (Ink, alternate screen), essas escritas se
- * intercalam com o render e corrompem o frame — e o host **não tinha como interceptá-las**. Um
- * consumidor chegou a instalar `proper-lockfile` só para calar UMA delas.
+ * The SDK wrote diagnostics straight to `process.stderr` from hot paths (92 sites
+ * across 51 files under `internal/`). In a TUI host (Ink, alternate screen), those writes
+ * interleave with the render and corrupt the frame — and the host **had no way to intercept them**. One
+ * consumer went as far as installing `proper-lockfile` just to silence ONE of them.
  *
- * Estes testes travam o canal único e a interceptação. A virada do padrão para silencioso é
- * migração própria (58 arquivos de teste asseram o `stderr` hoje) — ver o comentário de
+ * These tests lock the single channel and the interception. Flipping the default to silent is
+ * its own migration (58 test files assert `stderr` today) — see the comment in
  * `diagnostics.ts`.
  */
-describe("canal de diagnóstico interceptável (#147)", () => {
+describe("interceptable diagnostics channel (#147)", () => {
   afterEach(() => {
     setDiagnosticsSink(undefined);
     vi.restoreAllMocks();
   });
 
-  it("sem sink, a mensagem vai para o stderr — comportamento inalterado", () => {
+  it("with no sink installed, nothing is written — silent by default (#147)", () => {
+    // Was "no sink => stderr". theokit#147 asked for silence by default and this now delivers it.
+    // `vitest.setup.ts` forwards to stderr during tests so the 36 suites asserting "a warning is
+    // emitted" survive, hence the explicit clear here.
+    setDiagnosticsSink(undefined);
     const escrever = vi.spyOn(process.stderr, "write").mockReturnValue(true);
 
     diag("[theokit-sdk] algo aconteceu\n");
 
-    expect(escrever).toHaveBeenCalledWith("[theokit-sdk] algo aconteceu\n");
+    expect(escrever).not.toHaveBeenCalled();
   });
 
-  it("com sink instalado, a aplicação recebe a mensagem", () => {
+  it("with a sink installed, the application receives the message", () => {
     const recebidas: string[] = [];
     setDiagnosticsSink((m) => recebidas.push(m));
 
@@ -37,18 +41,18 @@ describe("canal de diagnóstico interceptável (#147)", () => {
     expect(recebidas).toEqual(["[theokit-sdk] recall falhou\n"]);
   });
 
-  it("com sink instalado, o stderr NÃO recebe cópia", () => {
+  it("with a sink installed, stderr gets NO copy", () => {
     const escrever = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     setDiagnosticsSink(() => undefined);
 
-    // Duplicar destinos devolveria o problema à TUI que instalou o sink justamente para tirar
-    // as mensagens do terminal — é o defeito relatado, de volta.
+    // Duplicating destinations would hand the problem back to the TUI that installed the sink precisely to get
+    // the messages out of the terminal — it is the reported defect, back again.
     diag("[theokit-sdk] x\n");
 
     expect(escrever).not.toHaveBeenCalled();
   });
 
-  it("um sink vazio é o caminho de quem quer silêncio hoje", () => {
+  it("an empty sink is the path for anyone wanting silence today", () => {
     const escrever = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     setDiagnosticsSink(() => {
       /* descarta */
@@ -59,17 +63,20 @@ describe("canal de diagnóstico interceptável (#147)", () => {
     expect(escrever).not.toHaveBeenCalled();
   });
 
-  it("remover o sink devolve o stderr", () => {
+  it("removing the sink returns to silence, not to stderr (#147)", () => {
+    // Was "removing the sink gives stderr back". Since theokit#147 flipped the default, uninstalling
+    // returns to the production default — silence — rather than to the terminal. A host that tears
+    // its sink down on shutdown must not start writing onto the screen it just released.
     const escrever = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     setDiagnosticsSink(() => undefined);
     setDiagnosticsSink(undefined);
 
     diag("[theokit-sdk] x\n");
 
-    expect(escrever).toHaveBeenCalledWith("[theokit-sdk] x\n");
+    expect(escrever).not.toHaveBeenCalled();
   });
 
-  it("um sink que lança não derruba o run que ele apenas observa", () => {
+  it("a throwing sink does not take down the run it merely observes", () => {
     setDiagnosticsSink(() => {
       throw new Error("sink quebrado");
     });

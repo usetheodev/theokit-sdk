@@ -44,7 +44,7 @@ describe("persistTurnToTranscript onCompact callback (SE2 compact_boundary)", ()
         autoCompact: {
           usageTotal: 95_000,
           contextWindow: 100_000,
-          summarize: async () => "resumo automático",
+          summarize: async () => "automatic summary",
         },
       },
       () => {
@@ -68,7 +68,7 @@ describe("persistTurnToTranscript onCompact callback (SE2 compact_boundary)", ()
           autoCompact: {
             usageTotal: 1_000,
             contextWindow: 100_000,
-            summarize: async () => "não deveria rodar",
+            summarize: async () => "should not run",
           },
         },
         () => {

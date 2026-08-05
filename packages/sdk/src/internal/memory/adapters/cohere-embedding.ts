@@ -32,6 +32,19 @@ export const cohereMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapte
         defaultModel: DEFAULT_COHERE_EMBEDDING_MODEL,
         embeddingsPath: "/v2/embed",
         dimensionByModel: DIMENSION_BY_MODEL,
+        // theokit#159 — `/v2/embed` diverges in BOTH directions: it names the payload `texts`, requires
+        // `input_type`, and answers `{embeddings:{float:[[...]]}}` rather than `{data:[{embedding}]}`.
+        // `search_document` is the right default here because this runtime embeds material for
+        // storage; a query-side embedder would use `search_query`.
+        dialect: {
+          body: (model, inputs) => ({
+            model,
+            texts: [...inputs],
+            input_type: "search_document",
+            embedding_types: ["float"],
+          }),
+          vectors: (json) => (json as { embeddings?: { float?: number[][] } }).embeddings?.float,
+        },
       },
       options,
     ),

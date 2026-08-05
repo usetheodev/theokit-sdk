@@ -59,7 +59,7 @@ Do thing.
 
 def test_run_structural_triggers_fabricated_citation_hard_cap(tmp_path: Path) -> None:
     """A plan with a citation to a non-existent rule file MUST cap at INVALID."""
-    plan_body = _plan_with_evidence("- Cita `definitely-nonexistent-rule.md` para isso.\n")
+    plan_body = _plan_with_evidence("- Cites `definitely-nonexistent-rule.md` for that.\n")
     plan_path = tmp_path / "fab-fixture-plan.md"
     plan_path.write_text(plan_body, encoding="utf-8")
 

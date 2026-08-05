@@ -93,6 +93,17 @@ export {
   type CounterBudgetTrackerOptions,
   createCounterBudgetTracker,
 } from "./internal/budget/tracker/budget-tracker-counter.js";
+// theokit#147 — the diagnostics sink is PUBLIC, because a channel a consumer cannot install is not
+// a channel. The original fix routed 92 internal sites through `diag()` and left the installer
+// reachable only via `src/internal/diagnostics.js`, so the reported blocker ("a TUI host has no way
+// to intercept these") survived a green suite. A host now writes:
+//
+//     import { setDiagnosticsSink } from "@theokit/sdk";
+//     setDiagnosticsSink((message) => myStatusPanel.append(message));   // or `() => {}` for silence
+export {
+  type DiagnosticsSink,
+  setDiagnosticsSink,
+} from "./internal/diagnostics.js";
 export { JudgeCredentialError } from "./internal/judge/judge-call.js";
 // Handoffs — EXTRACTED to `@theokit/sdk-handoff` (SDK 2.0 split, Phase 4 / T4.1).
 // Consumers: `import { Handoff, handoffTo, ... } from "@theokit/sdk-handoff"`.
@@ -233,18 +244,26 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 // bundled .d.ts (the `export type *` indirection through `./types/index.js`
 // does not propagate to the rollup-dts output reliably). Needed by extracted
 // packages that author custom tools (e.g., @theokit/sdk-tools).
-export type { CustomTool, SDKAgent } from "./types/agent.js";
+// theokit#123 — the shape `Agent.describe()` returns, so a reflection endpoint can name it.
+export type {
+  AgentDescription,
+  AgentSubagentDescription,
+  AgentToolDescription,
+  CustomTool,
+  SDKAgent,
+} from "./types/agent.js";
 // SE7 — structured/multimodal tool-result content blocks (explicit for rollup-dts).
 export type { ImageBlock, ToolResultContentBlock } from "./types/content-blocks.js";
-// M80 — `JudgeResult` e `Verdict` viram públicos.
+// M80 — `JudgeResult` and `Verdict` become public.
 //
-// Eram `internal/`, então um consumidor que quisesse tipar o retorno do judge — para reagir a
-// `blocked` sem string mágica, por exemplo — precisava redeclarar a forma. É a mesma duplicação que
-// o M78 fechou para a hierarquia de erro: sem a superfície pública, reimplementar é a única saída
-// legal para quem está atrás da fronteira de camadas.
+// They were `internal/`, so a consumer wanting to type the judge's return — to react to `blocked`
+// without a magic string, say — had to redeclare the shape. It is the same duplication M78 closed
+// for the error hierarchy: without the public surface, reimplementing is the only legal way out for
+// anyone behind the layer boundary.
 //
-// `JudgeCredentialError` acompanha porque é o erro que a falha-rápida do M80 lança: quem faz `catch`
-// no goal loop precisa distinguir "credencial do judge não serve" de qualquer outra falha.
+// `JudgeCredentialError` comes along because it is the error M80's fail-fast throws: whoever
+// `catch`es in the goal loop needs to tell "the judge credential does not work" from any other
+// failure.
 export type { JudgeResult, Verdict } from "./types/goal-events.js";
 // Type contract
 export type * from "./types/index.js";
@@ -277,3 +296,7 @@ export {
   type RunToolProgressEvent,
   type RunTripwireEvent,
 } from "./types/run-events.js";
+// theokit#146 — the shape `Agent.transcript()` returns. A host rendering tool cards from a resumed
+// session needs to name these types; without them the method's return would only be reachable
+// through an inline `import(...)` in the emitted .d.ts.
+export type { SessionMessage, SessionMessagePart } from "./types/session-message.js";

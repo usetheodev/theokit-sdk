@@ -43,11 +43,13 @@ import type {
   Step,
   StepContext,
   SuspendStep,
+  WorkflowDescription,
   WorkflowEvent,
   WorkflowOptions,
   WorkflowResumeOptions,
   WorkflowRun,
   WorkflowRunOptions,
+  WorkflowStepDescription,
   WorkflowStream,
 } from "./types/workflow.js";
 import { WorkflowDuplicateStepIdError, WorkflowNestedError } from "./types/workflow.js";
@@ -226,6 +228,29 @@ export class WorkflowBuilder<TInput = unknown, TOutput = unknown> {
 
 /* ─── Workflow class ─── */
 
+/**
+ * theokit#161 — project one step to its reflectable shape, recursing into the variants that nest.
+ *
+ * `parallel` branches are FLATTENED: the grouping is a scheduling detail (which steps may run
+ * concurrently), not shape a reader of the workflow needs, and preserving it would put a second,
+ * branch-shaped level into a type whose whole purpose is to be renderable.
+ */
+function describeStep(step: Step): WorkflowStepDescription {
+  const base = { id: step.id, kind: step.kind } as const;
+  if (step.kind === "parallel") {
+    return { ...base, steps: step.branches.flat().map(describeStep) };
+  }
+  if (step.kind === "branch") {
+    const fromPredicates = step.predicates.flatMap(([, steps]) => steps.map(describeStep));
+    const fromFallback = (step.fallback ?? []).map(describeStep);
+    return { ...base, steps: [...fromPredicates, ...fromFallback] };
+  }
+  if (step.kind === "foreach" || step.kind === "dowhile") {
+    return { ...base, steps: [describeStep(step.step)] };
+  }
+  return base;
+}
+
 export class Workflow<TInput = unknown, TOutput = unknown> {
   /** @internal */
   constructor(
@@ -250,6 +275,28 @@ export class Workflow<TInput = unknown, TOutput = unknown> {
   static create<TI = unknown, TO = unknown>(options: WorkflowOptions): WorkflowBuilder<TI, TO> {
     WorkflowOptionsSchema.parse(options);
     return new WorkflowBuilder<TI, TO>(options);
+  }
+
+  /**
+   * theokit#161 — describe this workflow's shape, for a reflection surface.
+   *
+   * Returns `{ name, steps }`, each step carrying its `id` and `kind`, recursing into `parallel`,
+   * `branch`, `foreach` and `dowhile`. Every executable a step holds — predicates, conditions,
+   * agents, prompt templates — is omitted: it cannot cross a process boundary and says nothing about
+   * shape.
+   *
+   * There is deliberately no `Workflow.list()`. A workflow is a value the caller constructs and
+   * holds, so the caller already knows which ones exist; a registry would add process-global state
+   * nothing releases in order to re-answer a question the host can answer itself. A reflection
+   * endpoint maps over its own workflows and calls this.
+   *
+   * @public
+   */
+  describe(): WorkflowDescription {
+    return {
+      name: this._options.name,
+      steps: this._steps.map(describeStep),
+    };
   }
 
   /**

@@ -1,5 +1,56 @@
 # Changelog — @theokit/sdk-memory
 
+## 0.3.0
+
+### Minor Changes
+
+- a4a9920: `@theokit/sdk-memory` now uses the SDK's embedding runtime instead of its own copy (theokit#160).
+
+  The two packages each carried a full copy of `createOpenAiCompatibleRuntime`, and the satellite's
+  catalog replaces the SDK's at runtime when installed — so the copy that ran was not the copy most
+  people read. That duplication is what produced the two-month adapter gap fixed in theokit#128, and
+  every fix since had to be applied to both files by hand.
+
+  There is now one implementation, imported from `@theokit/sdk/internal/memory-adapters` — a
+  semver-exempt sub-path in the same family as `internal/persistence` and `internal/security`, which
+  exist for exactly this reason.
+
+  **Behaviour change for `@theokit/sdk-memory` consumers:** embedding batches now run with bounded
+  parallelism instead of serially, and the embedding cache is process-wide instead of per-adapter.
+  Both are what the SDK already did; the satellite had silently missed both improvements.
+
+- 0308f9f: `@theokit/sdk-memory` now serves every embedding provider the SDK advertises (theokit#128).
+
+  `azure-openai`, `cohere`, `jina` and `gemini` landed in the SDK core catalog in June 2026 and the
+  satellite never picked them up. That was not cosmetic drift: when `@theokit/sdk-memory` is
+  installed, its catalog _replaces_ core's in the routing path, while `Theokit.inspect.embeddingAdapters()`
+  kept listing all ten — so asking for one of the four got an "unknown provider" error from a provider
+  the SDK itself had just advertised. A cross-package test now fails the build if core ever advertises
+  a provider the peer cannot serve.
+
+  Also fixes the Azure OpenAI endpoint in both packages. Azure addresses the deployment in the URL
+  path (`/openai/deployments/{deployment}/embeddings`), and the placeholder was never substituted —
+  every Azure embedding request went to a URL containing the literal text `{model}` and could only 404. Providers with a static path are unaffected.
+
+- 0bd082f: Three advertised embedding providers now actually work (theokit#159).
+
+  `azure-openai`, `cohere` and `gemini` were in the catalog and rejected on every call. The shared
+  runtime spoke exactly one wire — `Authorization: Bearer`, a `{ model, input }` body, a
+  `{ data: [{ embedding }] }` response — and none of the three speak it:
+
+  - **Azure** authenticates an API key with the `api-key` header (`Bearer` carries an Entra ID token,
+    not the key from `AZURE_OPENAI_API_KEY`), and the deployment is already in the URL path, so
+    `model` does not belong in the body.
+  - **Cohere**'s `/v2/embed` names the payload `texts`, requires `input_type`, and answers
+    `{ embeddings: { float } }`.
+  - **Gemini**'s OpenAI-compatible surface is at `/v1beta/openai/embeddings`, not `/v1/embeddings`.
+
+  The runtime gained three optional per-provider hooks — auth headers, request body, response reader —
+  whose defaults are exactly the previous behaviour, so the seven providers that were already correct
+  are untouched. Each divergence is asserted by a test that records the real request.
+
+  Advertising a provider that cannot work is worse than not advertising it; that is what this closes.
+
 ## 0.2.2
 
 ### Patch Changes

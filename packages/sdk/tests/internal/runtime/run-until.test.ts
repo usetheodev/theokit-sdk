@@ -202,7 +202,7 @@ describe("runUntilImpl (T3.2)", () => {
   });
 });
 
-// ─── M55 (agent-builder goal autônomo) — token budget + estado budget_limited + continuation fiel ───
+// --- M55 (agent-builder autonomous goal) — token budget + budget_limited state + faithful continuation ---
 
 function buildFakeAgentWithUsage(responses: string[], perTurnTokens: number | undefined): SDKAgent {
   let i = 0;
@@ -241,7 +241,7 @@ const alwaysContinue = async (): Promise<JudgeResult> => ({
 
 describe("M55 — token budget + budget_limited state", () => {
   it("budget_limited_fires_when_tokens_cross", async () => {
-    // 60 tokens/turno, budget 100 → após o turno 2 (120 > 100) para com budget_limited
+    // 60 tokens/turn, budget 100 -> after turn 2 (120 > 100) it stops with budget_limited
     const agent = buildFakeAgentWithUsage(["r1", "r2", "r3"], 60);
     const { events, result } = await collect(
       runUntilImpl(agent, "goal X", { tokenBudget: 100, maxTurns: 20 }, { judge: alwaysContinue }),
@@ -260,7 +260,7 @@ describe("M55 — token budget + budget_limited state", () => {
     const { result } = await collect(
       runUntilImpl(agent, "goal", { tokenBudget: 10, maxTurns: 2 }, { judge: alwaysContinue }),
     );
-    expect(result.status).toBe("failed"); // maxTurns, não budget_limited
+    expect(result.status).toBe("failed"); // maxTurns, not budget_limited
     expect(result.tokensUsed).toBe(0);
   });
 
@@ -290,13 +290,13 @@ describe("M55 — continuation fiel ao Codex", () => {
   it("continuation_prompt_keeps_full_objective_and_audit_language", async () => {
     const agent = buildFakeAgentWithUsage(["r1", "r2", "r3"], 1);
     const { events } = await collect(
-      runUntilImpl(agent, "OBJETIVO_INTEIRO_XYZ", { maxTurns: 3 }, { judge: alwaysContinue }),
+      runUntilImpl(agent, "WHOLE_GOAL_XYZ", { maxTurns: 3 }, { judge: alwaysContinue }),
     );
     // turno 1 envia o goal cru; a continuation FIEL aparece nos turnos 2+ (prompt composto).
     const cont = events.find((e) => e.type === "continuation" && e.turn >= 2);
     expect(cont).toBeDefined();
     if (cont && cont.type === "continuation") {
-      expect(cont.prompt).toContain("OBJETIVO_INTEIRO_XYZ"); // objetivo íntegro
+      expect(cont.prompt).toContain("WHOLE_GOAL_XYZ"); // goal intact
       expect(cont.prompt.toLowerCase()).toMatch(/evidence|audit/); // linguagem fiel ao continuation.md
     }
   });
@@ -307,11 +307,11 @@ describe("M55 review — abort threaded into the in-flight run", () => {
     const controller = new AbortController();
     let cancelCalled = false;
     let judgeCalled = 0;
-    // wait() pende até cancel() ser chamado (mimetiza um turno longo interrompível)
+    // wait() pends until cancel() is called (mimics a long interruptible turn)
     const agent = {
       agentId: "fake-abort",
       async send() {
-        // aborta ENQUANTO o turno está em voo
+        // aborts WHILE the turn is in flight
         setTimeout(() => controller.abort(), 10);
         let unblock: () => void;
         const blocked = new Promise<void>((r) => {
@@ -346,8 +346,8 @@ describe("M55 review — abort threaded into the in-flight run", () => {
     const { result } = await collect(
       runUntilImpl(agent, "goal", { signal: controller.signal }, { judge }),
     );
-    expect(cancelCalled).toBe(true); // o abort CANCELOU o run em voo (não esperou o turno)
-    expect(judgeCalled).toBe(0); // pós-abort não gasta judge
+    expect(cancelCalled).toBe(true); // the abort CANCELLED the in-flight run (it did not wait for the turn)
+    expect(judgeCalled).toBe(0); // post-abort spends no judge
     expect(result.status).toBe("paused");
     expect(result.turnsUsed).toBe(1);
   });
@@ -361,9 +361,9 @@ describe("M56 review — continuation marcada + preview tail-biased", () => {
     const { GOAL_CONTINUATION_MARKER } = await import("../../../src/goal-loop.js");
     const long = `INICIO ${"x".repeat(2000)} CONCLUSAO-FINAL`;
     const prompt = composeContinuation("obj", long);
-    // marker estável na 1ª linha — consumidores (timeline colapsada, backtrack, compact) detectam
+    // stable marker on the 1st line — consumers (collapsed timeline, backtrack, compact) detect
     expect(prompt.startsWith(GOAL_CONTINUATION_MARKER)).toBe(true);
-    // preview tail-biased: a CONCLUSÃO do turno anterior sobrevive, não a narração inicial
+    // tail-biased preview: the previous turn's CONCLUSION survives, not the opening narration
     expect(prompt).toContain("CONCLUSAO-FINAL");
     expect(prompt).not.toContain("INICIO ");
   });

@@ -1,5 +1,5 @@
 // Promovido do agent-builder no M75 (plano m75-sandbox-kernel-no-framework, D1): confinamento de
-// kernel e infraestrutura do framework, nao do consumidor. Custo medido da promocao: ZERO
+// kernel confinement is framework infrastructure, not the consumer's. Measured cost of the promotion: ZERO
 // dependencias — so node:child_process, node:fs e node:path. O filtro cBPF e um Buffer em JS puro.
 
 /**
@@ -131,16 +131,16 @@ export function buildSeccompFilter(opts: SeccompOptions): Buffer {
   const killIdx = body.length - 1;
 
   // --- resolve symbolic targets to relative offsets ---
-  // A ramificacao E o programa cBPF: ALLOW/DENY/KILL sao alvos simbolicos resolvidos para
-  // deslocamento RELATIVO a proxima instrucao. Quebrar em helpers nao reduz a complexidade real —
-  // move o calculo de salto para outro arquivo e torna mais dificil auditar contra landlock.rs, a
+  // The branching IS the cBPF program: ALLOW/DENY/KILL are symbolic targets resolved to an
+  // offset RELATIVE to the next instruction. Breaking it into helpers does not reduce real complexity —
+  // it moves the jump arithmetic to another file and makes auditing against landlock.rs harder, the
   // fonte autoritativa.
   //
-  // Nao refatorar AGORA e decisao de processo do M75: esta funcao esta sendo MIGRADA sem mudanca de
-  // comportamento (plano m75, D4) e ainda nao existe oraculo de equivalencia byte-a-byte contra a
-  // versao original. Refatorar seguranca sem esse oraculo e trocar a fechadura no escuro.
-  // Revisitar quando o gate de paridade (T4.2) estiver verde — ai o oraculo existe.
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
+  // Not refactoring NOW is an M75 process decision: this function is being MIGRATED without behavior
+  // change (plan m75, D4) and there is still no byte-for-byte equivalence oracle against the
+  // original version. Refactoring security without that oracle is changing the lock in the dark.
+  // Revisit when the parity gate (T4.2) is green — the oracle exists then.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
   const resolve = (i: number, t: Target): number => {
     const abs = t === ALLOW ? allowIdx : t === DENY ? denyIdx : t === KILL ? killIdx : i + 1 + t;
     // BPF jump offset is relative to the NEXT instruction: target - (i + 1)
@@ -150,7 +150,7 @@ export function buildSeccompFilter(opts: SeccompOptions): Buffer {
   };
   // `for...of` com entries em vez de indice cru: o SDK compila com `noUncheckedIndexedAccess`, que
   // (corretamente) tipa `body[i]` como possivelmente indefinido. Iterar da a garantia no tipo em vez
-  // de exigir um `!` — o codigo ja nao podia sair do intervalo, e agora o compilador sabe disso.
+  // requiring a `!` — the code already could not leave the range, and now the compiler knows it.
   for (const [i, b] of body.entries()) {
     if (b.code === JEQ_K || b.code === JGE_K) {
       insns.push(jmp(b.code, b.k, resolve(i, b.jt), resolve(i, b.jf)));
