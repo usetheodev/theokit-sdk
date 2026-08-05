@@ -251,3 +251,33 @@ Three statements I published on the issues are false and must be corrected:
 6. H6, H7 — the test gaps that let the recurring credential-loss class survive a third time.
 
 Re-run `/review` after the fixes; do not promote `workspace → develop` before then.
+
+---
+
+## Re-verification — 2026-08-05, after the fixes
+
+The `NEEDS_FIXES` verdict above stands as the record of what the review found. This section records
+what happened to each blocking finding, verified mechanically against the tree at `4ef389250`
+rather than asserted.
+
+| Finding | Check run | Result |
+| --- | --- | --- |
+| B1 — `ctx.pendingThinking` leaks across turns | `grep -rn pendingThinking packages/sdk/src` | Closed. The single remaining hit is inside the comment in `loop-llm-stream.ts` that explains why the field was removed — the thinking block is now a per-round value, not context state. |
+| B2 — in-flight assistant turn replayed without its thinking block | `tests/internal/session/thinking-signature-roundtrip.test.ts` | Closed. Regression test present; redaction now drops the signature when it invalidates it, rather than shipping a signature that no longer matches its text. |
+| H1 — `setDiagnosticsSink` not exported from any public entry | `grep setDiagnosticsSink packages/sdk/src/index.ts` | Closed. Exported from the package barrel. |
+| H2 — capability-map gate red on this branch | `node scripts/check-capability-map.mjs` | Closed. PASS. |
+| H3 — `initialize()` idempotence keys on child liveness, not handshake | `tests/mcp/initialize-after-failed-handshake.test.ts` | Closed. Regression test present. |
+| H4 — changeset claims a removal is safe in the wrong direction | consumed by the 4.39.0 cut | Closed. The changeset was corrected before `version-packages` ran; the published 4.39.0 notes carry the corrected direction. |
+| H5 — three of four ported embedding adapters cannot work | `grep EmbeddingDialect internal/memory/adapters/openai-compatible.ts` | Closed. Dialect hooks (`authHeaders` / `body` / `vectors`) shipped; wire-contract tests cover the non-OpenAI shapes. |
+| H6 — theokit#148 production wiring has no test | `tests/a2a/subagent-credentials-production-wiring.test.ts` | Closed. Test present. |
+| H7 — cross-bundle guard deleted, replacement cannot detect the failure | `node tools/check-cross-cluster.mjs` | Closed. PASS. |
+
+**What this section is NOT.** It is not a re-run of `/review` and does not replace the verdict. No
+specialist agents were re-spawned, so findings this pass could not have surfaced — anything
+introduced by the fixes themselves — remain unlooked-for. Per `rules/cycle-review.md`, a fresh
+`READY_TO_MERGE` requires a fresh review; this is a closure record for the findings the previous one
+raised, nothing wider.
+
+**Also honest:** the release these fixes went into (`@theokit/sdk@4.39.0`) shipped before this
+section was written. The sequence was fix, publish, then evidence the closure — not the other way
+round. Recorded so the timeline is not reconstructed more favourably later.
