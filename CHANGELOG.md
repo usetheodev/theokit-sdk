@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [@theokit/sdk@4.39.2] - 2026-08-05
+
 ## [@theokit/sdk@4.39.1] - 2026-08-05
 
 ### Fixed
