@@ -87,7 +87,12 @@ export const OPENAI_CHATGPT: ProviderProfile = {
     "openai-chatgpt/gpt-5.4-mini",
     "openai-chatgpt/gpt-5.5",
   ],
-  extraHeaders: { originator: "codex_cli_rs" },
+  // #165 — this shipped as `codex_cli_rs`, which is the OFFICIAL Codex CLI's own value
+  // (`codex-rs/login/src/auth/default_client.rs`, `DEFAULT_ORIGINATOR`). Claiming to be a different
+  // vendor's client is a false statement of identity, and it diverged from the very prior art this
+  // file is adapted from: OpenCode sends `originator: "opencode"` — its own name — against this same
+  // endpoint, which also shows the route is not restricted to the official client.
+  extraHeaders: { originator: "theokit" },
   transform: {
     // Only `fetch` (async) can await the credential refresh; `headers` is sync and cannot.
     fetch: () => codexFetch(),
