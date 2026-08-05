@@ -182,7 +182,9 @@ describe("D14 — fault injection active (status 200, text response)", () => {
     const { events, finish } = await consumeAll(wrapped);
     // Then: real client NOT called; deterministic events
     expect(real.callCount).toBe(0);
-    expect(events.length).toBeGreaterThanOrEqual(2);
+    // theokit#144: one event, not two — the injected stream no longer echoes a trailing `stop`
+    // event nobody read. The stop reason is asserted on the finish value below.
+    expect(events).toHaveLength(1);
     const textEvent = events.find(
       (e): e is { type: "text_delta"; text: string } =>
         typeof e === "object" && e !== null && (e as { type?: string }).type === "text_delta",

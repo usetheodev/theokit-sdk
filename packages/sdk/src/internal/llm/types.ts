@@ -129,11 +129,32 @@ export interface LlmRequest {
   toolChoice?: "auto" | "none" | "required";
 }
 
+/**
+ * What a provider stream reports WHILE it is running. Tool calls are deliberately absent.
+ *
+ * theokit#144: this union used to declare `tool_use` and `stop` variants. Only two providers ever
+ * yielded them (`responses.ts`, `fault-injection.ts`), the loop's collector
+ * (`loop-llm-stream.ts`) never read them, and the tool calls they carried were duplicates of what
+ * `LlmFinish.toolCalls` already returned. So they were not a live tool channel — they were a
+ * declaration of one, which is worse: it told implementers a provider-level channel existed and
+ * cost `@theokit/agents` a workaround (holding every `text_delta` until the stream drained, which
+ * broke live token streaming on text-only turns — issue #47).
+ *
+ * Wiring them instead of deleting them was rejected: `openai.ts` and `anthropic.ts` cannot produce
+ * them at all (their tool calls only resolve at completion), so a live provider-level channel would
+ * exist on some providers and not others — a worse contract than a uniform one.
+ *
+ * **The canonical live tool channel is `onDelta`**: `tool-call-started` / `tool-call-completed`
+ * `InteractionUpdate`s, emitted by `runToolWithLifecycle` (`agent-loop/tool-dispatch.ts`) between
+ * LLM rounds. It is uniform across providers, carries a `callId` correlating the two ends, and
+ * fires before the post-tool answer text. `Run.events()` (theokit#140) merges it with the
+ * structural `SDKMessage`s into one ordered timeline.
+ *
+ * The stop reason is not an event either — it is returned once, on `LlmFinish.stopReason`.
+ */
 export type LlmEvent =
   | { type: "text_delta"; text: string }
   | { type: "reasoning_delta"; text: string }
-  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-  | { type: "stop"; reason: LlmStopReason }
   | { type: "error"; message: string };
 
 export type LlmStopReason = "end_turn" | "tool_use" | "max_tokens" | "stop_sequence" | "error";
