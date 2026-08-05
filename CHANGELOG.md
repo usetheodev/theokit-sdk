@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [@theokit/sdk@4.39.2] - 2026-08-05
 
+### Fixed
+- **The diagnostics sink now survives two copies of `@theokit/sdk` in one process (theokit#173).** The registry was a module-level `let` — a per-INSTANCE singleton — and a package manager installs two physical copies of the same version whenever two dependents resolve different peer sets. Measured: `@theokit/sdk@4.39.1` existed under two pnpm store hashes in the theokit workspace, so the sink a consumer installed through `@theokit/agents` landed in a different registry than the emitter writes to. The symptom was the worst kind: the re-export resolved, the function was callable, nothing threw — and no diagnostic ever arrived. The registry now lives in a `globalThis` slot under `Symbol.for`, shared by every copy in the process.
+
 ## [@theokit/sdk@4.39.1] - 2026-08-05
 
 ### Fixed
