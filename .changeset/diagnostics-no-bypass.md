@@ -1,5 +1,5 @@
 ---
-"@theokit/sdk": patch
+"@theokit/sdk": minor
 ---
 
 Every SDK diagnostic now goes through the interceptable channel (theokit#147).
