@@ -30,6 +30,11 @@ import {
   computeCost, normalizeUsage, getPricingEntry, // cost helpers (never 0 when pricing unknown)
   Squad, Task,                // Squad.create(...) multi-agent + task primitives (SE36)
   Theokit, Cron,              // top-level namespaces (Theokit.models.list(), Cron.create(...))
+  type SessionMessage,        // one turn of a persisted transcript: { role, text, parts? }
+  type SessionMessagePart,    // structured part: text | tool_use (id/name/input) | tool_result (toolUseId/content)
+  type AgentDescription,      // Agent.describe(id) → { agentId, runtime, model?, tools, subagents }
+  type AgentToolDescription,  // { name, description, inputSchema } — handler stripped
+  type AgentSubagentDescription, // { name, description, model?, tools? } — prompt stripped
 } from "@theokit/sdk";
 
 // Step cap fail-closed in one line:
@@ -38,6 +43,23 @@ const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
   budgetTracker: createCounterBudgetTracker({ maxIterations: 50 }), // stops + sets RunResult.stoppedAtIterationLimit
 });
+
+// Re-render a resumed session as tool CARDS, not prose (theokit#146). `text` is the flat
+// projection the model replay uses; `parts` keeps the call id, tool name and arguments, plus the
+// `toolUseId` that correlates a result back to its call. Local sessions only; read-only.
+for (const message of await Agent.transcript("agent-abc123")) {
+  for (const part of message.parts ?? []) {
+    if (part.type === "tool_use") renderCard(part.name, part.input, part.id);
+  }
+}
+
+// Reflect the live registry — what an agent can call, without reading source (theokit#123).
+// A projection: tool handlers and subagent prompts never leave the process.
+const { tools, subagents } = await Agent.describe("agent-abc123");
+
+// A committed workflow describes its own shape (theokit#161). No registry exists on purpose — the
+// host holds the workflows it defined, so it maps over its own and calls this.
+const { name, steps } = myWorkflow.describe();   // steps: [{ id, kind, steps? }]
 ```
 
 ## Errors & transient classification — `@theokit/sdk/errors`
@@ -156,11 +178,15 @@ const done = readJsonlIds("out/preds.jsonl", (r) => (r.patch ? String(r.id) : un
 ## Eval & sandbox — `@theokit/sdk/eval`, `@theokit/sdk/sandbox`
 
 ```typescript
-import { Eval, Scorers, loadJsonl, captureArtifact } from "@theokit/sdk/eval";
+import { Eval, Scorers, assertEval, EvalThresholdError, loadJsonl, captureArtifact } from "@theokit/sdk/eval";
 import { LocalSandbox, provisionRepo, RepoProvisionError } from "@theokit/sdk/sandbox";
-// Scorers.verifyGate({ sandbox, repoDir, failToPass, passToPass, command }) → exit-code scorer
-// provisionRepo(sandbox, { repoUrl, ref, instanceId }) → { repoDir } (clone+checkout via SandboxBackend)
-const ev = Eval.create({ name: "swe", dataset, scorers: [Scorers.verifyGate({ sandbox: new LocalSandbox(), repoDir, failToPass, passToPass, command })], agent });
+// Scorers: exactMatch, containsExpected, regex, jsonShape(zod), llmJudge, verifyGate,
+//          levenshtein({ threshold?, caseSensitive? }), numericDiff({ tolerance? }),
+//          embeddingSimilarity({ apiKey?, model?, threshold?, embed? })  ← SE41
+const ev = Eval.create({ name: "qa", dataset, scorers: [Scorers.levenshtein({ threshold: 0.8 })], agent, trials: 3 });
+const run = await ev.run();
+// CI gate (SE41): throws EvalThresholdError with every unmet threshold, else void.
+assertEval(run, { minMeanScore: 0.8, minPassRatio: 0.9, maxErrorRatio: 0, perScorer: { "levenshtein(>=0.8)": 0.7 } });
 ```
 
 ## Workflow, task store, cron, subscription, A2A, client

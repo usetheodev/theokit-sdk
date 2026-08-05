@@ -30,17 +30,32 @@ export {
   type SessionArtifactStore,
   type SessionArtifactStoreOptions,
 } from "./artifact-store.js";
+export {
+  type CreateCurrentTimeToolOptions,
+  createCurrentTimeTool,
+} from "./current-time.js";
 export { type CreateEditFileToolOptions, createEditFileTool } from "./edit-file.js";
 // Output formatting utilities (moved from @theokit/theocode — SDK LEGO pieces)
 export { formatCode, formatDiff, formatError, formatFileList } from "./formatter.js";
 export { type CreateGitDiffToolOptions, createGitDiffTool } from "./git-diff.js";
+export { type CreateGitStatusToolOptions, createGitStatusTool } from "./git-status.js";
 export { type CreateGlobToolOptions, createGlobTool } from "./glob-files.js";
+export {
+  type CreateInteractiveShellToolOptions,
+  createInteractiveShellTool,
+  createWriteStdinTool,
+} from "./interactive-shell.js";
 export {
   type CommandPolicy,
   commandDenialReason,
   denyCatastrophicCommands,
   isCommandAllowed,
 } from "./internal/command-policy.js";
+export {
+  ContextMatchError,
+  type ContextMatchReason,
+  replaceUnique,
+} from "./internal/context-match.js";
 export {
   isBlockedIp,
   RedirectBlockedError,
@@ -57,7 +72,7 @@ export {
   type RepoMapOptions,
 } from "./internal/repo-map.js";
 export { CatastrophicCommandError, catastrophicShellReason } from "./internal/shell-guard.js";
-export { renderToolList, withDescription } from "./internal/tool-aci.js";
+export { renderToolList, withDescription, withName } from "./internal/tool-aci.js";
 export {
   DEFAULT_TOOL_GUIDANCE,
   injectGuidance,
@@ -91,7 +106,13 @@ export { type CreateSearchTextToolOptions, createSearchTextTool } from "./search
 export { type CreateShellToolOptions, createShellTool } from "./shell-exec.js";
 export { type PlanNode, todoItemsToPlanNodes } from "./todo-plan-nodes.js";
 export { createTodolistTool, type TodoItem, type TodolistTool } from "./todolist.js";
-export { type TruncationOptions, type TruncationResult, truncateOutput } from "./truncation.js";
+export {
+  type TruncationMode,
+  type TruncationOptions,
+  type TruncationResult,
+  truncateOutput,
+} from "./truncation.js";
+export { createUpdatePlanTool } from "./update-plan.js";
 export { type CreateWebFetchToolOptions, createWebFetchTool } from "./web-fetch.js";
 export {
   type CreateWebSearchToolOptions,

@@ -146,7 +146,7 @@ describe("custom inline tools (AgentOptions.tools)", () => {
       local: { cwd },
       tools: [currentTime],
     });
-    const run = await agent.send("Que horas são?");
+    const run = await agent.send("What time is it?");
     const result = await run.wait();
     expect(result.status).toBe("finished");
     expect(invocations).toBe(1);

@@ -22,12 +22,14 @@ import type {
   Score,
   Scorer,
 } from "../../types/eval.js";
+import { diag } from "../diagnostics.js";
 import { appendJsonl, readJsonlIds } from "../persistence/jsonl.js";
 import { getAgentFacade } from "../runtime/registry/agent-factory-registry.js";
 import { clampScore, computeAggregate } from "./aggregate.js";
 import { materializeDataset } from "./dataset-iter.js";
 import { acquireSingleFlight, releaseSingleFlight } from "./single-flight.js";
 import { startEvalRunSpan } from "./telemetry.js";
+import { collapseTrials, expandForTrials } from "./trials.js";
 
 /**
  * EC-4: every hook invocation is wrapped here. User code throwing in
@@ -38,7 +40,10 @@ function safeHook(fn: () => void): void {
   try {
     fn();
   } catch (err) {
-    console.warn("[eval] hook threw (ignored):", err instanceof Error ? err.message : err);
+    // theokit#147 — through the interceptable channel. The allowlist entry that exempted this file
+    // claimed the caller controls the destination; it does not, and an in-process `Eval` run under a
+    // TUI corrupted its frame by exactly the mechanism the issue reports.
+    diag(`[eval] hook threw (ignored): ${err instanceof Error ? err.message : String(err)}\n`);
   }
 }
 
@@ -107,9 +112,8 @@ function appendRowSafely(path: string, row: EvalRowResult): void {
   try {
     appendJsonl(path, row);
   } catch (err) {
-    console.warn(
-      "[eval] persist append failed (ignored):",
-      err instanceof Error ? err.message : err,
+    diag(
+      `[eval] persist append failed (ignored): ${err instanceof Error ? err.message : String(err)}\n`,
     );
   }
 }
@@ -380,7 +384,10 @@ export async function runEval(
   const id = randomUUID();
   const startedAt = Date.now();
   const entries = await materializeDataset(options.dataset);
-  const indexed: DatasetEntry[] = entries.map((e) => ({ ...e }));
+  const materialized: DatasetEntry[] = entries.map((e) => ({ ...e }));
+  // SE41: with trials > 1, run each entry N times (tagged), then collapse.
+  const trials = options.trials ?? 1;
+  const indexed: DatasetEntry[] = trials > 1 ? expandForTrials(materialized, trials) : materialized;
   const scorers = normalizeScorers(options.scorers);
   const concurrency = options.concurrency ?? 4;
   const signal = runOpts?.signal;
@@ -417,7 +424,9 @@ export async function runEval(
       rows = await runRowsViaBatch(indexed, batchOpts, scorers, concurrency, signal, onRow, sink);
     }
 
-    const aggregate: EvalAggregate = computeAggregate(rows);
+    // SE41: collapse per-trial rows back to one row per dataset entry.
+    const finalRows = trials > 1 ? collapseTrials(rows, trials) : rows;
+    const aggregate: EvalAggregate = computeAggregate(finalRows);
     const endedAt = Date.now();
     const run: EvalRun = {
       id,
@@ -426,7 +435,7 @@ export async function runEval(
       endedAt,
       durationMs: endedAt - startedAt,
       aggregate,
-      rows,
+      rows: finalRows,
       ...(options.metadata !== undefined ? { metadata: options.metadata } : {}),
     };
     safeHook(() => hooks?.afterRun?.(run));

@@ -32,9 +32,9 @@ function buildStubClient(plan: Array<LlmFinish>): LlmClient {
         return { stopReason: "end_turn", text: "", toolCalls: [] };
       }
       if (next.text.length > 0) yield { type: "text_delta", text: next.text };
-      for (const call of next.toolCalls) {
-        yield { type: "tool_use", id: call.id, name: call.name, input: call.input };
-      }
+      // theokit#144: tool calls travel on the finish value, which is what the loop reads. The stub
+      // used to also yield them as `tool_use` events; nothing consumed those, so mirroring a real
+      // provider means not emitting them.
       return next;
     },
   };

@@ -1,6 +1,8 @@
 import { NetworkError } from "../../errors.js";
+import { diag } from "../diagnostics.js";
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
 import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
+import { readErrorResponseBody } from "../http.js";
 import {
   collapseSystemText,
   makeLlmFinish,
@@ -8,13 +10,13 @@ import {
   parseToolArguments,
 } from "./finish.js";
 import { extractHermesToolCalls, StreamSuppressionBuffer } from "./hermes-tool-extract.js";
+import { toOpenAIMessages } from "./openai-messages.js";
 import { parseSseStream } from "./sse.js";
-import { toStringToolResultContent } from "./tool-result-content.js";
+import { wrapTransportError } from "./transport-error.js";
 import type {
   LlmClient,
   LlmEvent,
   LlmFinish,
-  LlmMessage,
   LlmRequest,
   LlmStopReason,
   LlmToolCallPart,
@@ -28,6 +30,21 @@ import type {
  *
  * @internal
  */
+
+/**
+ * M45 — derive the chat-completions path from the baseUrl: a path already carrying a version segment
+ * (`/v1`, `/v1beta`, …) gets `/chat/completions`; host-only (or unparseable) baseUrls keep the legacy
+ * `/v1/chat/completions`. Unparseable NEVER throws (H1) — the transport surfaces a typed error at fetch time.
+ */
+function deriveChatPath(baseUrl: string): string {
+  try {
+    return /\/v\d+[a-z]*(\/|$)/.test(new URL(baseUrl).pathname)
+      ? "/chat/completions"
+      : "/v1/chat/completions";
+  } catch {
+    return "/v1/chat/completions";
+  }
+}
 
 export interface OpenAIClientOptions {
   apiKey: string;
@@ -48,6 +65,14 @@ export interface OpenAIClientOptions {
    * Default `false` — a code assistant can legitimately print a literal `<function=` in code text.
    */
   extractToolCallsFromContent?: boolean;
+  /**
+   * M41 — extra HTTP headers merged into the request (the profile's static `extraHeaders` + a provider
+   * `transform.headers(ctx)`). Spread AFTER the base `authorization`/`content-type`, so a provider that owns
+   * its auth CAN override them by design (document this on `ProviderTransform.headers`).
+   */
+  extraHeaders?: Record<string, string>;
+  /** M45 — explicit chat-completions path (from `ProviderProfile.chatCompletionsPath`). */
+  chatCompletionsPath?: string;
 }
 
 interface OpenAIDeltaChunk {
@@ -99,10 +124,19 @@ interface OpenAIDeltaChunk {
 export class OpenAIClient implements LlmClient {
   readonly name = "openai";
   private readonly baseUrl: string;
+  private readonly chatPath: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly options: OpenAIClientOptions) {
-    this.baseUrl = options.baseUrl ?? "https://api.openai.com";
+    // M45 review M3 — strip trailing slashes so `…/v1/` (the python-openai-popularized form) joins cleanly.
+    this.baseUrl = (options.baseUrl ?? "https://api.openai.com").replace(/\/+$/, "");
+    // M45 — URL-join rule (kills the /v1/v1 doubling): explicit override > version-segment detection >
+    // legacy `/v1/chat/completions`. A baseUrl already carrying a version path segment (…/openai/v1,
+    // …/v1beta/openai) gets only `/chat/completions`; host-only baseUrls are byte-identical to before.
+    // M45 review H1 — the parse NEVER throws from the constructor: a malformed baseUrl (scheme-less host,
+    // empty env var) degrades to the LEGACY path (byte-identical to pre-M45 string concat) and fails, typed,
+    // at the first fetch — never poisoning the whole provider chain at construction time.
+    this.chatPath = options.chatCompletionsPath ?? deriveChatPath(this.baseUrl);
     this.fetchImpl = options.fetch ?? fetch;
   }
 
@@ -127,10 +161,12 @@ export class OpenAIClient implements LlmClient {
     if (this.options.organization !== undefined) {
       headers["openai-organization"] = this.options.organization;
     }
+    // M41 — merge extra/dynamic headers (spread last: a provider that owns its auth may override base headers).
+    if (this.options.extraHeaders !== undefined) Object.assign(headers, this.options.extraHeaders);
     const providerId = this.options.providerName ?? this.name;
     let response: Response;
     try {
-      response = await this.fetchImpl(`${this.baseUrl}/v1/chat/completions`, {
+      response = await this.fetchImpl(`${this.baseUrl}${this.chatPath}`, {
         method: "POST",
         signal,
         headers,
@@ -144,16 +180,13 @@ export class OpenAIClient implements LlmClient {
         endpoint: "/v1/chat/completions",
       });
       if (mapped !== undefined) throw mapped;
-      throw fetchErr;
+      // M93 — before this, a raw `throw fetchErr` left here for every provider other than Ollama, and
+      // a foreign error is NON-transient by contract (`errors.ts:429`): retry stayed off
+      // in the most classic case.
+      throw wrapTransportError(fetchErr, { providerId, endpoint: "/v1/chat/completions" });
     }
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      let body: unknown = text;
-      try {
-        body = JSON.parse(text);
-      } catch {
-        // not JSON — keep as string for mapper raw field
-      }
+      const body = await readErrorResponseBody(response);
       // T1.1: try Ollama-specific HTTP mapper first; falls through to generic.
       const ollamaMapped = mapOllamaHttpError({
         providerId,
@@ -380,7 +413,7 @@ class OpenAIStreamAccumulator {
         stopReason = "tool_use";
         // Observability (wiring triad pillar c): recovery is a model-misbehavior workaround, so make
         // it visible — a route that leaks often should be diagnosable without a debugger.
-        process.stderr.write(
+        diag(
           `[theokit-sdk] recovered ${recovered.toolCalls.length} leaked tool call(s) from assistant content ` +
             `(provider="${this.providerName}", names=${recovered.toolCalls.map((c) => c.name).join(",")})\n`,
         );
@@ -388,7 +421,7 @@ class OpenAIStreamAccumulator {
       // R5 observability: a leaked block DROPPED by the request-scoped allowlist is the guard firing —
       // surface it too, so a model emitting `<function=NAME>` for an undeclared tool is diagnosable.
       if (recovered.droppedNames.length > 0) {
-        process.stderr.write(
+        diag(
           `[theokit-sdk] dropped ${recovered.droppedNames.length} leaked block(s) whose name is not a ` +
             `tool in the request (provider="${this.providerName}", names=${recovered.droppedNames.join(",")})\n`,
         );
@@ -509,62 +542,3 @@ function encodeOpenAIResponseFormat(
 export const __testing__buildOpenAIBody = buildOpenAIBody;
 /** issue #47 test seam — exercise reasoning-delta parsing without a live stream. */
 export const __testing__OpenAIStreamAccumulator = OpenAIStreamAccumulator;
-
-function toOpenAIMessages(message: LlmMessage): Array<Record<string, unknown>> {
-  if (message.role === "system") return [systemMessage(message)];
-  if (message.role === "user") return userOrToolMessages(message);
-  return [assistantMessage(message)];
-}
-
-function systemMessage(message: LlmMessage): Record<string, unknown> {
-  return { role: "system", content: joinTextParts(message) };
-}
-
-function joinTextParts(message: LlmMessage): string {
-  return message.content
-    .filter((part) => part.type === "text")
-    .map((part) => (part as { text: string }).text)
-    .join("\n");
-}
-
-/**
- * Translate a logical `user` turn. If the turn contains tool_result parts
- * they must be emitted as `role: "tool"` messages with matching
- * `tool_call_id` — OpenAI rejects tool_calls followed by a user message.
- * Plain text parts (and any other parts) collapse into a single user
- * message that follows the tool messages.
- */
-function userOrToolMessages(message: LlmMessage): Array<Record<string, unknown>> {
-  const out: Array<Record<string, unknown>> = [];
-  for (const part of message.content) {
-    if (part.type === "tool_result") {
-      out.push({
-        role: "tool",
-        tool_call_id: part.toolUseId,
-        // SE7 — this wire's tool role is string-only: text blocks flatten; an
-        // image block fails fast (ConfigurationError).
-        content: toStringToolResultContent(part.content, "openai"),
-      });
-    }
-  }
-  const userText = joinTextParts(message);
-  if (userText.length > 0) out.push({ role: "user", content: userText });
-  return out;
-}
-
-function assistantMessage(message: LlmMessage): Record<string, unknown> {
-  const text = joinTextParts(message);
-  const toolCalls = message.content
-    .filter((part) => part.type === "tool_use")
-    .map((part) => {
-      const tc = part as { id: string; name: string; input: Record<string, unknown> };
-      return {
-        id: tc.id,
-        type: "function",
-        function: { name: tc.name, arguments: JSON.stringify(tc.input) },
-      };
-    });
-  const result: Record<string, unknown> = { role: "assistant", content: text };
-  if (toolCalls.length > 0) result.tool_calls = toolCalls;
-  return result;
-}

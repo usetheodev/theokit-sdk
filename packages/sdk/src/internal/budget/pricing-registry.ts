@@ -15,6 +15,7 @@
  * @internal
  */
 
+import { getCatalogModelInfo, isPatchedModelKey } from "../providers/catalog-loader.js";
 import pricingData from "./pricing-data.json" with { type: "json" };
 
 export interface PricingEntry {
@@ -121,6 +122,42 @@ export function getPricingEntry(opts: {
     }
   }
 
+  // 5. M44 — catalog fallback (ADR D3: pricing-data.json FEEDS from the catalog, never replaced by it).
+  // On a TOTAL LiteLLM miss, consult the model-info index's `cost` (models.dev USD-per-1M convention —
+  // same unit as D378). Provenance marked "catalog-vendored" so CostBreakdown stays honest about the source.
+  const catalogEntry = catalogCostFallback(opts.provider, cleaned);
+  if (catalogEntry !== undefined) return catalogEntry;
+
+  return undefined;
+}
+
+/** Step-5 catalog cost lookup: direct `provider/model`, then the model id as-is when it carries a path. */
+// PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
+// sweeping these files (a nested root under refactor/). It is not new code and was not touched
+// by M75; refactoring SDK internals without review would trade a visible problem for a diff
+// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
+function catalogCostFallback(provider: string, cleanedModel: string): PricingEntry | undefined {
+  // M44 L10 fix — also try the date-stripped id (parity with the LiteLLM chain's step 2).
+  const stripped = stripDateSuffix(cleanedModel);
+  const candidates = [`${provider}/${cleanedModel}`, cleanedModel];
+  if (stripped !== cleanedModel) candidates.push(`${provider}/${stripped}`, stripped);
+  for (const key of candidates) {
+    const info = getCatalogModelInfo(key);
+    const cost = info?.cost;
+    if (cost === undefined) continue;
+    const [prov, ...modelParts] = key.split("/");
+    return {
+      provider: prov ?? provider,
+      model: modelParts.join("/") || cleanedModel,
+      inputCostPerMillion: cost.input,
+      outputCostPerMillion: cost.output,
+      ...(cost.cache_read !== undefined ? { cacheReadCostPerMillion: cost.cache_read } : {}),
+      ...(cost.cache_write !== undefined ? { cacheWriteCostPerMillion: cost.cache_write } : {}),
+      // M44 M5 fix — honest provenance: a key patched by the LIVE models-dev source is not "vendored".
+      pricingVersion: isPatchedModelKey(key) ? "catalog-models-dev" : "catalog-vendored",
+    };
+  }
   return undefined;
 }
 

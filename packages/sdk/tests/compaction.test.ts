@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   buildCheckpoint,
@@ -12,6 +12,7 @@ import {
   shouldCompact,
 } from "../src/compaction.js";
 import { RateLimitError, TheokitAgentError } from "../src/errors.js";
+import { setDiagnosticsSink } from "../src/internal/diagnostics.js";
 
 /**
  * M2-1 — public compaction / context-management helpers. Design: blueprint
@@ -348,7 +349,12 @@ describe("compactTranscript template + fail-safe (V3-3 — D3/D4)", () => {
   });
 
   it("test_compactTranscript_failSafe_warns_on_throw", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // theokit#147 — the warning moved from `console.warn` onto the interceptable diagnostics
+    // channel, so a TUI host can route it instead of having it smeared across its frame. Asserting
+    // on the sink is the stronger check: it proves the message reaches the channel a host reads,
+    // not merely that something reached the terminal.
+    const emitted: string[] = [];
+    setDiagnosticsSink((m) => emitted.push(m));
     await compactTranscript(convo, {
       keepRecent: 2,
       failSafe: true,
@@ -356,12 +362,13 @@ describe("compactTranscript template + fail-safe (V3-3 — D3/D4)", () => {
         throw new Error("boom");
       },
     });
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[compaction]"));
-    warn.mockRestore();
+    expect(emitted.join("")).toContain("[compaction]");
+    setDiagnosticsSink(undefined);
   });
 
   it("test_compactTranscript_failSafe_handles_non_error_throw", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const emitted: string[] = [];
+    setDiagnosticsSink((m) => emitted.push(m));
     const out = await compactTranscript(convo, {
       keepRecent: 2,
       failSafe: true,
@@ -371,8 +378,8 @@ describe("compactTranscript template + fail-safe (V3-3 — D3/D4)", () => {
       },
     });
     expect(out).toEqual(convo);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("string-failure"));
-    warn.mockRestore();
+    expect(emitted.join("")).toContain("string-failure");
+    setDiagnosticsSink(undefined);
   });
 });
 

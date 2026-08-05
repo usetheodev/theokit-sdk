@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { renderToolList, withDescription } from "../src/internal/tool-aci.js";
+import { renderToolList, withDescription, withName } from "../src/internal/tool-aci.js";
 import { createReadFileTool } from "../src/read-file.js";
 import { textHandler } from "./text-handler.js";
 
@@ -42,6 +42,46 @@ describe("withDescription", () => {
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });
     }
+  });
+});
+
+describe("withName", () => {
+  it("overrides only the name (description/schema/handler preserved by reference)", () => {
+    const tool = fakeTool("search_text", "Search text");
+    const out = withName(tool, "grep");
+    expect(out.name).toBe("grep");
+    expect(out.description).toBe(tool.description);
+    expect(out.inputSchema).toBe(tool.inputSchema);
+    expect(out.handler).toBe(tool.handler);
+  });
+
+  it("does not mutate the original tool", () => {
+    const tool = fakeTool("search_text", "Search text");
+    withName(tool, "grep");
+    expect(tool.name).toBe("search_text");
+  });
+
+  it("aliases a real built-in — the SAME handler runs under the new name (alias parity)", async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), "sdk-alias-"));
+    try {
+      writeFileSync(join(projectRoot, "hi.txt"), "hello");
+      const aliased = withName(createReadFileTool({ projectRoot }), "read");
+      expect(aliased.name).toBe("read");
+      const parsed = JSON.parse(await textHandler(aliased)({ path: "hi.txt" }));
+      expect(parsed.ok).toBe(true);
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("composes with withDescription (Codex alias + custom description)", () => {
+    const tool = withDescription(
+      withName(fakeTool("search_text", "old"), "grep"),
+      "Codex-style grep",
+    );
+    expect(tool.name).toBe("grep");
+    expect(tool.description).toBe("Codex-style grep");
+    expect(tool.inputSchema).toBe(tool.inputSchema);
   });
 });
 

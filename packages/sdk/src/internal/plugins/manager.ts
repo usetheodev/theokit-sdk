@@ -11,6 +11,7 @@ import { ConfigurationError } from "../../errors.js";
 // module directly; the `./types.js` shim deliberately does not re-export it (a
 // stripped-internal re-export trips rollup-plugin-dts). See ./types.ts.
 import type { MemoryProviderFactory } from "../../types/plugin.js";
+import { diag } from "../diagnostics.js";
 import type { ProviderProfile } from "../providers/types.js";
 import { createPluginContext, type PluginRegistrations } from "./context.js";
 import type {
@@ -25,6 +26,7 @@ import type {
   PreUserSendContext,
   PreUserSendResult,
   SessionLifecycleContext,
+  ToolResultTransformContext,
   TransformContext,
 } from "./types.js";
 
@@ -71,7 +73,7 @@ export class PluginManager {
     const seen = new Set<string>();
     for (const plugin of plugins) {
       if (seen.has(plugin.name)) {
-        process.stderr.write(
+        diag(
           `[theokit-sdk] duplicate plugin name "${plugin.name}" — both will register independently\n`,
         );
       }
@@ -166,7 +168,7 @@ export class PluginManager {
           parts.push(result.recalledContext);
         }
       } catch (err) {
-        process.stderr.write(
+        diag(
           `[theokit-sdk] pre_user_send hook failed: ${
             err instanceof Error ? err.message : String(err)
           }\n`,
@@ -196,7 +198,7 @@ export class PluginManager {
       try {
         await (h as (c: PostAssistantReplyContext) => unknown)(ctx);
       } catch (err) {
-        process.stderr.write(
+        diag(
           `[theokit-sdk] post_assistant_reply hook failed: ${
             err instanceof Error ? err.message : String(err)
           }\n`,
@@ -215,7 +217,7 @@ export class PluginManager {
       try {
         await (h as (c: C) => unknown)(ctx);
       } catch (err) {
-        process.stderr.write(
+        diag(
           `[theokit-sdk] ${name} hook failed: ${err instanceof Error ? err.message : String(err)}\n`,
         );
       }
@@ -230,7 +232,7 @@ export class PluginManager {
         const out = (await (h as (p: P, c: unknown) => unknown)(current, ctx)) as P | undefined;
         if (out !== undefined) current = out;
       } catch (err) {
-        process.stderr.write(
+        diag(
           `[theokit-sdk] ${name} hook failed: ${err instanceof Error ? err.message : String(err)}\n`,
         );
       }
@@ -260,7 +262,7 @@ export class PluginManager {
   }
 
   /** #65/#57 — transform tool results before they reach the LLM (the #57 seam). @internal */
-  runTransformToolResultHooks<T>(results: T, ctx: TransformContext): Promise<T> {
+  runTransformToolResultHooks<T>(results: T, ctx: ToolResultTransformContext): Promise<T> {
     return this.#runTransform("transform_tool_result", results, ctx);
   }
 

@@ -201,3 +201,170 @@ describe("runUntilImpl (T3.2)", () => {
     expect(verdictTypes).toBe(1);
   });
 });
+
+// --- M55 (agent-builder autonomous goal) — token budget + budget_limited state + faithful continuation ---
+
+function buildFakeAgentWithUsage(responses: string[], perTurnTokens: number | undefined): SDKAgent {
+  let i = 0;
+  return {
+    agentId: "fake-usage",
+    async send() {
+      const text = responses[i] ?? responses[responses.length - 1] ?? "…";
+      i += 1;
+      return {
+        wait: async () => ({
+          result: text,
+          ...(perTurnTokens !== undefined
+            ? { usage: { inputTokens: perTurnTokens, outputTokens: 0, totalTokens: perTurnTokens } }
+            : {}),
+        }),
+      };
+    },
+    close() {},
+    async reload() {},
+    async dispose() {},
+    async [Symbol.asyncDispose]() {},
+    async listArtifacts() {
+      return [];
+    },
+    async downloadArtifact(): Promise<Buffer> {
+      throw new Error("no");
+    },
+  } as unknown as SDKAgent;
+}
+
+const alwaysContinue = async (): Promise<JudgeResult> => ({
+  verdict: "continue",
+  reason: "keep going",
+  parseFailed: false,
+});
+
+describe("M55 — token budget + budget_limited state", () => {
+  it("budget_limited_fires_when_tokens_cross", async () => {
+    // 60 tokens/turn, budget 100 -> after turn 2 (120 > 100) it stops with budget_limited
+    const agent = buildFakeAgentWithUsage(["r1", "r2", "r3"], 60);
+    const { events, result } = await collect(
+      runUntilImpl(agent, "goal X", { tokenBudget: 100, maxTurns: 20 }, { judge: alwaysContinue }),
+    );
+    expect(result.status).toBe("budget_limited");
+    expect(result.turnsUsed).toBe(2);
+    expect(result.tokensUsed).toBeGreaterThanOrEqual(100);
+    expect(events.some((e) => e.type === "status_change" && e.status === "budget_limited")).toBe(
+      true,
+    );
+  });
+
+  it("token_budget_absent_usage_never_trips", async () => {
+    // usage ausente → budget nunca conta (fail-open); para por maxTurns=2 → failed
+    const agent = buildFakeAgentWithUsage(["r1", "r2"], undefined);
+    const { result } = await collect(
+      runUntilImpl(agent, "goal", { tokenBudget: 10, maxTurns: 2 }, { judge: alwaysContinue }),
+    );
+    expect(result.status).toBe("failed"); // maxTurns, not budget_limited
+    expect(result.tokensUsed).toBe(0);
+  });
+
+  it("maxTurns_still_caps_as_safety_without_budget", async () => {
+    const agent = buildFakeAgentWithUsage(["r1", "r2", "r3"], 5);
+    const { result } = await collect(
+      runUntilImpl(agent, "goal", { maxTurns: 2 }, { judge: alwaysContinue }),
+    );
+    expect(result.status).toBe("failed");
+    expect(result.turnsUsed).toBe(2);
+  });
+
+  it("result_reports_tokensUsed_on_completion", async () => {
+    const agent = buildFakeAgentWithUsage(["done-ish"], 42);
+    const doneJudge = async (): Promise<JudgeResult> => ({
+      verdict: "done",
+      reason: "ok",
+      parseFailed: false,
+    });
+    const { result } = await collect(runUntilImpl(agent, "goal", {}, { judge: doneJudge }));
+    expect(result.status).toBe("completed");
+    expect(result.tokensUsed).toBe(42);
+  });
+});
+
+describe("M55 — continuation fiel ao Codex", () => {
+  it("continuation_prompt_keeps_full_objective_and_audit_language", async () => {
+    const agent = buildFakeAgentWithUsage(["r1", "r2", "r3"], 1);
+    const { events } = await collect(
+      runUntilImpl(agent, "WHOLE_GOAL_XYZ", { maxTurns: 3 }, { judge: alwaysContinue }),
+    );
+    // turno 1 envia o goal cru; a continuation FIEL aparece nos turnos 2+ (prompt composto).
+    const cont = events.find((e) => e.type === "continuation" && e.turn >= 2);
+    expect(cont).toBeDefined();
+    if (cont && cont.type === "continuation") {
+      expect(cont.prompt).toContain("WHOLE_GOAL_XYZ"); // goal intact
+      expect(cont.prompt.toLowerCase()).toMatch(/evidence|audit/); // linguagem fiel ao continuation.md
+    }
+  });
+});
+
+describe("M55 review — abort threaded into the in-flight run", () => {
+  it("abort_during_send_cancels_run_and_skips_judge", async () => {
+    const controller = new AbortController();
+    let cancelCalled = false;
+    let judgeCalled = 0;
+    // wait() pends until cancel() is called (mimics a long interruptible turn)
+    const agent = {
+      agentId: "fake-abort",
+      async send() {
+        // aborts WHILE the turn is in flight
+        setTimeout(() => controller.abort(), 10);
+        let unblock: () => void;
+        const blocked = new Promise<void>((r) => {
+          unblock = r;
+        });
+        return {
+          cancel: async () => {
+            cancelCalled = true;
+            unblock();
+          },
+          wait: async () => {
+            await blocked;
+            return { result: "interrompido" };
+          },
+        };
+      },
+      close() {},
+      async reload() {},
+      async dispose() {},
+      async [Symbol.asyncDispose]() {},
+      async listArtifacts() {
+        return [];
+      },
+      async downloadArtifact(): Promise<Buffer> {
+        throw new Error("no");
+      },
+    } as unknown as SDKAgent;
+    const judge = async (): Promise<JudgeResult> => {
+      judgeCalled += 1;
+      return { verdict: "continue", reason: "n/a", parseFailed: false };
+    };
+    const { result } = await collect(
+      runUntilImpl(agent, "goal", { signal: controller.signal }, { judge }),
+    );
+    expect(cancelCalled).toBe(true); // the abort CANCELLED the in-flight run (it did not wait for the turn)
+    expect(judgeCalled).toBe(0); // post-abort spends no judge
+    expect(result.status).toBe("paused");
+    expect(result.turnsUsed).toBe(1);
+  });
+});
+
+describe("M56 review — continuation marcada + preview tail-biased", () => {
+  it("continuation_carries_stable_marker_and_tail_of_last_response", async () => {
+    const { composeContinuation } = await import(
+      "../../../src/internal/runtime/lifecycle/run-until.js"
+    );
+    const { GOAL_CONTINUATION_MARKER } = await import("../../../src/goal-loop.js");
+    const long = `INICIO ${"x".repeat(2000)} CONCLUSAO-FINAL`;
+    const prompt = composeContinuation("obj", long);
+    // stable marker on the 1st line — consumers (collapsed timeline, backtrack, compact) detect
+    expect(prompt.startsWith(GOAL_CONTINUATION_MARKER)).toBe(true);
+    // tail-biased preview: the previous turn's CONCLUSION survives, not the opening narration
+    expect(prompt).toContain("CONCLUSAO-FINAL");
+    expect(prompt).not.toContain("INICIO ");
+  });
+});

@@ -13,7 +13,10 @@
  */
 
 import { z } from "zod";
-import type { Plugin } from "../internal/plugins/types.js";
+import {
+  currentInheritedSubAgentCredentials,
+  type InheritedCredentials,
+} from "../internal/runtime/concurrency/subagent-credentials.js";
 import { getAgentFacade } from "../internal/runtime/registry/agent-factory-registry.js";
 import type {
   AgentDefinition,
@@ -23,43 +26,6 @@ import type {
 } from "../types/agent.js";
 import type { ModelSelection } from "../types/agent-prims.js";
 import type { Run } from "../types/run.js";
-
-/**
- * Credentials a parent agent hands down to its subagent tools so the child
- * inherits the parent's auth (and, absent an explicit `spec.model`, its model).
- * @internal
- */
-export interface InheritedCredentials {
-  readonly apiKey?: string;
-  readonly model?: ModelSelection;
-  /**
-   * #55 — the parent's code-registered plugins (e.g. a `PermissionPlugin`) handed
-   * down so the child runs under the SAME policy. Without this, a delegated child's
-   * inner tool calls escape the parent's argument-level permission gate. First-party
-   * delegation path only — never exposed to third-party tool `ctx`.
-   */
-  readonly plugins?: readonly Plugin[];
-}
-
-/**
- * Private per-tool setter installed on subagent tools. Kept off the public
- * `CustomTool` shape (and off every tool handler's `ctx`) so the parent's API
- * key never reaches third-party tool code — only the SDK's own delegation path.
- */
-const INHERIT_CREDENTIALS = Symbol("theokit.subagent.inheritCredentials");
-
-type CredentialSink = (creds: InheritedCredentials) => void;
-
-/**
- * Called by the local runtime for every tool in a run: if the tool is a
- * subagent, its child agent inherits the parent's `apiKey`/`model`. A no-op for
- * any other tool (third-party tools never receive the parent's credentials).
- * @internal
- */
-export function inheritSubAgentCredentials(tool: CustomTool, creds: InheritedCredentials): void {
-  const sink = (tool as { [INHERIT_CREDENTIALS]?: CredentialSink })[INHERIT_CREDENTIALS];
-  if (typeof sink === "function") sink(creds);
-}
 
 /** Arguments passed to {@link SubAgentSpec.messageFilter} (SE12). */
 export interface MessageFilterArgs {
@@ -127,8 +93,16 @@ export interface SubAgentSpec {
   name: string;
   description: string;
   instructions: string;
-  model?: string;
+  /**
+   * A bare id string (back-compat) OR a full {@link ModelSelection} carrying
+   * `params` (e.g. `[{ id: "thinking", value: "low" }]` for reasoning effort). The
+   * object form is required for per-subagent reasoning effort to survive to the child
+   * — the pre-M33 path took only `.id` and dropped params.
+   */
+  model?: string | ModelSelection;
   tools?: CustomTool[];
+  /** Per-subagent shell sandbox toggle (M33). `true` ⇒ child `local.sandboxOptions.enabled`. */
+  sandbox?: boolean;
   maxDelegationDepth?: number;
   /**
    * SE11 — called before the supervisor delegates. Return `{ proceed: false }`
@@ -230,16 +204,27 @@ async function collectChildToolResults(run: Run): Promise<string> {
  * overrides it), and — #55 — the parent's plugins (permission gate/guards) so the
  * child's inner tool calls run under the same policy.
  */
-function buildChildCreateOptions(
+export function buildChildCreateOptions(
   spec: SubAgentSpec,
   inherited: InheritedCredentials | undefined,
 ): AgentOptions {
-  const model: string | ModelSelection | undefined = spec.model
-    ? { id: spec.model }
-    : inherited?.model;
+  // M33 — carry the WHOLE model (a bare id becomes `{ id }`; a ModelSelection with
+  // `params` keeps its reasoning effort). The pre-M33 path wrapped `spec.model` as
+  // `{ id: spec.model }`, which only worked because spec.model was a string and
+  // silently dropped reasoning params.
+  const model: string | ModelSelection | undefined =
+    spec.model !== undefined
+      ? typeof spec.model === "string"
+        ? { id: spec.model }
+        : spec.model
+      : inherited?.model;
+  // M33 — the role's own `sandbox` wins; when it omits the field, inherit the parent's posture. A role's
+  // explicit `sandbox: false` therefore confines-OFF a child of a sandboxed parent (distinct from absent).
+  const sandbox = spec.sandbox ?? inherited?.sandbox;
   return {
     ...(inherited?.apiKey !== undefined ? { apiKey: inherited.apiKey } : {}),
     ...(model !== undefined ? { model } : {}),
+    ...(sandbox !== undefined ? { local: { sandboxOptions: { enabled: sandbox } } } : {}),
     ...(inherited?.plugins !== undefined ? { plugins: inherited.plugins } : {}),
     systemPrompt: spec.instructions,
     tools: spec.tools ?? [],
@@ -272,6 +257,15 @@ async function runChildAgent(
     };
     const run = await agent.send(input, sendOptions);
     const result = await run.wait();
+    // Fail-fast, don't swallow (Rule 8): a child that ended in error must surface — otherwise a real
+    // failure (e.g. `provider_unresolved`) is hidden behind "(no response)" and the parent loops on it.
+    if (result.status === "error") {
+      const cause = (result as { error?: { message?: string } }).error;
+      throw new Error(
+        `subagent "${spec.name}" run failed: ${cause?.message ?? "unknown error"}`,
+        cause !== undefined ? { cause } : undefined,
+      );
+    }
     const text = result.result ?? "(no response)";
     // SE14 — text-only by default; opt-in appends the child's tool results.
     return spec.includeToolResults === true ? text + (await collectChildToolResults(run)) : text;
@@ -359,9 +353,6 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
   // contexts. Incremented once per handler invocation before onDelegationStart.
   let iteration = 0;
 
-  // Credentials handed down by the parent runtime (see `inheritSubAgentCredentials`).
-  let inherited: InheritedCredentials | undefined;
-
   const tool: CustomTool = {
     name: spec.name,
     description: spec.description,
@@ -375,6 +366,12 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
       },
     ): Promise<string> => {
       const { input: parsed } = inputZod.parse(rawInput);
+      // theokit#148 — read the parent's credentials from the RUN's async scope, at dispatch time.
+      // They used to be stashed on this tool object by the runtime, which meant any layer that
+      // rebuilt the object (e.g. `@theokit/agents`' `toCompiledTool`) silently dropped them and the
+      // child failed with `provider_unresolved`. The scope travels with the call, so nothing about
+      // the object's shape matters — and two concurrent runs sharing one tool each read their own.
+      const inherited = currentInheritedSubAgentCredentials();
       iteration += 1; // SE15 — before onDelegationStart; a rejected delegation still counts.
       // Pin THIS invocation's iteration before any await so a concurrent invocation
       // bumping the shared counter cannot change the value onDelegationComplete /
@@ -401,14 +398,9 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
     },
   };
 
-  // Install the private credential sink (off the public shape + off every ctx).
-  Object.defineProperty(tool, INHERIT_CREDENTIALS, {
-    value: ((creds: InheritedCredentials) => {
-      inherited = creds;
-    }) satisfies CredentialSink,
-    enumerable: false,
-  });
-
+  // theokit#148 — nothing is installed on the tool. The credentials arrive through the run's async
+  // scope (see `internal/runtime/concurrency/subagent-credentials.ts`), so there is no extra
+  // property for a normalizing layer to drop.
   return tool;
 }
 
@@ -429,8 +421,11 @@ export class SubAgent {
  * subset of the parent's tools (absent → the parent's full toolset, per the
  * `AgentDefinition.tools` contract).
  *
- * Per-subagent `mcpServers` on an `AgentDefinition` is honored by the cloud
- * runtime only; it is not wired into local delegation here.
+ * M33 — per-subagent `model` (with reasoning `params`) and `sandbox` are now wired
+ * into local delegation: each is carried onto the {@link SubAgentSpec} and applied to
+ * the child in {@link buildChildCreateOptions}. `"inherit"` (or an absent field) keeps
+ * the parent's value. Per-subagent `mcp` is rejected at load (see subagents-loader) —
+ * resolving server names→config on the local path is a follow-up.
  *
  * @internal
  */
@@ -446,7 +441,10 @@ export function subAgentToolsFromDefinitions(
       name,
       description: def.description,
       instructions: def.prompt,
-      ...(def.model !== undefined && def.model !== "inherit" ? { model: def.model.id } : {}),
+      // Carry the FULL ModelSelection (id + reasoning params), not just the id, so
+      // per-subagent reasoning effort survives to buildChildCreateOptions.
+      ...(def.model !== undefined && def.model !== "inherit" ? { model: def.model } : {}),
+      ...(def.sandbox !== undefined ? { sandbox: def.sandbox } : {}),
       tools: [...childTools],
     });
   });

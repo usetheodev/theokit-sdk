@@ -19,6 +19,7 @@
 
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
+import { isAbsolute } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
 import { Tool } from "@theokit/sdk";
 import {
@@ -36,10 +37,31 @@ import {
   PathTraversalError,
   safePathJoin,
 } from "./internal/path-guard.js";
+import { ehProibidoEmQualquerProfundidade } from "./path-scope.js";
 
 const DEFAULT_MAX_ENTRIES = 500;
 
 export interface CreateListDirToolOptions {
+  /**
+   * M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo).
+   *
+   * It exists because, in Codex, the name is BORN in the tool definition and is the approval decision key —
+   * three consumers (model, approval, telemetry) of a string decided in one place. Renaming
+   * after construction changes the identity of something already published to the model. `withName` remains
+   * for the genuinely dynamic case.
+   */
+  name?: string;
+  /** M76 — description exposed to the model. Omitted => today's literal (additive). */
+  description?: string;
+  /**
+   * M76 — opt-in "lista-em-qualquer-lugar": honra um `path` ABSOLUTO fora de `projectRoot`
+   * (paridade com `createReadFileTool`/`createSearchTextTool`, sandbox read-only do Codex).
+   *
+   * The ANY-segment secret guard still applies, and is not separable: `isForbiddenPath`
+   * only blocks the sensitive item when it is the FIRST segment, so a `/home/u/proj/.env/sub`
+   * would pass. Enabling the flag without the guard opens exfiltration. Default `false` => absolute rejected.
+   */
+  allowAbsolute?: boolean;
   /** Absolute path to the project root. Every listing is gated against this boundary. */
   projectRoot: string;
   /** Maximum number of entries returned per call. Default 500. */
@@ -57,19 +79,22 @@ export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
   const { projectRoot, max = DEFAULT_MAX_ENTRIES, filesystem } = opts;
 
   return Tool.create({
-    name: "list_dir",
+    name: opts.name ?? "list_dir",
     description:
+      opts.description ??
       `Return the direct entries of a project-relative directory. ` +
-      `Refuses paths outside the project root or in the sensitive-file ` +
-      `blocklist (.env, .git/, node_modules/, .theo/, lock files). Caps ` +
-      `at ${String(max)} entries by default; result carries truncated + totalCount.`,
+        `Refuses paths outside the project root or in the sensitive-file ` +
+        `blocklist (.env, .git/, node_modules/, .theo/, lock files). Caps ` +
+        `at ${String(max)} entries by default; result carries truncated + totalCount.`,
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative directory path. Use '.' for root."),
     }),
     handler: async ({ path }, ctx) => {
       const relative = path === "" || path === "." ? "." : path;
-      if (relative !== "." && isForbiddenPath(relative)) {
-        return JSON.stringify({ ok: false, error: "forbidden_path", path });
+      const verdict = decidirEscopo(relative, path, opts.allowAbsolute === true);
+      if (verdict.error !== undefined) return verdict.error;
+      if (verdict.absoluteRoot !== undefined) {
+        return listViaLocalFs(verdict.absoluteRoot, ".", path, max);
       }
       // SE31 — route through the pluggable backend when one is configured; else
       // the local `projectRoot` fs.
@@ -80,6 +105,35 @@ export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
       return listViaLocalFs(projectRoot, relative, path, max);
     },
   });
+}
+
+/**
+ * `list_dir`'s scope decision, separated from the handler.
+ *
+ * Extracted because the SDK's complexity gate separated it for us — and it was right: DECIDING whether the
+ * path may be read is the part with a security consequence, and deserves to be read alone. The handler
+ * merely orchestrates afterwards.
+ *
+ * Returns `{ error }` when the path is refused, `{ absoluteRoot }` when it is an honored absolute, or
+ * `{}` for the usual relative case.
+ */
+function decidirEscopo(
+  relative: string,
+  original: string,
+  allowAbsolute: boolean,
+): { error?: string; absoluteRoot?: string } {
+  const refuse = (error: string): { error: string } => ({
+    error: JSON.stringify({ ok: false, error, path: original }),
+  });
+
+  if (relative !== "." && isForbiddenPath(relative)) return refuse("forbidden_path");
+  if (!isAbsolute(relative)) return {};
+
+  // M76 — absolute only with opt-in, and ALWAYS with the per-segment guard: `isForbiddenPath` above only looks at
+  // the FIRST segment, so a `/home/u/proj/.env/sub` would slip past it.
+  if (!allowAbsolute) return refuse("path_traversal");
+  if (ehProibidoEmQualquerProfundidade(relative)) return refuse("forbidden_path");
+  return { absoluteRoot: relative };
 }
 
 /** Local-`projectRoot` listing: boundary + readdir + bounded format. */

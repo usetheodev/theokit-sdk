@@ -4,18 +4,7 @@
  * @internal
  */
 
-/** The three terminal verdicts a judge model may return. ADR D120. */
-export type Verdict = "done" | "continue" | "skipped";
-
-/** Outcome of {@link parseVerdict} / {@link judgeCallImpl}. */
-export interface JudgeResult {
-  verdict: Verdict;
-  reason: string;
-  /**
-   * `true` when the underlying text did not start with one of the three
-   * canonical prefixes. The verdict is set to `"continue"` (fail-safe,
-   * ADR D121) to avoid stopping prematurely; callers track consecutive
-   * failures and bail via `maxConsecutiveJudgeFailures`.
-   */
-  parseFailed: boolean;
-}
+// M80 — the canonical definition of `Verdict`/`JudgeResult` lives in `types/goal-events.ts` (the public
+// surface). Here it merely passes through, so internal code need not change imports and so there are not
+// two declarations of the same shape.
+export type { JudgeResult, Verdict } from "../../types/goal-events.js";

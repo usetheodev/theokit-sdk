@@ -9,11 +9,13 @@
  * @internal
  */
 
-import type { JudgeResult } from "./types.js";
+import type { JudgeResult } from "../../types/goal-events.js";
 
 const DONE_PREFIX = "DONE:";
 const CONTINUE_PREFIX = "CONTINUE:";
 const SKIPPED_PREFIX = "SKIPPED:";
+/** M80 — the judge can now declare impossibility, not just "continue". */
+const BLOCKED_PREFIX = "BLOCKED:";
 
 export function parseVerdict(text: string): JudgeResult {
   const trimmed = text.trim();
@@ -29,6 +31,13 @@ export function parseVerdict(text: string): JudgeResult {
     return {
       verdict: "continue",
       reason: trimmed.slice(CONTINUE_PREFIX.length).trim(),
+      parseFailed: false,
+    };
+  }
+  if (trimmed.startsWith(BLOCKED_PREFIX)) {
+    return {
+      verdict: "blocked",
+      reason: trimmed.slice(BLOCKED_PREFIX.length).trim(),
       parseFailed: false,
     };
   }

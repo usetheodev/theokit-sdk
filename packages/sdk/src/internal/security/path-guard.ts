@@ -64,6 +64,25 @@ export class ForbiddenPathError extends ConfigurationError {
 }
 
 /**
+ * Is `target` the same as `base`, or strictly under it?
+ *
+ * The prefix must not double the separator. `resolve` strips a trailing `sep` from every base
+ * EXCEPT the filesystem root, where `resolve(sep) === sep`; there `base + sep` would be `//`, which
+ * no absolute path starts with, so a root base rejected EVERY path (#149). Only the root takes that
+ * branch — for any other base the prefix is unchanged, so containment is not weakened.
+ *
+ * Both containment checks in this module go through here: they had the same defect and were fixed
+ * one at a time, which is exactly how the two drifted apart in the first place.
+ *
+ * Both arguments MUST already be resolved absolute paths.
+ */
+function isInside(target: string, base: string): boolean {
+  if (target === base) return true;
+  const prefix = base.endsWith(sep) ? base : base + sep;
+  return target.startsWith(prefix);
+}
+
+/**
  * Join `base` with `...parts` and ensure the resolved absolute path stays
  * under `base`. Resolves FIRST, then prefix-checks (ADR D80) — prevents
  * normalized-escape bypasses like `subdir/.\\./bar`.
@@ -86,7 +105,7 @@ export function safePathJoin(base: string, ...parts: string[]): string {
   }
   const baseResolved = resolve(base);
   const target = resolve(base, ...parts);
-  if (target !== baseResolved && !target.startsWith(baseResolved + sep)) {
+  if (!isInside(target, baseResolved)) {
     throw new PathTraversalError(parts.join("/"), target);
   }
   return target;
@@ -155,7 +174,7 @@ export function assertNoSymlinkEscape(path: string, base: string): void {
   const resolved = realpathOfDeepestExisting(path);
   if (resolved === undefined) return; // path has no existing prefix — nothing to attack
 
-  if (resolved !== baseResolved && !resolved.startsWith(baseResolved + sep)) {
+  if (!isInside(resolved, baseResolved)) {
     throw new PathTraversalError(`symlink ${path}`, resolved);
   }
 }
@@ -396,7 +415,7 @@ export function sanitizeIdentifier(input: string, options?: { maxLen?: number })
   // helper used by safePathJoin gives operators a precise diagnostic
   // ("nul-byte" / "control-char-0x..") instead of the generic
   // "invalid characters" message — making prompt-injection traces
-  // legible per Inquebrável Rule 3.
+  // legible per Unbreakable Rule 3.
   rejectNulAndControlChars(input, "identifier");
   if (!IDENTIFIER_PATTERN.test(input)) {
     throw new ConfigurationError(`Identifier contains invalid characters: "${input}"`, {

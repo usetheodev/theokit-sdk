@@ -1,0 +1,387 @@
+// Promovido do agent-builder no M75 (plano m75-sandbox-kernel-no-framework, D1). Renomeado de
+// `BwrapSandbox` para `LinuxSandbox`: bwrap e a IMPLEMENTACAO, Linux e o contrato — trocar o
+// mechanism (landlock, for example) should not change the name the consumer imports.
+
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+
+import { redactSecrets } from "../internal/security/redact.js";
+import type { BwrapDetection, SandboxMode } from "./bwrap.js";
+import { buildBwrapArgv, detectBwrapMemoized } from "./bwrap.js";
+import { LocalSandbox } from "./local-sandbox.js";
+import { buildSeccompFilter } from "./seccomp.js";
+import type { SandboxBackend, SandboxConfig } from "./types.js";
+
+/**
+ * M53 — kernel-enforced sandbox backend, injected into `createShellTool({ sandbox })`.
+ *
+ * `LinuxSandbox extends LocalSandbox` and only REWRITES the command: `<bwrap-bin> <policy flags> --
+ * /bin/sh -c '<original>'`. Everything else (spawn, output caps, timeout, ExecuteResult shape, file
+ * ops) is inherited — the SDK backend stays the single execution engine. Mirrors Codex's
+ * `SandboxManager::transform` (argv prefixing before spawn, never in-process).
+ */
+
+/** POSIX single-quote escaping — the inner command crosses ONE extra `/bin/sh -c` boundary. */
+function shellQuote(s: string): string {
+  return `'${s.replaceAll("'", `'\\''`)}'`;
+}
+
+/**
+ * M57 — the single source of truth for the sandbox command wrap. Turns `command` into
+ * `<bin> <bwrap flags> [--seccomp 3] -- /bin/sh -c '<command>' [3< <bpf>]`, or `null` when the policy
+ * skips the sandbox (`danger-full-access`). Extracted from `LinuxSandbox.wrapCommand` so the interactive
+ * PTY backend (M57) can reuse the EXACT wrap the one-shot `run_shell` already uses (DRY) — faithful to
+ * Codex, where the sandbox transforms the argv before the PTY spawns it (`sandboxing/src/manager.rs:321`).
+ */
+export function wrapCommandForSandbox(
+  mode: SandboxMode,
+  opts: {
+    cwd: string;
+    network?: boolean;
+    env?: Record<string, string>;
+    bin?: string;
+    seccompPath?: string;
+  },
+  command: string,
+): string | null {
+  const argv = buildBwrapArgv(mode, { cwd: opts.cwd, network: opts.network, env: opts.env });
+  if (argv === null) return null; // danger-full-access: bwrap skipped
+  const bin = opts.bin ?? "bwrap";
+  const seccompArgv = opts.seccompPath !== undefined ? ["--seccomp", "3"] : [];
+  const base = `${shellQuote(bin)} ${[...argv.slice(0, -1), ...seccompArgv, "--"].map(shellQuote).join(" ")} /bin/sh -c ${shellQuote(command)}`;
+  return opts.seccompPath !== undefined ? `${base} 3< ${shellQuote(opts.seccompPath)}` : base;
+}
+
+/**
+ * Env allowlist re-injected inside the sandbox after `--clearenv`. Codex env_clear model: the child
+ * gets exactly what it needs to run a shell, never the parent's full env (which may hold oddly-named
+ * secrets the SDK name-pattern scrub misses). `CODEX_SANDBOX_NETWORK_DISABLED` is added by the argv
+ * builder when network is unshared.
+ */
+const ENV_ALLOWLIST = [
+  "PATH",
+  "HOME",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TERM",
+  "USER",
+  "TMPDIR",
+  "SHELL",
+];
+
+export function allowlistedEnv(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const k of ENV_ALLOWLIST) {
+    const v = source[k];
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
+export class LinuxSandbox extends LocalSandbox {
+  private readonly mode: SandboxMode;
+  private readonly network: boolean;
+  private readonly cwd: string;
+  private readonly bin: string;
+  private readonly env: Record<string, string>;
+  /** M63 — path to the cBPF seccomp program written host-side; passed to `bwrap --seccomp 3` via a
+   * shell redirect. `undefined` when the network is unrestricted OR generation failed (honest fallback). */
+  private readonly seccompPath: string | undefined;
+
+  constructor(
+    config: SandboxConfig,
+    opts: { mode: SandboxMode; network?: boolean; bin?: string; env?: Record<string, string> },
+  ) {
+    super(config);
+    this.mode = opts.mode;
+    this.network = opts.network ?? false;
+    this.cwd = config.workDir ?? process.cwd();
+    // MEDIUM-1: run the VALIDATED absolute binary from detection (anti-hijack), never bare `bwrap`
+    // which the outer shell would re-resolve via $PATH at spawn time (TOCTOU / hijack window).
+    this.bin = opts.bin ?? "bwrap";
+    this.env = opts.env ?? allowlistedEnv();
+    this.seccompPath = seccompPathForNetwork(this.network);
+  }
+
+  /** Extracted for test visibility — delegates to the pure `wrapCommandForSandbox` (M57, single wrap SoT). */
+  wrapCommand(command: string): string | null {
+    return wrapCommandForSandbox(
+      this.mode,
+      {
+        cwd: this.cwd,
+        network: this.network,
+        env: this.env,
+        bin: this.bin,
+        seccompPath: this.seccompPath,
+      },
+      command,
+    );
+  }
+
+  /**
+   * M75 review (architecture, HIGH) — without this override the class LIED.
+   *
+   * `LinuxSandbox` documents itself as a "kernel-enforced sandbox backend", but it overrode only
+   * `execute`. `uploadFile` stayed the one inherited from `LocalSandbox`, which writes straight to
+   * the host via `fs/promises` and accepts an ABSOLUTE path — no bwrap, no seccomp, no path
+   * restriction. And `SandboxBackend.writeFile` delegates to it. The result was an incoherent class:
+   * reading, searching and listing went through the confinement; writing did not.
+   *
+   * Routing through the wrapped `execute` fixes it at the root: writes come to live under the SAME
+   * policy as everything else — if bwrap denies the path, the write fails, as it should. The content
+   * goes over stdin (not argv) because argv has a size limit and file content does not.
+   */
+  override async uploadFile(path: string, content: string | Buffer): Promise<void> {
+    if (this.mode === "danger-full-access") return super.uploadFile(path, content);
+
+    const target = path.startsWith("/") ? path : `${this.cwd}/${path}`;
+    const b64 = Buffer.from(content).toString("base64");
+    // base64 on a single line: avoids any shell quoting over arbitrary content, which is exactly
+    // where a "confined" write would turn into command injection.
+    const r = await this.execute(
+      `mkdir -p ${shellQuote(dirname(target))} && printf %s ${shellQuote(b64)} | base64 -d > ${shellQuote(target)}`,
+    );
+    if (r.exitCode !== 0) {
+      throw new Error(
+        `uploadFile blocked or failed under confinement (${target}): ${r.stderr.trim() || `exit ${r.exitCode}`}`,
+      );
+    }
+  }
+
+  override execute(command: string, opts?: { timeoutMs?: number }) {
+    const wrapped = this.wrapCommand(command);
+    if (wrapped === null) return super.execute(command, opts); // danger-full-access: plain local
+    return super.execute(wrapped, opts);
+  }
+}
+
+let warnedNonX64 = false;
+
+/**
+ * M63 — the restricted-network seccomp program is DETERMINISTIC, so write it ONCE per process and
+ * reuse the path across every LinuxSandbox (no per-instance temp accumulation).
+ *
+ * ARCH GUARD (review HIGH): `buildSeccompFilter` emits an x86_64 program whose arch guard KILLs every
+ * syscall whose `seccomp_data.arch != AUDIT_ARCH_X86_64`. On a non-x86_64 host that would brick EVERY
+ * sandboxed command (the first execve is killed) — and silently, because generation succeeds and bwrap
+ * accepts it. So we REFUSE to install on non-x64 and WARN through the honest-downgrade channel (bwrap
+ * FS/network confinement still applies), exactly like the bwrap-missing fallback. `arch` is injectable
+ * for tests. Cleaned on exit AND on SIGINT/SIGTERM (TUI Ctrl+C would otherwise leak the temp dir).
+ */
+export function seccompPathForArch(arch: string, warn: (m: string) => void): string | undefined {
+  if (arch !== "x64") {
+    if (!warnedNonX64) {
+      warnedNonX64 = true;
+      warn(
+        `[sandbox] seccomp syscall filter unsupported on ${arch} (x86_64 only in v1) — running without ` +
+          "the filter; bwrap FS/network confinement still applies.",
+      );
+    }
+    return undefined;
+  }
+  try {
+    const dir = mkdtempSync(join(tmpdir(), "ab-seccomp-"));
+    const path = join(dir, "filter.bpf");
+    writeFileSync(path, buildSeccompFilter({ networkRestricted: true }));
+    const cleanup = (): void => rmSync(dir, { recursive: true, force: true });
+    process.once("exit", cleanup);
+    process.once("SIGINT", cleanup);
+    process.once("SIGTERM", cleanup);
+    return path;
+  } catch (err) {
+    warn(
+      `[sandbox] seccomp filter unavailable (${err instanceof Error ? err.message : String(err)}) — ` +
+        "running without syscall filter (bwrap FS/network confinement still applies).",
+    );
+    return undefined;
+  }
+}
+
+let seccompFilterPath: string | undefined | null; // undefined = not tried; null = resolved absent
+/** M57 — exported so the interactive PTY backend reuses the SAME memoized x64-gated seccomp program. */
+export function restrictedSeccompPath(): string | undefined {
+  if (seccompFilterPath !== undefined) return seccompFilterPath ?? undefined;
+  const path = seccompPathForArch(process.arch, (m) => console.warn(redactSecrets(m)));
+  seccompFilterPath = path ?? null;
+  return path;
+}
+
+let warnedUnavailable = false;
+
+/** Test seam: reset the WARN-once latch. */
+export function resetSandboxWarnLatch(): void {
+  warnedUnavailable = false;
+}
+
+/** Durable sandbox posture for the UI — the honest answer to "am I kernel-enforced right now?". */
+export interface SandboxPosture {
+  mode: SandboxMode;
+  enforced: boolean;
+  detail: string;
+}
+
+/**
+ * MEDIUM-2: compute the posture so a surface (TUI footer) can show enforcement DURABLY instead of a
+ * one-shot warn. `danger-full-access` is honestly reported as unenforced; an unavailable bwrap reports
+ * the downgrade reason so the user never believes they are confined when they are not.
+ */
+export function resolveSandboxPosture(opts: {
+  mode: SandboxMode;
+  detect?: () => BwrapDetection;
+}): SandboxPosture {
+  if (opts.mode === "danger-full-access") {
+    return { mode: opts.mode, enforced: false, detail: "no confinement (danger-full-access)" };
+  }
+  const detection = (opts.detect ?? detectBwrapMemoized)();
+  if (!detection.ok) {
+    return { mode: opts.mode, enforced: false, detail: `tool-gating only — ${detection.reason}` };
+  }
+  return { mode: opts.mode, enforced: true, detail: "kernel (bwrap)" };
+}
+
+export interface CreateSandboxBackendOptions {
+  mode: SandboxMode;
+  workDir?: string;
+  network?: boolean;
+  timeoutMs?: number;
+  /** Injectable for tests; defaults to the real 3-probe detection. */
+  detect?: () => BwrapDetection;
+  /** Injectable for tests; defaults to console.warn. */
+  warn?: (message: string) => void;
+}
+
+/**
+ * Honest factory: bwrap available + mode wants confinement → `LinuxSandbox` (kernel enforcement,
+ * running the VALIDATED absolute bin); `danger-full-access` → plain `LocalSandbox` silently (explicit
+ * opt-out, `bwrap.rs:245-252`); bwrap unavailable → WARN once + `LocalSandbox` (the declarative M23
+ * gating remains the guard). NEVER pretends to sandbox — the fallback is loud, mirroring Codex's
+ * MISSING_BWRAP_WARNING. The durable posture lives in `resolveSandboxPosture` for the UI.
+ */
+export function createSandboxBackend(opts: CreateSandboxBackendOptions): SandboxBackend {
+  const config: SandboxConfig = { workDir: opts.workDir, timeoutMs: opts.timeoutMs };
+  if (opts.mode === "danger-full-access") return new LocalSandbox(config);
+
+  const detection = (opts.detect ?? detectBwrapMemoized)();
+  if (!detection.ok) {
+    if (!warnedUnavailable) {
+      warnedUnavailable = true;
+      const warn = opts.warn ?? ((m: string) => console.warn(redactSecrets(m)));
+      warn(
+        `[sandbox] OS-level enforcement unavailable (${detection.reason}) — ` +
+          `falling back to tool-level gating only (sandbox_mode=${opts.mode}).`,
+      );
+    }
+    return new LocalSandbox(config);
+  }
+  return new LinuxSandbox(config, { mode: opts.mode, network: opts.network, bin: detection.bin });
+}
+
+/**
+ * M75 T3.2 — warning latch for the INTERACTIVE path.
+ *
+ * Kept separate from `createSandboxBackend`'s latch on purpose: they are two distinct decisions
+ * taken at distinct moments, and a user who only ever runs an interactive shell needs to see the
+ * warning even if the non-interactive path already emitted it — otherwise the session where they
+ * actually type commands would be the one without the alert.
+ */
+let interactiveWarned = false;
+
+/** Reset for tests — the latch is module state and tests need isolation. */
+export function resetInteractiveWarnLatch(): void {
+  interactiveWarned = false;
+}
+
+/**
+ * The rule "seccomp ONLY with restricted network" — in ONE place.
+ *
+ * Codex installs the filter only when the network is closed (`landlock.rs:96-117`), and that is not
+ * a detail: the cBPF program **denies the network syscalls** (`NETWORK_DENIED`). Applying it with
+ * the network open produces the worst possible combination — bwrap **allows** the network (no
+ * `--unshare-net`) and seccomp **denies** it with EPERM. The user asked for network, got the bind,
+ * and the calls die.
+ *
+ * It existed duplicated: the constructor decided conditionally, `interactiveWrapCommand` installed
+ * unconditionally. They had already diverged in the first version (M75 architecture review, proven
+ * at runtime: `network:true` gave `--seccomp` interactively and not one-shot). Two copies of a
+ * security rule is not duplicated form — it is duplicated KNOWLEDGE, and it had already diverged.
+ */
+function seccompPathForNetwork(networkOpen: boolean): string | undefined {
+  return networkOpen ? undefined : restrictedSeccompPath();
+}
+
+export interface InteractiveWrapOptions {
+  mode: SandboxMode;
+  /** `true` keeps the network. Default `false`, same as non-interactive `run_shell`. */
+  network?: boolean;
+  /** Injectable for tests; defaults to the real memoized detection. */
+  detect?: () => BwrapDetection;
+  /** Injectable for tests; defaults to `console.warn` with redaction. */
+  warn?: (message: string) => void;
+}
+
+/**
+ * The decision to confine or degrade, separated from the wrap itself.
+ *
+ * Extracted because they are two responsibilities and the SDK's complexity gate separated them for
+ * us: DECIDING (is confinement available? did the user opt out?) and APPLYING (assembling the argv).
+ * Keeping them together pushed the closure past 10 cognitive complexity — and the linter was right:
+ * the deciding part is the one with security consequences and deserves to be read on its own.
+ *
+ * Returns the validated binary when confinement exists, or `null` when it does not — warning ONCE,
+ * and only when the absence is a failure (not when it is an opt-out).
+ */
+function decideConfinement(opts: InteractiveWrapOptions): string | null {
+  if (opts.mode === "danger-full-access") return null;
+
+  const detection = (opts.detect ?? detectBwrapMemoized)();
+  if (detection.ok) return detection.bin;
+
+  if (!interactiveWarned) {
+    interactiveWarned = true;
+    const warn = opts.warn ?? ((m: string) => console.warn(redactSecrets(m)));
+    warn(
+      `[sandbox] OS-level enforcement unavailable (${detection.reason}) — interactive session ` +
+        `runs WITHOUT kernel confinement (sandbox_mode=${opts.mode}).`,
+    );
+  }
+  return null;
+}
+
+/**
+ * The composition the interactive path needs — the counterpart of `createSandboxBackend`.
+ *
+ * `createSandboxBackend` solves this for the non-interactive path by returning a ready BACKEND. The
+ * PTY accepts no backend: it owns the spawn and only allows transforming the command. This function
+ * delivers the SAME decision in the shape the PTY accepts — `(command, cwd) => string | null` —
+ * ready for `new PtyInteractiveBackend({ wrapCommand: interactiveWrapCommand({ mode }) })`.
+ *
+ * Detection is consulted on **every wrap**, not frozen at construction: an interactive session lives
+ * for hours, and a stale positive detection would keep asserting confinement after the binary
+ * disappeared (the `existsSync` revalidation lives inside `detectBwrapMemoized`).
+ *
+ * The two routes returning `null` are semantically different and the code does not merge them:
+ * `danger-full-access` is an explicit opt-out and does NOT warn; bwrap being unavailable is a
+ * failure and warns once.
+ */
+export function interactiveWrapCommand(
+  opts: InteractiveWrapOptions,
+): (command: string, cwd: string) => string | null {
+  return (command: string, cwd: string): string | null => {
+    const bin = decideConfinement(opts);
+    if (bin === null) return null;
+
+    return wrapCommandForSandbox(
+      opts.mode,
+      {
+        cwd,
+        network: opts.network ?? false,
+        env: allowlistedEnv(),
+        bin,
+        seccompPath: seccompPathForNetwork(opts.network ?? false),
+      },
+      command,
+    );
+  };
+}

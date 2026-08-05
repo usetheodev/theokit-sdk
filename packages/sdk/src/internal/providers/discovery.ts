@@ -12,23 +12,85 @@
  * @internal
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-
+import { diag } from "../diagnostics.js";
+import { globalSingleton } from "../global-singleton.js";
 import { registerProvider } from "./registry.js";
 
-let discovered = false;
+// M47 review F3 — the idempotence flag lives on `globalThis` via `Symbol.for`, mirroring registry.ts's
+// M44 B1 pattern: tsup bundles each entry (`dist/index.js`, `dist/cron.js`, …) with its OWN module copy,
+// so a module-local `let discovered` would re-run discovery once per entry (duplicate I/O + spurious
+// "Provider overridden" WARNs). Every bundle copy shares THIS state.
+const discoveryState = globalSingleton("theokit-sdk.providers.discovered", () => ({
+  done: false,
+}));
 
 function pluginsRoot(): string {
   return join(homedir(), ".theokit", "plugins", "model-providers");
 }
 
+/** The explicit trust allowlist the human edits (M47). Fail-closed: missing/malformed ⇒ empty. */
+function trustFilePath(): string {
+  return join(homedir(), ".theokit", "plugins", "trusted-providers.json");
+}
+
+/**
+ * M47 — the trust gate for the dynamic-import surface. A plugin's `index.{js,mjs}` executes arbitrary code
+ * at import time, so NOTHING is imported unless the human explicitly trusted the plugin name: either in
+ * `~/.theokit/plugins/trusted-providers.json` (a JSON string array — the auditable primary, mirroring the
+ * approved-hooks posture) or the additive `THEOKIT_TRUSTED_PROVIDERS` env (comma-separated convenience).
+ * Fail-closed: a missing or malformed trust file trusts NOTHING (a malformed file WARNs).
+ */
+// PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
+// sweeping these files (a nested root under refactor/). It is not new code and was not touched
+// by M75; refactoring SDK internals without review would trade a visible problem for a diff
+// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
+function loadTrustedNames(): Set<string> {
+  const trusted = new Set<string>();
+  const path = trustFilePath();
+  if (existsSync(path)) {
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(path, "utf-8"));
+      if (Array.isArray(parsed)) {
+        let discarded = 0;
+        for (const name of parsed) {
+          if (typeof name === "string" && name.length > 0) trusted.add(name);
+          else discarded += 1;
+        }
+        // M47 review F5 — fail-closed AND fail-clear: a valid array with wrong-shaped entries
+        // (numbers, objects) silently trusting nothing would leave the user with only the generic
+        // per-plugin WARN and no clue the FILE shape is wrong.
+        if (discarded > 0) {
+          diag(
+            `[theokit-sdk] WARN: ${path} contains ${discarded} non-string entr${discarded === 1 ? "y" : "ies"} — discarded (entries must be plugin-name strings)\n`,
+          );
+        }
+      } else {
+        diag(
+          `[theokit-sdk] WARN: ${path} is not a JSON array — trusting NO provider plugins (fail-closed)\n`,
+        );
+      }
+    } catch {
+      diag(
+        `[theokit-sdk] WARN: ${path} is not valid JSON — trusting NO provider plugins (fail-closed)\n`,
+      );
+    }
+  }
+  for (const name of (process.env.THEOKIT_TRUSTED_PROVIDERS ?? "").split(",")) {
+    const trimmed = name.trim();
+    if (trimmed.length > 0) trusted.add(trimmed);
+  }
+  return trusted;
+}
+
 export async function discoverProviderPlugins(): Promise<void> {
-  if (discovered) return;
-  discovered = true;
+  if (discoveryState.done) return;
+  discoveryState.done = true;
 
   const root = pluginsRoot();
   if (!existsSync(root)) return;
@@ -40,7 +102,20 @@ export async function discoverProviderPlugins(): Promise<void> {
     return;
   }
 
+  const trusted = loadTrustedNames();
   for (const entry of entries) {
+    // M47 — the gate fires BEFORE any import(): untrusted code is never evaluated (import-time side effects
+    // ARE the attack; a post-import check would be theater).
+    if (!trusted.has(entry)) {
+      // M47 review F4/F7 — the remedy must be complete: discovery is once-per-process (the latch above),
+      // so editing the trust file only takes effect after a restart; and the env format is comma-separated.
+      diag(
+        `[theokit-sdk] WARN: provider plugin "${entry}" is present but NOT trusted — skipped. ` +
+          `To trust it, add "${entry}" to ${trustFilePath()} (JSON array of names) or ` +
+          `THEOKIT_TRUSTED_PROVIDERS (comma-separated), then restart the process.\n`,
+      );
+      continue;
+    }
     await loadOne(join(root, entry), entry);
   }
 }
@@ -66,7 +141,7 @@ async function loadOne(dir: string, entryName: string): Promise<void> {
       return;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[theokit-sdk] failed to load provider plugin "${entryName}": ${msg}\n`);
+      diag(`[theokit-sdk] failed to load provider plugin "${entryName}": ${msg}\n`);
       return;
     }
   }
@@ -74,5 +149,5 @@ async function loadOne(dir: string, entryName: string): Promise<void> {
 
 /** Test-only reset. @internal */
 export function _resetDiscovery(): void {
-  discovered = false;
+  discoveryState.done = false;
 }

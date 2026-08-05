@@ -188,3 +188,94 @@ describe("RunEvent wiring (SE2) — end-to-end via onRunEvent", () => {
     expect(progress).toMatchObject({ type: "tool_progress", toolName: "risky" });
   });
 });
+
+/**
+ * theokit#140 — `run.events()` is ONE ordered source.
+ *
+ * Reuses `startStub` above rather than standing up a second fake provider: two harnesses for the
+ * same runtime is two definitions of "a run", and they drift.
+ *
+ * What is pinned is the property that made the two-source merge necessary — that BOTH kinds arrive
+ * on one iterator. Ordering itself is not asserted because it is not reconstructed: both kinds are
+ * appended by the loop as they happen, so arrival order IS model order. There is no sort left to
+ * test, which was the point.
+ */
+async function drainTimeline(): Promise<{
+  timeline: import("../src/types/run.js").RunTimelineEvent[];
+  streamed: string[];
+  callerDeltas: number;
+}> {
+  const { Agent } = await import("../src/index.js");
+  const stub = await startStub({ toolName: "risky" });
+  const prevKey = process.env.ANTHROPIC_API_KEY;
+  const prevUrl = process.env.ANTHROPIC_API_BASE_URL;
+  process.env.ANTHROPIC_API_KEY = "sk-stub";
+  process.env.ANTHROPIC_API_BASE_URL = stub.url;
+  const timeline: import("../src/types/run.js").RunTimelineEvent[] = [];
+  const streamed: string[] = [];
+  let callerDeltas = 0;
+  try {
+    const agent = await Agent.create({
+      apiKey: "real-not-fixture",
+      model: { id: "claude-sonnet-4-6" },
+      tools: [
+        {
+          name: "risky",
+          description: "A tool, so the run produces tool lifecycle as well as text.",
+          inputSchema: { type: "object", properties: {} },
+          handler: () => "ok",
+        },
+      ],
+    });
+    const run = await agent.send("do it", {
+      onDelta: () => {
+        callerDeltas += 1;
+      },
+    });
+    for await (const event of run.events()) {
+      timeline.push(event);
+      if (event.kind === "message") streamed.push(event.message.type);
+    }
+    await run.wait();
+  } finally {
+    if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = prevKey;
+    if (prevUrl === undefined) delete process.env.ANTHROPIC_API_BASE_URL;
+    else process.env.ANTHROPIC_API_BASE_URL = prevUrl;
+    stub.server.close();
+  }
+  return { timeline, streamed, callerDeltas };
+}
+
+describe("theokit#140 — run.events() is a single ordered timeline", () => {
+  it("test_the_timeline_carries_BOTH_messages_and_deltas", async () => {
+    // The whole issue in one assertion. A timeline of only messages is `stream()` renamed; one of
+    // only deltas is `onDelta` renamed. Either alone leaves the consumer fusing two surfaces, which
+    // is the ~200 lines of merge machinery this exists to delete.
+    const { timeline } = await drainTimeline();
+
+    expect(timeline.length, "events() yielded nothing at all").toBeGreaterThan(0);
+    expect(
+      timeline.some((e) => e.kind === "message"),
+      "no structural message on the timeline — this is onDelta renamed, not a merge",
+    ).toBe(true);
+    expect(
+      timeline.some((e) => e.kind === "delta"),
+      "no delta on the timeline — this is stream() renamed, and the consumer still needs onDelta",
+    ).toBe(true);
+  }, 30_000);
+
+  it("test_the_timeline_carries_the_structural_events_stream_would", async () => {
+    // Completeness floor. `stream()` stays the SDKMessage-only view, so migrating to `events()`
+    // must not lose structural events — otherwise the replacement is a downgrade.
+    const { streamed } = await drainTimeline();
+    expect(streamed, "the timeline carried no SDKMessage types at all").not.toEqual([]);
+  }, 30_000);
+
+  it("test_the_callers_own_onDelta_still_fires", async () => {
+    // Back-compat floor. The timeline is fed by WRAPPING `SendOptions.onDelta`; a wrap that
+    // swallowed the caller's callback would break every existing consumer silently.
+    const { callerDeltas } = await drainTimeline();
+    expect(callerDeltas, "wrapping onDelta swallowed the caller's callback").toBeGreaterThan(0);
+  }, 30_000);
+});

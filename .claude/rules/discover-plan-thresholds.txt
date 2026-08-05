@@ -1,0 +1,27 @@
+# Discover-Plan Score Thresholds — per-project tuning.
+#
+# Authoritative source: rules/discover-plan-golden-rule.md
+#
+# Format (one entry per line):
+#   KEY = VALUE
+#
+# Lines starting with `#` and blank lines are skipped.
+# Defaults shipped with the skill at:
+#   skills/discover-plan-confidence/templates/ (when present)
+#
+# Per-project overrides go here and are CHANGELOG-tracked.
+
+# Soft caps
+soft_cap.question_count_low = 3
+soft_cap.coverage_corner_thin = 1   # questions per corner below which a soft cap fires
+
+# Hard caps
+hard_cap.question_count_max = 15
+hard_cap.fabricated_citation = 49
+hard_cap.empty_corner = 49
+
+# Verdict bands
+band.shippable = 90
+band.shippable_with_caveats = 70
+band.needs_revision = 50
+band.invalid = 0

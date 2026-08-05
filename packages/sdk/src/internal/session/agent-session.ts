@@ -1,6 +1,5 @@
 import type { SessionStore } from "../../types/session-store.js";
 import {
-  appendCompactBoundaryRecord,
   type PersistTurnInput,
   persistTurn,
   readSessionMessages,
@@ -28,18 +27,19 @@ export type { SessionMessage } from "./session-types.js";
 
 import type { SessionMessage } from "./session-types.js";
 
-/** After this many persisted turns, an append-only compact_boundary is written. */
-const COMPACTION_CHECK_INTERVAL = 50;
+// M75 — the cache lives in a leaf; see session-cache.ts for the reason (cycle broken by extraction).
+export {
+  hydratedKeys,
+  invalidateSessionCache,
+  sessions,
+  transcriptKey,
+} from "./session-cache.js";
 
-const sessions = new Map<string, SessionMessage[]>();
-const hydratedKeys = new Set<string>();
+import { diag } from "../diagnostics.js";
+import { hydratedKeys, sessions, transcriptKey } from "./session-cache.js";
+
 const pendingWrites = new Map<string, Promise<void>>();
 const recordCounts = new Map<string, number>();
-
-/** The per-(cwd, agentId) transcript key for cache/hydration bookkeeping. */
-function transcriptKey(cwd: string, agentId: string): string {
-  return `${cwd}::${agentId}`;
-}
 
 /**
  * Append a session message to the in-memory cache only. Disk persistence for the
@@ -51,7 +51,81 @@ function transcriptKey(cwd: string, agentId: string): string {
 export function appendSessionMessage(agentId: string, message: SessionMessage): void {
   const existing = sessions.get(agentId) ?? [];
   existing.push(message);
+  // `delete` + `set` reinserts at the END: a JS `Map` preserves insertion order, so the first key
+  // is always the least recently touched. That is the entire LRU, with no new structure (parsimony
+  // rungs 2/5 — the ordering we need is already a language guarantee).
+  sessions.delete(agentId);
   sessions.set(agentId, existing);
+  enforceCeiling();
+}
+
+/**
+ * Ceiling on sessions kept in memory.
+ *
+ * The runtime only reads the **active** session; the rest is pure cache, rebuildable from the
+ * on-disk transcript. 32 is deliberately generous — the primary removal path is the explicit
+ * `discardSession()` at the end of the agent's life, and this ceiling is a safety net against a
+ * long-lived process running hundreds of sessions (plan risk #2: a tight ceiling could evict a
+ * session still referenced by an in-flight async path).
+ */
+export const MAX_CACHED_SESSIONS = 32;
+
+function enforceCeiling(): void {
+  while (sessions.size > MAX_CACHED_SESSIONS) {
+    const maisAntiga = sessions.keys().next().value;
+    if (maisAntiga === undefined) return;
+    sessions.delete(maisAntiga);
+    esquecerEscrituracao(maisAntiga);
+  }
+}
+
+/**
+ * Erases the bookkeeping for an `agentId` across EVERY `cwd` it appears in.
+ *
+ * The three maps are keyed by `transcriptKey(cwd, agentId)`; `sessions` is the only one keyed by the
+ * raw `agentId`. The ceiling's first version deleted from all three using `sessions`' key — that is,
+ * deleted nothing — and left `hydratedKeys` **orphaned**. Since `hydrateSession` returns early when
+ * the marker is present, an evicted session came back **empty** instead of rehydrating from disk:
+ * silent amnesia, and a regression new to M95, because before it nothing evicted.
+ *
+ * The ceiling only knows the `agentId`, not the `cwd`, so it scans by suffix — which is the format
+ * `transcriptKey` produces. A scan rather than an index because these maps hold tens of entries, not
+ * thousands: a reverse index here would be new structure for a problem that does not exist.
+ */
+function esquecerEscrituracao(agentId: string): void {
+  const sufixo = transcriptKey("", agentId).slice(0 - agentId.length - 2);
+  for (const k of [...hydratedKeys]) if (k.endsWith(sufixo)) hydratedKeys.delete(k);
+  for (const k of [...pendingWrites.keys()]) if (k.endsWith(sufixo)) pendingWrites.delete(k);
+  for (const k of [...recordCounts.keys()]) if (k.endsWith(sufixo)) recordCounts.delete(k);
+}
+
+/**
+ * Erases the agent's module bookkeeping and returns how many entries were removed.
+ *
+ * M95 — `invalidateSessionCache` limpava **dois** dos quatro mapas (`sessions`, `hydratedKeys`);
+ * `pendingWrites` and `recordCounts` were never touched by id, so they grew for the life of the
+ * process. Neither is large per entry — the leak is in count, not volume — but a cache with no owner
+ * for removal is a cache that only grows.
+ *
+ * Returns the count so the caller can prove the removal; a second discard returns 0, which is what
+ * makes the idempotency test possible without exposing the maps.
+ */
+export function discardSession(cwd: string, agentId: string): number {
+  const key = transcriptKey(cwd, agentId);
+  let removed = 0;
+  // `sessions` is NOT erased here — and the distinction is measured, not aesthetic. It holds the
+  // readable conversation, and there is a legitimate reader AFTER dispose: the golden
+  // `two-concurrent-sends-serialize` calls `getSessionMessages(agentId)` after `agent.dispose()`.
+  // Erasing it here returned an empty list and broke two goldens. What bounds it is the LRU ceiling
+  // above; the three below are pure bookkeeping, with no post-dispose reader.
+  //
+  // The key is `transcriptKey(cwd, agentId)` in ALL THREE — not the raw `agentId`. The first version
+  // erased two of them by `agentId` and therefore **never erased anything**; the test did not catch
+  // it because it only asserted that the SECOND call returns 0, which is true either way.
+  if (hydratedKeys.delete(key)) removed++;
+  if (pendingWrites.delete(key)) removed++;
+  if (recordCounts.delete(key)) removed++;
+  return removed;
 }
 
 export function getSessionMessages(agentId: string): SessionMessage[] {
@@ -62,8 +136,8 @@ export function getSessionMessages(agentId: string): SessionMessage[] {
  * Persist a full conversation turn (user + assistant + tool blocks) to the native
  * transcript. Chained per-(agent, transcript) so on-disk order matches send order,
  * and fire-and-forget so `send()` is not blocked by disk I/O. Every
- * `COMPACTION_CHECK_INTERVAL` turns an append-only `compact_boundary` is written
- * (turn-count-driven, not size-driven), surfaced via the optional `onCompact` observer.
+ * M50 — when the caller supplies `turn.autoCompact`, size-driven auto-compaction (usage real vs
+ * the model's context window) runs in this same chain, surfaced via the optional `onCompact` observer.
  *
  * @internal
  */
@@ -75,23 +149,35 @@ export function persistTurnToTranscript(
   onCompact?: () => void,
 ): void {
   const key = transcriptKey(loc.cwd, loc.agentId);
+  // PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
+  // sweeping these files (a nested root under refactor/). It is not new code and was not touched
+  // by M75; refactoring SDK internals without review would trade a visible problem for a diff
+  // arriscado. Rastreado em usetheodev/theokit-sdk#151.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
   const chained = (pendingWrites.get(key) ?? Promise.resolve()).then(async () => {
     try {
       await persistTurn(store, loc, sessionId, turn);
       const count = (recordCounts.get(key) ?? 0) + 1;
       recordCounts.set(key, count);
-      if (count % COMPACTION_CHECK_INTERVAL === 0) {
-        await appendCompactBoundaryRecord(store, loc, sessionId, {
-          preTokens: 0,
-          trigger: "auto",
+      // M50 — the 50-turn no-summary boundary stub is GONE (it silently amnesia'd the session).
+      // Auto-compaction is now size-driven with a real summary: see `maybeAutoCompact` below,
+      // invoked in this same write chain by the post-run lifecycle when usage is known.
+      if (turn.autoCompact !== undefined) {
+        const { autoCompactIfNeeded } = await import("./compact-session.js");
+        const fired = await autoCompactIfNeeded({
+          store,
+          loc,
+          sessionId,
+          usageTotal: turn.autoCompact.usageTotal,
+          contextWindow: turn.autoCompact.contextWindow,
+          turnCount: count,
+          summarize: turn.autoCompact.summarize,
         });
-        onCompact?.();
+        if (fired) onCompact?.();
       }
     } catch (cause) {
       const msg = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(
-        `[theokit-sdk] session transcript write failed (${loc.agentId}): ${msg}\n`,
-      );
+      diag(`[theokit-sdk] session transcript write failed (${loc.agentId}): ${msg}\n`);
     }
   });
   pendingWrites.set(
@@ -119,9 +205,12 @@ export async function hydrateSession(
 
   const persisted = await readSessionMessages(loc.store, agentId);
   if (persisted.length === 0) return;
-  if (!sessions.has(agentId) || sessions.get(agentId)?.length === 0) {
-    sessions.set(agentId, persisted);
-  }
+  // M51 review F4 — the DISK is the source of truth at hydration time: after an invalidation
+  // (compact/inject), an in-flight turn may have repopulated the cache with a SINGLE message before
+  // this hydrate ran; the old "skip when non-empty" guard then pinned the parent to a 1-message
+  // context (history + injected pair lost until restart). The persist chain serializes writes, so
+  // the disk already contains that in-flight turn — replacing is always correct.
+  sessions.set(agentId, persisted);
 }
 
 /**
@@ -142,9 +231,41 @@ export function clearSession(agentId: string): void {
   sessions.delete(agentId);
 }
 
+/**
+ * M50 review F1 — drop BOTH the message cache and the hydration marker so the NEXT send re-hydrates
+ * from disk. Without this, a compaction only helps after a process restart: the live process keeps
+ * sending the full pre-compact history (the cache is read synchronously by every send).
+ */
+/**
+ * M50 review F5 — run `fn` serialized on the SAME per-(cwd,agentId) write chain the per-turn
+ * persistence uses, so a manual `Agent.compact` can never interleave with an in-flight turn's
+ * writes (boundary landing mid-turn would orphan the turn from the replay).
+ */
+export function enqueueSessionWrite<T>(
+  cwd: string,
+  agentId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const key = transcriptKey(cwd, agentId);
+  const prior = pendingWrites.get(key) ?? Promise.resolve();
+  const result = prior.then(fn);
+  pendingWrites.set(
+    key,
+    result.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return result;
+}
+
 /** Test-only: drop every cached session and hydration marker. @internal */
 export function clearAllSessions(): void {
   sessions.clear();
   hydratedKeys.clear();
   recordCounts.clear();
+  // M50 review F11 — the auto-compact attempt marks live on globalThis; tests reset them here.
+  const g = globalThis as unknown as Record<symbol, Map<string, number>>;
+  const sym = Symbol.for("theokit-sdk.session.auto-compact-attempts");
+  g[sym]?.clear();
 }

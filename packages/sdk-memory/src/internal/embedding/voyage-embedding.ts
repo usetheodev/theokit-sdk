@@ -1,3 +1,4 @@
+import type { MemoryEmbeddingProviderAdapter } from "./embedding-adapter.js";
 import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
 
 // Iter 74 rollup-plugin-dts workaround: see openai-embedding.ts header.
@@ -25,7 +26,7 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "voyage-multilingual-2": 1024,
 };
 
-export const voyageMemoryEmbeddingProviderAdapter = {
+export const voyageMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "voyage",
   defaultModel: DEFAULT_VOYAGE_EMBEDDING_MODEL,
   transport: "remote" as const,

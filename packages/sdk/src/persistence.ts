@@ -45,8 +45,17 @@ export { PersistenceSchema } from "./internal/persistence/persistence-schema.js"
 export {
   encodeProjectDir,
   transcriptPath,
+  // M94 — the transcript state's root. Exported because the consumer duplicated it in
+  // THREE files, and all three copies ignored `THEOKIT_HOME` along with this one.
+  transcriptRoot,
 } from "./internal/persistence/session-transcript.js";
-
+export {
+  acquireSessionWriter,
+  SessionBusyError,
+  type SessionWriterLease,
+  // M95 — query without taking: asking by taking creates the contention it meant to detect.
+  sessionHasWriter,
+} from "./internal/persistence/session-writer.js";
 // Resilient SQLite bootstrap (corruption recovery) + WAL/FK setup.
 export type {
   OpenSqliteResilientOptions,
@@ -55,3 +64,19 @@ export type {
 export { isCorruptionError, openSqliteResilient } from "./internal/persistence/sqlite-open.js";
 export type { WalApplyResult } from "./internal/persistence/sqlite-wal.js";
 export { applyWalWithFallback } from "./internal/persistence/sqlite-wal.js";
+// M81 — transcript operations the consumer used to perform by hand INSIDE this store.
+//
+// `agent-builder` wrote into the session store with a raw `writeFileSync` (243 LoC reimplementing
+// parsing, truncation and writing of a format that is ours) because nothing here was reachable.
+// The rule that protects these operations travels with them: `forkTranscript` refuses to write over
+// a live session — moving the operation without the rule would ship an API able to erase exactly
+// what the rule exists to protect.
+export {
+  type ForkTranscriptOptions,
+  forkTranscript,
+  LiveSessionError,
+  type ReadJsonlTailOptions,
+  readJsonlTail,
+} from "./internal/persistence/transcript-ops.js";
+// M94 — a forma do registro deixa de ser `Record<string, unknown>`; o consumidor derrubava os casts.
+export type { TranscriptBlock, TranscriptMessage } from "./types/session-record.js";

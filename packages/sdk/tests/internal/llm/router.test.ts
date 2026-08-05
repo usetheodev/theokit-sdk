@@ -2,10 +2,26 @@
  * Tests for refactored router (T4.3, ADRs D105-D107).
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+/**
+ * Peels off ALL decorators down to the real transport, in a loop.
+ *
+ * In a loop and not two `if`s: the order in which router and chain-builder wrap is not fixed, and one
+ * desembrulho posicional passa a depender dela. M93 — o `RetryingLlmClient` foi o segundo
+ * decorator to arrive; the third must not break these tests again.
+ */
+function descascar(client: LlmClient): LlmClient {
+  let current = client;
+  for (;;) {
+    if (current instanceof RetryingLlmClient) current = current.inner;
+    else if (current instanceof FaultInjectingLlmClient) current = current.inner;
+    else return current;
+  }
+}
 
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FaultInjectingLlmClient } from "../../../src/internal/llm/fault-injection.js";
 import type { OpenAIClient } from "../../../src/internal/llm/openai.js";
+import { RetryingLlmClient } from "../../../src/internal/llm/retrying-client.js";
 import {
   _resetNoAuthApiKeyWarnings,
   resolveProviderChain,
@@ -142,8 +158,10 @@ describe("router (T4.3)", () => {
 describe("router — leaked-dialect recovery route flag (theokit#58 follow-up)", () => {
   // In NODE_ENV=test every client is wrapped by FaultInjectingLlmClient (D14);
   // the real transport is on `.inner`.
-  const unwrap = (client: LlmClient): OpenAIClient =>
-    (client instanceof FaultInjectingLlmClient ? client.inner : client) as OpenAIClient;
+  // M93 — o `RetryingLlmClient` entrou como decorator externo; desembrulhar os dois.
+  const unwrap = (client: LlmClient): OpenAIClient => {
+    return descascar(client) as OpenAIClient;
+  };
 
   it("clones the resolved profile with extractToolCallsFromContent when the route opts in", () => {
     process.env.OPENROUTER_API_KEY = "k1";

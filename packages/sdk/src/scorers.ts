@@ -15,6 +15,9 @@
 
 import type { ZodType, z } from "zod";
 
+import { openRouterMemoryEmbeddingProviderAdapter } from "./internal/memory/adapters/openrouter-embedding.js";
+import type { EmbeddingRuntime } from "./internal/memory/embedding-adapter.js";
+import { LEVENSHTEIN_MAX_LEN, levenshteinDistance } from "./internal/scorers/levenshtein.js";
 import { type LlmJudgeOptions, llmJudgeScore } from "./internal/scorers/llm-judge.js";
 import { LocalSandbox } from "./sandbox/local-sandbox.js";
 import { shellEscapePosix } from "./sandbox/shell-escape.js";
@@ -22,6 +25,146 @@ import type { NamedScorer, Score, VerifyGateOptions } from "./types/eval.js";
 
 /** EC-2 fix: cap JSON parse input to bound memory. 1 MB is generous for structured output. */
 const JSON_SHAPE_MAX_BYTES = 1_000_000;
+
+/** SE41 — options for the deterministic fuzzy `Scorers.levenshtein`. */
+interface LevenshteinOptions {
+  /** Case-sensitive compare. Default: false (fuzzy matching is usually case-insensitive). */
+  caseSensitive?: boolean;
+  /**
+   * When set, binarize: `score = normalizedSimilarity >= threshold ? 1 : 0`.
+   * When omitted, return the continuous similarity in `[0, 1]`.
+   */
+  threshold?: number;
+}
+
+/** SE41 — options for the deterministic `Scorers.numericDiff`. */
+interface NumericDiffOptions {
+  /**
+   * When set, binarize: `score = |output - expected| <= tolerance ? 1 : 0`.
+   * When omitted, return the continuous relative closeness in `[0, 1]`.
+   */
+  tolerance?: number;
+}
+
+/** SE41 — options for `Scorers.embeddingSimilarity`. */
+interface EmbeddingSimilarityOptions {
+  /** Embedding API key. Defaults to `OPENROUTER_API_KEY` from the environment. */
+  apiKey?: string;
+  /** Embedding model id (OpenRouter catalog). Default: `openai/text-embedding-3-small`. */
+  model?: string;
+  /** Override the embeddings HTTP base URL. */
+  baseUrl?: string;
+  /** When set, binarize: `score = cosine >= threshold ? 1 : 0`. Else continuous. */
+  threshold?: number;
+  /**
+   * Inject an embedding function (DIP): `(texts) => vectors`. When provided, the
+   * OpenRouter runtime is NOT constructed — used by tests and custom providers.
+   */
+  embed?: (texts: ReadonlyArray<string>) => Promise<number[][]>;
+}
+
+/** Cosine similarity of two vectors; 0 when either has zero magnitude. */
+function cosineSimilarity(a: ReadonlyArray<number>, b: ReadonlyArray<number>): number {
+  const n = Math.min(a.length, b.length);
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < n; i += 1) {
+    const av = a[i] ?? 0;
+    const bv = b[i] ?? 0;
+    dot += av * bv;
+    na += av * av;
+    nb += bv * bv;
+  }
+  if (na === 0 || nb === 0) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+/**
+ * Validate + case-normalize a string scorer's `(output, expected)` pair. Returns
+ * the normalized pair, or a failure `Score` when `expected` is not a usable
+ * string (shared by every string-based scorer — single source for EC-1 parity).
+ */
+function normalizeStringInputs(
+  output: string,
+  expected: unknown,
+  caseSensitive: boolean,
+): { o: string; e: string } | Score {
+  if (typeof expected !== "string") return { score: 0, reason: "expected_not_string" };
+  if (expected.length === 0) return { score: 0, reason: "expected_empty" };
+  return {
+    o: caseSensitive ? output : output.toLowerCase(),
+    e: caseSensitive ? expected : expected.toLowerCase(),
+  };
+}
+
+/** Module-level scoring body for `Scorers.levenshtein` (keeps the factory flat). */
+function scoreLevenshtein(
+  output: string,
+  expected: unknown,
+  caseSensitive: boolean,
+  threshold: number | undefined,
+): Score {
+  const norm = normalizeStringInputs(output, expected, caseSensitive);
+  if (!("o" in norm)) return norm;
+  const { o, e } = norm;
+  if (o.length > LEVENSHTEIN_MAX_LEN || e.length > LEVENSHTEIN_MAX_LEN) {
+    return { score: 0, reason: "input_too_large" };
+  }
+  const sim = 1 - levenshteinDistance(o, e) / Math.max(o.length, e.length, 1);
+  if (threshold === undefined) return { score: sim };
+  return sim >= threshold ? { score: 1 } : { score: 0, reason: `sim=${sim.toFixed(3)}` };
+}
+
+/** Coerce a value to a finite number, or `undefined` when it is not numeric. */
+function toFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (value === undefined || value === null) return undefined;
+  const n = Number(String(value).trim());
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Module-level scoring body for `Scorers.numericDiff`. */
+function scoreNumericDiff(output: string, expected: unknown, tolerance: number | undefined): Score {
+  const o = toFiniteNumber(output);
+  if (o === undefined) return { score: 0, reason: "output_not_numeric" };
+  const e = toFiniteNumber(expected);
+  if (e === undefined) return { score: 0, reason: "expected_not_numeric" };
+  if (tolerance !== undefined) {
+    return Math.abs(o - e) <= tolerance
+      ? { score: 1 }
+      : { score: 0, reason: `abs_diff=${Math.abs(o - e)}` };
+  }
+  const denom = Math.max(Math.abs(o), Math.abs(e));
+  if (denom === 0) return { score: 1 };
+  return { score: Math.max(0, 1 - Math.abs(o - e) / denom) };
+}
+
+/** Assemble the OpenRouter adapter options from the scorer opts (omitting undefineds). */
+function embedderCreateOptions(opts: EmbeddingSimilarityOptions): {
+  model?: string;
+  apiKey?: string;
+  baseUrl?: string;
+} {
+  return {
+    ...(opts.model !== undefined ? { model: opts.model } : {}),
+    ...(opts.apiKey !== undefined ? { apiKey: opts.apiKey } : {}),
+    ...(opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}),
+  };
+}
+
+/** Build the default (OpenRouter-backed) embedder for `embeddingSimilarity`. */
+function makeDefaultEmbedder(
+  opts: EmbeddingSimilarityOptions,
+): (texts: ReadonlyArray<string>) => Promise<number[][]> {
+  let runtime: Promise<EmbeddingRuntime> | undefined;
+  return (texts) => {
+    if (runtime === undefined) {
+      runtime = openRouterMemoryEmbeddingProviderAdapter.create(embedderCreateOptions(opts));
+    }
+    return runtime.then((rt) => rt.embed(texts));
+  };
+}
 
 interface ExactMatchOptions {
   /** Case-sensitive compare. Default: true. */
@@ -46,11 +189,8 @@ function makeStringScorer(
   return {
     name,
     score: (output, expected): Score => {
-      if (typeof expected !== "string") return { score: 0, reason: "expected_not_string" };
-      if (expected.length === 0) return { score: 0, reason: "expected_empty" };
-      const o = caseSensitive ? output : output.toLowerCase();
-      const e = caseSensitive ? expected : expected.toLowerCase();
-      return compare(o, e);
+      const norm = normalizeStringInputs(output, expected, caseSensitive);
+      return "o" in norm ? compare(norm.o, norm.e) : norm;
     },
   };
 }
@@ -90,6 +230,61 @@ export const Scorers = {
       score: (output): Score => {
         const ok = pattern.test(output);
         return ok ? { score: 1 } : { score: 0, reason: "regex_no_match" };
+      },
+    };
+  },
+
+  /**
+   * SE41 — normalized Levenshtein similarity: `1 - editDistance / max(len)`.
+   * Deterministic (no LLM), so it always runs in CI. `threshold` binarizes.
+   *
+   * Refuses empty/non-string `expected` (EC-1 parity) and caps input at
+   * {@link LEVENSHTEIN_MAX_LEN} chars to bound the O(n*m) cost on adversarial output.
+   */
+  levenshtein(opts: LevenshteinOptions = {}): NamedScorer {
+    const caseSensitive = opts.caseSensitive ?? false;
+    const { threshold } = opts;
+    return {
+      name: threshold !== undefined ? `levenshtein(>=${threshold})` : "levenshtein",
+      score: (output, expected): Score =>
+        scoreLevenshtein(output, expected, caseSensitive, threshold),
+    };
+  },
+
+  /**
+   * SE41 — numeric closeness. Parses `output` and `expected` as numbers and
+   * scores continuous relative closeness `1 - |o-e| / max(|o|,|e|)` (both 0 ⇒ 1),
+   * or a binary pass when `tolerance` is set. Deterministic (no LLM).
+   */
+  numericDiff(opts: NumericDiffOptions = {}): NamedScorer {
+    const { tolerance } = opts;
+    return {
+      name: "numeric-diff",
+      score: (output, expected): Score => scoreNumericDiff(output, expected, tolerance),
+    };
+  },
+
+  /**
+   * SE41 — semantic similarity via embeddings: cosine of `embed(output)` vs
+   * `embed(expected)`, clamped to `[0, 1]` (negatives → 0). `threshold` binarizes.
+   *
+   * By default routes through OpenRouter's embeddings endpoint
+   * (`OPENROUTER_API_KEY`); inject `embed` to use another provider or to test
+   * deterministically. Each scored row costs one embeddings call.
+   */
+  embeddingSimilarity(opts: EmbeddingSimilarityOptions): NamedScorer {
+    const { threshold } = opts;
+    const embed = opts.embed ?? makeDefaultEmbedder(opts);
+    return {
+      name:
+        threshold !== undefined ? `embedding-similarity(>=${threshold})` : "embedding-similarity",
+      score: async (output, expected): Promise<Score> => {
+        if (typeof expected !== "string") return { score: 0, reason: "expected_not_string" };
+        const [vo, ve] = await embed([output, expected]);
+        if (vo === undefined || ve === undefined) return { score: 0, reason: "embed_failed" };
+        const score = Math.max(0, cosineSimilarity(vo, ve));
+        if (threshold === undefined) return { score };
+        return score >= threshold ? { score: 1 } : { score: 0, reason: `cos=${score.toFixed(3)}` };
       },
     };
   },

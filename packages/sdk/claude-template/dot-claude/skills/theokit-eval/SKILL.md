@@ -50,6 +50,10 @@ console.log(run.aggregate.durationMsP95); // 1830
 | `Scorers.regex(pattern)` | `pattern.test(output)` — test patterns against adversarial output to avoid ReDoS |
 | `Scorers.jsonShape(zodSchema, { strict? })` | `JSON.parse(output)` + Zod validation — caps output at 1 MB before parse |
 | `Scorers.llmJudge({ model, apiKey, criteria, rubric? })` | Second LLM scores against criteria — requires SEPARATE `apiKey` |
+| `Scorers.levenshtein({ threshold?, caseSensitive? })` | Normalized edit-distance similarity `1 - dist/max(len)` — deterministic (no LLM); `threshold` binarizes |
+| `Scorers.numericDiff({ tolerance? })` | Relative numeric closeness `1 - |o-e|/max(|o|,|e|)` — deterministic; `tolerance` binarizes |
+| `Scorers.embeddingSimilarity({ apiKey?, model?, threshold?, embed? })` | Cosine of output vs expected embeddings (OpenRouter by default; inject `embed` for another provider). One embeddings call per row |
+| `Scorers.verifyGate({ sandbox?, repoDir, failToPass, passToPass, command })` | Runs the project's tests in a sandbox; scores 1 iff exit 0 (SWE-bench style) |
 
 ### Custom scorer
 
@@ -105,6 +109,36 @@ interface EvalAggregate {
 
 `EvalRun` is plain JSON — `JSON.stringify(run)` works directly.
 
+## CI gate — `assertEval`
+
+Turn a run into a pass/fail gate. `assertEval` reads only `run.aggregate`,
+collects EVERY unmet threshold, and throws `EvalThresholdError` (with a
+`.failures` list) when any is missed — otherwise returns `void`. Drop it into a
+Vitest `it(...)` or a standalone script whose non-zero exit fails the CI job.
+
+```typescript
+import { Eval, Scorers, assertEval, EvalThresholdError } from "@theokit/sdk/eval";
+
+const run = await Eval.create({ name: "qa", dataset, scorers, agent }).run();
+
+assertEval(run, {
+  minMeanScore: 0.8,     // aggregate.meanScore >= 0.8
+  minPassRatio: 0.9,     // aggregate.passRatio  >= 0.9
+  maxErrorRatio: 0,      // errorRows / totalRows <= 0
+  perScorer: { "contains-expected": 0.7 }, // per-scorer mean floor (absent scorer = failure)
+});
+```
+
+## Trials (smooth non-determinism)
+
+`trials: N` runs each dataset row N times and collapses to ONE row whose
+per-scorer score is the mean over the trials (an errored trial contributes 0).
+`EvalRowResult.trialCount` records the collapse. Range `[1, 100]`.
+
+```typescript
+const run = await Eval.create({ name: "qa", dataset, scorers, agent, trials: 3 }).run();
+```
+
 ## Concurrency
 
 `concurrency` defaults to 4. Allowed range: `[1, 64]` (integer). 0 and
@@ -141,4 +175,5 @@ costs roughly $3.00 total (base + judge).
 | Error | When |
 |---|---|
 | `EvalAlreadyRunningError` | Same `name` already running in this process |
+| `EvalThresholdError` | `assertEval` found one or more unmet thresholds (see `.failures`) |
 | `ConfigurationError` | Invalid concurrency, missing required fields |

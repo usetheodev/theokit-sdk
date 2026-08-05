@@ -1,0 +1,178 @@
+{
+  "openai/gpt-4o": {
+    "supportsVision": true,
+    "supportsStructuredOutput": true,
+    "supportsToolUse": true,
+    "supportsCacheControl": false,
+    "maxContextTokens": 128000,
+    "maxOutputTokens": 16384
+  },
+  "openai/gpt-4o-mini": {
+    "supportsVision": true,
+    "supportsStructuredOutput": true,
+    "supportsToolUse": true,
+    "supportsCacheControl": false,
+    "maxContextTokens": 128000,
+    "maxOutputTokens": 16384
+  },
+  "openai/gpt-4-turbo": {
+    "supportsVision": true,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": false,
+    "maxContextTokens": 128000,
+    "maxOutputTokens": 4096
+  },
+  "openai/o1": {
+    "supportsVision": false,
+    "supportsStructuredOutput": true,
+    "supportsToolUse": true,
+    "supportsCacheControl": false,
+    "maxContextTokens": 200000,
+    "maxOutputTokens": 100000
+  },
+  "openai/o3": {
+    "supportsVision": false,
+    "supportsStructuredOutput": true,
+    "supportsToolUse": true,
+    "supportsCacheControl": false,
+    "maxContextTokens": 200000,
+    "maxOutputTokens": 100000
+  },
+  "openai/gpt-4.1": {
+    "supportsVision": true,
+    "supportsStructuredOutput": true,
+    "supportsToolUse": true,
+    "supportsCacheControl": false,
+    "maxContextTokens": 1047576,
+    "maxOutputTokens": 32768
+  },
+  "anthropic/claude-opus-4": {
+    "supportsVision": true,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": true,
+    "maxContextTokens": 200000,
+    "maxOutputTokens": 32000
+  },
+  "anthropic/claude-sonnet-4": {
+    "supportsVision": true,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": true,
+    "maxContextTokens": 200000,
+    "maxOutputTokens": 16000
+  },
+  "anthropic/claude-3-5-sonnet": {
+    "supportsVision": true,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": true,
+    "maxContextTokens": 200000,
+    "maxOutputTokens": 8192
+  },
+  "anthropic/claude-3-5-sonnet-latest": {
+    "supportsVision": true,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": true,
+    "maxContextTokens": 200000,
+    "maxOutputTokens": 8192
+  },
+  "anthropic/claude-3-5-haiku-latest": {
+    "supportsVision": false,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": true,
+    "maxContextTokens": 200000,
+    "maxOutputTokens": 8192
+  },
+  "anthropic/claude-3-haiku": {
+    "supportsVision": true,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": true,
+    "maxContextTokens": 200000,
+    "maxOutputTokens": 4096
+  },
+  "anthropic/claude-3-opus": {
+    "supportsVision": true,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": true,
+    "maxContextTokens": 200000,
+    "maxOutputTokens": 4096
+  },
+  "anthropic/claude-opus-4.1": {
+    "supportsVision": true,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": true,
+    "maxContextTokens": 200000,
+    "maxOutputTokens": 32000
+  },
+  "anthropic/claude-sonnet-4.5": {
+    "supportsVision": true,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": true,
+    "maxContextTokens": 200000,
+    "maxOutputTokens": 16000
+  },
+  "anthropic/claude-3.5-sonnet": {
+    "supportsVision": true,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": true,
+    "maxContextTokens": 200000,
+    "maxOutputTokens": 8192
+  },
+  "qwen/qwen3-coder-30b-a3b-instruct": {
+    "supportsVision": false,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": false,
+    "maxContextTokens": 160000,
+    "maxOutputTokens": 8000
+  },
+  "deepseek/deepseek-v4-flash": {
+    "supportsVision": false,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": false,
+    "maxContextTokens": 1048576,
+    "maxOutputTokens": 8000
+  },
+  "deepseek/deepseek-v3.2": {
+    "supportsVision": false,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": false,
+    "maxContextTokens": 131072,
+    "maxOutputTokens": 8000
+  },
+  "z-ai/glm-4.7-flash": {
+    "supportsVision": false,
+    "supportsStructuredOutput": false,
+    "supportsToolUse": true,
+    "supportsCacheControl": false,
+    "maxContextTokens": 202752,
+    "maxOutputTokens": 8000
+  },
+  "google/gemini-2.5-flash-lite": {
+    "supportsVision": true,
+    "supportsStructuredOutput": true,
+    "supportsToolUse": true,
+    "supportsCacheControl": false,
+    "maxContextTokens": 1048576,
+    "maxOutputTokens": 8000
+  },
+  "google/gemini-2.5-pro": {
+    "supportsVision": true,
+    "supportsStructuredOutput": true,
+    "supportsToolUse": true,
+    "supportsCacheControl": false,
+    "maxContextTokens": 1048576,
+    "maxOutputTokens": 8000
+  }
+}

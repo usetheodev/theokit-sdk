@@ -31,6 +31,14 @@ export interface ModelParameterValue {
 export interface ModelSelection {
   id: string;
   params?: ModelParameterValue[];
+  /**
+   * M94 — the model's context window, in tokens. Becomes the window resolver's `override`.
+   *
+   * It exists for models with NO catalog entry: without it, a 400k model was budgeted against the
+   * 128k floor and compacted ~3x more than it needed to. A value above what the catalog knows is
+   * clamped — declaring 10M does not blow past the provider.
+   */
+  contextWindow?: number;
 }
 
 /**

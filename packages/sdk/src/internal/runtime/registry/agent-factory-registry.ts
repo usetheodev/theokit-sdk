@@ -40,7 +40,20 @@ export interface AgentFacadePort {
   ) => Promise<BatchResult[]>;
 }
 
-let registered: AgentFacadePort | undefined;
+/**
+ * The registration slot lives on `globalThis` under a `Symbol.for` key — NOT a module-level `let` —
+ * so it is a **process-wide singleton** shared by every copy of this module. `tsup` builds each public
+ * entry (`.`, `./a2a`, `./cron`, `./eval`, …) with `splitting: false`, which INLINES this module once
+ * per entry; a module-level `let` would give each bundled copy its own `registered` slot, and a
+ * subagent invoked through `./a2a` would read a copy that `agent.ts` (in the `.` entry) never set —
+ * the classic duplicated-singleton hazard (see issue: a2a "Agent facade not registered"). `Symbol.for`
+ * (global symbol registry) + the one `globalThis` object guarantees all copies read/write ONE slot.
+ */
+const FACADE_KEY: unique symbol = Symbol.for(
+  "theokit.internal.runtime.agentFacade",
+) as typeof FACADE_KEY;
+
+type FacadeHost = { [FACADE_KEY]?: AgentFacadePort };
 
 /**
  * Registered by `agent.ts` at module-init time. Idempotent: re-registration
@@ -49,7 +62,7 @@ let registered: AgentFacadePort | undefined;
  * @internal
  */
 export function setAgentFacade(facade: AgentFacadePort): void {
-  registered = facade;
+  (globalThis as unknown as FacadeHost)[FACADE_KEY] = facade;
 }
 
 /**
@@ -58,6 +71,7 @@ export function setAgentFacade(facade: AgentFacadePort): void {
  * @internal
  */
 export function getAgentFacade(): AgentFacadePort {
+  const registered = (globalThis as unknown as FacadeHost)[FACADE_KEY];
   if (registered === undefined) {
     throw new Error(
       "internal: Agent facade not registered. The `agent.ts` module must be loaded before internal subsystems (LocalAgent.runUntil/fork, eval, scorers, cron) invoke it.",

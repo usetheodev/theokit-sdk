@@ -23,3 +23,16 @@ export {
   type ModelOption,
   toModelOption,
 } from "./internal/llm/model-option.js";
+export type {
+  CatalogModel,
+  CatalogModelCost,
+  Modality,
+} from "./internal/providers/catalog-schema.js";
+// M44 — enriched per-model catalog view + the explicit opt-in models.dev refresh (disk-cached, vendored
+// fallback, NEVER a startup/per-request network dependency).
+export {
+  getModelInfo,
+  type RefreshModelCatalogOptions,
+  type RefreshModelCatalogResult,
+  refreshModelCatalog,
+} from "./internal/providers/catalog-source-models-dev.js";

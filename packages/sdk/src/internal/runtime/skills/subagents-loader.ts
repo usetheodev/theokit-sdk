@@ -3,8 +3,9 @@ import { join } from "node:path";
 
 import { ConfigurationError } from "../../../errors.js";
 import type { AgentDefinition } from "../../../types/agent.js";
+import type { ModelSelection } from "../../../types/agent-prims.js";
 import { readWorkspaceDir } from "../config/workspace-dir.js";
-import { parseSimpleYaml } from "../context/yaml-frontmatter.js";
+import { type FrontmatterValue, parseSimpleYaml } from "../context/yaml-frontmatter.js";
 
 /**
  * Load file-based subagents from `.theokit/agents/*.md` and merge with
@@ -49,29 +50,131 @@ async function readProjectSubagents(cwd: string): Promise<Record<string, AgentDe
   return subagents;
 }
 
+// The frontmatter keys a disk subagent may declare. Any other key is a typed load
+// error rather than a silent drop — a dropped `sandbox` an operator wrote believing
+// it confines the child is exactly the silent-gate failure class this guards against.
+const ACCEPTED_FIELDS = new Set([
+  "name",
+  "description",
+  "model",
+  "tools",
+  "reasoning_effort",
+  "mcp",
+  "sandbox",
+]);
+
 function parseSubagentMarkdown(
   raw: string,
   filename: string,
 ): { name: string; definition: AgentDefinition } {
   const { frontmatter, body } = splitFrontmatter(raw, filename);
   const fields = parseFrontmatterFields(frontmatter);
-  const baseName = filename.replace(/\.md$/, "");
-  const name = fields.name ?? baseName;
+  rejectUnknownFields(fields, filename);
+  rejectMcp(fields, filename);
+
   const definition: AgentDefinition = {
-    description: fields.description ?? "",
+    description: asString(fields.description) ?? "",
     prompt: body,
   };
-  if (fields.model !== undefined) {
-    definition.model = fields.model === "inherit" ? "inherit" : { id: fields.model };
-  }
-  // M4-6: optional `tools:` whitelist (comma/space-separated → string[]).
-  // Trim + drop empties so the whitelist holds only real tool names.
-  const tools = fields.tools
-    ?.split(/[\s,]+/)
-    .map((t) => t.trim())
-    .filter((t) => t.length > 0);
-  if (tools !== undefined && tools.length > 0) definition.tools = tools;
+  const model = resolveModel(fields, filename);
+  if (model !== undefined) definition.model = model;
+  const tools = toStringList(fields.tools);
+  if (tools.length > 0) definition.tools = tools;
+  const sandbox = resolveSandbox(fields, filename);
+  if (sandbox !== undefined) definition.sandbox = sandbox;
+
+  const name = asString(fields.name) ?? filename.replace(/\.md$/, "");
   return { name, definition };
+}
+
+function rejectUnknownFields(
+  fields: Record<string, FrontmatterValue | undefined>,
+  filename: string,
+): void {
+  for (const key of Object.keys(fields)) {
+    if (!ACCEPTED_FIELDS.has(key)) {
+      throw new ConfigurationError(
+        `Subagent ${filename}: unknown frontmatter field "${key}" (accepted: ${[...ACCEPTED_FIELDS].join(", ")})`,
+        { code: "subagent_unknown_field" },
+      );
+    }
+  }
+}
+
+// mcp: a known field, but not yet honored on the LOCAL delegation path. The frontmatter YAML can only
+// express server NAMES (parseSimpleYaml has no nested-object support), while a child's `Agent.create`
+// needs `mcpServers` as a Record<name, config>; resolving names→config per-subagent in local delegation
+// is its own follow-up. Rather than silently drop it (the M26/M32 silent-gate class), it is a typed load
+// error that names the field and points at the alternative.
+function rejectMcp(fields: Record<string, FrontmatterValue | undefined>, filename: string): void {
+  if (fields.mcp !== undefined) {
+    throw new ConfigurationError(
+      `Subagent ${filename}: per-subagent "mcp" is not yet supported on the local delegation path; declare MCP servers in .theokit/mcp.json (or the parent) instead`,
+      { code: "subagent_mcp_unsupported_local" },
+    );
+  }
+}
+
+// model + reasoning_effort — effort rides inside `model.params[thinking]`, so it requires a concrete
+// model id to attach to (a child inheriting the parent's model cannot carry the parent's provider-
+// specific effort param safely).
+function resolveModel(
+  fields: Record<string, FrontmatterValue | undefined>,
+  filename: string,
+): ModelSelection | "inherit" | undefined {
+  const modelId = asString(fields.model);
+  const effort = asString(fields.reasoning_effort);
+  // reasoning_effort rides in model.params[thinking], so it needs a CONCRETE model id to attach to.
+  // Neither an absent model NOR `model: inherit` can carry it (the inherited id is unknown at load), so
+  // both are typed errors rather than a silently-dropped effort — the silent-gate class this guards.
+  if (effort !== undefined && (modelId === undefined || modelId === "inherit")) {
+    throw new ConfigurationError(
+      `Subagent ${filename}: reasoning_effort requires a concrete model (effort is a model parameter; an absent model or "inherit" cannot carry it)`,
+      { code: "subagent_reasoning_effort_without_model" },
+    );
+  }
+  if (modelId === undefined) return undefined;
+  if (modelId === "inherit") return "inherit";
+  return effort !== undefined
+    ? { id: modelId, params: [{ id: "thinking", value: effort }] }
+    : { id: modelId };
+}
+
+// sandbox: boolean only. A granular mode string (read-only/…) is unsupported by the SDK runtime and is
+// a typed error rather than a silent coercion to a boolean.
+function resolveSandbox(
+  fields: Record<string, FrontmatterValue | undefined>,
+  filename: string,
+): boolean | undefined {
+  if (fields.sandbox === undefined) return undefined;
+  if (typeof fields.sandbox !== "boolean") {
+    throw new ConfigurationError(
+      `Subagent ${filename}: sandbox must be a boolean (got "${String(fields.sandbox)}"); granular sandbox modes are not supported by the runtime`,
+      { code: "subagent_sandbox_not_boolean" },
+    );
+  }
+  return fields.sandbox;
+}
+
+function asString(v: FrontmatterValue | undefined): string | undefined {
+  if (typeof v !== "string") return undefined;
+  // parseSimpleYaml does not strip quotes (documented), and `model`/`reasoning_effort` are fields users
+  // habitually quote (`model: "openai/gpt-4o"`). Strip a single matching surrounding quote pair so a
+  // quoted id/effort does not slip past validation and fail only at the provider.
+  const m = /^(["'])(.*)\1$/.exec(v);
+  return m ? m[2] : v;
+}
+
+/** Accept a YAML list (`string[]`) or a comma/space-separated scalar; trim + drop empties. */
+function toStringList(v: FrontmatterValue | undefined): string[] {
+  if (Array.isArray(v)) return v.map((t) => t.trim()).filter((t) => t.length > 0);
+  if (typeof v === "string") {
+    return v
+      .split(/[\s,]+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+  }
+  return [];
 }
 
 function splitFrontmatter(raw: string, filename: string): { frontmatter: string; body: string } {
@@ -84,12 +187,9 @@ function splitFrontmatter(raw: string, filename: string): { frontmatter: string;
   return { frontmatter: match[1] ?? "", body: (match[2] ?? "").trim() };
 }
 
-function parseFrontmatterFields(frontmatter: string): Record<string, string | undefined> {
-  // Subagent schema is all-string; narrow non-string values to undefined.
-  const raw = parseSimpleYaml(frontmatter);
-  const out: Record<string, string | undefined> = {};
-  for (const [k, v] of Object.entries(raw)) {
-    out[k] = typeof v === "string" ? v : undefined;
-  }
-  return out;
+function parseFrontmatterFields(frontmatter: string): Record<string, FrontmatterValue | undefined> {
+  // Preserve the rich YAML value types (boolean/number/string[]): `sandbox: true` and
+  // `mcp: [a, b]` are meaningful here, so narrowing everything to string (as the
+  // pre-M33 loader did) would drop them. Per-field validation happens in parseSubagentMarkdown.
+  return parseSimpleYaml(frontmatter);
 }

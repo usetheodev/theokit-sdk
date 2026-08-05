@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: "src/index.ts",
     errors: "src/errors.ts",
+    "subagents-loader": "src/subagents-loader.ts",
     cron: "src/cron.ts",
     // M1-5: SDKMessage readers — leaf-type-only deps; DTS via tsc (tsconfig.tools-dts.json).
     messages: "src/messages.ts",
@@ -35,10 +36,13 @@ export default defineConfig({
     // Public tool-input sanitization primitive — leaf module (zod type-only + node:module +
     // lazy jsonrepair); DTS via tsc (tsconfig.tools-dts.json), mirrors the subscription pattern.
     "sanitize/index": "src/sanitize/index.ts",
+    // M42 — auth subsystem sub-entry (DTS via tsc; rollup-dts cannot bundle it into `.`).
+    "auth/index": "src/auth/index.ts",
     "a2a/index": "src/a2a/index.ts",
     "client/index": "src/client/index.ts",
     "sandbox/index": "src/sandbox/index.ts",
     "filesystem/index": "src/filesystem/index.ts",
+    "interactive/index": "src/interactive/index.ts",
     // internal/persistence is a publicly accessible sub-path used by extracted
     // packages (sdk-memory, sdk-cache) for shared persistence primitives.
     // Documented as "internal API — semver-exempt" in README. The plugin
@@ -50,6 +54,9 @@ export default defineConfig({
     // live `tracer-loader.ts` directly, its barrel was dead.
     "internal/persistence/index": "src/internal/persistence/index.ts",
     "internal/security/index": "src/internal/security/index.ts",
+    // theokit#160 — the embedding runtime, shared with @theokit/sdk-memory so the two packages stop
+    // carrying divergent copies of it. Same rationale and same semver-exempt status as the two above.
+    "internal/memory/adapters/index": "src/internal/memory/adapters/index.ts",
   },
   format: ["esm", "cjs"],
   // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)
@@ -60,6 +67,7 @@ export default defineConfig({
     entry: {
       index: "src/index.ts",
       errors: "src/errors.ts",
+      "subagents-loader": "src/subagents-loader.ts",
       cron: "src/cron.ts",
       "server/auth/index": "src/server/auth/index.ts",
       "server/errors-envelope": "src/server/errors-envelope.ts",
@@ -70,7 +78,29 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   treeshake: true,
-  splitting: false,
+  // M78 — `splitting: true`, and the reason is CORRECTNESS, not size.
+  //
+  // With `splitting: false`, esbuild INLINES the shared code into each entry point instead of
+  // emitir um chunk comum. `TheokitAgentError` acabava duplicado em `errors.js`, `auth/index.js`,
+  // `compaction.js`, `subscription/index.js` — distinct classes with the same name. The consequence:
+  //
+  //     import { TheokitAgentError } from "@theokit/sdk/errors";
+  //     import { CredentialError }    from "@theokit/sdk/auth";
+  //     new CredentialError("x") instanceof TheokitAgentError  // => FALSE
+  //
+  // The prototype chain was right; it was the class object that differed. That nullifies the whole
+  // premise of a single error hierarchy: a `catch` cannot discriminate a framework error
+  // when the error crossed a subpath different from the one used to import the type.
+  //
+  // M73's parity test predicted exactly this failure mode ("if the build inlines the SDK, the
+  // layer exports a COPY and `instanceof` silently becomes false"), but predicted it for the layer;
+  // it was already happening here, between the SDK's own subpaths. No unit test caught it — they all
+  // import from source, where there is only one class. Only running against the PUBLISHED packages revealed it.
+  //
+  // Welcome side effect: `dist/index.js` dropped from 207,514 to 20,447 bytes, because what used to be
+  // duplicated code became a shared chunk. The 215,000 budget became too loose and deserves to be
+  // tightened in a change of its own — lowering it here would mix two decisions.
+  splitting: true,
   outDir: "dist",
   target: "node22",
   platform: "node",

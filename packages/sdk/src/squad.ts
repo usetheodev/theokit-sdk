@@ -14,7 +14,7 @@
  */
 
 import { ConfigurationError } from "./errors.js";
-import type { SDKAgent } from "./types/agent.js";
+import type { AgentDefinition, SDKAgent } from "./types/agent.js";
 import type { StepResult } from "./types/workflow.js";
 import { agentStep, Workflow } from "./workflow.js";
 
@@ -24,8 +24,20 @@ import { agentStep, Workflow } from "./workflow.js";
  * @public
  */
 export interface SquadOptions {
-  /** Agents run in array order (sequential pipeline). Must be non-empty. */
-  agents: ReadonlyArray<SDKAgent>;
+  /**
+   * Agents run in array order (sequential pipeline). Must be non-empty.
+   *
+   * M81 — accepts an `AgentDefinition` (plain data) as well as a constructed `SDKAgent`. Building a
+   * team used to force the caller to materialize every member by hand first: resolve the credential,
+   * assemble the options, call `Agent.create`, await. That is precisely the work this milestone moves
+   * into the framework elsewhere, so leaving it here would be inconsistent — and with
+   * `discoverSubagents` now public (`@theokit/sdk/subagents-loader`), the data that describes an
+   * agent is reachable, which closes the loop: discover → build a team, with no manual step between.
+   *
+   * Mixing both forms in one list is supported on purpose: a real team usually has members from
+   * different origins.
+   */
+  agents: ReadonlyArray<SDKAgent | AgentDefinition>;
   /**
    * Orchestration process. Only `"sequential"` is supported (the default).
    * `"hierarchical"` is accepted by the type but rejected at runtime with
@@ -66,6 +78,36 @@ export interface Squad {
  *
  * @public
  */
+/**
+ * M81 — an `SDKAgent` is recognised by having `send`; an `AgentDefinition` is plain data.
+ *
+ * Structural, not `instanceof`: the definition crosses package boundaries as data (that is the whole
+ * interop contract the layer relies on), so an identity check would fail exactly when two copies of
+ * the SDK are loaded — the failure mode M79 measured.
+ */
+function ehAgenteConstruido(m: SDKAgent | AgentDefinition): m is SDKAgent {
+  return typeof (m as SDKAgent).send === "function";
+}
+
+/**
+ * M81 — turns an `AgentDefinition` into an executable agent.
+ *
+ * `Agent` is imported dynamically because `squad.ts` is consumed by paths that do not want to drag the
+ * whole agent in just to declare a team; the cost is only paid by callers actually passing raw data.
+ */
+async function materializar(def: AgentDefinition, indice: number): Promise<SDKAgent> {
+  const { Agent } = await import("./agent.js");
+  return Agent.create({
+    // `AgentDefinition.model` admits the sentinel `'inherit'`, which is not a model id. Inheriting
+    // here means "declare nothing and let the default apply" — forwarding the literal would create
+    // um agente pedindo um modelo chamado `inherit`.
+    ...(def.model !== undefined && def.model !== "inherit" ? { model: def.model } : {}),
+    ...(def.prompt !== undefined ? { systemPrompt: def.prompt } : {}),
+    agentId: `squad-member-${String(indice)}`,
+    local: {},
+  });
+}
+
 function createSquad(options: SquadOptions): Squad {
   const { agents } = options;
   if (!Array.isArray(agents) || agents.length === 0) {
@@ -82,23 +124,39 @@ function createSquad(options: SquadOptions): Squad {
 
   return {
     run: async (input: unknown): Promise<SquadRun> => {
-      // Compose Workflow + agentStep — identity threading: each agent's prompt
-      // is the previous agent's output (the run input for the first agent).
-      let builder = Workflow.create({ name: options.name ?? "squad" });
-      for (let i = 0; i < agents.length; i++) {
-        const agent = agents[i];
-        if (agent === undefined) continue;
-        // SE3 — the first agent receives the human input (no peer origin); every
-        // subsequent agent receives its predecessor's output, so its turn carries
-        // `{ kind: "peer", from: "agent-<i-1>" }`. Metadata-only — threading unchanged.
-        const opts =
-          i > 0 ? { origin: { kind: "peer" as const, from: `agent-${i - 1}` } } : undefined;
-        builder = builder.then(agentStep(`agent-${i}`, agent, (prev) => String(prev), opts));
-      }
-      const run = await builder.commit().run(input);
+      const run = await (await buildPipeline(agents, options.name)).run(input);
       return { result: run.output, status: run.status, steps: run.stepResults };
     },
   };
+}
+
+/**
+ * Builds the sequential pipeline, materializing the members that are still raw data.
+ *
+ * Extracted from `run` because the cognitive-complexity gate rejected the combined function — and because
+ * "building the pipeline" and "running it and translating the result" are two responsibilities that were only
+ * juntas por proximidade.
+ */
+async function buildPipeline(
+  agents: ReadonlyArray<SDKAgent | AgentDefinition>,
+  nome: string | undefined,
+): Promise<ReturnType<ReturnType<typeof Workflow.create>["commit"]>> {
+  // Compose Workflow + agentStep — identity threading: each agent's prompt is the previous agent's
+  // output (the run input for the first agent).
+  let builder = Workflow.create({ name: nome ?? "squad" });
+  for (let i = 0; i < agents.length; i++) {
+    const membro = agents[i];
+    if (membro === undefined) continue;
+    // M81 — materializes at RUN time, not at construction: `Squad.create` is synchronous and an
+    // `AgentDefinition` only becomes an agent with an `await`. Deferring to here keeps construction cheap and
+    // avoids requiring a resolved credential to assemble a team before the first run.
+    const agent = ehAgenteConstruido(membro) ? membro : await materializar(membro, i);
+    // SE3 — the first agent receives the human input (no peer origin); every subsequent agent
+    // receives its predecessor's output, so its turn carries `{ kind: "peer", from: "agent-<i-1>" }`.
+    const opts = i > 0 ? { origin: { kind: "peer" as const, from: `agent-${i - 1}` } } : undefined;
+    builder = builder.then(agentStep(`agent-${i}`, agent, (prev) => String(prev), opts));
+  }
+  return builder.commit();
 }
 
 /** SE36 — `Squad.create` replaces `createSquad` (ADR 0015). Merges with the `Squad` interface. @public */

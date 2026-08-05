@@ -1,3 +1,5 @@
+import { diag } from "../diagnostics.js";
+
 /**
  * SQLite WAL mode helper with NFS/SMB/FUSE fallback to DELETE (ADR D63).
  *
@@ -54,7 +56,7 @@ export function applyWalWithFallback(db: PragmaCapable, label: string): WalApply
 function logFallback(label: string, reason: string): void {
   if (warnedLabels.has(label)) return;
   warnedLabels.add(label);
-  process.stderr.write(
+  diag(
     `[theokit-sdk] ${label}: WAL unavailable (${reason}); using DELETE journal mode. ` +
       "This is normal on NFS/SMB/FUSE; expect slightly slower concurrent access.\n",
   );

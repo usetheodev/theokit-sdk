@@ -13,13 +13,21 @@
  */
 
 import {
+  azureOpenAiMemoryEmbeddingProviderAdapter,
+  cohereMemoryEmbeddingProviderAdapter,
+  DEFAULT_AZURE_OPENAI_EMBEDDING_MODEL,
+  DEFAULT_COHERE_EMBEDDING_MODEL,
   DEFAULT_DEEPINFRA_EMBEDDING_MODEL,
+  DEFAULT_GEMINI_EMBEDDING_MODEL,
+  DEFAULT_JINA_EMBEDDING_MODEL,
   DEFAULT_MISTRAL_EMBEDDING_MODEL,
   DEFAULT_OLLAMA_EMBEDDING_MODEL,
   DEFAULT_OPENAI_EMBEDDING_MODEL,
   DEFAULT_OPENROUTER_EMBEDDING_MODEL,
   DEFAULT_VOYAGE_EMBEDDING_MODEL,
   deepinfraMemoryEmbeddingProviderAdapter,
+  geminiMemoryEmbeddingProviderAdapter,
+  jinaMemoryEmbeddingProviderAdapter,
   MEMORY_EMBEDDING_ADAPTERS,
   mistralMemoryEmbeddingProviderAdapter,
   ollamaMemoryEmbeddingProviderAdapter,
@@ -86,12 +94,54 @@ describe("sdk-memory embedding-adapter cluster (iter 74)", () => {
     });
   });
 
+  // theokit#128 — the four adapters sdk-core added in T4.10 and this package drifted behind for
+  // two months. Same metadata as core's, because the peer's catalog REPLACES core's at runtime:
+  // any divergence here is a divergence a consumer sees.
+  describe("per-provider adapter metadata (theokit#128 parity additions)", () => {
+    it("test_azure_openai_adapter_shape", () => {
+      expect(azureOpenAiMemoryEmbeddingProviderAdapter.id).toBe("azure-openai");
+      expect(azureOpenAiMemoryEmbeddingProviderAdapter.transport).toBe("remote");
+      expect(azureOpenAiMemoryEmbeddingProviderAdapter.authProviderId).toBe("azure-openai");
+      expect(azureOpenAiMemoryEmbeddingProviderAdapter.autoSelectPriority).toBe(25);
+      expect(DEFAULT_AZURE_OPENAI_EMBEDDING_MODEL).toBe("text-embedding-3-small");
+    });
+    it("test_cohere_adapter_shape", () => {
+      expect(cohereMemoryEmbeddingProviderAdapter.id).toBe("cohere");
+      expect(cohereMemoryEmbeddingProviderAdapter.transport).toBe("remote");
+      expect(cohereMemoryEmbeddingProviderAdapter.autoSelectPriority).toBe(30);
+      expect(DEFAULT_COHERE_EMBEDDING_MODEL).toBe("embed-english-v3.0");
+    });
+    it("test_jina_adapter_shape", () => {
+      expect(jinaMemoryEmbeddingProviderAdapter.id).toBe("jina");
+      expect(jinaMemoryEmbeddingProviderAdapter.transport).toBe("remote");
+      expect(jinaMemoryEmbeddingProviderAdapter.autoSelectPriority).toBe(35);
+      expect(DEFAULT_JINA_EMBEDDING_MODEL).toBe("jina-embeddings-v3");
+    });
+    it("test_gemini_adapter_shape", () => {
+      expect(geminiMemoryEmbeddingProviderAdapter.id).toBe("gemini");
+      expect(geminiMemoryEmbeddingProviderAdapter.transport).toBe("remote");
+      expect(geminiMemoryEmbeddingProviderAdapter.autoSelectPriority).toBe(30);
+      expect(DEFAULT_GEMINI_EMBEDDING_MODEL).toBe("text-embedding-004");
+    });
+  });
+
   describe("MEMORY_EMBEDDING_ADAPTERS catalog", () => {
-    it("test_catalog_contains_canonical_6_provider_ids", () => {
+    it("test_catalog_contains_the_canonical_10_provider_ids", () => {
+      // theokit#128: was 6. The peer must serve everything core advertises — see the catalog
+      // docblock and the cross-package gate in @theokit/sdk-peer-integration-tests.
       const ids = Object.keys(MEMORY_EMBEDDING_ADAPTERS).sort();
-      expect(ids).toEqual(
-        ["deepinfra", "mistral", "ollama", "openai", "openrouter", "voyage"].sort(),
-      );
+      expect(ids).toEqual([
+        "azure-openai",
+        "cohere",
+        "deepinfra",
+        "gemini",
+        "jina",
+        "mistral",
+        "ollama",
+        "openai",
+        "openrouter",
+        "voyage",
+      ]);
     });
 
     it("test_catalog_indexes_by_provider_id_matching_adapter_id", () => {

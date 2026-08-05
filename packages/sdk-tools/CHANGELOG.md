@@ -1,5 +1,102 @@
 # Changelog
 
+## 0.20.1
+
+### Patch Changes
+
+- apply_patch (V4A) M18 review fixes — a security-critical writing tool hardened after adversarial review:
+  - **Security:** the forbidden-secret guard now blocks `.env`/`.git`/`node_modules`/`.theo` at ANY path
+    depth (not just the first segment) and defeats absolute-path spelling (`<root>/.env`) — closing a hole
+    where a nested `sub/.git/hooks/…` or an absolute secret path could be written.
+  - **Contract:** every fs error (`EISDIR`/`ENOTDIR`/`EACCES`/…) maps to a typed `{ ok: false, error: 'io_error' }`
+    instead of throwing out of the handler (the "always JSON" contract now holds).
+  - **Atomicity:** a file touched by two hunks is rejected (`duplicate_target`) — no silent lost-update.
+  - **Safety:** Add over an existing file is rejected (`file_exists`); Delete of a missing file is `not_found`.
+  - **Matching:** `*** End of File` edits of the last line now apply (eof anchoring made a hint with a
+    general-search fallback, fixing the phantom-trailing-newline case).
+
+## 0.20.0
+
+### Minor Changes
+
+- 68d0e7f: `createApplyPatchTool` now parses Codex's **V4A patch grammar** (`*** Begin Patch` … `*** End Patch`;
+  `*** Add/Update/Delete File:`, optional `*** Move to:`, `@@`-anchored `+`/`-`/context hunks) instead of a
+  unified diff — the format the model actually emits in a Codex-style agent. **BREAKING:** the `{ patch }`
+  input is now a V4A patch, not a unified diff. Matching uses a context-tolerant ladder (exact → rstrip →
+  trim → unicode) mirroring Codex `seek_sequence`; `@@ <ctx>` anchors the search; `*** End of File` anchors
+  to the tail. Applied **strictly atomically** — the whole patch is planned (every file read + new content
+  computed + path security-checked) before any write, so a parse error / context mismatch / path violation
+  anywhere yields a typed error and ZERO writes (stronger than Codex, which can leave partial writes).
+  Add File strips one `+` and always ends with a trailing newline; Update+Move transforms the old content
+  and renames. New `internal/v4a-patch.ts` parser/matcher.
+
+## 0.19.0
+
+### Minor Changes
+
+- `createSearchTextTool` gains two ADDITIVE, opt-in options (both default OFF ⇒ existing literal, project-
+  scoped behavior unchanged): `regex` — match `query` as a JavaScript RegExp (grep semantics; an invalid
+  pattern returns `{ ok: false, error: 'invalid_regex' }` before walking), and `allowAbsolute` — honor an
+  absolute `path` scope outside `projectRoot` (Codex read-only "reads-anywhere"; forbidden dirs still
+  skipped). Together they let one built-in cover both literal content search and grep-style regex search.
+
+## 0.18.0
+
+### Minor Changes
+
+- `createReadFileTool` gains three ADDITIVE, opt-in Codex-grade capabilities (all default OFF, so existing
+  consumers are byte-identical): `lineNumbers` (render a `cat -n` `<n>\t<line>` view so the model can cite/
+  edit by line), `offset`/`limit` input params (page through a large file), and `allowAbsolute` (honor an
+  absolute path outside `projectRoot` — the Codex read-only "reads-anywhere" sandbox). Security: with
+  `allowAbsolute`, the secret guard now blocks `.env`/`.git`/`node_modules`/`.theo` at ANY path depth (not
+  just the project-relative first segment), closing an absolute-path exfiltration hole. Opt-in only.
+
+## 0.17.0
+
+### Minor Changes
+
+- c98c40a: Add `createUpdatePlanTool` — a Codex-faithful `update_plan` built-in. The model posts a DECLARATIVE plan
+  (an ordered list of steps, each `pending | in_progress | completed`) and refreshes it as work proceeds.
+  Surface-agnostic by design: returns STRUCTURED `{ ok, explanation, steps, warning? }` so each surface
+  renders the checklist itself (no hard-coded glyphs). Follows Codex's "exactly one step in_progress"
+  invariant as a non-fatal `warning` (never rejects), so the agent self-corrects on the next update.
+  Distinct from the imperative `createTodolistTool` (add/complete by id) and `createPlanModeTool` (mode
+  toggle) — this is the declarative full-plan post.
+
+## 0.16.0
+
+### Minor Changes
+
+- ef00db3: Add `createCurrentTimeTool` — a built-in `current_time` tool. Codex-faithful at the core (Codex's
+  `clock.curr_time` returns UTC as `YYYY-MM-DD HH:MM:SS UTC`); this keeps that as the default and adds an
+  optional IANA `timezone` (additive superset — omitted ⇒ UTC) plus an unambiguous `iso` instant. Returns
+  `{ ok, current_time, iso, timezone }` or `{ ok: false, error: 'invalid_timezone' }`. The clock is
+  injectable (`{ clock }`) so the tool is deterministic under test.
+
+## 0.15.1
+
+### Patch Changes
+
+- 4c5bd35: M15 review fixes (injected fs path only; local path unaffected): (1) the backend directory walk in
+  `glob_files`/`search_text` decides entry type via `stat` (which follows symlinks), so an in-boundary
+  symlink cycle could recurse until PATH_MAX — now depth-capped so it terminates; (2) `edit_file`'s
+  backend read mapped every failure to `not_found` — now only a genuinely missing file (`FileNotFoundError`)
+  maps to `not_found`; any other read error (e.g. a directory, a permission error) propagates (fail-loud),
+  matching the local path's ENOENT-only classification.
+
+## 0.15.0
+
+### Minor Changes
+
+- 324835f: M15 — complete the surface-agnostic tool injection. `search_text`, `glob_files`, and `edit_file` now
+  accept an optional `filesystem` (`FilesystemProvider`), joining `shell_exec`/`git_diff` (`sandbox`) and
+  `interactive_shell`/`write_stdin` (`interactive`). When a backend is injected the recursive walk / read
+  / backup / write go through it in project-relative path space (so the tool runs unchanged on a local
+  disk, a cluster container, or a Tauri desktop); when omitted the local `fs` path is byte-identical to
+  before. Backward compatibility is proven by conformance tests that run each tool through the real
+  `LocalFilesystem`/`LocalSandbox` backends and assert identical output to the local path. Additive — no
+  breaking change.
+
 ## 0.11.1
 
 ### Patch Changes

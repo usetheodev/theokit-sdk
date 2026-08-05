@@ -108,6 +108,26 @@ async function safeParseJsonResponse(response: Response): Promise<unknown> {
 }
 
 /**
+ * Read the body of a NON-OK response for an error mapper: JSON when it parses, the raw
+ * text otherwise (never throws, never `undefined` — an unreadable stream reads as `""`).
+ *
+ * Distinct from {@link safeParseJsonResponse}, which drops a non-JSON body to `undefined`.
+ * Error mappers need the raw text preserved: it is what surfaces on the mapped error's
+ * `raw` field when a provider answers with HTML or a bare string.
+ *
+ * @internal
+ */
+export async function readErrorResponseBody(response: Response): Promise<unknown> {
+  const text = await response.text().catch(() => "");
+  try {
+    return JSON.parse(text);
+  } catch {
+    // not JSON — keep as string for the mapper's raw field
+    return text;
+  }
+}
+
+/**
  * Translate an HTTP error response into a typed `TheokitAgentError` subclass.
  *
  * @internal

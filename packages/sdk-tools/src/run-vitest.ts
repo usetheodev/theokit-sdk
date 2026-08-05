@@ -36,6 +36,11 @@ const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_STDOUT_BYTES = 10 * 1024 * 1024;
 
 export interface CreateRunVitestToolOptions {
+  /** M76 — name exposed to the model. Omitted => today's literal (additive). The name is a contract:
+   *  the approval key, what the model sees and what telemetry records. */
+  name?: string;
+  /** M76 — description exposed to the model. Omitted => today's literal (additive). */
+  description?: string;
   projectRoot: string;
   timeoutMs?: number;
   maxStdoutBytes?: number;
@@ -56,12 +61,13 @@ export function createRunVitestTool(opts: CreateRunVitestToolOptions): CustomToo
   } = opts;
 
   return Tool.create({
-    name: "run_vitest",
+    name: opts.name ?? "run_vitest",
     description:
+      opts.description ??
       "Run the project's vitest suite, optionally scoped to a file or " +
-      "pattern via 'path'. Returns parsed { ok, summary } or { ok: false, " +
-      "error }. Vitest stdout warnings are stripped — the parser extracts " +
-      "the trailing JSON report.",
+        "pattern via 'path'. Returns parsed { ok, summary } or { ok: false, " +
+        "error }. Vitest stdout warnings are stripped — the parser extracts " +
+        "the trailing JSON report.",
     inputSchema: z.object({
       path: z
         .string()

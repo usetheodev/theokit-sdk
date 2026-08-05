@@ -112,3 +112,24 @@ export abstract class SandboxBackend {
     return shellEscapePosix(arg);
   }
 }
+
+/**
+ * A backend OR a per-request resolver of one — mirrors `FilesystemProvider` / `InteractiveProvider`.
+ * A resolver runs at tool-execution time (request scope), so a multi-tenant / multi-role agent gets a
+ * distinct sandbox per request without a shared mutable one. This is how a tool takes execution as an
+ * INJECTED capability: the same tool runs on a local sandbox, a container/E2B backend (cluster/web), or
+ * any future backend, with no direct `child_process` import.
+ *
+ * @public
+ */
+export type SandboxProvider<Ctx = unknown> =
+  | SandboxBackend
+  | ((ctx: Ctx) => SandboxBackend | Promise<SandboxBackend>);
+
+/** Resolve a {@link SandboxProvider} to a concrete backend for `ctx`. */
+export async function resolveSandbox<Ctx>(
+  provider: SandboxProvider<Ctx>,
+  ctx: Ctx,
+): Promise<SandboxBackend> {
+  return provider instanceof SandboxBackend ? provider : provider(ctx);
+}

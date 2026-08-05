@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import type { AgentOptions } from "../../../types/agent.js";
+import type { ModelSelection } from "../../../types/agent-prims.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
 import { readVersionedJson, writeVersionedJson } from "../../persistence/schema-version.js";
 import { asPluginsSettings } from "../../plugins/enabled-names.js";
@@ -178,15 +179,18 @@ function serializeAgents(
   agents: AgentOptions["agents"],
 ): SerializedAgentOptions["agents"] | undefined {
   if (agents === undefined) return undefined;
-  // Subagents (inline `AgentDefinition` map) — persist description + prompt
-  // + model. Subagent `mcpServers` MAY carry headers/env secrets, so strip
-  // them (same rationale as the parent agent's mcpServers).
+  // Subagents (inline `AgentDefinition` map) — persist description + prompt + model (WITH its params, so
+  // per-subagent reasoning effort survives resume) + the security-relevant `tools` whitelist and
+  // `sandbox` toggle. Dropping `tools`/`sandbox` was a default-open on resume: a confined child came back
+  // unconfined. Subagent `mcpServers` MAY carry headers/env secrets, so they stay stripped.
   const out: NonNullable<SerializedAgentOptions["agents"]> = {};
   for (const [name, def] of Object.entries(agents)) {
     out[name] = {
       description: def.description,
       prompt: def.prompt,
       ...(def.model !== undefined ? { model: def.model } : {}),
+      ...(def.tools !== undefined ? { tools: def.tools } : {}),
+      ...(def.sandbox !== undefined ? { sandbox: def.sandbox } : {}),
     };
   }
   return out;
@@ -226,7 +230,13 @@ export interface SerializedAgentOptions {
   };
   agents?: Record<
     string,
-    { description: string; prompt: string; model?: { id: string } | "inherit" }
+    {
+      description: string;
+      prompt: string;
+      model?: ModelSelection | "inherit";
+      tools?: string[];
+      sandbox?: boolean;
+    }
   >;
 }
 

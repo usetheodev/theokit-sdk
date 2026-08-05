@@ -11,22 +11,41 @@ import { registerCatalogProviders } from "../catalog-loader.js";
 import { registerProvider } from "../registry.js";
 import { ANTHROPIC } from "./anthropic.js";
 import { BEDROCK } from "./bedrock.js";
+import { CEREBRAS } from "./cerebras.js";
+import { COHERE } from "./cohere.js";
+import { DEEPINFRA } from "./deepinfra.js";
 import { GEMINI } from "./gemini.js";
+import { GOOGLE } from "./google.js";
+import { GROQ } from "./groq.js";
 import { LLAMACPP } from "./llamacpp.js";
 import { LMSTUDIO } from "./lmstudio.js";
+import { MISTRAL } from "./mistral.js";
 import { OLLAMA } from "./ollama.js";
 import { OPENAI } from "./openai.js";
+import { OPENAI_CHATGPT } from "./openai-chatgpt.js";
 import { OPENROUTER } from "./openrouter.js";
+import { PERPLEXITY } from "./perplexity.js";
+import { TOGETHER } from "./together.js";
 import { VERTEX } from "./vertex.js";
+import { XAI } from "./xai.js";
 
-let registered = false;
+// M45 review M2 — the guard lives on globalThis like the registry itself (M44 B1): a process importing both
+// bundle copies (`@theokit/sdk` + `@theokit/sdk/models`) must not re-register 19 builtins with bogus
+// "overridden by user plugin" WARNs.
+const _registeredState = ((): { done: boolean } => {
+  const g = globalThis as unknown as Record<symbol, { done: boolean }>;
+  const sym = Symbol.for("theokit-sdk.providers.builtins-registered");
+  if (g[sym] === undefined) g[sym] = { done: false };
+  return g[sym];
+})();
 
 export function registerBuiltins(): void {
-  if (registered) return;
-  registered = true;
+  if (_registeredState.done) return;
+  _registeredState.done = true;
   // First-party builtins (take priority — registered first)
   registerProvider(ANTHROPIC);
   registerProvider(OPENAI);
+  registerProvider(OPENAI_CHATGPT);
   registerProvider(OPENROUTER);
   registerProvider(GEMINI);
   registerProvider(OLLAMA);
@@ -34,13 +53,34 @@ export function registerBuiltins(): void {
   registerProvider(LLAMACPP);
   registerProvider(BEDROCK);
   registerProvider(VERTEX);
+  // M45 — the data-provider fleet (one file each on the openai-compatible base).
+  registerProvider(GOOGLE);
+  registerProvider(MISTRAL);
+  registerProvider(GROQ);
+  registerProvider(COHERE);
+  registerProvider(DEEPINFRA);
+  registerProvider(TOGETHER);
+  registerProvider(XAI);
+  registerProvider(PERPLEXITY);
+  registerProvider(CEREBRAS);
   // Dynamic catalog — 40+ providers from JSON (T10.1, ADR D447)
   registerCatalogProviders();
 }
 
 /** Test-only reset. @internal */
 export function _resetBuiltinsRegistered(): void {
-  registered = false;
+  _registeredState.done = false;
 }
 
-export { ANTHROPIC, BEDROCK, GEMINI, LLAMACPP, LMSTUDIO, OLLAMA, OPENAI, OPENROUTER, VERTEX };
+export {
+  ANTHROPIC,
+  BEDROCK,
+  GEMINI,
+  LLAMACPP,
+  LMSTUDIO,
+  OLLAMA,
+  OPENAI,
+  OPENAI_CHATGPT,
+  OPENROUTER,
+  VERTEX,
+};

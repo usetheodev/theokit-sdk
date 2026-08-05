@@ -20,15 +20,11 @@
 
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-
 import type { SessionStore } from "../../types/session-store.js";
 import { withFileLock } from "./file-lock.js";
-import {
-  readTranscript,
-  type SessionRecord,
-  transcriptPath,
-  writeTranscript,
-} from "./session-transcript.js";
+import { appendJsonl } from "./jsonl.js";
+import { readTranscript, type SessionRecord, transcriptPath } from "./session-transcript.js";
+import { acquireSessionWriter, type SessionWriterLease } from "./session-writer.js";
 
 /** Options identifying the on-disk transcript location for the FS default store. */
 export interface FsSessionStoreOptions {
@@ -43,9 +39,66 @@ export interface FsSessionStoreOptions {
  *
  * @internal
  */
+/**
+ * Reference-counted leases, shared per path.
+ *
+ * `acquireSessionWriter` is STRICT on purpose: two concurrent acquisitions of the same path, and
+ * exactly one wins — "a lease that let both through would be decorative" (the M81 test says exactly
+ * that, and it is right). That is the primitive's contract, and it does not change.
+ *
+ * But within ONE process it is normal to have more than one store over the same session: the golden
+ * compaction tests and the concurrent-send tests do exactly that, and they record real runtime
+ * behavior. Applying the raw primitive there would turn a legitimate pattern into a
+ * `SessionBusyError`.
+ *
+ * The reconciliation belongs here, in the primitive's consumer: the process takes ONE lease per path
+ * and counts how many stores use it. The last to release actually frees it. Cross-process stays
+ * strict — which is the problem M81 states ("`exec resume --last` can write into the TUI's live
+ * session").
+ */
+const sharedLeases = new Map<string, { lease: SessionWriterLease; refs: number }>();
+
+async function acquireShared(path: string): Promise<SessionWriterLease> {
+  const existing = sharedLeases.get(path);
+  if (existing !== undefined) {
+    existing.refs++;
+    return createProxy(path);
+  }
+  const lease = await acquireSessionWriter(path);
+  sharedLeases.set(path, { lease, refs: 1 });
+  return createProxy(path);
+}
+
+/** A handle that decrements the count; the last to release frees the real lease. */
+function createProxy(path: string): SessionWriterLease {
+  let released = false;
+  return {
+    sessionPath: path,
+    // The proxy forwards the renewal to the ONE real lease this path shares. Renewing through any
+    // holder is correct and is the point: the record must say "someone in this process is still
+    // writing", and the refcount already guarantees they are all the same owner.
+    renew: (): void => {
+      if (released) return;
+      sharedLeases.get(path)?.lease.renew();
+    },
+    release: async (): Promise<void> => {
+      if (released) return;
+      released = true;
+      const entry = sharedLeases.get(path);
+      if (entry === undefined) return;
+      entry.refs--;
+      if (entry.refs > 0) return;
+      sharedLeases.delete(path);
+      await entry.lease.release();
+    },
+  };
+}
+
 export class FsSessionStore implements SessionStore {
   readonly #baseDir: string;
   readonly #cwd: string;
+  /** One lease per `agentId` — a store serves more than one session over the process lifetime. */
+  readonly #leases = new Map<string, SessionWriterLease>();
 
   constructor(options: FsSessionStoreOptions) {
     this.#baseDir = options.baseDir;
@@ -62,9 +115,82 @@ export class FsSessionStore implements SessionStore {
     const path = transcriptPath(this.#baseDir, this.#cwd, agentId);
     // mkdir BEFORE the lock: withFileLock's companion `<path>.lock` needs the parent dir.
     await mkdir(dirname(path), { recursive: true });
+
     await withFileLock(path, async () => {
-      const prior = await readTranscript(path);
-      await writeTranscript(path, [...prior, ...records]);
+      // M93 — appends the DELTA instead of rewriting the whole file.
+      //
+      // Before: `readTranscript` + `writeTranscript` of everything, per turn. O(n) of I/O **and** of
+      // parsing on every turn, O(n^2) per session — the consumer note in
+      // `agents/lib/session/backtrack.ts` records 1.4 MB / 3000 lines over 200 turns.
+      //
+      // Correct because the format **is already append-only**: the `parentUuid` DAG does not depend
+      // on line order, and every record carries its own parent. `appendJsonl` **already existed in
+      // the package** and had a single caller (`eval/runner.ts`) — the primitive was there, it was
+      // the store that ignored it (rung 4).
+      //
+      // `withFileLock` stays — but the earlier claim that "it is what serializes two concurrent
+      // `appendRecords`" was too strong, and M93's adversarial review measured it: removing it fails
+      // no test. The reason is the paragraph above — the `parentUuid` DAG does not depend on line
+      // order, so two interleaved batches reconstruct identically. The work the lock was doing
+      // (protecting a read-modify-write) disappeared along with the rewrite.
+      //
+      // What it still covers is the TOCTOU window in `needsLineBreakBefore` (read the last byte,
+      // then write): without it, two processes can both conclude "a \n is missing" and produce a
+      // blank line — which the reader discards, i.e. benign. It stays as a **declared, not
+      // mechanized** defense (the discipline in `error-handling.md` § 4: enumerate the residue
+      // rather than let a missing test pass for coverage).
+      //
+      // `writeTranscript` still exists for **compaction**, the one operation that legitimately
+      // rewrites the file.
+      for (const record of records) appendJsonl(path, record);
     });
+  }
+
+  /**
+   * Takes the session's writer lease. Throws `SessionBusyError` when another process holds it.
+   *
+   * **Explicit, and NOT inside `appendRecords`** — M95's adversarial review measured why that
+   * matters: the `SessionStore` contract states that "an `appendRecords` rejection is logged to
+   * stderr, NOT thrown to the caller (best-effort write)". Acquiring there made the
+   * `SessionBusyError` get **swallowed**, and the result was worse than the original problem:
+   * instead of two writers interleaving lines, the loser **lost the turn silently** — nothing on
+   * disk, a stderr warning invisible under the TUI, and no way for the caller to react.
+   *
+   * At init the error reaches someone who can act: `exec` forks to a new id, which is exactly what
+   * the error message itself prescribes. It is the difference between failing where a decision is
+   * possible and failing where only loss is.
+   */
+  async acquire(agentId: string): Promise<void> {
+    if (this.#leases.has(agentId)) return;
+    const path = transcriptPath(this.#baseDir, this.#cwd, agentId);
+    await mkdir(dirname(path), { recursive: true });
+    this.#leases.set(agentId, await acquireShared(path));
+  }
+
+  /**
+   * Releases ONE agent's lease.
+   *
+   * It exists because `dispose()` releases **every** lease the store holds, and a store injected by
+   * the consumer may serve several agents: an init that fails for agent B must not free agent A's
+   * lease, which is still live and writing.
+   */
+  async release(agentId: string): Promise<void> {
+    const lease = this.#leases.get(agentId);
+    if (lease === undefined) return;
+    this.#leases.delete(agentId);
+    await lease.release();
+  }
+
+  /**
+   * Releases every lease this store holds.
+   *
+   * Without it the `.writer.lock` outlives the process and the next open would have to wait out the
+   * heartbeat window — recoverable, but 30 s of waiting after a CLEAN shutdown would be an avoidable
+   * defect. Idempotent: calling it twice is not an error.
+   */
+  async dispose(): Promise<void> {
+    const leases = [...this.#leases.values()];
+    this.#leases.clear();
+    for (const lease of leases) await lease.release();
   }
 }

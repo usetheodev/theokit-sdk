@@ -11,11 +11,7 @@
  * @internal
  */
 
-import {
-  type InheritedCredentials,
-  inheritSubAgentCredentials,
-  subAgentToolsFromDefinitions,
-} from "../../a2a/subagent.js";
+import { subAgentToolsFromDefinitions } from "../../a2a/subagent.js";
 import type {
   AgentDefinition,
   AgentOptions,
@@ -23,12 +19,13 @@ import type {
   ModelSelection,
 } from "../../types/agent.js";
 import type { CustomToolSpec } from "../agent-loop/loop-types.js";
+import type { InheritedCredentials } from "../runtime/concurrency/subagent-credentials.js";
 import { createThinkTool, reasoningActive } from "../runtime/reasoning/native-reasoning.js";
 import { applyPersonalityFilter } from "../tool-registry/personality-filter.js";
 
 /**
  * Declarative subagents become delegation tools for the local runtime — each
- * child inherits the parent's apiKey/model (via `bindParentCredentials`) and is
+ * child inherits the parent's apiKey/model (via the run's credential scope) and is
  * scoped to the whitelisted subset of the parent's tools. `agents` is the merged
  * set from `loadSubagents` (`.theokit/agents/*.md` + inline `agentOptions.agents`),
  * so a subagent defined only on disk is callable against a real model — not just
@@ -43,21 +40,30 @@ function declarativeSubagentTools(
 }
 
 /**
- * Hand the parent's credentials down to any subagent tools so a delegated child
- * inherits the parent's apiKey (else `Agent.create` throws "Missing API key")
- * and model. A no-op for every non-subagent tool — the key never reaches
- * third-party tool code (see `inheritSubAgentCredentials`).
+ * The credentials a delegated child inherits from this parent: its apiKey (else `Agent.create`
+ * throws "Missing API key"), its model, its plugins and its sandbox posture.
+ *
+ * theokit#148 — this used to be pushed onto each subagent tool OBJECT
+ * (`inheritSubAgentCredentials`), which meant any layer that rebuilt the object dropped it and the
+ * child failed with `provider_unresolved`. It is now published on the run's async scope by
+ * `createRealLocalRun`, so the value travels with the CALL. This function only computes it; the
+ * scope is established at the run boundary, which is also the correct lifetime for it.
+ *
+ * @internal
  */
-function bindParentCredentials(tools: ReadonlyArray<CustomTool>, agentOptions: AgentOptions): void {
+export function resolveInheritedCredentials(agentOptions: AgentOptions): InheritedCredentials {
   // #55 — hand the parent's code-registered plugins (array form carries the
   // PermissionPlugin) down so the child runs under the same permission gate.
   const parentPlugins = Array.isArray(agentOptions.plugins) ? agentOptions.plugins : undefined;
-  const credentials: InheritedCredentials = {
+  // M33 — hand down the parent's sandbox posture so a child of a sandboxed parent stays sandboxed unless
+  // its role opts out. A role's own `sandbox` (spec.sandbox) overrides this in buildChildCreateOptions.
+  const parentSandbox = agentOptions.local?.sandboxOptions?.enabled;
+  return {
     ...(agentOptions.apiKey !== undefined ? { apiKey: agentOptions.apiKey } : {}),
     ...(typeof agentOptions.model === "object" ? { model: agentOptions.model } : {}),
     ...(parentPlugins !== undefined ? { plugins: parentPlugins } : {}),
+    ...(parentSandbox !== undefined ? { sandbox: parentSandbox } : {}),
   };
-  for (const tool of tools) inheritSubAgentCredentials(tool, credentials);
 }
 
 export function buildCustomToolsInput(
@@ -96,7 +102,10 @@ export function buildCustomToolsInput(
     return {};
   }
   const allTools = [...baseTools, ...subagentTools, ...pluginTools, ...reasoningTools];
-  bindParentCredentials(allTools, agentOptions);
+  // theokit#148 — note this very `map`: the SDK rebuilds each tool from four fields, so any
+  // credential channel riding the tool object is dropped right here. It only used to survive
+  // because the pre-rebuild sink mutated the original handler's closure. Credentials now travel on
+  // the run's async scope, which this rebuild cannot touch.
   const merged: CustomToolSpec[] = allTools.map((tool) => ({
     name: tool.name,
     description: tool.description,

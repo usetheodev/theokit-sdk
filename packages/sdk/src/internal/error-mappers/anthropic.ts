@@ -12,7 +12,7 @@
  *                                       `"content_filtered"` for policy.)
  *   408     → `NetworkError`          (`code: "timeout"`)
  *   5xx     → `NetworkError`          (`code: "server_error"` — covers 529
- *                                       overloaded_error common em horário
+ *                                       overloaded_error common at peak
  *                                       de pico)
  *   other   → `UnknownAgentError`     (`code: "unknown"`)
  *

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   buildCheckpoint,
@@ -7,6 +7,7 @@ import {
   filterFromLatestCheckpoint,
   SUMMARY_TEMPLATE,
 } from "../src/compaction.js";
+import { setDiagnosticsSink } from "../src/internal/diagnostics.js";
 
 /**
  * V3-3 parity suite — mirrors 7 of theocode's 8 `tests/unit/compaction.test.ts`
@@ -59,7 +60,10 @@ describe("compaction parity with theocode (V3-3)", () => {
 
   it("test_compactTranscript_token_budget_parity_failsafe_on_summarizer_error", async () => {
     // theocode test_compactTranscript_falls_back_on_summarizer_error
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // theokit#147 — the fail-safe warning now goes through the interceptable diagnostics channel
+    // instead of straight to the terminal.
+    const emitted: string[] = [];
+    setDiagnosticsSink((m) => emitted.push(m));
     const messages = [big("a"), big("b"), big("c"), big("d")];
     const out = await compactTranscript(messages, {
       keepTokens: 250,
@@ -70,8 +74,8 @@ describe("compaction parity with theocode (V3-3)", () => {
       },
     });
     expect(out).toEqual(messages); // original unchanged
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
+    expect(emitted.join("")).toContain("summarizer down");
+    setDiagnosticsSink(undefined);
   });
 
   it("test_compactTranscript_token_budget_parity_template_seven_sections", () => {

@@ -20,6 +20,13 @@ import {
 let tmpHome: string;
 let originalHome: string | undefined;
 
+/** M47 — write the explicit trust allowlist the gate requires. */
+function trust(...names: string[]): void {
+  const dir = join(tmpHome, ".theokit", "plugins");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "trusted-providers.json"), JSON.stringify(names));
+}
+
 beforeEach(() => {
   _resetDiscovery();
   _resetProvidersForTests();
@@ -66,6 +73,7 @@ describe("discoverProviderPlugins (T3.4)", () => {
 `,
     );
 
+    trust("mistral-fake"); // M47 — the gate requires explicit trust
     await discoverProviderPlugins();
     expect(getProviderProfile("mistral")?.apiMode).toBe("chat_completions");
   });
@@ -75,6 +83,7 @@ describe("discoverProviderPlugins (T3.4)", () => {
     mkdirSync(pluginDir, { recursive: true });
     writeFileSync(join(pluginDir, "index.mjs"), `throw new Error("syntax error in plugin");\n`);
 
+    trust("broken"); // M47 — trusted but broken: the load-error tolerance path
     const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     await discoverProviderPlugins();
     const calls = stderrSpy.mock.calls.map((c) => c[0] as string).join("");

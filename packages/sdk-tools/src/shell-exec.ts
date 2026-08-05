@@ -11,8 +11,8 @@
 
 import { spawn } from "node:child_process";
 import type { CustomTool } from "@theokit/sdk";
-
 import { Tool } from "@theokit/sdk";
+import { resolveSandbox, type SandboxProvider } from "@theokit/sdk/sandbox";
 import { z } from "zod";
 import { CatastrophicCommandError, catastrophicShellReason } from "./internal/shell-guard.js";
 import { armTimeoutKill, attachChildSettlers } from "./subprocess.js";
@@ -21,7 +21,32 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_TIMEOUT_MS = 300_000; // 5 minutes hard ceiling
 const MAX_OUTPUT_BYTES = 5 * 1024 * 1024; // 5 MB
 
+/** Run `command` through an injected SandboxBackend, mapping its result to shell_exec's JSON shape. */
+async function execViaSandbox(
+  sandbox: SandboxProvider,
+  ctx: unknown,
+  command: string,
+  timeoutMs: number,
+): Promise<string> {
+  const backend = await resolveSandbox(sandbox, ctx ?? {});
+  const r = await backend.execute(command, { timeoutMs });
+  return r.timedOut
+    ? JSON.stringify({ ok: false, error: "timeout", timeout_ms: timeoutMs })
+    : JSON.stringify({ ok: true, stdout: r.stdout, stderr: r.stderr, exit_code: r.exitCode });
+}
+
 export interface CreateShellToolOptions {
+  /**
+   * M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo).
+   *
+   * It exists because, in Codex, the name is BORN in the tool definition and is the approval decision
+   * key — three consumers (model, approval, telemetry) of a string decided in one place. Renaming
+   * after construction changes the identity of something already published to the model. `withName`
+   * remains for the genuinely dynamic case.
+   */
+  name?: string;
+  /** M76 — description exposed to the model. Omitted => today's literal (additive). */
+  description?: string;
   /** Absolute path to the project root. Commands execute in this cwd. */
   projectRoot: string;
   /** Default timeout in ms. Capped at 300s. */
@@ -33,21 +58,35 @@ export interface CreateShellToolOptions {
    * guardrail, not a sandbox.
    */
   allowCatastrophic?: boolean;
+  /**
+   * Optional injected execution backend (`@theokit/sdk/sandbox`) — a backend or a per-request resolver.
+   * When provided, the command runs via `SandboxBackend.execute` (Local/Docker/E2B) so the tool is
+   * surface-agnostic (a cluster/desktop host runs it in the sandbox, not the local host); omitted ⇒ the
+   * local `/bin/sh -c` child process (byte-identical to before). The catastrophic-command guard runs
+   * before either path.
+   */
+  sandbox?: SandboxProvider;
 }
 
 export function createShellTool(opts: CreateShellToolOptions): CustomTool {
-  const { projectRoot, defaultTimeoutMs = DEFAULT_TIMEOUT_MS, allowCatastrophic = false } = opts;
+  const {
+    projectRoot,
+    defaultTimeoutMs = DEFAULT_TIMEOUT_MS,
+    allowCatastrophic = false,
+    sandbox,
+  } = opts;
 
   return Tool.create({
-    name: "shell_exec",
+    name: opts.name ?? "shell_exec",
     description:
+      opts.description ??
       "Execute a shell command in the project directory. Use this for terminal operations — running " +
-      "tests, git, package managers, build tools. Do NOT use it for file operations (reading, " +
-      "writing, editing, finding files): prefer the specialized read_file/write_file/edit_file/" +
-      "glob_files/search_text tools, which are path-checked and safer. Only commit, push, or change " +
-      "git state when the user explicitly asks. timeout_ms defaults to 30000 (max 300000); " +
-      "stdout/stderr are capped (~5 MB). Returns { ok, stdout, stderr, exit_code } or " +
-      "{ ok: false, error }.",
+        "tests, git, package managers, build tools. Do NOT use it for file operations (reading, " +
+        "writing, editing, finding files): prefer the specialized read_file/write_file/edit_file/" +
+        "glob_files/search_text tools, which are path-checked and safer. Only commit, push, or change " +
+        "git state when the user explicitly asks. timeout_ms defaults to 30000 (max 300000); " +
+        "stdout/stderr are capped (~5 MB). Returns { ok, stdout, stderr, exit_code } or " +
+        "{ ok: false, error }.",
     inputSchema: z.object({
       command: z.string().min(1).describe("Shell command to execute."),
       timeout_ms: z
@@ -57,7 +96,7 @@ export function createShellTool(opts: CreateShellToolOptions): CustomTool {
         .optional()
         .describe("Timeout in milliseconds (default 30000, max 300000)."),
     }),
-    handler: async ({ command, timeout_ms }) => {
+    handler: async ({ command, timeout_ms }, ctx) => {
       if (!allowCatastrophic) {
         const reason = catastrophicShellReason(command);
         if (reason) {
@@ -68,8 +107,9 @@ export function createShellTool(opts: CreateShellToolOptions): CustomTool {
         }
       }
       const timeoutMs = Math.min(timeout_ms ?? defaultTimeoutMs, MAX_TIMEOUT_MS);
-      const result = await runShell(projectRoot, command, timeoutMs);
-      return result;
+      // Injected backend (surface-agnostic) ⇒ run in the sandbox; absent ⇒ the local child (unchanged).
+      if (sandbox !== undefined) return execViaSandbox(sandbox, ctx, command, timeoutMs);
+      return runShell(projectRoot, command, timeoutMs);
     },
   });
 }
