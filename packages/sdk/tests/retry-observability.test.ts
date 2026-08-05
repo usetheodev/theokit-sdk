@@ -70,6 +70,9 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
     expect(first).toContain(`1/${MAX_ATTEMPTS}`);
     expect(first).toContain("RateLimitError");
     expect(first).toMatch(/\d+\s*ms/);
+    // The message ships to consumers, and this repo is English-only. The lint gate cannot see a
+    // two-letter word inside a template literal — it shipped `em` past review once. Pin the wording.
+    expect(first).toMatch(/retry \d+\/\d+ in \d+ms/);
   });
 
   it("test_with_no_sink_installed_nothing_reaches_the_terminal", async () => {
