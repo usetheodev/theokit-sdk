@@ -1,3 +1,4 @@
+import type { MemoryEmbeddingProviderAdapter } from "./embedding-adapter.js";
 import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
 
 // Iter 74 rollup-plugin-dts workaround: see openai-embedding.ts header.
@@ -26,7 +27,7 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "mistralai/mistral-embed": 1024,
 };
 
-export const openRouterMemoryEmbeddingProviderAdapter = {
+export const openRouterMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "openrouter",
   defaultModel: DEFAULT_OPENROUTER_EMBEDDING_MODEL,
   transport: "remote" as const,

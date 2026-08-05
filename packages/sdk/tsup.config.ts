@@ -54,6 +54,9 @@ export default defineConfig({
     // live `tracer-loader.ts` directly, its barrel was dead.
     "internal/persistence/index": "src/internal/persistence/index.ts",
     "internal/security/index": "src/internal/security/index.ts",
+    // theokit#160 — the embedding runtime, shared with @theokit/sdk-memory so the two packages stop
+    // carrying divergent copies of it. Same rationale and same semver-exempt status as the two above.
+    "internal/memory/adapters/index": "src/internal/memory/adapters/index.ts",
   },
   format: ["esm", "cjs"],
   // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)

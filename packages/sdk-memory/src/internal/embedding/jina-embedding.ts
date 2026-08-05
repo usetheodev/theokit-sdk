@@ -1,3 +1,4 @@
+import type { MemoryEmbeddingProviderAdapter } from "./embedding-adapter.js";
 import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
 
 // Iter 74 rollup-plugin-dts workaround: see openai-embedding.ts header.
@@ -20,7 +21,7 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "jina-embeddings-v2-small-en": 512,
 };
 
-export const jinaMemoryEmbeddingProviderAdapter = {
+export const jinaMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "jina",
   defaultModel: DEFAULT_JINA_EMBEDDING_MODEL,
   transport: "remote" as const,

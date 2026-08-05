@@ -1,3 +1,4 @@
+import type { MemoryEmbeddingProviderAdapter } from "./embedding-adapter.js";
 import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
 
 // Iter 74 rollup-plugin-dts workaround: see openai-embedding.ts header.
@@ -24,7 +25,7 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "embedding-001": 768,
 };
 
-export const geminiMemoryEmbeddingProviderAdapter = {
+export const geminiMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "gemini",
   defaultModel: DEFAULT_GEMINI_EMBEDDING_MODEL,
   transport: "remote" as const,

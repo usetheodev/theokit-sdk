@@ -1,3 +1,4 @@
+import type { MemoryEmbeddingProviderAdapter } from "./embedding-adapter.js";
 import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
 
 /**
@@ -33,7 +34,7 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "text-embedding-ada-002": 1536,
 };
 
-export const openAiMemoryEmbeddingProviderAdapter = {
+export const openAiMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "openai",
   defaultModel: DEFAULT_OPENAI_EMBEDDING_MODEL,
   transport: "remote" as const,
