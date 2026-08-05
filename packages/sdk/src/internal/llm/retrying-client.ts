@@ -167,7 +167,7 @@ export class RetryingLlmClient implements LlmClient {
     // terminal (theokit#147). With no sink installed, silence.
     const cause = err instanceof Error ? err.name : typeof err;
     diag(
-      `retry ${attempt + 1}/${MAX_ATTEMPTS} em ${String(ms)}ms — ${cause}` +
+      `retry ${attempt + 1}/${MAX_ATTEMPTS} in ${String(ms)}ms — ${cause}` +
         (hint !== undefined ? ` (Retry-After: ${String(hint)}ms)` : ""),
     );
     await sleepWithAbort(ms, signal);
