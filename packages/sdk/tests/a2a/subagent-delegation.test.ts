@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
   MaxDelegationDepthError,
@@ -93,6 +94,18 @@ describe("SubAgent", () => {
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: "theo_test_parent", model: { id: "openai/gpt-4o-mini" } }),
     );
+  });
+
+  it("keeps `splitting: true`, which the ALS store's singleton identity depends on — regression #142/#143", () => {
+    // The old cross-bundle guard asserted a global `Symbol.for` sink key, and was deleted with the
+    // symbol. Its FAILURE MODE was not deleted: `withInheritedSubAgentCredentials` holds a
+    // module-level `AsyncLocalStorage`, so if the bundler inlines a copy of that module per public
+    // entry, the `.` copy publishes into a store the `./a2a` copy never reads — the #142/#143 shape,
+    // reproduced exactly. `tsup.config.ts` already documents `splitting: true` as load-bearing for
+    // `TheokitAgentError` identity; it is load-bearing for this too, and nothing asserted it.
+    const config = readFileSync(new URL("../../tsup.config.ts", import.meta.url), "utf8");
+
+    expect(config).toMatch(/splitting:\s*true/);
   });
 
   it("carries NO credential channel on the tool object at all — regression #142/#143/#148", () => {
