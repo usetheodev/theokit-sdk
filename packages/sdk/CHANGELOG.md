@@ -237,6 +237,32 @@
   what the loop consumes — previously it was produced and read by nobody, the same dead-channel shape
   this release deletes elsewhere.
 
+## 4.38.0
+
+### Minor Changes
+
+- New `run.events()` — every event of a run in true order, from a single source (theokit#140).
+
+  A consumer that wanted both structural messages and live token granularity had to fuse two
+  incomplete views by hand: `stream()` carries no token deltas, and `SendOptions.onDelta` carries no
+  `run_started` / `system`. Reconciling them in the consumer is what produced the ordering and
+  duplication bugs this replaces.
+
+  `events()` returns an `AsyncGenerator<RunTimelineEvent>`, a discriminated union of
+  `{ kind: "message" }` and `{ kind: "delta" }` — not a widened `SDKMessage`, because a token delta
+  is not a message and pretending otherwise would force every consumer to guess which of the two it
+  is holding.
+
+  Minor rather than major: `stream()` is untouched and remains the SDKMessage-only view, `onDelta` is
+  wrapped rather than replaced, and every existing consumer observes no change.
+
+  `RunTimelineEvent` is exported from the package barrel.
+
+  > Entry reconstructed on 2026-08-05. The 4.38.0 release was cut by a hand-written version bump
+  > (`8beb61da6`) that changed `package.json` alone — no changeset, so this section never existed and
+  > the published version shipped without notes. The facts here come from the release commit and the
+  > exported type contract, not from a recovered changeset.
+
 ## 4.37.2
 
 ### Patch Changes
