@@ -7,14 +7,11 @@
  * else. Nothing caught it because coverage for those four was metadata only: no `embed()` was ever
  * called, in either package.
  *
- * So this file calls `embed()` and records the REQUEST. It is deliberately a characterization test:
- * it asserts what the SDK sends today, provider by provider, and states in each case whether that
- * matches the provider's documented contract. Where it does not, the expectation is annotated
- * `KNOWN-BROKEN` with the divergence spelled out, so the gap is tracked in executable form rather
- * than in prose that ages out.
+ * So this file calls `embed()` and records the REQUEST, provider by provider.
  *
- * Turning a KNOWN-BROKEN into a real assertion is the fix for theokit#159. Until then, this file is
- * the evidence that the analysis was measured rather than assumed.
+ * It started as a characterization test with the divergences annotated `KNOWN-BROKEN`. They are now
+ * real assertions: each of the three speaks its own dialect through the runtime's `dialect` hooks,
+ * and this file is what proves it rather than asserting it in prose.
  */
 import { describe, expect, it } from "vitest";
 import { azureOpenAiMemoryEmbeddingProviderAdapter } from "../../../../src/internal/memory/adapters/azure-openai-embedding.js";
@@ -79,7 +76,7 @@ describe("theokit#159 — embedding adapter wire contracts", () => {
     expect(req.body).toEqual({ model: "jina-embeddings-v3", input: ["probe-1"] });
   });
 
-  it("azure-openai puts the deployment in the path, but KNOWN-BROKEN on auth and body", async () => {
+  it("azure-openai authenticates with api-key and keeps the deployment in the path", async () => {
     const req = await embedOnce(azureOpenAiMemoryEmbeddingProviderAdapter, {
       apiKey: "azure-key",
       baseUrl: "https://my-resource.openai.azure.com",
@@ -91,17 +88,16 @@ describe("theokit#159 — embedding adapter wire contracts", () => {
       "https://my-resource.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings?api-version=2024-02-01",
     );
 
-    // KNOWN-BROKEN (theokit#159): Azure authenticates an API key via the `api-key` header. `Bearer`
-    // is for Entra ID tokens, not for the key read from AZURE_OPENAI_API_KEY.
-    expect(req.headers.authorization).toBe("Bearer azure-key");
-    expect(req.headers["api-key"], "KNOWN-BROKEN: Azure expects this header").toBeUndefined();
+    // theokit#159 — Azure authenticates an API key with the `api-key` header. `Bearer` carries an
+    // Entra ID token, not the key read from AZURE_OPENAI_API_KEY.
+    expect(req.headers["api-key"]).toBe("azure-key");
+    expect(req.headers.authorization).toBeUndefined();
 
-    // KNOWN-BROKEN (theokit#159): the deployment is already in the path; `model` in the body is
-    // not part of the Azure request.
-    expect(req.body).toHaveProperty("model");
+    // The deployment is already in the path, so `model` has no place in the body.
+    expect(req.body).toEqual({ input: ["probe-2"] });
   });
 
-  it("cohere is KNOWN-BROKEN in both directions", async () => {
+  it("cohere speaks the /v2/embed request shape", async () => {
     const req = await embedOnce(cohereMemoryEmbeddingProviderAdapter, {
       apiKey: "cohere-key",
       model: "embed-english-v3.0",
@@ -109,31 +105,56 @@ describe("theokit#159 — embedding adapter wire contracts", () => {
 
     expect(req.url).toBe("https://api.cohere.com/v2/embed");
 
-    // KNOWN-BROKEN (theokit#159): `/v2/embed` takes `{model, texts, input_type, embedding_types}`.
-    // The runtime sends the OpenAI `{model, input}` shape.
-    expect(req.body).toEqual({ model: "embed-english-v3.0", input: ["probe-3"] });
-    expect(req.body, "KNOWN-BROKEN: Cohere names this `texts`").not.toHaveProperty("texts");
-    expect(req.body, "KNOWN-BROKEN: Cohere requires `input_type`").not.toHaveProperty("input_type");
-    // Response is also divergent (`{embeddings:{float:[]}}` vs the required `data`), which this
-    // stubbed fetch cannot exercise — `parseEmbedResponse` demands `data` and would throw
-    // `embedding_invalid_response` against the real API.
+    // theokit#159 — `/v2/embed` names the payload `texts` and requires `input_type`.
+    expect(req.body).toEqual({
+      model: "embed-english-v3.0",
+      texts: ["probe-3"],
+      input_type: "search_document",
+      embedding_types: ["float"],
+    });
   });
 
-  it("gemini targets a path its OpenAI-compat surface does not serve — KNOWN-BROKEN", async () => {
+  it("gemini targets the /v1beta/openai compat surface", async () => {
     const req = await embedOnce(geminiMemoryEmbeddingProviderAdapter, {
       apiKey: "gemini-key",
       model: "text-embedding-004",
     });
 
-    // KNOWN-BROKEN (theokit#159): the compat surface lives under `/v1beta/openai/`, so this 404s.
-    expect(req.url).toBe("https://generativelanguage.googleapis.com/v1/embeddings");
-    expect(req.url, "KNOWN-BROKEN: expected the /v1beta/openai/ compat prefix").not.toContain(
-      "/v1beta/openai/",
-    );
+    // theokit#159 — the compat surface lives under `/v1beta/openai/`; `/v1/embeddings` 404'd.
+    expect(req.url).toBe("https://generativelanguage.googleapis.com/v1beta/openai/embeddings");
   });
 
-  it("the shared runtime is OpenAI-shaped, which is WHY three of four diverge", async () => {
-    // The root cause in one assertion: one auth scheme, one body shape, for every provider.
+  it("cohere reads vectors out of its own response shape", async () => {
+    // The other half of Cohere's divergence, and the one the request-shape test cannot reach:
+    // `/v2/embed` answers `{embeddings:{float:[[...]]}}`. `parseEmbedResponse` demands `data`, so
+    // before the dialect hook this threw `embedding_invalid_response` on every successful call.
+    const sent: Captured[] = [];
+    const fetchImpl = (async (input: unknown, init?: RequestInit) => {
+      sent.push({
+        url: String(input),
+        headers: (init?.headers ?? {}) as Record<string, string>,
+        body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+      });
+      return new Response(JSON.stringify({ id: "x", embeddings: { float: [[0.25, 0.75]] } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+
+    const runtime = await cohereMemoryEmbeddingProviderAdapter.create({
+      apiKey: "cohere-key",
+      model: "embed-english-v3.0",
+      fetch: fetchImpl,
+    } as never);
+    const vectors = await runtime.embed(["cohere-response-probe"]);
+
+    expect(sent).toHaveLength(1);
+    expect(vectors[0]?.slice(0, 2)).toEqual([0.25, 0.75]);
+  });
+
+  it("the OpenAI default is unchanged for every provider that does speak it", async () => {
+    // The counterproof for the dialect hooks: adding them must not alter the seven providers that
+    // were always correct. Defaults are exactly the previous behaviour.
     const req = await embedOnce(jinaMemoryEmbeddingProviderAdapter, {
       apiKey: "k",
       model: "jina-embeddings-v3",

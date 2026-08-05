@@ -71,6 +71,34 @@ describe("theokit#160 — peer embedding runtime matches core's wire contract", 
       "https://my-resource.openai.azure.com/openai/deployments/text-embedding-3-large/embeddings?api-version=2024-02-01",
     );
     expect(req.url).not.toContain("{model}");
+    // theokit#159 — the dialect must be present in the PEER copy too, or a consumer with the
+    // satellite installed still sends Bearer auth to an endpoint that rejects it.
+    expect(req.headers["api-key"]).toBe("azure-key");
+    expect(req.headers.authorization).toBeUndefined();
+  });
+
+  it("test_cohere_speaks_its_own_request_shape_in_the_PEER_copy_too", async () => {
+    const req = await requestFrom(catalog.cohere as Adapter, {
+      apiKey: "cohere-key",
+      model: "embed-english-v3.0",
+    });
+
+    expect(req.url).toBe("https://api.cohere.com/v2/embed");
+    expect(Object.keys(req.body).sort()).toEqual([
+      "embedding_types",
+      "input_type",
+      "model",
+      "texts",
+    ]);
+  });
+
+  it("test_gemini_targets_the_compat_surface_in_the_PEER_copy_too", async () => {
+    const req = await requestFrom(catalog.gemini as Adapter, {
+      apiKey: "gemini-key",
+      model: "text-embedding-004",
+    });
+
+    expect(req.url).toBe("https://generativelanguage.googleapis.com/v1beta/openai/embeddings");
   });
 
   it("test_the_peer_runtime_is_OpenAI_shaped_exactly_as_core_is", async () => {

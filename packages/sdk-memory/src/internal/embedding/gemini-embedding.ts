@@ -37,6 +37,9 @@ export const geminiMemoryEmbeddingProviderAdapter = {
         defaultBaseUrl: "https://generativelanguage.googleapis.com",
         apiKeyEnv: "GEMINI_API_KEY",
         defaultModel: DEFAULT_GEMINI_EMBEDDING_MODEL,
+        // theokit#159 — the compat surface is under `/v1beta/openai/`, not the default
+        // `/v1/embeddings`; the previous path 404'd on every call.
+        embeddingsPath: "/v1beta/openai/embeddings",
         dimensionByModel: DIMENSION_BY_MODEL,
       },
       options,

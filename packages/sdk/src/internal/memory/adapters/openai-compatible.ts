@@ -43,6 +43,35 @@ export interface OpenAiCompatibleConfig {
    * etc. (EC-2 fix).
    */
   embeddingsPath?: string;
+  /**
+   * theokit#159 — per-provider deviations from the OpenAI wire.
+   *
+   * The runtime was rigidly OpenAI-shaped: one auth header, one body, one response shape. Three of
+   * the ten catalog providers do not speak it, so every call they made was rejected — Azure
+   * authenticates with an `api-key` header and puts the deployment in the path, Cohere's `/v2/embed`
+   * takes `texts` and answers `{embeddings:{float}}`. Advertising a provider that cannot work is
+   * worse than not advertising it.
+   *
+   * Every hook is optional and its default is exactly the previous behaviour, so the seven
+   * providers that DO speak OpenAI are untouched.
+   */
+  dialect?: EmbeddingDialect;
+}
+
+/**
+ * theokit#159 — the three points where a provider may deviate from the OpenAI embedding wire.
+ *
+ * Deliberately three narrow hooks rather than a general "transform the request" seam: these are the
+ * only axes on which the supported providers actually differ, and a wider seam would invite
+ * per-provider logic that belongs in the adapter.
+ */
+export interface EmbeddingDialect {
+  /** Replaces `authorization: Bearer <key>`. */
+  authHeaders?: (apiKey: string) => Record<string, string>;
+  /** Replaces the `{ model, input }` request body. */
+  body?: (model: string, inputs: ReadonlyArray<string>) => Record<string, unknown>;
+  /** Replaces reading vectors from `json.data[].embedding`. Return `undefined` when unparseable. */
+  vectors?: (json: unknown) => number[][] | undefined;
 }
 
 export async function createOpenAiCompatibleRuntime(
@@ -102,6 +131,7 @@ export async function createOpenAiCompatibleRuntime(
         embeddingsPath,
         fetchImpl,
         providerId: cfg.id,
+        dialect: cfg.dialect ?? {},
       }),
   };
 }
@@ -117,6 +147,7 @@ interface EmbedTextsInput {
   embeddingsPath: string;
   fetchImpl: typeof fetch;
   providerId: string;
+  dialect: EmbeddingDialect;
 }
 
 async function embedTexts(input: EmbedTextsInput): Promise<number[][]> {
@@ -211,6 +242,7 @@ async function processBatch(
     fetchImpl: input.fetchImpl,
     stats: input.stats,
     providerId: input.providerId,
+    dialect: input.dialect,
   });
   for (let j = 0; j < batch.length; j++) {
     const slot = batch[j];
@@ -230,6 +262,7 @@ interface BatchOptions {
   fetchImpl: typeof fetch;
   stats: EmbeddingRuntimeStats;
   providerId: string;
+  dialect: EmbeddingDialect;
 }
 
 async function embedBatch(opts: BatchOptions): Promise<number[][]> {
@@ -240,7 +273,7 @@ async function embedBatch(opts: BatchOptions): Promise<number[][]> {
     opts.stats.httpCalls += 1;
     const response = await postEmbedRequest(opts, url);
     if (response.ok)
-      return await parseEmbedResponse(response, opts.providerId, opts.embeddingsPath);
+      return await parseEmbedResponse(response, opts.providerId, opts.embeddingsPath, opts.dialect);
     if (isRetryable(response.status) && attempt < MAX_RETRIES) {
       attempt += 1;
       opts.stats.retries += 1;
@@ -270,9 +303,11 @@ async function postEmbedRequest(opts: BatchOptions, url: string): Promise<Respon
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${opts.apiKey}`,
+      ...(opts.dialect.authHeaders?.(opts.apiKey) ?? { authorization: `Bearer ${opts.apiKey}` }),
     },
-    body: JSON.stringify({ model: opts.model, input: opts.inputs }),
+    body: JSON.stringify(
+      opts.dialect.body?.(opts.model, opts.inputs) ?? { model: opts.model, input: opts.inputs },
+    ),
   });
 }
 
@@ -280,8 +315,12 @@ async function parseEmbedResponse(
   response: Response,
   providerId: string,
   endpoint: string,
+  dialect?: EmbeddingDialect,
 ): Promise<number[][]> {
   const json = (await response.json()) as { data?: Array<{ embedding: number[] }> };
+  // theokit#159 — a provider whose response is not OpenAI-shaped supplies its own reader.
+  const viaDialect = dialect?.vectors?.(json);
+  if (viaDialect !== undefined) return viaDialect;
   if (!Array.isArray(json.data)) {
     throw new NetworkError(`${providerId} ${endpoint} returned no data`, {
       code: "embedding_invalid_response",
