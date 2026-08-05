@@ -35,6 +35,7 @@ import {
   RateLimitError,
   TheokitAgentError,
 } from "../../errors.js";
+import { diag } from "../diagnostics.js";
 import { abortError } from "./abort-error.js";
 import { computeBackoffMs, sleepWithAbort } from "./retry.js";
 import type { LlmClient, LlmEvent, LlmFinish, LlmRequest } from "./types.js";
@@ -155,6 +156,20 @@ export class RetryingLlmClient implements LlmClient {
       ...(hint !== undefined ? { retryAfterMs: hint } : {}),
       ...(this.#rng !== undefined ? { rng: this.#rng } : {}),
     });
+    // theokit-sdk#165 — announce the attempt BEFORE sleeping.
+    //
+    // Without this signal a retry is indistinguishable from no retry, and the issue shows what that
+    // costs: a 429 in ~3s led to the conclusion that the retry path was never reached, when it was.
+    // The backoff is full-jitter (`floor(random() * ceiling)`), so three attempts fit inside
+    // milliseconds and vanish into the response latency — the only thing visible was the final error.
+    //
+    // It goes through the diagnostics channel, not stderr: the library does not own the host's
+    // terminal (theokit#147). With no sink installed, silence.
+    const cause = err instanceof Error ? err.name : typeof err;
+    diag(
+      `retry ${attempt + 1}/${MAX_ATTEMPTS} em ${String(ms)}ms — ${cause}` +
+        (hint !== undefined ? ` (Retry-After: ${String(hint)}ms)` : ""),
+    );
     await sleepWithAbort(ms, signal);
   }
 
