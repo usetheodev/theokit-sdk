@@ -34,6 +34,48 @@ interface ProperLockfileOptions {
 let cached: ProperLockfileModule | null | undefined;
 let warnedMissing = false;
 let warnedStructural = false;
+/** Why the import failed, kept so the warning can report the observation instead of a guess (#174). */
+let loadFailure: unknown;
+
+/** Node reports a missing module as `ERR_MODULE_NOT_FOUND` (ESM loader) or `MODULE_NOT_FOUND` (CJS). */
+function isModuleAbsent(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null | undefined)?.code;
+  return code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND";
+}
+
+/**
+ * #174 — build the fallback warning from what actually happened.
+ *
+ * This used to always read "proper-lockfile not installed", because the import was wrapped in a
+ * bare `catch` that discarded the error (Unbreakable Rule 8: a swallowed error is the dangerous
+ * kind). A consumer whose package WAS installed, declared and resolvable spent a debugging session
+ * re-verifying the install, because the message named a cause the code had never checked.
+ *
+ * Absence is now the only case that claims absence. Every other failure — a broken install, an
+ * interop problem, a bundler that rewrote the specifier — reports its own code and message, which
+ * is what points at the real cause.
+ *
+ * @internal
+ */
+function describeLockLoadFailure(err: unknown): string {
+  const consequence =
+    "cross-process file lock unavailable — concurrent processes over the same file are NOT serialized.";
+  if (isModuleAbsent(err)) {
+    return `[theokit-sdk] proper-lockfile not installed; ${consequence} Install with: pnpm add proper-lockfile\n`;
+  }
+  const code = (err as { code?: unknown } | null | undefined)?.code;
+  const detail = err instanceof Error ? err.message : String(err);
+  return (
+    `[theokit-sdk] proper-lockfile could not be loaded${code !== undefined ? ` (${String(code)})` : ""}: ` +
+    `${detail}. ${consequence} The package resolves for the SDK but failed to load — check bundling ` +
+    "and module-format interop before re-checking the install.\n"
+  );
+}
+
+/** Test seam for the message builder — NOT in the public barrel. @internal */
+export function __TESTING__describeLockLoadFailure(err: unknown): string {
+  return describeLockLoadFailure(err);
+}
 
 async function getProperLockfile(): Promise<ProperLockfileModule | null> {
   if (cached !== undefined) return cached;
@@ -59,7 +101,10 @@ async function getProperLockfile(): Promise<ProperLockfileModule | null> {
       return cached;
     }
     cached = mod as ProperLockfileModule;
-  } catch {
+  } catch (err) {
+    // #174 — keep WHY. Discarding it here is what made the fallback warning assert a cause it had
+    // never observed, and sent a consumer to re-check an install that was already correct.
+    loadFailure = err;
     cached = null;
   }
   return cached;
@@ -102,6 +147,7 @@ export function __TESTING__resetFileLockCache(): void {
   cached = undefined;
   warnedMissing = false;
   warnedStructural = false;
+  loadFailure = undefined;
 }
 
 /**
@@ -139,13 +185,12 @@ export async function withFileLock<T>(
   const lib = await getProperLockfile();
 
   if (lib === null) {
-    if (!warnedMissing) {
+    // #174 — stay silent when the structural check already explained itself. Emitting "not
+    // installed" on top of "does not expose lock/unlock" would be two contradictory diagnoses of
+    // one failure, and the reader has no way to tell which is true.
+    if (!warnedMissing && !warnedStructural) {
       warnedMissing = true;
-      diag(
-        "[theokit-sdk] proper-lockfile not installed; " +
-          "cross-process file lock unavailable. " +
-          "Install with: pnpm add proper-lockfile\n",
-      );
+      diag(describeLockLoadFailure(loadFailure));
     }
     return withCwdMutex(`file-lock:${path}`, fn);
   }
