@@ -35,7 +35,7 @@ See [`CLAUDE.md` § First-time setup](./CLAUDE.md) for Node/pnpm details.
 
 ## Quality gates
 
-The push is gated by G1–G11 hard gates (lint, typecheck, tests, coverage, dead-code, dependency cycles, layered-architecture, bundle size, docs-drift). One tool per gate; **fix the code, not the threshold.** Details: [`.claude/quality-gates.md`](./.claude/quality-gates.md).
+The push is gated by G1–G11 hard gates (lint, typecheck, tests, coverage, dead-code, dependency cycles, layered-architecture, bundle size, docs-drift). One tool per gate; **fix the code, not the threshold.** Details: `.claude/quality-gates.md` (**absent** — verified 2026-08-06; the gates are defined in `.github/workflows/` and the `.claude/rules/` files).
 
 ## Where things live
 
