@@ -279,3 +279,88 @@ describe("theokit#140 — run.events() is a single ordered timeline", () => {
     expect(callerDeltas, "wrapping onDelta swallowed the caller's callback").toBeGreaterThan(0);
   }, 30_000);
 });
+
+/**
+ * theokit#140 — the duplicate-text half of the contract.
+ *
+ * Unifying the source fixed ORDER and the `callId` namespace, and did NOT fix this: the run's event
+ * log carries the complete assistant message, and the deltas are additional, so the same text
+ * crosses the timeline TWICE from one source. Building the consumption is how that was found — the
+ * merge apparatus shrank to nothing except `isDuplicatedByDelta`, which survived on text comparison.
+ *
+ * Comparing text is the disease. The `callId`-namespace and timestamp-fallback bugs both come from
+ * a consumer inferring, by content, a relation it was never told. So the producer states it: the
+ * SDK emitted the deltas and emits the message, in the same scope (`real-local-run.ts`), and knows
+ * the answer as a FACT. `textAlreadyStreamed` is that fact, and it replaces the inference.
+ *
+ * Marked rather than suppressed: the assistant message also carries tool calls and metadata, so
+ * dropping it would trade a duplicate for a hole. Optional field ⇒ no 4.38.0 consumer breaks.
+ */
+describe("theokit#140 — the timeline states whether a message's text already streamed", () => {
+  it("test_an_assistant_message_whose_text_already_streamed_is_marked", async () => {
+    const { timeline } = await drainTimeline();
+
+    const withText = timeline.filter(
+      (e) =>
+        e.kind === "message" &&
+        e.message.type === "assistant" &&
+        e.message.message.content.some((b) => b.type === "text"),
+    );
+    expect(withText.length, "the run produced no assistant message carrying text").toBeGreaterThan(
+      0,
+    );
+
+    for (const event of withText) {
+      expect(
+        event.kind === "message" ? event.textAlreadyStreamed : undefined,
+        "the text crossed as deltas AND as this message, and the timeline did not say so — " +
+          "which is exactly what forces the consumer back to comparing text",
+      ).toBe(true);
+    }
+  }, 30_000);
+
+  it("test_the_marked_text_is_the_text_that_actually_streamed", async () => {
+    // Guards the flag against being decorative: it must describe THIS content, not merely record
+    // that some delta happened somewhere in the run.
+    const { timeline } = await drainTimeline();
+
+    const streamedText = timeline
+      .filter((e) => e.kind === "delta" && e.update.type === "text-delta")
+      .map((e) => (e.kind === "delta" && e.update.type === "text-delta" ? e.update.text : ""))
+      .join("");
+    const messageText = timeline
+      .filter((e) => e.kind === "message" && e.message.type === "assistant")
+      .flatMap((e) =>
+        e.kind === "message" && e.message.type === "assistant" ? e.message.message.content : [],
+      )
+      .filter((b) => b.type === "text")
+      .map((b) => (b.type === "text" ? b.text : ""))
+      .join("");
+
+    expect(streamedText.length, "no text delta streamed at all in this run").toBeGreaterThan(0);
+    expect(
+      messageText,
+      "the message text and the streamed text differ — the flag would be claiming a duplication " +
+        "that is not one",
+    ).toContain(streamedText);
+  }, 30_000);
+
+  it("test_a_message_carrying_no_text_is_not_marked", async () => {
+    // The flag answers "was THIS message's text already shown?". A tool-only assistant message or a
+    // structural event has no text, so the question does not apply and a `true` there would be a
+    // lie the consumer would act on by hiding content.
+    const { timeline } = await drainTimeline();
+
+    for (const event of timeline) {
+      if (event.kind !== "message") continue;
+      const hasText =
+        event.message.type === "assistant" &&
+        event.message.message.content.some((b) => b.type === "text");
+      if (hasText) continue;
+      expect(
+        event.textAlreadyStreamed,
+        `a ${event.message.type} message with no text was marked as already streamed`,
+      ).not.toBe(true);
+    }
+  }, 30_000);
+});

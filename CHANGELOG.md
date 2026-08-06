@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **README documents which peer dependencies a bundler must keep `external` (#174).** The SDK loads `proper-lockfile`, `better-sqlite3`, `sqlite-vec`, `@lancedb/lancedb` and `ws` lazily at runtime, so a bundler inlines them by default and each one then fails on a different axis — a CommonJS `require()` at load time hits the ESM shim, a native binary cannot be inlined at all. #174 was filed against the SDK and the cause turned out to be exactly this on the consumer's side; nothing in the repository said so, and the failure it produces is the quiet kind: the cross-process lock switches off, the process keeps running, and the only signal is a diagnostic line nobody sees without a sink installed.
+
 ## [@theokit/sdk@4.39.2] - 2026-08-05
 
 ### Fixed
