@@ -82,6 +82,24 @@ Below this line, full technical vocabulary is in play. Installation, authenticat
 npm install @theokit/sdk
 ```
 
+### Bundling
+
+If you bundle your application (esbuild, rollup, webpack, tsup), mark the SDK's optional peer dependencies `external`. The SDK loads each of them lazily at runtime — `await import(...)` or `createRequire` — so a bundler inlines them by default, and two things break once they are inside the bundle: a CommonJS package that calls `require()` at load time hits the bundler's ESM `require` shim and throws (`Dynamic require of "path" is not supported`), and a native module cannot be inlined at all.
+
+```js
+external: ["proper-lockfile", "better-sqlite3", "sqlite-vec", "@lancedb/lancedb", "ws"]
+```
+
+| Package | What is lost when it is inlined |
+| --- | --- |
+| `proper-lockfile` | The cross-process file lock. Concurrent processes over the same session file are no longer serialized — the SDK falls back to an in-process mutex and warns. |
+| `better-sqlite3` | The driver. Persistence falls back to Node 22.5+ built-in `node:sqlite`. |
+| `sqlite-vec` | Vector search on the SQLite memory backend (`ConfigurationError`, code `sqlite_vec_unavailable`). |
+| `@lancedb/lancedb` | The Lance memory backend (`ConfigurationError`, code `lance_backend_unavailable`). |
+| `ws` | The Node WebSocket subscription adapter (`SubscriptionError`, code `ws_peer_missing`). |
+
+The `proper-lockfile` row is the one that fails quietly: the SDK degrades and keeps running, so the only signal is a diagnostic line. Install a sink (`setDiagnosticsSink`) to see it — otherwise a disabled cross-process lock is invisible until two processes write together.
+
 ## AI coding assistant setup (optional)
 
 Scaffold a TheoKit-aware config so your AI coding tool writes correct SDK code out of the box. Works with Claude Code, Cursor, Copilot, Windsurf, Codex, and any tool that reads `AGENTS.md`.
