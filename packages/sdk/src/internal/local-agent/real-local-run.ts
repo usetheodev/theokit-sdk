@@ -490,12 +490,27 @@ class RealLocalRun extends FixtureRunBase {
     // theokit#140 - subscribe BEFORE the loop runs, so nothing is missed between start and the
     // first await. Events now reach stream() in true order as they happen, instead of arriving as
     // one post-completion batch while onDelta streamed tokens on a separate clock.
+    // theokit#140 - whether a text delta has crossed since the last assistant message was reported.
+    // This is the FACT that lets the timeline say `textAlreadyStreamed` instead of leaving the
+    // consumer to infer it by comparing text - the inference that produced the `callId`-namespace
+    // and timestamp-fallback bugs. Scoped per run, reset at each assistant message so a multi-step
+    // run answers the question per message rather than once for the whole run.
+    let textStreamedSinceLastMessage = false;
     inputs.onLoopEvent = (event: SDKMessage) => {
       this.liveDelivered.add(event);
       this.script.events.push(event);
       // theokit#140 - the same event on the complete timeline. Both views are fed from the one
       // place the loop reports, so they cannot disagree about order or contents.
-      this.pushTimeline({ kind: "message", message: event });
+      const carriesText =
+        event.type === "assistant" && event.message.content.some((b) => b.type === "text");
+      this.pushTimeline(
+        carriesText
+          ? { kind: "message", message: event, textAlreadyStreamed: textStreamedSinceLastMessage }
+          : // No text ⇒ the question does not apply. Marking a tool-only or structural message
+            // would be a claim the consumer acts on by HIDING content it was never shown.
+            { kind: "message", message: event },
+      );
+      if (carriesText) textStreamedSinceLastMessage = false;
       this.notifyNewEvents();
     };
     // theokit#140 - the OTHER half of the timeline. Deltas were only ever reachable through the
@@ -505,6 +520,7 @@ class RealLocalRun extends FixtureRunBase {
     const callerOnDelta = inputs.onDelta;
     inputs.onDelta = (delta) => {
       callerOnDelta?.(delta);
+      if (delta.update.type === "text-delta") textStreamedSinceLastMessage = true;
       this.pushTimeline({ kind: "delta", update: delta.update });
     };
     try {
