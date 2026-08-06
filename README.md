@@ -365,7 +365,7 @@ Result data (final text, model, duration, git metadata) lives on the `Run` objec
 
 > **Tool call schema is not stable.** The `args` and `result` payloads on `tool_call` events reflect each tool's internal shape and can change as tools evolve. Tool names can also be renamed or replaced. Treat `args` and `result` as `unknown` and parse defensively. The event envelope (`type`, `call_id`, `name`, `status`) is stable.
 
-For the full type reference (`SDKMessage`, `InteractionUpdate`, `ConversationTurn`), read the exported types — they are the canonical contract — or the [capability map](./docs/harness-capability-map.md).
+For the full type reference (`SDKMessage`, `InteractionUpdate`, `ConversationTurn`), read the exported types — they are the canonical contract — or the [capability map](./wiki/reference/harness-capability-map.md).
 
 ## Resuming agents
 
@@ -707,8 +707,9 @@ The SDK is a standalone TypeScript implementation with no runtime dependency on 
 The code is the documentation: the exported TypeScript types are the canonical contract, and your editor's autocomplete is the fastest reference. Start with:
 
 - [`examples/`](./examples/) — runnable end-to-end examples for every surface
-- [Capability map](./docs/harness-capability-map.md) — every public primitive + its import path
-- [Error codes](./docs/error-codes.md) — the `AgentRunError.code` reference table
+- [Capability map](./wiki/reference/harness-capability-map.md) — every public primitive + its import path
+- [Error codes](./wiki/reference/error-codes.md) — the `AgentRunError.code` reference table
+- [`wiki/`](./wiki/index.md) — the knowledge bundle: agent fundamentals, the SDK in practice, operations, and a 12-module Agent AI course
 
 Both reference docs **ship inside the package**: read them offline, pinned to the exact version you installed, at `node_modules/@theokit/sdk/docs/`. The scaffolded agent context (`npx theokit-init-claude`) ships there too, under `claude-template/`.
 
