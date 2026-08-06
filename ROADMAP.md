@@ -10,7 +10,7 @@
 The `@theokit/sdk` is the **Harness** pillar of Theo. This roadmap tracks the closure of the
 edge-case & bottleneck gaps surfaced by the 2026-06/07 cross-validation sweep against state-of-the-art
 agent runtimes. Master map:
-`.claude/knowledge-base/audits/cross-validation/MASTER-edge-case-bottleneck-map.md` — **arquivo ausente** (verificado 2026-08-06).
+`.claude/knowledge-base/audits/cross-validation/MASTER-edge-case-bottleneck-map.md` — **missing file** (verified 2026-08-06). The `.claude/knowledge-base/` tree was absorbed into `wiki/` on 2026-08-06 and this map was never among its contents, so the path is dead in both directions.
 
 ## How to work these milestones
 
