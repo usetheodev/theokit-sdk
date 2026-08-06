@@ -530,7 +530,25 @@ export interface CompletionCheckResult {
  * @public
  */
 export type RunTimelineEvent =
-  | { kind: "message"; message: SDKMessage }
+  | {
+      kind: "message";
+      message: SDKMessage;
+      /**
+       * theokit#140 - `true` when this message's TEXT content already crossed the timeline as
+       * `kind: "delta"` events. Absent when the question does not apply (no text to duplicate).
+       *
+       * Unifying the source fixed ordering and the `callId` namespace; it did NOT stop the same
+       * text arriving twice, because the run's event log carries the complete assistant message and
+       * the deltas are additional. Without this field a consumer has to infer the relation by
+       * COMPARING TEXT - which is where the `callId`-namespace and timestamp-fallback bugs came
+       * from. The SDK emitted the deltas and emits the message from the same scope, so it knows the
+       * answer as a fact; stating it replaces the inference with a boolean.
+       *
+       * Marked rather than suppressed: the message also carries tool calls and metadata, so
+       * dropping it would trade a duplicate for a hole. Optional, so no existing consumer breaks.
+       */
+      textAlreadyStreamed?: boolean;
+    }
   | { kind: "delta"; update: import("./updates.js").InteractionUpdate };
 
 export interface Run {
