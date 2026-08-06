@@ -1,3 +1,20 @@
+---
+type: Error Reference
+title: AgentRunError code reference
+description: The canonical AgentRunError.code union plus the provider-to-code mapping for OpenAI, Anthropic, Vertex, Bedrock and Ollama.
+resource: https://github.com/usetheodev/theokit-sdk/blob/main/wiki/reference/error-codes.md
+tags: [errors, providers, retry, shipped-to-npm]
+generated: { by: human:paulohenriquevn, at: 2026-08-05T00:00:00Z }
+status: stable
+sources:
+  - id: mappers
+    resource: packages/sdk/src/internal/error-mappers/
+    title: Per-provider mapping implementations — the authoritative list
+  - id: adrs
+    resource: ADRs D311-D314, D65-D68
+    title: Error-system architecture decisions
+---
+
 # `@theokit/sdk` Error Codes Reference
 
 Canonical reference for `AgentRunError.code` values + provider-to-code mapping (Production-Readiness #3, ADRs D311-D314).
@@ -155,3 +172,8 @@ The redacted body is safe to log — `redactSecrets` strips known secret pattern
 
 - `internal/error-mappers/` — per-provider mapping implementations
 - ADRs D311-D314, D65-D68 (the broader error system)
+- [Capability map](./harness-capability-map.md) — where the error classes are exported from
+
+In the wiki: [failure taxonomy](../sdk/failure-taxonomy.md) turns these codes into a
+response policy (retry vs fail-fast), and [run signals](../sdk/run-signals.md) places
+`error` among the seven ways a run can end.
