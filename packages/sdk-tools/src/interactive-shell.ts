@@ -38,7 +38,38 @@ export interface CreateInteractiveShellToolOptions {
 
 /** Map the SDK's typed interactive errors to the tool's `{ ok: false, error }` JSON. Re-throws anything
  *  else (a real bug), per the sdk-tools "JSON on user mistakes, throw on SDK bugs" contract. */
+/**
+ * U-2 — a session cap carries `max` and `liveSessionIds`, and those are the only fields the model
+ * can act on: without them "interactive_unavailable" cannot be told apart from a missing backend,
+ * and the obvious remedy (reuse one of the open sessions) is invisible.
+ *
+ * Checked STRUCTURALLY rather than with `instanceof`. The class that raises it lives in
+ * `@theokit/sdk-pty`, which this package does not depend on and should not — and the tool accepts an
+ * INJECTED backend, so any provider reporting the same two fields deserves the same treatment.
+ */
+function capFields(err: object): { max: number; liveSessionIds: readonly string[] } | undefined {
+  const e = err as { max?: unknown; liveSessionIds?: unknown };
+  if (typeof e.max !== "number") return undefined;
+  if (!Array.isArray(e.liveSessionIds)) return undefined;
+  if (!e.liveSessionIds.every((id) => typeof id === "string")) return undefined;
+  return { max: e.max, liveSessionIds: e.liveSessionIds as readonly string[] };
+}
+
 function toErrorJson(err: unknown): string {
+  // Before the superclass branch: `MaxSessionsError extends InteractiveUnavailableError`, so
+  // matching the parent first flattened the subclass and dropped what made it actionable.
+  if (typeof err === "object" && err !== null) {
+    const cap = capFields(err);
+    if (cap !== undefined) {
+      return JSON.stringify({
+        ok: false,
+        error: "interactive_session_limit",
+        max: cap.max,
+        live_session_ids: [...cap.liveSessionIds],
+        message: (err as { message?: unknown }).message,
+      });
+    }
+  }
   if (err instanceof InteractiveUnavailableError) {
     return JSON.stringify({ ok: false, error: "interactive_unavailable" });
   }
