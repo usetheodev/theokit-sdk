@@ -18,6 +18,7 @@
 export type { AtomicWriteJsonOptions } from "./internal/persistence/atomic-write.js";
 export {
   atomicWriteJson,
+  atomicWriteTempTarget,
   atomicWriteText,
   replaceFileAtomic,
 } from "./internal/persistence/atomic-write.js";
@@ -37,6 +38,10 @@ export {
   readJsonlIds,
 } from "./internal/persistence/jsonl.js";
 export { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
+export {
+  classifySessionArtifact,
+  type SessionArtifact,
+} from "./internal/persistence/session-artifacts.js";
 // SE40 — native session transcript (Claude-shaped `.jsonl`, theokit-native). The
 // on-disk session format IS this shape. `encodeProjectDir` + `transcriptPath` are
 // the path helpers a consumer reuses to locate a session file under

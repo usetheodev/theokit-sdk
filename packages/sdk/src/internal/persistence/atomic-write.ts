@@ -103,6 +103,31 @@ export interface AtomicWriteFileOptions {
   exclusive?: boolean;
 }
 
+/** The one place the temp-path format is written. `atomicWriteTempTarget` reverses it. */
+function atomicWriteTempPath(filePath: string, pid: number, suffix: string): string {
+  return `${filePath}.${String(pid)}.${suffix}.tmp`;
+}
+
+/** Reverses {@link atomicWriteTempPath}: `<file>.<pid>.<hex>.tmp` → `<file>`. */
+const TEMP_PATTERN = /^(.+)\.\d+\.[0-9a-f]{16}\.tmp$/;
+
+/**
+ * U-9 — the file a leftover temp was replacing, or `undefined` if this is not one of ours.
+ *
+ * A crash between the open and the rename leaves `<file>.<pid>.<hex>.tmp` behind, and nothing here
+ * collects it: this module creates temps and has no opinion about sweeping them. A consumer that
+ * wants to has to know the format — which lived only in the implementation, so one copied it out of
+ * a compiled chunk as a regex. That copy would have gone on reporting "nothing to collect" the day
+ * the format changed, which is the quietest possible way for a cleanup to stop working.
+ *
+ * Deliberately strict: the pid must be digits and the suffix exactly 16 hex characters. Matching any
+ * `.tmp` would claim editors' swap files and other tools' scratch, on a path whose purpose is
+ * deleting them.
+ */
+export function atomicWriteTempTarget(name: string): string | undefined {
+  return TEMP_PATTERN.exec(name)?.[1];
+}
+
 /**
  * Atomic file replacement: write content to a per-call unique tmp path,
  * fsync, then rename over the target. Crash mid-write leaves either the old
@@ -157,7 +182,7 @@ export async function replaceFileAtomic(
   // attacker observing the process can no longer predict the next
   // tmp path and pre-stage a hostile file to be renamed into place.
   const suffix = randomBytes(8).toString("hex");
-  const tmp = `${filePath}.${process.pid}.${suffix}.tmp`;
+  const tmp = atomicWriteTempPath(filePath, process.pid, suffix);
   // T5.7 — mode 0o600 on the tmp file (owner read+write only). The
   // tmp file holds the FULL in-flight content (credential snapshots,
   // OAuth tokens) before the rename. World-readable default would

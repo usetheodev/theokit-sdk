@@ -28,6 +28,44 @@ import path from "node:path";
  */
 export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access";
 
+/**
+ * The RW binds `workspace-write` installs (protocol.rs:1189-1214), plus the metadata protection that
+ * must sit ON TOP of them — order matters (permissions.rs:22-31; bwrap.rs:571-597).
+ */
+function pushWorkspaceBinds(argv: string[], cwd: string, hasGit: boolean, gitDir: string): void {
+  for (const root of workspaceWriteRoots(cwd)) argv.push("--bind", root, root);
+  if (hasGit) argv.push("--ro-bind", gitDir, gitDir);
+}
+
+/** The RW binds `workspace-write` installs (protocol.rs:1189-1214): the workspace itself, and /tmp. */
+function workspaceWriteRoots(cwd: string): readonly string[] {
+  return [cwd, "/tmp"];
+}
+
+/**
+ * U-6 — the roots a mode may write to, answerable WITHOUT spawning anything.
+ *
+ * `[]` means nothing is writable; `null` means unrestricted — which is not the same as `["/"]`,
+ * because unrestricted is the absence of a root rather than a root that happens to be `/`.
+ *
+ * The SDK already knew this: `buildBwrapArgv` binds these exact paths. It only knew it while
+ * BUILDING an argv, and a consumer needs the answer earlier — tools are scoped at agent
+ * construction, before any process exists, and a file-write tool has to be told its root then. With
+ * nothing to ask, consumers keep a second encoding of this three-mode vocabulary and it drifts from
+ * the argv builder with nothing to catch it. This reads from the same helper the builder uses, so
+ * the two cannot disagree.
+ */
+export function writableRootsFor(mode: SandboxMode, cwd: string): readonly string[] | null {
+  switch (mode) {
+    case "read-only":
+      return [];
+    case "workspace-write":
+      return workspaceWriteRoots(cwd);
+    case "danger-full-access":
+      return null;
+  }
+}
+
 export interface BwrapArgvOptions {
   /** Workspace root — the single RW bind under `workspace-write` (protocol.rs:1189-1200). */
   cwd: string;
@@ -82,12 +120,7 @@ export function buildBwrapArgv(mode: SandboxMode, opts: BwrapArgvOptions): strin
   };
   for (const [k, v] of Object.entries(setenv)) argv.push("--setenv", k, v);
 
-  if (mode === "workspace-write") {
-    // writable roots: cwd + /tmp (protocol.rs:1189-1214)
-    argv.push("--bind", cwd, cwd, "--bind", "/tmp", "/tmp");
-    // metadata protection ON TOP of the RW bind — order matters (permissions.rs:22-31; bwrap.rs:571-597)
-    if (hasGit) argv.push("--ro-bind", gitDir, gitDir);
-  }
+  if (mode === "workspace-write") pushWorkspaceBinds(argv, cwd, hasGit, gitDir);
   // read-only: zero writable roots (protocol.rs:1176) — nothing to add
 
   argv.push("--chdir", cwd, "--");

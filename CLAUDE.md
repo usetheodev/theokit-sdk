@@ -16,7 +16,7 @@ Layout:
 theokit-sdk/
 ├── README.md           # Public-facing front door
 ├── CLAUDE.md           # This file
-├── docs/               # Human-friendly documentation (the code is the docs)
+├── wiki/               # OKF knowledge bundle (concepts, sdk, operations, reference, project)
 ├── CHANGELOG.md        # Workspace-level changelog (per-package changelogs in each package)
 ├── package.json        # Workspace root (private, pnpm)
 ├── pnpm-workspace.yaml # Workspace member globs
@@ -43,9 +43,11 @@ The pillar split (UI · Harness · Skills · Runtime) is locked. Do not propose 
 
 The **exported TypeScript types** (`packages/sdk/src/types/` → the public barrel `packages/sdk/src/index.ts`) are the canonical contract for the public API. The code is the documentation.
 
-- Any change that affects the public surface (`Agent`, `Run`, `SDKMessage`, `InteractionUpdate`, error types, env vars, config dirs) is defined by the exported types. `docs/harness-capability-map.md` maps every public primitive to its import path and MUST be updated in the same PR when the surface changes.
-- The `README.md` is the front door. It summarizes the public surface and points to the exported types + `docs/` for deep reference. It does **not** invent API.
-- If the README or `docs/` drift from the exported types, fix the docs — the types win.
+- Any change that affects the public surface (`Agent`, `Run`, `SDKMessage`, `InteractionUpdate`, error types, env vars, config dirs) is defined by the exported types. `wiki/reference/harness-capability-map.md` maps every public primitive to its import path and MUST be updated in the same PR when the surface changes.
+- The `README.md` is the front door. It summarizes the public surface and points to the exported types + `wiki/` for deep reference. It does **not** invent API.
+- If the README or `wiki/` drift from the exported types, fix the wiki — the types win.
+
+> **`wiki/reference/` is gate-scoped.** It holds exactly the two consumer-facing reference concepts, which `packages/sdk/scripts/copy-docs.mjs` ships into the npm tarball and `packages/sdk/tests/lint/shipped-docs.test.ts` guards. A third `.md` landing there fails that test unless it is added to the copy list. Every other wiki concept goes in a sibling folder (`concepts/`, `sdk/`, `operations/`, `ecosystem/`, `curriculum/`, `project/`). The bundle is Open Knowledge Format v0.2; validate with `node ~/.claude/skills/okf/okf-validate.mjs wiki --strict`.
 
 ## Locked names
 
@@ -127,7 +129,7 @@ Some dependencies ship native binaries (currently: `better-sqlite3`). Each is co
 
 **Does NOT apply to (stays technical-direct):**
 
-- The exported types + `docs/` reference (`harness-capability-map.md`, `error-codes.md`) — the canonical public API contract. Precise, technical, no marketing varnish.
+- The exported types + `wiki/reference/` (`harness-capability-map.md`, `error-codes.md`) — the canonical public API contract. Precise, technical, no marketing varnish.
 - `README.md` DEEP DIVE layer — everything from `## How it works` downward, including Installation, Authentication, Core concepts, API surfaces (`Agent.create`, `agent.send`, `SDKMessage`), MCP, Cron, Errors, Cloud reference, Configuration reference, Development. Full technical vocabulary is in play.
 - This `CLAUDE.md`, `CHANGELOG.md`, internal design notes, and per-package docs.
 
@@ -217,7 +219,7 @@ pnpm validate                 # everything above plus publint + attw
 
 ## Checklist before changing public API
 
-- [ ] Updated the exported types to reflect the new shape (they are the source of truth) + `docs/harness-capability-map.md` if the surface changed.
+- [ ] Updated the exported types to reflect the new shape (they are the source of truth) + `wiki/reference/harness-capability-map.md` if the surface changed.
 - [ ] Updated `README.md` if the change is user-visible.
 - [ ] Added or updated tests covering the new contract (TDD: regression test first when fixing a bug).
 - [ ] `CHANGELOG.md` entry under `[Unreleased]` in `packages/sdk/CHANGELOG.md` (or root `CHANGELOG.md` for workspace changes).

@@ -1,3 +1,20 @@
+---
+type: API Reference
+title: Theo Harness Capability Map
+description: Every public primitive of @theokit/sdk and @theokit/sdk-tools with its real import path and a minimal example.
+resource: https://github.com/usetheodev/theokit-sdk/blob/main/wiki/reference/harness-capability-map.md
+tags: [api, imports, discovery, shipped-to-npm]
+generated: { by: human:paulohenriquevn, at: 2026-08-05T00:00:00Z }
+status: stable
+sources:
+  - id: types
+    resource: packages/sdk/src/types/
+    title: Exported TypeScript types — the canonical public contract
+  - id: resolve-check
+    resource: scripts/check-capability-map.mjs
+    title: Committed resolve-check that verifies every import in this file
+---
+
 # Theo Harness Capability Map
 
 A single navigable index of **what the Theo harness gives you** — every public
@@ -278,5 +295,10 @@ A few GAP_AUDIT items are runtime behaviors the harness performs internally — 
 ## See also
 
 - The exported TypeScript types — the canonical, exhaustive public API contract.
-- [`packages/sdk/README.md`](../packages/sdk/README.md) — `@theokit/sdk` front door.
-- [`packages/sdk-tools/README.md`](../packages/sdk-tools/README.md) — `@theokit/sdk-tools` front door.
+- [Error codes](./error-codes.md) — the `AgentRunError.code` table and provider mapping.
+- [`packages/sdk/README.md`](https://github.com/usetheodev/theokit-sdk/blob/main/packages/sdk/README.md) — `@theokit/sdk` front door.
+- [`packages/sdk-tools/README.md`](https://github.com/usetheodev/theokit-sdk/blob/main/packages/sdk-tools/README.md) — `@theokit/sdk-tools` front door.
+
+In the wiki: [import map](../sdk/import-map.md) groups these same entries by task,
+[run signals](../sdk/run-signals.md) covers what a run reports back, and
+[failure taxonomy](../sdk/failure-taxonomy.md) says which of the codes above are worth a retry.

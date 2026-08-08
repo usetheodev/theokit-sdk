@@ -1,6 +1,6 @@
 # Contributing to `@theokit/sdk`
 
-Thanks for helping build the Theo **Harness**. The essentials are inline below; the exported TypeScript types are the canonical API contract (start from the [Harness Capability Map](./docs/harness-capability-map.md)) and the project conventions/toolchain/quality-gates live in [`CLAUDE.md`](./CLAUDE.md). The code is the documentation.
+Thanks for helping build the Theo **Harness**. The essentials are inline below; the exported TypeScript types are the canonical API contract (start from the [Harness Capability Map](./wiki/reference/harness-capability-map.md)) and the project conventions/toolchain/quality-gates live in [`CLAUDE.md`](./CLAUDE.md). The code is the documentation.
 
 ## Quick start
 
@@ -29,13 +29,13 @@ See [`CLAUDE.md` § First-time setup](./CLAUDE.md) for Node/pnpm details.
 
 - [ ] `pnpm validate` is green locally (or the specific package's `build` + `typecheck` + `test`).
 - [ ] **TDD** — the failing test came first; a bug fix ships with its regression test. See [`.claude/rules/testing.md`](./.claude/rules/testing.md).
-- [ ] **Public API changed?** Update the exported types + [`docs/harness-capability-map.md`](./docs/harness-capability-map.md) **in the same PR** — this is quality gate G11. See [`CLAUDE.md`](./CLAUDE.md) (locked names + conventions).
+- [ ] **Public API changed?** Update the exported types + [`wiki/reference/harness-capability-map.md`](./wiki/reference/harness-capability-map.md) **in the same PR** — this is quality gate G11. See [`CLAUDE.md`](./CLAUDE.md) (locked names + conventions).
 - [ ] `CHANGELOG.md` `[Unreleased]` entry added, and a **changeset** (`pnpm changeset`) if the change is user-visible. Releases cut via Changesets (`develop → main` PR + semver tag).
 - [ ] Lint + format clean (`pnpm check` — Biome).
 
 ## Quality gates
 
-The push is gated by G1–G11 hard gates (lint, typecheck, tests, coverage, dead-code, dependency cycles, layered-architecture, bundle size, docs-drift). One tool per gate; **fix the code, not the threshold.** Details: [`.claude/quality-gates.md`](./.claude/quality-gates.md).
+The push is gated by G1–G11 hard gates (lint, typecheck, tests, coverage, dead-code, dependency cycles, layered-architecture, bundle size, docs-drift). One tool per gate; **fix the code, not the threshold.** Details: `.claude/quality-gates.md` (**absent** — verified 2026-08-06; the gates are defined in `.github/workflows/` and the `.claude/rules/` files).
 
 ## Where things live
 
