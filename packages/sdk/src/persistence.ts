@@ -18,6 +18,7 @@
 export type { AtomicWriteJsonOptions } from "./internal/persistence/atomic-write.js";
 export {
   atomicWriteJson,
+  atomicWriteTempTarget,
   atomicWriteText,
   replaceFileAtomic,
 } from "./internal/persistence/atomic-write.js";
