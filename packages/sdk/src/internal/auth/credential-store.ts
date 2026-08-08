@@ -119,7 +119,7 @@ const fileSchema = z.union([oauthFileSchema, apiFileSchema]);
  * writable dir lets an attacker replace the credential file with a symlink to their own 0600 file — the
  * agent then runs on THEIR account.
  */
-function assertSecureModes(dirPath: string, path: string): void {
+export function assertSecureModes(dirPath: string, path: string): void {
   const dirMode = statSync(dirPath).mode & 0o777;
   if ((dirMode & 0o022) !== 0) {
     throw new CredentialError(

@@ -31,6 +31,7 @@ export type {
 
 // Credential store.
 export {
+  assertSecureModes,
   authFilePath,
   CredentialError,
   credentialHome,

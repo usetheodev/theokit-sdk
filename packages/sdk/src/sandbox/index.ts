@@ -12,6 +12,7 @@ export {
   realProbes,
   resetBwrapMemo,
   type SandboxMode,
+  writableRootsFor,
 } from "./bwrap.js";
 // M75 T2.2 — o backend com enforcement de kernel + o wrap + a postura. `wrapCommandForSandbox` e
 // `resolveSandboxPosture` are PUBLIC API as required by M75 (T2.3): the first for whoever composes the
