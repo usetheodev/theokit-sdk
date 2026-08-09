@@ -178,8 +178,8 @@ describe("Agent.getOrCreate — cache integration (T2.6)", () => {
     // Raising the number only moves the threshold. Waiting for the CONDITION with a deadline removes the
     // timing assumption without weakening the assertion: the test still requires `aid` to be evicted, and fails
     // the same way if that never happens.
-    const prazo = Date.now() + 5_000;
-    while (!evicted.includes(aid) && Date.now() < prazo) {
+    const deadline = Date.now() + 5_000;
+    while (!evicted.includes(aid) && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 10));
     }
     expect(evicted).toContain(aid);

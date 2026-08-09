@@ -3,7 +3,7 @@
  *
  * This module USED TO BE a vendored copy of `@theokit/sdk`'s implementation, consumed by the 9 tools
  * that touch paths. Duplicating a **security** primitive across packages meant the canonical one
- * evoluiu — blocklist de credenciais (`.ssh` `.aws` `.kube` `.npmrc` `id_rsa` `authorized_keys`
+ * has evolved — a credential blocklist (`.ssh` `.aws` `.kube` `.npmrc` `id_rsa` `authorized_keys`
  * `*.pem` `*.key` `*.p12`), case-insensitive normalization, NUL/control-char rejection (T5.5), the
  * filesystem-root base fix (#149) — while the copy stood still. Nothing in CI compared the two, and the
  * divergence grew with every fix applied to only one side: an agent could read `.ssh/id_rsa`,

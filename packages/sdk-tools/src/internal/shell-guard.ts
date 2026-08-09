@@ -20,7 +20,7 @@
  * This is a heuristic GUARDRAIL, NOT a sandbox: it is bypassable by deep obfuscation
  * (base64/env-indirection) and is best-effort. POSIX `/bin/sh` only; Windows
  * PowerShell is out of scope. True isolation needs a container.
- * referencia: .claude/knowledge-base/references/theocode-shell-guard/server-lib/shell-guard.ts
+ * reference: .claude/knowledge-base/references/theocode-shell-guard/server-lib/shell-guard.ts
  */
 
 import { ConfigurationError } from "@theokit/sdk";

@@ -6,10 +6,10 @@
  * Peels off ALL decorators down to the real transport, in a loop.
  *
  * In a loop and not two `if`s: the order in which router and chain-builder wrap is not fixed, and one
- * desembrulho posicional passa a depender dela. M93 — o `RetryingLlmClient` foi o segundo
+ * positional unwrapping now depends on it. M93 — `RetryingLlmClient` was the second
  * decorator to arrive; the third must not break these tests again.
  */
-function descascar(client: LlmClient): LlmClient {
+function unwrapDecorators(client: LlmClient): LlmClient {
   let current = client;
   for (;;) {
     if (current instanceof RetryingLlmClient) current = current.inner;
@@ -158,9 +158,9 @@ describe("router (T4.3)", () => {
 describe("router — leaked-dialect recovery route flag (theokit#58 follow-up)", () => {
   // In NODE_ENV=test every client is wrapped by FaultInjectingLlmClient (D14);
   // the real transport is on `.inner`.
-  // M93 — o `RetryingLlmClient` entrou como decorator externo; desembrulhar os dois.
+  // M93 — `RetryingLlmClient` arrived as an outer decorator; unwrap both.
   const unwrap = (client: LlmClient): OpenAIClient => {
-    return descascar(client) as OpenAIClient;
+    return unwrapDecorators(client) as OpenAIClient;
   };
 
   it("clones the resolved profile with extractToolCallsFromContent when the route opts in", () => {

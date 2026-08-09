@@ -6,7 +6,7 @@
  * The test the plan asked for — *"pre-plant the temp file and assert the write rejects"* — is
  * **unwritable as specified**. The temp file's name is
  * `${filePath}.${process.pid}.${randomBytes(8).toString("hex")}.tmp`
- * (`src/internal/persistence/atomic-write.ts:106-107`): 64 bits de CSPRNG, exatamente o que o T5.7
+ * (`src/internal/persistence/atomic-write.ts:106-107`): 64 bits of CSPRNG, exactly what T5.7
  * introduced precisely so nobody — neither an attacker nor this test — can predict the path.
  *
  * The seam is therefore **`vi.mock("node:crypto")`**, making `randomBytes` deterministic only inside
@@ -27,7 +27,7 @@
  * The test pair is what gives the mutation meaning: without `exclusive`, a leftover temp file **is**
  * truncated (today's behavior, preserved); with `exclusive`, it is a refusal. A test of only the
  * `true` branch would also pass under the inverse mutation (`flag = "wx"` always), which would break every
- * chamador current.
+ * caller current.
  */
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -65,25 +65,25 @@ describe("M107 T1.1 — exclusive makes the temp file born by exclusive creation
     writeFileSync(tempPathFor(destination), "residue");
 
     // Act + Assert — exclusive creation refuses with the SYSTEM's error, not silenced.
-    await expect(atomicWriteJson(destination, { novo: true }, { exclusive: true })).rejects.toThrow(
-      /EEXIST/,
-    );
+    await expect(
+      atomicWriteJson(destination, { fresh: true }, { exclusive: true }),
+    ).rejects.toThrow(/EEXIST/);
 
     // Assert — the destination was NOT touched, nor was the residue (the refusal happens at creation).
     expect(readFileSync(destination, "utf-8")).toBe('{\n  "previous": true\n}\n');
     expect(readFileSync(tempPathFor(destination), "utf-8")).toBe("residue");
   });
 
-  it("test_sem_exclusive_um_temporario_residuo_continua_sendo_truncado", async () => {
+  it("test_without_exclusive_a_leftover_temp_file_is_still_truncated", async () => {
     // Arrange — the same scenario, WITHOUT the option: this is today's behavior, and it is preserved.
     const destination = join(dir, "config.json");
     writeFileSync(tempPathFor(destination), "residue");
 
     // Act
-    await atomicWriteJson(destination, { novo: true });
+    await atomicWriteJson(destination, { fresh: true });
 
     // Assert — the write won, and the temp file became the destination (nothing left over).
-    expect(readFileSync(destination, "utf-8")).toBe('{\n  "novo": true\n}\n');
+    expect(readFileSync(destination, "utf-8")).toBe('{\n  "fresh": true\n}\n');
     expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
   });
 

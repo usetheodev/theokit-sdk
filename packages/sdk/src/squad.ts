@@ -85,7 +85,7 @@ export interface Squad {
  * interop contract the layer relies on), so an identity check would fail exactly when two copies of
  * the SDK are loaded — the failure mode M79 measured.
  */
-function ehAgenteConstruido(m: SDKAgent | AgentDefinition): m is SDKAgent {
+function isBuiltAgent(m: SDKAgent | AgentDefinition): m is SDKAgent {
   return typeof (m as SDKAgent).send === "function";
 }
 
@@ -95,15 +95,15 @@ function ehAgenteConstruido(m: SDKAgent | AgentDefinition): m is SDKAgent {
  * `Agent` is imported dynamically because `squad.ts` is consumed by paths that do not want to drag the
  * whole agent in just to declare a team; the cost is only paid by callers actually passing raw data.
  */
-async function materializar(def: AgentDefinition, indice: number): Promise<SDKAgent> {
+async function materialize(def: AgentDefinition, index: number): Promise<SDKAgent> {
   const { Agent } = await import("./agent.js");
   return Agent.create({
     // `AgentDefinition.model` admits the sentinel `'inherit'`, which is not a model id. Inheriting
     // here means "declare nothing and let the default apply" — forwarding the literal would create
-    // um agente pedindo um modelo chamado `inherit`.
+    // an agent asking for a model literally named `inherit`.
     ...(def.model !== undefined && def.model !== "inherit" ? { model: def.model } : {}),
     ...(def.prompt !== undefined ? { systemPrompt: def.prompt } : {}),
-    agentId: `squad-member-${String(indice)}`,
+    agentId: `squad-member-${String(index)}`,
     local: {},
   });
 }
@@ -135,7 +135,7 @@ function createSquad(options: SquadOptions): Squad {
  *
  * Extracted from `run` because the cognitive-complexity gate rejected the combined function — and because
  * "building the pipeline" and "running it and translating the result" are two responsibilities that were only
- * juntas por proximidade.
+ * together by proximity.
  */
 async function buildPipeline(
   agents: ReadonlyArray<SDKAgent | AgentDefinition>,
@@ -145,12 +145,12 @@ async function buildPipeline(
   // output (the run input for the first agent).
   let builder = Workflow.create({ name: nome ?? "squad" });
   for (let i = 0; i < agents.length; i++) {
-    const membro = agents[i];
-    if (membro === undefined) continue;
+    const member = agents[i];
+    if (member === undefined) continue;
     // M81 — materializes at RUN time, not at construction: `Squad.create` is synchronous and an
     // `AgentDefinition` only becomes an agent with an `await`. Deferring to here keeps construction cheap and
     // avoids requiring a resolved credential to assemble a team before the first run.
-    const agent = ehAgenteConstruido(membro) ? membro : await materializar(membro, i);
+    const agent = isBuiltAgent(member) ? member : await materialize(member, i);
     // SE3 — the first agent receives the human input (no peer origin); every subsequent agent
     // receives its predecessor's output, so its turn carries `{ kind: "peer", from: "agent-<i-1>" }`.
     const opts = i > 0 ? { origin: { kind: "peer" as const, from: `agent-${i - 1}` } } : undefined;

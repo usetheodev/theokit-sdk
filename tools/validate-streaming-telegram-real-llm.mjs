@@ -15,10 +15,16 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Agent } from "/home/paulo/Projetos/usetheo/theokit-sdk/packages/sdk/dist/index.js";
+import { fileURLToPath } from "node:url";
+import { Agent } from "../packages/sdk/dist/index.js";
+
+// The repository root, derived from this file's location. It used to be the hardcoded absolute
+// path of one developer's checkout, which no longer exists — this script was broken on every
+// machine, including the one that wrote it.
+const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 // Load .env from telegram-pro example
-const envPath = "/home/paulo/Projetos/usetheo/theokit-sdk/examples/telegram-pro/.env";
+const envPath = `${REPO_ROOT}examples/telegram-pro/.env`;
 if (existsSync(envPath)) {
   for (const line of readFileSync(envPath, "utf8").split("\n")) {
     const trimmed = line.trim();
@@ -263,7 +269,7 @@ This validates:
 `;
 
 writeFileSync(
-  "/home/paulo/Projetos/usetheo/theokit-sdk/.claude/knowledge-base/reviews/streaming-telegram-real-llm-2026-05-17.md",
+  `${REPO_ROOT}.claude/knowledge-base/reviews/streaming-telegram-real-llm-2026-05-17.md`,
   snapshot,
 );
 console.log("Wrote: .claude/knowledge-base/reviews/streaming-telegram-real-llm-2026-05-17.md");

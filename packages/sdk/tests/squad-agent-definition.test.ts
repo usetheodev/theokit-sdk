@@ -1,7 +1,7 @@
 /**
  * M81 T2.2 — `Squad.create` accepts an `AgentDefinition`, not only an already-built `SDKAgent`.
  *
- * ## O que mudou de fato
+ * ## What actually changed
  *
  * `squad.ts` declared `agents: ReadonlyArray<SDKAgent>`. Assembling a team forced the caller to
  * **materialize each agent by hand** first — resolve the credential, build options, call
@@ -10,7 +10,7 @@
  *
  * With `discoverSubagents` public (T2.1), the data describing an agent became reachable by the
  * consumer. Accepting that data directly closes the loop: discover -> assemble a team, with no manual step
- * no meio.
+ * in between.
  *
  * ## The half that matters most is backward compatibility
  *
@@ -29,31 +29,31 @@ const definition: AgentDefinition = {
 };
 
 /** Minimal `SDKAgent` double — the Squad only needs it to exist in order to compose the workflow. */
-const agenteConstruido = { agentId: "ja-construido" } as unknown as SDKAgent;
+const builtAgent = { agentId: "already-built" } as unknown as SDKAgent;
 
-describe("M81 T2.2 — Squad.create aceita AgentDefinition", () => {
-  it("test_Squad_aceita_AgentDefinition_como_membro", () => {
+describe("M81 T2.2 — Squad.create accepts AgentDefinition", () => {
+  it("test_Squad_accepts_an_AgentDefinition_as_a_member", () => {
     // The new path: raw data goes in, the Squad materializes when it runs.
     const squad = Squad.create({ agents: [definition] });
     expect(squad).toBeDefined();
     expect(squad.run).toBeTypeOf("function");
   });
 
-  it("test_CONTRAPROVA_SDKAgent_ja_construido_continua_aceito", () => {
-    // Sem esta, trocar o tipo por `AgentDefinition` puro passaria no teste acima e quebraria todo
+  it("test_COUNTERPROOF_an_already_built_SDKAgent_is_still_accepted", () => {
+    // Without this one, swapping the type for a plain `AgentDefinition` would pass the test above and break every
     // an existing consumer silently — the Squad does not run at construction, so the break would only
-    // apareceria no first `run()`.
-    const squad = Squad.create({ agents: [agenteConstruido] });
+    // would only show up on the first `run()`.
+    const squad = Squad.create({ agents: [builtAgent] });
     expect(squad).toBeDefined();
   });
 
-  it("test_aceita_MISTURA_dos_dois_na_mesma_lista", () => {
+  it("test_it_accepts_a_MIX_of_both_in_the_same_list", () => {
     // The real case: a team with one agent from disk and another built by the app.
-    const squad = Squad.create({ agents: [definition, agenteConstruido] });
+    const squad = Squad.create({ agents: [definition, builtAgent] });
     expect(squad).toBeDefined();
   });
 
-  it("test_a_materializacao_ACONTECE_de_fato_ao_rodar", async () => {
+  it("test_the_materialization_ACTUALLY_HAPPENS_on_run", async () => {
     // The missing test, and the gap was found by mutation: swapping the type guard for
     // `() => true` (treating EVERY member as already built) killed no test, because the
     // others only prove the TYPE accepts — never that materialization runs.

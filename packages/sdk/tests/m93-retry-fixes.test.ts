@@ -40,7 +40,7 @@ function transportFailingAfterEmit(before: string[], error: unknown) {
   return { client, state };
 }
 
-async function coletar(c: LlmClient, signal = new AbortController().signal) {
+async function collect(c: LlmClient, signal = new AbortController().signal) {
   const output: string[] = [];
   try {
     for await (const e of c.stream({} as LlmRequest, signal)) {
@@ -58,14 +58,14 @@ describe("M93/B1 — a partially consumed stream is NOT retried", () => {
       ["tok1", "tok2"],
       new NetworkError("socket hang up"),
     );
-    const output = await coletar(new RetryingLlmClient(client, { rng: () => 0 }));
+    const output = await collect(new RetryingLlmClient(client, { rng: () => 0 }));
     expect(state.attempts).toBe(1);
     expect(output).toEqual(["tok1", "tok2"]);
   });
 
   it("failing BEFORE emitting -> retries normally", async () => {
     const { client, state } = transportFailingAfterEmit([], new NetworkError("ECONNRESET"));
-    await coletar(new RetryingLlmClient(client, { rng: () => 0 }));
+    await collect(new RetryingLlmClient(client, { rng: () => 0 }));
     expect(state.attempts).toBe(3);
   });
 });
@@ -79,7 +79,7 @@ describe("M93/H3 — structured classification, never by text", () => {
   });
 
   it("a foreign (non-SDK) error is NOT transient — the isTransientError contract", () => {
-    // "wrap a foreign error in the appropriate SDK error first" — `errors.ts:429`. O transporte
+    // "wrap a foreign error in the appropriate SDK error first" — `errors.ts:429`. The transport
     // is what types it; a raw Error arriving here is a transport bug, not a retry case.
     expect(isRetriableError(new Error("connect ECONNREFUSED 127.0.0.1:443"))).toBe(false);
   });
@@ -114,23 +114,23 @@ describe("M93/H4 — the retry does not re-run what the pool already exhausted",
   });
 });
 
-describe("M93/M2 — os mutantes que sobreviviam", () => {
+describe("M93/M2 — the mutants that used to survive", () => {
   it("the backoff genuinely WAITS — removing the sleep fails here", async () => {
     vi.useFakeTimers();
     try {
       const { client } = transportFailingAfterEmit([], new NetworkError("ECONNRESET"));
       // non-zero rng: without it `computeBackoffMs` returns 0 and the sleep becomes a no-op —
       // which is exactly why the "remove the sleep" mutant survived the original suite.
-      const alvo = new RetryingLlmClient(client, { rng: () => 1 });
-      let terminou = false;
-      const p = coletar(alvo).then(() => {
-        terminou = true;
+      const target = new RetryingLlmClient(client, { rng: () => 1 });
+      let finished = false;
+      const p = collect(target).then(() => {
+        finished = true;
       });
       await vi.advanceTimersByTimeAsync(0);
-      expect(terminou, "terminou sem esperar o backoff").toBe(false);
+      expect(finished, "finished without waiting out the backoff").toBe(false);
       await vi.advanceTimersByTimeAsync(60_000);
       await p;
-      expect(terminou).toBe(true);
+      expect(finished).toBe(true);
     } finally {
       vi.useRealTimers();
     }
@@ -141,7 +141,7 @@ describe("M93/M2 — os mutantes que sobreviviam", () => {
     try {
       const error = new RateLimitError("slow down", { metadata: { ...META(429), retryAfter: 30 } });
       const { client, state } = transportFailingAfterEmit([], error);
-      const p = coletar(new RetryingLlmClient(client, { rng: () => 0 }));
+      const p = collect(new RetryingLlmClient(client, { rng: () => 0 }));
       await vi.advanceTimersByTimeAsync(1_000);
       expect(state.attempts, "reexecutou before do Retry-After de 30 s").toBe(1);
       await vi.advanceTimersByTimeAsync(120_000);
@@ -156,7 +156,7 @@ describe("M93/M2 — os mutantes que sobreviviam", () => {
     const { client, state } = transportFailingAfterEmit([], new NetworkError("x"));
     const ac = new AbortController();
     ac.abort(new Error("cancelled by the user"));
-    await expect(coletar(new RetryingLlmClient(client), ac.signal)).resolves.toEqual([]);
+    await expect(collect(new RetryingLlmClient(client), ac.signal)).resolves.toEqual([]);
     expect(state.attempts).toBe(0);
   });
 });

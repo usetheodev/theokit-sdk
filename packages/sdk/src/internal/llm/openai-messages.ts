@@ -1,11 +1,11 @@
 /**
- * Mapeamento de `LlmMessage` para o formato de mensagem da OpenAI.
+ * Mapping from `LlmMessage` to OpenAI's message format.
  *
  * Extracted from `openai.ts` in M75 because the G8 gate (<= 400 LoC) caught it at 427 — PRE-EXISTING debt,
  * which stayed invisible while `knip` failed before the gate ran.
  *
  * The seam is not arbitrary: these five functions form ONE responsibility — translating our
- * formato de mensagem para o da wire da OpenAI — e nenhuma delas conhece transporte, streaming ou
+ * message format into OpenAI's wire format — and none of them knows about transport, streaming or
  * request policy. The rest of `openai.ts` handles that.
  */
 import { toStringToolResultContent } from "./tool-result-content.js";
@@ -38,7 +38,7 @@ function joinTextParts(message: LlmMessage): string {
 // PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
 // sweeping these files (a nested root under refactor/). It is not new code and was not touched
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
-// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// risky. Tracked in usetheodev/theokit-sdk#151.
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
 function userOrToolMessages(message: LlmMessage): Array<Record<string, unknown>> {
   const out: Array<Record<string, unknown>> = [];

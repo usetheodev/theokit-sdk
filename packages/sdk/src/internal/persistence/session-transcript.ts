@@ -11,7 +11,7 @@
  * root (cycle-break); dedup a uuid across sessions keeping the earliest; a `compact_boundary` root
  * terminates the walk so a resume-after-compaction replays only the post-boundary continuation.
  *
- * referencia: knowledge-base/references/claude-code-log/claude_code_log/dag.py + models.py
+ * reference: knowledge-base/references/claude-code-log/claude_code_log/dag.py + models.py
  */
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
@@ -326,7 +326,7 @@ export function reconstructMessages(records: readonly SessionRecord[]): LlmMessa
 // ─── File I/O (the on-disk Claude layout) ─────────────────────────────────────────────────────────
 
 /**
- * Raiz do estado de transcript.
+ * Root of the transcript state.
  *
  * `THEOKIT_HOME` wins; the fallback is `~/.theokit`. Home-anchored on purpose, and NOT
  * `paths.ts`'s `getTheokitHome(cwd)`: that one falls back to `<cwd>/.theokit`, and switching

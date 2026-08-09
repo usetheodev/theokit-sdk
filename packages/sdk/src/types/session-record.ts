@@ -22,7 +22,7 @@ export type TranscriptBlock =
   | { type: "tool_result"; tool_use_id: string; content: unknown; is_error?: boolean };
 
 /**
- * O corpo de mensagem de um {@link SessionRecord}.
+ * The message body of a {@link SessionRecord}.
  *
  * **It is NOT called `SessionMessage`** — that name already exists in
  * `internal/session/session-types.ts` with the shape `{role, text}`, incompatible with this one.

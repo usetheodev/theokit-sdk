@@ -3,7 +3,7 @@ import type { SessionMessage } from "./session-types.js";
 /**
  * The in-memory session cache — in a LEAF module, on purpose.
  *
- * O estado e o invalidador viviam em `agent-session.ts`, e `compact-session.ts` importava
+ * The state and the invalidator lived in `agent-session.ts`, and `compact-session.ts` imported
  * `invalidateSessionCache` from there — while `agent-session.ts` imported `autoCompactIfNeeded`
  * back. The cycle was broken at runtime (the return edge is a dynamic `await import()`), but the detector
  * counts the dynamic edge, and counting a dynamic import as a cycle makes the gate impossible to satisfy

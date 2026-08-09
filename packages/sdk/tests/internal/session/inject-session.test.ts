@@ -46,8 +46,8 @@ describe("injectSessionTurn (M51)", () => {
       store,
       loc: LOC,
       sessionId: LOC.agentId,
-      userText: "<user_action><action>review</action><results>[P1] achado</results></user_action>",
-      assistantText: "Full review comments: - [P1] achado",
+      userText: "<user_action><action>review</action><results>[P1] finding</results></user_action>",
+      assistantText: "Full review comments: - [P1] finding",
     });
     const joined = texts(store.records);
     expect(joined).toContain("<user_action>");
@@ -69,7 +69,7 @@ describe("injectSessionTurn (M51)", () => {
       userText: "synthetic pair",
       assistantText: "ack",
     });
-    expect(getSessionMessages(LOC.agentId)).toEqual([]); // cache invalidado
+    expect(getSessionMessages(LOC.agentId)).toEqual([]); // cache invalidated
     await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
     expect(
       getSessionMessages(LOC.agentId)
@@ -98,12 +98,12 @@ describe("injectSessionTurn (M51)", () => {
       assistantText: "ok",
     }).then(() => order.push("inject"));
     await Promise.all([slow, inj]);
-    expect(order).toEqual(["turn", "inject"]); // serializado na MESMA chain
+    expect(order).toEqual(["turn", "inject"]); // serialized on the SAME chain
     clearAllSessions();
   });
 });
 
-describe("M51 review F4 — corrida inject × turno em voo", () => {
+describe("M51 review F4 — race between inject and an in-flight turn", () => {
   it("hydrate_after_invalidation_replaces_from_disk_even_if_cache_repopulated", async () => {
     const { appendSessionMessage, getSessionMessages, hydrateSession, clearAllSessions } =
       await import("../../../src/internal/session/agent-session.js");
@@ -111,7 +111,7 @@ describe("M51 review F4 — corrida inject × turno em voo", () => {
     const store = storeWith(seed());
     // live session hydrated
     await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
-    // review termina → inject (invalida)
+    // review ends → inject (invalidates)
     await injectSessionTurn({
       store,
       loc: LOC,

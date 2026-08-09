@@ -13,11 +13,17 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { z } from "/home/paulo/Projetos/usetheo/theokit-sdk/node_modules/.pnpm/zod@4.4.3/node_modules/zod/index.js";
-import { Agent } from "/home/paulo/Projetos/usetheo/theokit-sdk/packages/sdk/dist/index.js";
+import { fileURLToPath } from "node:url";
+import { z } from "zod";
+import { Agent } from "../packages/sdk/dist/index.js";
+
+// The repository root, derived from this file's location. It used to be the hardcoded absolute
+// path of one developer's checkout, which no longer exists — this script was broken on every
+// machine, including the one that wrote it.
+const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 // Load .env manually so we don't need --env-file=.
-const envPath = "/home/paulo/Projetos/usetheo/theokit-sdk/.env";
+const envPath = `${REPO_ROOT}.env`;
 if (existsSync(envPath)) {
   for (const line of readFileSync(envPath, "utf8").split("\n")) {
     const trimmed = line.trim();
@@ -157,7 +163,7 @@ a schema-valid object on the first try.
 `;
 
 writeFileSync(
-  "/home/paulo/Projetos/usetheo/theokit-sdk/.claude/knowledge-base/reviews/generateobject-real-llm-2026-05-17.md",
+  `${REPO_ROOT}.claude/knowledge-base/reviews/generateobject-real-llm-2026-05-17.md`,
   snapshot,
 );
 console.log("Wrote: .claude/knowledge-base/reviews/generateobject-real-llm-2026-05-17.md");

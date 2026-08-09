@@ -14,9 +14,9 @@
  *
  * But it has two techniques we do not:
  *
- *  - **override clampado** — `models-manager/src/model_info.rs:26-31` deixa a config sobrepor o
+ *  - **clamped override** — `models-manager/src/model_info.rs:26-31` lets config override the
  *    catalog, but bounds it by `max_context_window` (`context_window.min(max_context_window)`);
- *  - **margem percentual** — `model_info.rs:158`, `effective_context_window_percent: 95`. O Codex
+ *  - **percentage headroom** — `model_info.rs:158`, `effective_context_window_percent: 95`. Codex
  *    never uses 100% of the window.
  *
  * The clamp is the half the ROADMAP omits, and without it the override becomes a second door to
@@ -34,22 +34,22 @@ import { describe, expect, it } from "vitest";
 import { ContextWindowMarginError, resolveEffectiveContextWindow } from "../src/compaction.js";
 
 describe("M77 T1.1 — effective window", () => {
-  it("test_override_menor_que_o_catalogo_vence", () => {
+  it("test_an_override_below_the_catalog_wins", () => {
     // The primary use case: the user knows they want to work within a smaller budget.
     const r = resolveEffectiveContextWindow({ override: 50_000, catalog: 200_000, margin: 0.95 });
     expect(r.window).toBe(47_500);
     expect(r.source).toBe("override");
   });
 
-  it("test_override_maior_que_o_maximo_e_CLAMPADO", () => {
-    // A metade que o ROADMAP omite. Sem o clamp, declarar 999k num modelo de 200k reintroduz o
+  it("test_an_override_above_the_maximum_is_CLAMPED", () => {
+    // The half the ROADMAP omits. Without the clamp, declaring 999k on a 200k model reintroduces the
     // overflow through another door — and silently, which is the worst mode.
     const r = resolveEffectiveContextWindow({ override: 999_000, catalog: 200_000, margin: 0.95 });
     expect(r.window, "the override must be bounded by the model's real maximum").toBe(190_000);
     expect(r.clamped, "and the clamp must be VISIBLE, not silent").toBe(true);
   });
 
-  it("test_sem_override_usa_catalogo_com_margem", () => {
+  it("test_without_an_override_it_uses_the_catalog_with_headroom", () => {
     const r = resolveEffectiveContextWindow({ catalog: 200_000, margin: 0.95 });
     expect(r.window).toBe(190_000);
     expect(r.source).toBe("catalog");
@@ -84,7 +84,7 @@ describe("M77 T1.1 — effective window", () => {
 
   it("test_the_floor_is_NOT_used_when_a_catalog_exists", () => {
     // COUNTER-PROOF of the fallback: a floor that beat the catalog would make an 8k model be treated
-    // como 128k — o fail-open que este milestone existe para fechar.
+    // as 128k — the fail-open this milestone exists to close.
     const r = resolveEffectiveContextWindow({ catalog: 8_000, margin: 0.95, floor: 128_000 });
     expect(r.window, "a small model must NOT be inflated by the floor").toBe(7_600);
     expect(r.source).toBe("catalog");

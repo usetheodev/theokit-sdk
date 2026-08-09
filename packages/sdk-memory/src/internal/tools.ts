@@ -10,7 +10,7 @@ import { readMemoryFileBounded } from "./store/reader.js";
 /**
  * Memory tools (`memory_search` + `memory_get`) — ADR D5 of
  * memory-system-peer-project-parity. Tool schemas mirror peer-project
- * (`referencia/peer-project/extensions/memory-core/src/tools.ts:228-475`).
+ * (`reference/peer-project/extensions/memory-core/src/tools.ts:228-475`).
  *
  * Each tool is exposed as a `MemoryTool` (name + description + JSON schema +
  * async execute). The agent-loop integration wires them via the existing

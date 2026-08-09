@@ -31,7 +31,7 @@ const agent = await Agent.create({
   systemPrompt: "You are a concise assistant. Reply in one short sentence.",
 });
 
-const question = process.argv[2] ?? "Qual é a capital do Brasil?";
+const question = process.argv[2] ?? "What is the capital of Brazil?";
 console.log(`[bedrock] model=${modelId} question="${question}"`);
 
 const run = await agent.send(question);

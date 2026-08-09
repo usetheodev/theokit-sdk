@@ -119,19 +119,19 @@ describe("node:sqlite fallback (flicker-bug fix — the error message PROMISED t
    * expects the host's REAL `node:sqlite`. The builtin only became unflagged in later Node 22.x
    * Node 22.x — on **22.12** it still requires `--experimental-sqlite`, and `process.getBuiltinModule`
    * returns empty. It broke exactly like that in the CI matrix (`validate (node 22.12)`), while
-   * `validate (node 22)` passava.
+   * `validate (node 22)` used to pass.
    *
    * A test cannot prove a fallback to a driver the host does not have. Skipping is honest HERE —
    * but skipping silently would not be, so the reason is written down and the condition is the builtin itself,
    * not a version comparison (which would be wrong again: "22.12" < "22.3" as strings).
    */
-  const temNodeSqlite =
+  const hasNodeSqlite =
     (process as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule?.(
       "node:sqlite",
     ) !== undefined;
-  const itComBuiltin = temNodeSqlite ? it : it.skip;
+  const itWithBuiltin = hasNodeSqlite ? it : it.skip;
 
-  itComBuiltin("falls_back_to_node_sqlite_when_better_sqlite3_is_unavailable", async () => {
+  itWithBuiltin("falls_back_to_node_sqlite_when_better_sqlite3_is_unavailable", async () => {
     const { openSqliteResilient, _setDriverLoadersForTests } = await import(
       "../../../src/internal/persistence/sqlite-open.js"
     );
