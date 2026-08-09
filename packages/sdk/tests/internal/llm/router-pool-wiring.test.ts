@@ -13,10 +13,10 @@
  * Peels off ALL decorators down to the real transport, in a loop.
  *
  * In a loop and not two `if`s: the order in which router and chain-builder wrap is not fixed, and one
- * desembrulho posicional passa a depender dela. M93 — o `RetryingLlmClient` foi o segundo
+ * positional unwrapping now depends on it. M93 — `RetryingLlmClient` was the second
  * decorator to arrive; the third must not break these tests again.
  */
-function descascar(client: LlmClient): LlmClient {
+function unwrapDecorators(client: LlmClient): LlmClient {
   let current = client;
   for (;;) {
     if (current instanceof RetryingLlmClient) current = current.inner;
@@ -43,10 +43,10 @@ import type { LlmClient } from "../../../src/internal/llm/types.js";
  * one level deep — same pattern PoolAware uses for its inner transport.
  */
 function unwrapFaultInjection(client: LlmClient): LlmClient {
-  // M93 — desembrulha os DOIS decorators. O `RetryingLlmClient` entrou entre o router e o pool;
+  // M93 — unwrap BOTH decorators. `RetryingLlmClient` slotted in between the router and the pool;
   // the intent of these tests ("the router uses the pool") still holds, there is simply now one
   // layer in the path.
-  return descascar(client);
+  return unwrapDecorators(client);
 }
 
 import {

@@ -136,18 +136,18 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
     // `persistTurnToTranscript` is only called later in this function — the **only** caller in the
     // repository — after this `return`. A 429 after eight tool calls destroyed the whole turn
     // leaving nothing on disk, and combined with the absent retry on the single-key path (also
-    // fechada no M93) a perda era total.
+    // closed in M93) the loss was total.
     //
     // Persists the **partial**, without reconstructing: a turn that failed in `run.wait()` has real history
     // — user + completed tool calls. Discarding it is the loss; inventing the rest would be worse than the loss.
     // The inner `catch` exists because a write failure must not mask the turn's error, which is what
     // the caller is waiting on (`error-handling.md`: cleanup does not propagate over the original error).
     try {
-      const parcial = await safeConversation(run);
-      if (parcial !== undefined) {
+      const partial = await safeConversation(run);
+      if (partial !== undefined) {
         persistTurnToTranscript(sessionStore, { cwd: workspaceCwd, agentId, model }, agentId, {
           userText,
-          conversation: parcial,
+          conversation: partial,
         });
       }
     } catch (cause) {

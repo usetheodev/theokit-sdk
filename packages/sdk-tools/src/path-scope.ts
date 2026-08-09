@@ -32,9 +32,9 @@ export function checkPathScope(path: string | undefined, projectRoot: string): s
  *
  * M76 — promoted from `read-file.ts`, where it was private. Duplicating it in `list-dir` would duplicate
  * security KNOWLEDGE: the copies would have to agree on what counts as a secret, and one fixed
- * sem a outra reabre o buraco na tool esquecida.
+ * without the other reopens the hole in the forgotten tool.
  */
-const SEGMENTOS_SENSIVEIS = new Set([".env", ".git", "node_modules", ".theo"]);
+const SENSITIVE_SEGMENTS = new Set([".env", ".git", "node_modules", ".theo"]);
 
 /**
  * ANY-segment secret guard — the half of `allowAbsolute` that cannot be separated.
@@ -43,10 +43,10 @@ const SEGMENTOS_SENSIVEIS = new Set([".env", ".git", "node_modules", ".theo"]);
  * project). An absolute path (`/home/u/proj/.env/sub`) puts it deeper, and it would pass. This one
  * checks every segment, closing the "reads-anywhere" exfiltration.
  */
-export function ehProibidoEmQualquerProfundidade(path: string): boolean {
+export function isForbiddenAtAnyDepth(path: string): boolean {
   const segs = path.replace(/\\/g, "/").split("/").filter(Boolean);
   return segs.some((s) => {
-    if (s === ".env.example") return false; // template — seguro
-    return SEGMENTOS_SENSIVEIS.has(s) || /^\.env\./.test(s);
+    if (s === ".env.example") return false; // a template — safe
+    return SENSITIVE_SEGMENTS.has(s) || /^\.env\./.test(s);
   });
 }

@@ -5,7 +5,7 @@
  *
  * The previous implementation swallowed `client.listTools()` errors with
  * `catch { return []; }` — violating Unbreakable Rule 8 ("FAIL loud, FAIL
- * cedo, FALHE claro"). This test asserts that the catch path now emits a
+ * early, FAIL clear"). This test asserts that the catch path now emits a
  * structured stderr message including (a) the project tag, (b) the failing
  * server name, and (c) the underlying error message, while still returning
  * the empty-list fallback (consumers depend on it for graceful degradation).

@@ -1,7 +1,7 @@
 /**
- * M82 T1.1/T1.2 — o seam `transform_tool_result` recebe as tool calls do turn.
+ * M82 T1.1/T1.2 — the `transform_tool_result` seam receives the turn's tool calls.
  *
- * ## A assimetria que este teste fecha
+ * ## The asymmetry this test closes
  *
  * Two channels observe the end of a tool, and each has HALF of what a policy needs:
  *
@@ -18,13 +18,13 @@
  * ## Why `toolCalls` (plural) and not `name` (singular)
  *
  * The seam is NOT per tool. `guardAndTransformToolResults` receives the turn's BATCH of results
- * (`dispatchTools` roda todas as tool calls juntas). Num turn com duas tools, um campo `name`
+ * (`dispatchTools` runs all the tool calls together). In a turn with two tools, a `name` field
  * a singular one would have to lie about one of them — worse than the gap, because it gives the hook author the
  * impression of precise scope the data does not support.
  *
  * The exact correlation already exists in the format: `LlmToolResultPart.toolUseId` <-> `LlmToolCallPart.id`. What
  * was missing was not a name, it was the turn's LIST of calls — which the seam's caller already had in
- * escopo (`llmOutput.toolCalls`) e simplesmente descartava.
+ * scope (`llmOutput.toolCalls`) and simply discarded it.
  */
 import { describe, expect, it } from "vitest";
 
@@ -37,25 +37,25 @@ import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
 import type { ToolResultTransformContext, TransformContext } from "../src/types/plugin.js";
 
 /** The shape the seam actually carries: content parts, of which only `tool_result` matters. */
-interface ParteDeResultado {
+interface ResultPart {
   type: string;
   toolUseId?: string;
   content?: unknown;
 }
 
 /** `toolUseId` -> content, resolved by the tool's NAME. It is the whole correlation, isolated from the test. */
-function porNomeDeTool(results: unknown, ctx: ToolResultTransformContext): Record<string, string> {
-  const porId = new Map(ctx.toolCalls.map((t) => [t.id, t.name]));
+function byToolName(results: unknown, ctx: ToolResultTransformContext): Record<string, string> {
+  const byId = new Map(ctx.toolCalls.map((t) => [t.id, t.name]));
   const output: Record<string, string> = {};
-  for (const part of results as ParteDeResultado[]) {
+  for (const part of results as ResultPart[]) {
     if (part.type !== "tool_result") continue;
-    const name = porId.get(part.toolUseId ?? "");
+    const name = byId.get(part.toolUseId ?? "");
     if (name !== undefined) output[name] = String(part.content);
   }
   return output;
 }
 
-/** LLM que emite as tool calls pedidas no 1º turn e encerra no 2º. */
+/** An LLM that emits the requested tool calls on the 1st turn and finishes on the 2nd. */
 function llmComToolCalls(calls: readonly LlmToolCallPart[]): LlmClient {
   let turn = 0;
   return {
@@ -99,7 +99,7 @@ function inputs(llm: LlmClient, mgr: PluginManager, tools: readonly string[]): A
       name,
       description: name,
       inputSchema: { type: "object" },
-      handler: () => `resultado-de-${name}`,
+      handler: () => `result-of-${name}`,
     })),
     pluginManager: mgr,
   };
@@ -114,8 +114,8 @@ function pluginTransform(fn: (results: unknown, ctx: unknown) => unknown): Plugi
   };
 }
 
-describe("M82 — transform_tool_result recebe o contexto de tool call", () => {
-  it("test_transform_tool_result_recebe_as_toolCalls_do_turn", async () => {
+describe("M82 — transform_tool_result receives the tool call context", () => {
+  it("test_transform_tool_result_receives_the_turns_toolCalls", async () => {
     let seen: ToolResultTransformContext | undefined;
     const mgr = new PluginManager();
     await mgr.initialize([
@@ -132,20 +132,19 @@ describe("M82 — transform_tool_result recebe o contexto de tool call", () => {
     );
 
     expect(seen, "the hook did not even run — the seam was not exercised").toBeDefined();
-    expect(
-      seen?.toolCalls,
-      "sem as tool calls do turn nenhum hook consegue honrar um matcher",
-    ).toEqual([{ id: "call-1", name: "alpha", args: {} }]);
+    expect(seen?.toolCalls, "without the turn's tool calls no hook can honour a matcher").toEqual([
+      { id: "call-1", name: "alpha", args: {} },
+    ]);
   });
 
-  it("test_ctx_correlaciona_toolUseId_com_o_nome_da_tool_em_turn_de_DUAS_tools", async () => {
+  it("test_ctx_correlates_toolUseId_with_the_tool_name_in_a_TWO_tool_turn", async () => {
     // The case a singular `name` field could not represent (ADR-2), and the same case as
     // risk R1: if the correlation fails, a scoped hook transforms the WRONG tool's result.
-    const correlacionado: Record<string, string> = {};
+    const correlated: Record<string, string> = {};
     const mgr = new PluginManager();
     await mgr.initialize([
       pluginTransform((results, ctx) => {
-        Object.assign(correlacionado, porNomeDeTool(results, ctx as ToolResultTransformContext));
+        Object.assign(correlated, byToolName(results, ctx as ToolResultTransformContext));
         return results;
       }),
     ]);
@@ -161,8 +160,8 @@ describe("M82 — transform_tool_result recebe o contexto de tool call", () => {
       ),
     );
 
-    expect(correlacionado.alpha).toContain("resultado-de-alpha");
-    expect(correlacionado.beta).toContain("resultado-de-beta");
+    expect(correlated.alpha).toContain("result-of-alpha");
+    expect(correlated.beta).toContain("result-of-beta");
   });
 
   it("test_COUNTERPROOF_the_shared_TransformContext_did_NOT_gain_toolCalls", () => {
@@ -171,8 +170,8 @@ describe("M82 — transform_tool_result recebe o contexto de tool call", () => {
     // would lie. Without this counter-proof, solving T1.1 by polluting the shared type would pass.
     const base: TransformContext = { agentId: "a", runId: "r" };
     // @ts-expect-error — `toolCalls` does NOT belong to the shared context.
-    const proibido = base.toolCalls;
-    expect(proibido).toBeUndefined();
+    const forbidden = base.toolCalls;
+    expect(forbidden).toBeUndefined();
     expect(base.agentId).toBe("a");
   });
 });

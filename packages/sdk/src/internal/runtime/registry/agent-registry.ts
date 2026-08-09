@@ -172,9 +172,9 @@ export function clearAgentRegistry(): void {
  * @internal
  */
 export async function hydrateRegistryFromDisk(cwd: string): Promise<void> {
-  const emAndamento = hydrations.get(cwd);
-  if (emAndamento !== undefined) return emAndamento;
-  const hidratacao = (async () => {
+  const inFlight = hydrations.get(cwd);
+  if (inFlight !== undefined) return inFlight;
+  const hydration = (async () => {
     const persisted = await loadRegistry(cwd);
     for (const [id, entry] of Object.entries(persisted)) {
       if (!agents.has(id)) {
@@ -189,8 +189,8 @@ export async function hydrateRegistryFromDisk(cwd: string): Promise<void> {
     hydrations.delete(cwd);
     throw cause;
   });
-  hydrations.set(cwd, hidratacao);
-  return hidratacao;
+  hydrations.set(cwd, hydration);
+  return hydration;
 }
 
 /**

@@ -117,7 +117,7 @@ function resolvePatchKeys(externalId: string): string[] | undefined {
 // PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
 // sweeping these files (a nested root under refactor/). It is not new code and was not touched
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
-// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// risky. Tracked in usetheodev/theokit-sdk#151.
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
 function patchIndexFromApiJson(raw: unknown): number {
   if (typeof raw !== "object" || raw === null) return 0;
@@ -190,7 +190,7 @@ export function loadCacheIntoIndex(url: string = DEFAULT_URL): number {
 // PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
 // sweeping these files (a nested root under refactor/). It is not new code and was not touched
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
-// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// risky. Tracked in usetheodev/theokit-sdk#151.
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
 export async function refreshModelCatalog(
   opts: RefreshModelCatalogOptions = {},

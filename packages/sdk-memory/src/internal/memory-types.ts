@@ -84,7 +84,7 @@ export function legacyMemoryJsonPath(cwd: string, config: MemoryConfig): string 
  * used downstream by the embedding cache.
  *
  * Mirrors peer-project's `MemoryChunk` shape
- * (`referencia/peer-project/packages/memory-host-sdk/src/host/engine-storage.ts`).
+ * (`reference/peer-project/packages/memory-host-sdk/src/host/engine-storage.ts`).
  *
  * @internal
  */

@@ -41,8 +41,8 @@ export function wrapTransportError(
 ): unknown {
   if (ehAbort(err)) return err;
   if (err instanceof NetworkError) return err;
-  const detalhe = err instanceof Error ? err.message : String(err);
-  return new NetworkError(`${ctx.providerId} transport failure on ${ctx.endpoint}: ${detalhe}`, {
+  const detail = err instanceof Error ? err.message : String(err);
+  return new NetworkError(`${ctx.providerId} transport failure on ${ctx.endpoint}: ${detail}`, {
     code: "transport_failure",
     cause: err,
   });

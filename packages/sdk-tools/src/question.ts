@@ -10,9 +10,9 @@ export interface QuestionToolOptions {
   /**
    * Callback that presents the question to the user and resolves with the answer.
    *
-   * M76 — passou a ser OPCIONAL: o asker preferencial vem do contexto da run
+   * M76 — became OPTIONAL: the preferred asker comes from the run context
    * (`ctx.context.askUser`), because a value pinned here is the "baked into each factory" that the
-   * `CustomTool.handler` aponta como o problema que `ctx.context` existe para resolver. Este campo
+   * `CustomTool.handler` names as the problem `ctx.context` exists to solve. This field
    * remains as a fallback, for callers building the tool with a fixed asker (backward-compatible).
    */
   askUser?: (question: string, threadId?: string) => Promise<string>;
@@ -25,11 +25,11 @@ export interface QuestionToolOptions {
   /** Maximum time to wait for user response in ms. Default: 300_000 (5 min). */
   timeoutMs?: number;
   /**
-   * M76 — nome exposto ao modelo. Omitido ⇒ `"question"` (aditivo).
+   * M76 — the name exposed to the model. Omitted ⇒ `"question"` (additive).
    *
    * The consumer needed this: Codex calls the tool `request_user_input`, and without the option it
    * had to rebuild the whole object by hand — the two-cast adapter T3.3
-   * eliminou.
+   * removed.
    */
   name?: string;
   /** M76 — description exposed to the model. Omitted => today's literal (additive). */
@@ -62,19 +62,19 @@ export interface QuestionTool {
 }
 
 /**
- * Extrai o asker do contexto da run, se houver.
+ * Extracts the asker from the run context, when there is one.
  *
  * `ctx.context` is `unknown` by contract — it is user data, and the SDK does not type it. A `context`
  * present but WITHOUT `askUser` (e.g. only `projectRoot`) must not be mistaken for "an asker exists": the
  * check is on the function, not on the object's presence.
  */
-function askerDoContexto(
+function askerFromContext(
   context: unknown,
 ): ((question: string, threadId?: string) => Promise<string>) | undefined {
   if (typeof context !== "object" || context === null) return undefined;
-  const candidato = (context as { askUser?: unknown }).askUser;
-  return typeof candidato === "function"
-    ? (candidato as (question: string, threadId?: string) => Promise<string>)
+  const candidate = (context as { askUser?: unknown }).askUser;
+  return typeof candidate === "function"
+    ? (candidate as (question: string, threadId?: string) => Promise<string>)
     : undefined;
 }
 
@@ -101,7 +101,7 @@ export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
     ): Promise<string> => {
       // M76 — precedence: run context > factory. `ctx.threadId` identifies the session, so a
       // tool shared across sessions now scopes the asker per session instead of leaking it.
-      const askUser = askerDoContexto(ctx?.context) ?? opts.askUser;
+      const askUser = askerFromContext(ctx?.context) ?? opts.askUser;
       if (askUser === undefined) {
         // NEVER a pending promise: with no asker, waiting out the 5 min timeout would stall the whole turn
         // with nobody knowing why. Typed error, immediate (`error-handling.md` § 2).

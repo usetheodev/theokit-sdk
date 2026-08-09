@@ -98,7 +98,7 @@ export interface AtomicWriteFileOptions {
   /**
    * Create the temp file with `wx` (exclusive creation) instead of `w`. Default:
    * `false` — the previous flag. With `true`, a pre-existing temp file becomes
-   * `EEXIST` em vez de ser truncado.
+   * `EEXIST` instead of being truncated.
    */
   exclusive?: boolean;
 }
@@ -139,7 +139,7 @@ export function atomicWriteTempTarget(name: string): string | undefined {
  * already moved its tmp into place.
  *
  * Mirrors peer-project's `replaceFileAtomic` from
- * `referencia/peer-project/packages/memory-host-sdk/src/host/fs-utils.ts` with
+ * `reference/peer-project/packages/memory-host-sdk/src/host/fs-utils.ts` with
  * the multi-writer robustness fix.
  *
  * ## M107 — `options` is optional, and the default is byte-identical
@@ -155,14 +155,14 @@ export function atomicWriteTempTarget(name: string): string | undefined {
  * umask 0o002  ->  0o600      umask 0o022  ->  0o600      umask 0o200  ->  0o400
  * ```
  *
- * Um `chmod` incondicional levaria o terceiro caso de `0o400` para `0o600` — uma
+ * An unconditional `chmod` would take the third case from `0o400` to `0o600` — a
  * an on-disk change for every caller that asked for nothing, including external
  * consumers. When the caller DOES ask for a mode, however, letting the `umask` decide
  * silently is the defect this parameter exists to close; hence the reassertion.
  *
  * It goes on the DESCRIPTOR, before the `rename`, never after: chmod-ing the final
  * final one would leave a window where it carries the `umask`'s mode — the anti-pattern
- * de `upstream/packages/core/src/fs-util.ts:110-114`. A forma escolhida (modo como
+ * from `upstream/packages/core/src/fs-util.ts:110-114`. The chosen shape (mode as
  * `open` argument) is that of `upstream/network-proxy/src/certs.rs:687,783-791`.
  *
  * @internal

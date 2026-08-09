@@ -81,7 +81,7 @@ export default defineConfig({
   // M78 — `splitting: true`, and the reason is CORRECTNESS, not size.
   //
   // With `splitting: false`, esbuild INLINES the shared code into each entry point instead of
-  // emitir um chunk comum. `TheokitAgentError` acabava duplicado em `errors.js`, `auth/index.js`,
+  // emit a shared chunk. `TheokitAgentError` ended up duplicated across `errors.js`, `auth/index.js`,
   // `compaction.js`, `subscription/index.js` — distinct classes with the same name. The consequence:
   //
   //     import { TheokitAgentError } from "@theokit/sdk/errors";

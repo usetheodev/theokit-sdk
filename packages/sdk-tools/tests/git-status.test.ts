@@ -1,7 +1,7 @@
 /**
- * M76 T2.2 — `createGitStatusTool`, ao lado de `createGitDiffTool`.
+ * M76 T2.2 — `createGitStatusTool`, alongside `createGitDiffTool`.
  *
- * ## Por que no framework
+ * ## Why in the framework
  *
  * The agent-builder had this locally (`agents/tools/repo-status.ts` 26 LoC +
  * `agents/tools/lib/repo-status-core.ts` 36 LoC). There is nothing consumer-specific about "running
@@ -39,23 +39,23 @@ afterAll(() => {
 execFileSync("git", ["init", "-q"], { cwd: repo });
 execFileSync("git", ["config", "user.email", "t@t"], { cwd: repo });
 execFileSync("git", ["config", "user.name", "t"], { cwd: repo });
-writeFileSync(join(repo, "rastreado.txt"), "a\n");
+writeFileSync(join(repo, "tracked.txt"), "a\n");
 execFileSync("git", ["add", "."], { cwd: repo });
-execFileSync("git", ["commit", "-qm", "inicial"], { cwd: repo });
+execFileSync("git", ["commit", "-qm", "initial"], { cwd: repo });
 
 describe("M76 T2.2 — createGitStatusTool", () => {
   it("test_git_status_reports_a_modified_file", async () => {
-    writeFileSync(join(repo, "rastreado.txt"), "a\nb\n");
+    writeFileSync(join(repo, "tracked.txt"), "a\nb\n");
     const t = createGitStatusTool({ projectRoot: repo });
     const out = (await t.handler({})) as string;
-    expect(out).toContain("rastreado.txt");
+    expect(out).toContain("tracked.txt");
   });
 
   it("test_git_status_reports_a_new_file", async () => {
-    writeFileSync(join(repo, "novo.txt"), "x");
+    writeFileSync(join(repo, "new.txt"), "x");
     const t = createGitStatusTool({ projectRoot: repo });
     const out = (await t.handler({})) as string;
-    expect(out).toContain("novo.txt");
+    expect(out).toContain("new.txt");
   });
 
   it("test_NEGATIVE_outside_a_git_repo_returns_a_typed_error", async () => {
@@ -68,9 +68,9 @@ describe("M76 T2.2 — createGitStatusTool", () => {
     expect(parsed.error, "the error must be TYPED, not a free-form string").toBe("not_a_repo");
   });
 
-  it("test_o_nome_e_a_descricao_seguem_o_padrao", () => {
+  it("test_the_name_and_the_description_follow_the_default", () => {
     // ANCHOR: the name is a contract (approval key + what the model sees — blueprint Q1). If it
-    // mudasse silenciosamente, approvals gravados deixariam de casar.
+    // changed silently, recorded approvals would stop matching.
     const t = createGitStatusTool({ projectRoot: repo });
     expect(t.name).toBe("git_status");
     // M76 review (M3) — `length > 20` was an empty oracle: 21 characters of junk passed. The
@@ -85,7 +85,7 @@ describe("M76 T2.2 — createGitStatusTool", () => {
     expect(t.description).toMatch(/staged|untracked|working-tree/i);
   });
 
-  it("test_name_da_fabrica_sobrescreve_como_nas_demais", () => {
+  it("test_the_factory_name_overrides_as_it_does_elsewhere", () => {
     // Parity with T1.2: the new tool is born already respecting the name option.
     const t = createGitStatusTool({ projectRoot: repo, name: "repo_status" });
     expect(t.name).toBe("repo_status");
@@ -93,12 +93,12 @@ describe("M76 T2.2 — createGitStatusTool", () => {
 });
 
 describe("M76 T2.2 — the branch line", () => {
-  it("test_inclui_branch_por_default", async () => {
+  it("test_it_includes_the_branch_by_default", async () => {
     // Without it the agent sees WHAT changed but not WHERE — and "am I on the right branch?" precedes any
     // commit. The consumer already depended on this; migrating without covering it would silently lose behavior.
     const t = createGitStatusTool({ projectRoot: repo });
     const out = (await t.handler({})) as string;
-    expect(out).toMatch(/##/); // porcelain -b marca a branch com '## '
+    expect(out).toMatch(/##/); // porcelain -b marks the branch with '## '
   });
 
   it("test_can_be_turned_off", async () => {

@@ -616,8 +616,8 @@ export class UnsupportedTaskOperationError extends TheokitAgentError {
 
 /**
  * Thrown by `Budget` enforcement (ADR D386) when a `mode: "block"`
- * budget would be exceeded by the upcoming LLM call. Caller pega
- * tipado para retry-after-window-reset or surface to the user.
+ * budget would be exceeded by the upcoming LLM call. The caller catches a
+ * typed error to retry after the window resets, or surfaces it to the user.
  *
  * @public
  */

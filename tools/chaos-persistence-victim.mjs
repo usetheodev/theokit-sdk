@@ -5,7 +5,9 @@
 // short delays. Parent sends SIGKILL at a random point. We need the
 // on-disk registry.json to remain parseable JSON after the kill.
 
-import { Agent } from "/home/user/Projetos/usetheo/theokit-sdk/packages/sdk/dist/index.js";
+// The import below used to go through the hardcoded absolute path of one developer's checkout,
+// which does not exist — this script was broken on every machine, including the one that wrote it.
+import { Agent } from "../packages/sdk/dist/index.js";
 
 const cwd = process.argv[2] ?? process.cwd();
 const agentId = `chaos-victim-${process.pid}`;

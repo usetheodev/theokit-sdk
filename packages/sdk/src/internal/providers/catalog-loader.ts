@@ -126,7 +126,7 @@ function ensureModelIndexLoaded(): void {
 // PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
 // sweeping these files (a nested root under refactor/). It is not new code and was not touched
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
-// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// risky. Tracked in usetheodev/theokit-sdk#151.
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
 function indexEntryModels(entry: CatalogEntry): void {
   if (entry.models === undefined || typeof entry.models !== "object") return;
@@ -209,7 +209,7 @@ let _capabilitiesCache: Record<string, ProviderCapabilities> | null = null;
 // PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
 // sweeping these files (a nested root under refactor/). It is not new code and was not touched
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
-// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// risky. Tracked in usetheodev/theokit-sdk#151.
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
 export function getCatalogCapabilities(providerId: string): ProviderCapabilities | undefined {
   if (_capabilitiesCache === null) {

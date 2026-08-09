@@ -31,7 +31,7 @@ import {
 
 export interface CreateEditFileToolOptions {
   /**
-   * M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo).
+   * M76 — the name exposed to the model. Omitted ⇒ today's literal (additive).
    *
    * It exists because, in Codex, the name is BORN in the tool definition and is the approval decision
    * key — three consumers (model, approval, telemetry) of a string decided in one place. Renaming

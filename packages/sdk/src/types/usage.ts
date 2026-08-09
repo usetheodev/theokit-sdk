@@ -49,7 +49,7 @@ export type CostSource =
 
 /**
  * Cost breakdown attached to `RunResult.cost`. When `status === "unknown"`,
- * `amountUsd` is `undefined` — DO NOT default to 0 (mentira). UI exibe
+ * `amountUsd` is `undefined` — DO NOT default to 0 (a lie). The UI shows
  * `n/a` para unknown, `~$1.23` para estimated, `$1.23` para actual.
  */
 export interface CostBreakdown {

@@ -8,7 +8,7 @@
  * behind the UNBREAKABLE boundary (`agent-builder` never imports `@theokit/sdk*`) could not
  * reach it, and the only legal way out was to reimplement.
  *
- * Foi o que aconteceu. `agents/subagents/roles.ts:13-16` documenta o resultado, por escrito:
+ * That is what happened. `agents/subagents/roles.ts:13-16` documents the result, in writing:
  *
  * > *"`loadRole` reads the disk `.md` with a lightweight frontmatter parse … This is a **SEPARATE
  * > reader** from the SDK's own `.theokit/agents` loader … so the two **can technically drift** — the
@@ -36,28 +36,28 @@ import { discoverSubagents } from "../src/subagents-loader.js";
 const cwd = mkdtempSync(join(tmpdir(), "m81-subagents-"));
 afterAll(() => rmSync(cwd, { recursive: true, force: true }));
 
-const dirAgentes = join(cwd, ".theokit", "agents");
-mkdirSync(dirAgentes, { recursive: true });
+const agentsDir = join(cwd, ".theokit", "agents");
+mkdirSync(agentsDir, { recursive: true });
 writeFileSync(
-  join(dirAgentes, "explorer.md"),
+  join(agentsDir, "explorer.md"),
   "---\nname: explorer\ndescription: explores the repo\ntools: read_file, search_text\n---\n\nYou explore.\n",
 );
 writeFileSync(
-  join(dirAgentes, "analyst.md"),
+  join(agentsDir, "analyst.md"),
   "---\nname: analyst\ndescription: analyzes\n---\n\nYou analyze.\n",
 );
 
 describe("M81 T2.1 — public subagents loader", () => {
-  it("test_discoverSubagents_lista_os_do_diretorio", async () => {
-    const encontrados = await discoverSubagents(cwd);
-    expect(Object.keys(encontrados).sort()).toEqual(["analyst", "explorer"]);
+  it("test_discoverSubagents_lists_the_ones_in_the_directory", async () => {
+    const found = await discoverSubagents(cwd);
+    expect(Object.keys(found).sort()).toEqual(["analyst", "explorer"]);
   });
 
   it("test_returns_the_PARSED_config_and_not_the_file_format", async () => {
-    // Risco #2 do ROADMAP. Devolver o texto do `.md` ou a forma do frontmatter congelaria um formato
+    // ROADMAP risk #2. Returning the `.md` text or the frontmatter shape would freeze a format
     // internal format as public API; returning an `AgentDefinition` leaves the format free to change.
-    const encontrados = await discoverSubagents(cwd);
-    const explorer = encontrados.explorer as unknown as Record<string, unknown>;
+    const found = await discoverSubagents(cwd);
+    const explorer = found.explorer as unknown as Record<string, unknown>;
 
     expect(explorer.description, "the description must come interpreted").toBe("explores the repo");
     expect(

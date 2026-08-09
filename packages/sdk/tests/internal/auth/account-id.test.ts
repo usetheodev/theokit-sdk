@@ -135,7 +135,7 @@ describe("account_id lifecycle (M43 D4)", () => {
     };
     const access = jwt({ chatgpt_account_id: "acct-from-jwt" });
     const responses = [
-      okJson({ device_auth_id: "dai", user_code: "UC", interval: 1 }),
+      okJson({ device_auth_id: "d1", user_code: "UC", interval: 1 }),
       okJson({ authorization_code: "AC", code_verifier: "CV" }),
       // exchange response: access is a JWT with chatgpt_account_id, NO top-level account_id
       okJson({ access_token: access, refresh_token: "r", expires_in: 3600 }),

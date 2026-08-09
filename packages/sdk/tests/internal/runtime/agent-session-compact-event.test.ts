@@ -39,7 +39,7 @@ describe("persistTurnToTranscript onCompact callback (SE2 compact_boundary)", ()
       loc("agent-compact"),
       "agent-compact",
       {
-        userText: "turno pesado",
+        userText: "a heavy turn",
         conversation: [],
         autoCompact: {
           usageTotal: 95_000,

@@ -1,9 +1,9 @@
 // MIGRATED from the agent-builder in M75 T4.1 — SECOND attempt, and the reason is in the review.
 //
-// A primeira "migracao" escreveu testes NOVOS com probes injetados e deletou estes 24. O review
+// The first "migration" wrote NEW tests with injected probes and deleted these 24. The review
 // proved by MUTATION what that cost: swapping buildSeccompFilter for `Buffer.alloc(8)` — a filter
 // that denies NOTHING, no arch guard, no ptrace, no io_uring, no AF_INET — passed 9/9. The
-// semantica inteira do filtro cBPF estava vacua.
+// entire semantics of the cBPF filter was vacuous.
 //
 // Here the change is ONLY in the import block (D4). No body, no assertion.
 
@@ -40,18 +40,18 @@ describe("buildBwrapArgv", () => {
     expect(a.join(" ")).toContain("--ro-bind / /");
     expect(a.join(" ")).toContain("--dev /dev");
     expect(a.join(" ")).toContain("--proc /proc");
-    // rede off por default (bwrap.rs:325-327)
+    // network off by default (bwrap.rs:325-327)
     expect(a).toContain("--unshare-net");
     // writable roots: cwd + /tmp (protocol.rs:1189-1214)
     expect(a.join(" ")).toContain(`--bind ${CWD} ${CWD}`);
     expect(a.join(" ")).toContain("--bind /tmp /tmp");
-    // .git protegido POR CIMA do bind RW (permissions.rs:22-31; bwrap.rs:571-597) — ordem importa
+    // .git protected ON TOP OF the RW bind (permissions.rs:22-31; bwrap.rs:571-597) — order matters
     const joined = a.join(" ");
     expect(joined).toContain(`--ro-bind ${CWD}/.git ${CWD}/.git`);
     expect(joined.indexOf(`--bind ${CWD} ${CWD}`)).toBeLessThan(
       joined.indexOf(`--ro-bind ${CWD}/.git`),
     );
-    // termina no separador do comando
+    // ends at the command separator
     expect(a[a.length - 1]).toBe("--");
   });
 
@@ -68,7 +68,7 @@ describe("buildBwrapArgv", () => {
   });
 
   it("danger_returns_null", () => {
-    // danger-full-access pula o bwrap inteiramente (bwrap.rs:245-252)
+    // danger-full-access skips bwrap entirely (bwrap.rs:245-252)
     expect(buildBwrapArgv("danger-full-access", { cwd: CWD, gitDirExists: true })).toBeNull();
   });
 
@@ -96,14 +96,14 @@ describe("detectBwrap (fail-closed on each probe)", () => {
   });
 
   it("help_without_perms_fails_closed", () => {
-    // launcher.rs:108-124 — exige --perms
+    // launcher.rs:108-124 — requires --perms
     const r = detectBwrap({ ...okProbes, helpText: () => "--ro-bind only" });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toMatch(/--perms/);
   });
 
   it("userns_denied_fails_closed", () => {
-    // sandboxing/src/bwrap.rs:74-136 — probe ativo de user namespace
+    // sandboxing/src/bwrap.rs:74-136 — an active user-namespace probe
     const r = detectBwrap({ ...okProbes, userns: () => false });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toMatch(/namespace/i);
@@ -135,7 +135,7 @@ describe("M53 review fixes — env confinement + absolute bin", () => {
     expect(a.indexOf("--clearenv")).toBeLessThan(a.indexOf("--setenv"));
     expect(joined).toContain("--setenv PATH /usr/bin");
     expect(joined).toContain("--setenv HOME /home/u");
-    // flag de rede continua presente (rede off default)
+    // the network flag is still present (network off by default)
     expect(joined).toContain("--setenv CODEX_SANDBOX_NETWORK_DISABLED 1");
   });
 
@@ -162,7 +162,7 @@ describe("M53 review fixes — env confinement + absolute bin", () => {
  * The price, stated plainly: a `bwrap` installed AFTER the process starts is not detected until restart.
  */
 describe("M71 T1.1 — per-process memoization", () => {
-  it("test_detectBwrap_sonda_uma_vez_so", () => {
+  it("test_detectBwrap_probes_exactly_once", () => {
     resetBwrapMemo();
     let probeCalls = 0;
     const probes = {
@@ -174,7 +174,7 @@ describe("M71 T1.1 — per-process memoization", () => {
       userns: () => true,
     };
     // The memo applies to the REAL probes. With injected probes (test), every call probes — otherwise a
-    // teste envenenaria o cache do processo para todos os outros.
+    // test would poison the process cache for every other one.
     detectBwrap(probes);
     detectBwrap(probes);
     expect(probeCalls, "injected probes must not be memoized").toBe(2);
@@ -195,17 +195,17 @@ describe("M71 T1.1 — per-process memoization", () => {
     expect(realRuns, "the memoized probe must run ONCE").toBe(1);
   });
 
-  it("test_a_segunda_chamada_e_praticamente_gratis", () => {
+  it("test_the_second_call_is_practically_free", () => {
     resetBwrapMemo();
     const probes = { which: () => "/usr/bin/bwrap", helpText: () => "--perms", userns: () => true };
     detectBwrapMemoized(probes);
     const t = performance.now();
     for (let i = 0; i < 100; i++) detectBwrapMemoized(probes);
     const ms = (performance.now() - t) / 100;
-    expect(ms, `segunda chamada custou ${ms.toFixed(3)}ms`).toBeLessThan(1);
+    expect(ms, `the second call cost ${ms.toFixed(3)}ms`).toBeLessThan(1);
   });
 
-  it("test_o_memo_preserva_o_resultado_negativo", () => {
+  it("test_the_memo_preserves_the_negative_result", () => {
     // Failing closed is a result too: a host WITHOUT bwrap must not re-probe every turn just because
     // the answer was "no".
     resetBwrapMemo();
@@ -226,7 +226,7 @@ describe("M71 T1.1 — per-process memoization", () => {
   });
 
   /**
-   * Review F-perf-9 — the direction of stale memo the original m71-custo-por-turn#ADR-1 did not
+   * Review F-perf-9 — the direction of stale memo the original m71-cost-per-turn#ADR-1 did not
    * declare, and the only one with a security consequence: the validated binary disappears from the
    * host AFTER detection.
    *
@@ -269,7 +269,7 @@ describe("M71 T1.1 — per-process memoization", () => {
     expect(n, "revalidation turned into a re-probe — M71's gain is dead").toBe(1);
   });
 
-  it("test_o_reset_existe_e_e_explicito", () => {
+  it("test_the_reset_exists_and_is_explicit", () => {
     resetBwrapMemo();
     let n = 0;
     const p = {

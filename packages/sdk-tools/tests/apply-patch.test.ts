@@ -159,7 +159,7 @@ describe("apply_patch V4A — M18 review fixes (security + robustness)", () => {
 
   it("maps an fs error (updating a directory) to a typed io_error, not a crash", async () => {
     const root = project();
-    mkdtempSync(join(root, "adir-")); // a directory named adir-XXXX
+    mkdtempSync(join(root, "plaindir-")); // a directory named plaindir-XXXX
     // Update a directory path → EISDIR on read → must be a typed error, never an escaping throw.
     const r = await run(root, wrap("*** Update File: .\n@@\n-x\n+y"));
     expect(r.ok).toBe(false);
