@@ -11,8 +11,8 @@ import { afterEach, describe, expect, it } from "vitest";
  * empty, on every surface (HTTP web, MCP, stdio, in-process TUI).
  *
  * It is the most dangerous kind of error: silent (Unbreakable Rule 8 — fail loud, fail early,
- * falhe claro). O sintoma foi remendado a jusante com uma dica de "no content" na TUI; a causa
- * pertence a esta camada.
+ * fail clear). The symptom was patched downstream with a "no content" hint in the TUI; the cause
+ * belongs to this layer.
  *
  * The test is HERMETIC — a local server returns 404 in place of the provider. It needs no key,
  * no network and no OpenRouter, so it runs in CI and does not flake when a provider changes mood.
@@ -78,7 +78,7 @@ function isErrorSignal(chunk: unknown): boolean {
 async function streamAgainst404(): Promise<Outcome> {
   const { Agent } = await import("../src/index.js");
   const stub = await startNotFoundStub();
-  const restaurarEnv = withEnv({
+  const restoreEnv = withEnv({
     ANTHROPIC_API_KEY: "sk-stub",
     ANTHROPIC_API_BASE_URL: stub.url,
   });
@@ -107,7 +107,7 @@ async function streamAgainst404(): Promise<Outcome> {
   } catch (err) {
     outcome.threw = err instanceof Error ? err.message : String(err);
   } finally {
-    restaurarEnv();
+    restoreEnv();
     stub.server.close();
   }
   return outcome;
@@ -124,7 +124,7 @@ describe("a provider HTTP failure does not pass silently (theokit#101)", () => {
     const surfaced = outcome.threw !== null || outcome.errorChunks > 0;
     expect(
       surfaced,
-      `stream terminou sem sinal de error (chunks=${String(outcome.chunks)}, ` +
+      `stream ended with no error signal (chunks=${String(outcome.chunks)}, ` +
         `errorChunks=${String(outcome.errorChunks)}, threw=${String(outcome.threw)})`,
     ).toBe(true);
   }, 30_000);
@@ -140,12 +140,12 @@ describe("a provider HTTP failure does not pass silently (theokit#101)", () => {
     });
   }, 30_000);
 
-  it("a mensagem do error carrega contexto suficiente para diagnosticar", async () => {
+  it("the error message carries enough context to diagnose", async () => {
     const outcome = await streamAgainst404();
 
     // A bare "Request failed" forces the operator to instrument in order to discover WHAT failed.
     // The provider's status or body has to reach them.
-    const texto = outcome.threw ?? "";
-    expect(texto === "" || /404|not found|no endpoints/i.test(texto)).toBe(true);
+    const text = outcome.threw ?? "";
+    expect(text === "" || /404|not found|no endpoints/i.test(text)).toBe(true);
   }, 30_000);
 });

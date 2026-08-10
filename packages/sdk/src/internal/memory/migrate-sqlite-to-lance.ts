@@ -109,7 +109,7 @@ export async function migrateSqliteToLance(opts: MigrateOptions): Promise<Migrat
   const rawLog = opts.logger ?? ((m: string) => console.log(m));
   const log = (m: string) => rawLog(redactSecrets(m));
 
-  // EC: destination exists → error tipado.
+  // EC: destination exists → typed error.
   if (existsSync(finalPath)) {
     throw new ConfigurationError(
       `Destination already exists: ${finalPath}. Remove it manually (\`rm -rf ${finalPath}\`) and re-run.`,

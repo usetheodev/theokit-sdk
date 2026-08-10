@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 import { isForbiddenPath, safePathJoin } from "../src/internal/path-guard.js";
 
 /** Paths the canonical guard blocks — each was genuinely read by the fork before the fix (#150). */
-const SEGREDOS = [
+const SECRETS = [
   ".ssh/id_rsa",
   ".ssh/id_ed25519",
   ".aws/credentials",
@@ -29,7 +29,7 @@ const SEGREDOS = [
   "client.key",
   "bundle.p12",
   "authorized_keys",
-  // bypass por CAIXA: o fork comparava sem `toLowerCase()`
+  // bypass by CASE: the fork compared without `toLowerCase()`
   ".GIT/config",
   ".SSH/id_rsa",
 ];
@@ -38,8 +38,8 @@ const SEGREDOS = [
 const LEGITIMOS = ["src/app.ts", "README.md", "tests/foo.test.ts", "packages/a/src/b.ts"];
 
 describe("#150 — path-guard with no fork of the canonical one", () => {
-  it("test_bloqueia_todo_segredo_que_o_canonical_bloqueia", () => {
-    for (const p of SEGREDOS) {
+  it("test_it_blocks_every_secret_the_canonical_one_blocks", () => {
+    for (const p of SECRETS) {
       expect(canonical(p), `invalid fixture: the canonical guard should block ${p}`).toBe(true);
       expect(isForbiddenPath(p), `${p} escaped this package guard`).toBe(true);
     }
@@ -48,11 +48,11 @@ describe("#150 — path-guard with no fork of the canonical one", () => {
   it("test_does_not_block_legitimate_code", () => {
     for (const p of LEGITIMOS) {
       expect(canonical(p)).toBe(false);
-      expect(isForbiddenPath(p), `${p} foi bloqueado indevidamente`).toBe(false);
+      expect(isForbiddenPath(p), `${p} was blocked when it should not have been`).toBe(false);
     }
   });
 
-  it("test_rejeita_nul_e_control_char_como_o_canonical", () => {
+  it("test_it_rejects_nul_and_control_chars_like_the_canonical_one", () => {
     // T5.5 — present in the canonical guard at 6 call sites, absent in the fork.
     const NUL = String.fromCharCode(0);
     const CONTROL = String.fromCharCode(0x1f);
@@ -66,7 +66,7 @@ describe("#150 — path-guard with no fork of the canonical one", () => {
     expect(safePathJoin("/", "a.txt")).toBe(joinCanonico("/", "a.txt"));
   });
 
-  it("test_segue_recusando_escape_de_diretorio", () => {
+  it("test_it_keeps_refusing_a_directory_escape", () => {
     // The anti-loosening anchor: parity must not have come from turning the defense off.
     expect(() => safePathJoin("/tmp/base", "..", "etc", "passwd")).toThrow();
     expect(() => joinCanonico("/tmp/base", "..", "etc", "passwd")).toThrow();

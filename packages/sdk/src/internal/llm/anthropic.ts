@@ -143,7 +143,7 @@ export class AnthropicClient implements LlmClient {
     } catch (fetchErr) {
       // M93 — a socket failure has no `Response`, so `mapAnthropicError` never saw it and it
       // propagated raw. A foreign error is NON-transient per `isTransientError`'s contract, so
-      // retry ficava desligado justamente no ECONNREFUSED/ETIMEDOUT.
+      // retry was switched off on exactly the ECONNREFUSED/ETIMEDOUT case.
       throw wrapTransportError(fetchErr, { providerId: this.name, endpoint: "/v1/messages" });
     }
     if (!response.ok) {

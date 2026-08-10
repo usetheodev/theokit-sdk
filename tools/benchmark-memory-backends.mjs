@@ -10,7 +10,7 @@
  *   node tools/benchmark-memory-backends.mjs --size 1k
  *   node tools/benchmark-memory-backends.mjs --out .claude/knowledge-base/benchmarks/memory-backends-2026-05-31.md
  *
- * D5 + D12 — provides numerical evidence for "Lance ganha acima de Nk
+ * D5 + D12 — provides numerical evidence for "Lance wins above Nk
  * facts" rationale. If Lance does NOT win → amend D43 honestly.
  *
  * Hardware specs are auto-captured in report header (EC-8).

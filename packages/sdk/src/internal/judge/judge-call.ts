@@ -59,7 +59,7 @@ export interface JudgeOptions {
  * credential. A slow, opaque failure traded for a fast, clear one.
  *
  * PARSE failures and network errors stay folded: they are recoverable, and the loop already decides on
- * consecutivas.
+ * in a row.
  */
 export class JudgeCredentialError extends TheokitAgentError {
   override readonly name = "JudgeCredentialError";
@@ -137,7 +137,7 @@ export async function judgeCallImpl(
   } catch (err) {
     // M80 — 401/403/404 are credential/model errors: unrecoverable, failing fast and typed. Everything
     // else (network, timeout, 5xx) stays folded, because it IS recoverable and the loop already decides on
-    // consecutivas.
+    // in a row.
     const status = statusHttpDe(err);
     if (status === 401 || status === 403 || status === 404) {
       throw new JudgeCredentialError(status, judgeModel, err);

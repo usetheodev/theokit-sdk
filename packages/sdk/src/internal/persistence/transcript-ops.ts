@@ -123,7 +123,7 @@ const TAIL_CHUNK = 64 * 1024;
  * responsibilities — and together they exceeded the complexity ceiling. The buffer's first line may
  * be cut in half when the read stopped before the start of the file; that is why it is discarded.
  */
-function lerCaudaBruta(path: string, want: number): { lines: string[]; bytesRead: number } {
+function readRawTail(path: string, want: number): { lines: string[]; bytesRead: number } {
   const size = statSync(path).size;
   const fd = openSync(path, "r");
   let bytesRead = 0;
@@ -163,12 +163,12 @@ export function readJsonlTail<T = Record<string, unknown>>(
   options: ReadJsonlTailOptions = {},
 ): T[] {
   const want = options.maxRecords ?? Number.POSITIVE_INFINITY;
-  const { lines, bytesRead } = lerCaudaBruta(path, want);
+  const { lines, bytesRead } = readRawTail(path, want);
 
   let sel = lines;
   if (options.sinceMarker !== undefined) {
-    const marcador = options.sinceMarker;
-    const idx = sel.findLastIndex((l) => l.includes(marcador));
+    const marker = options.sinceMarker;
+    const idx = sel.findLastIndex((l) => l.includes(marker));
     if (idx >= 0) sel = sel.slice(idx + 1);
   }
   if (Number.isFinite(want)) sel = sel.slice(-want);

@@ -1,5 +1,5 @@
-// Promovido do agent-builder no M75 (plano m75-sandbox-kernel-no-framework, D1). Renomeado de
-// `BwrapSandbox` para `LinuxSandbox`: bwrap e a IMPLEMENTACAO, Linux e o contrato — trocar o
+// Promoted from agent-builder in M75 (plan m75-sandbox-kernel-no-framework, D1). Renamed from
+// `BwrapSandbox` to `LinuxSandbox`: bwrap is the IMPLEMENTATION, Linux is the contract — swapping the
 // mechanism (landlock, for example) should not change the name the consumer imports.
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";

@@ -7,15 +7,15 @@
  * and mapping to a typed error. The three mutations below **passed with 554 green**:
  *
  *  - removing the stdout ceiling and the `truncated` flag;
- *  - `armTimeoutKill(child, 86_400_000, …)` — o kill nunca dispara;
- *  - `formatGitResult` mapeando timeout para `{ok: true, diff: ""}`.
+ *  - `armTimeoutKill(child, 86_400_000, …)` — the kill never fires;
+ *  - `formatGitResult` mapping a timeout to `{ok: true, diff: ""}`.
  *
  * ## Honesty about the cause
  *
  * This was **not lost in M76's extraction**: `tests/git-diff.test.ts` never covered timeout, ceiling
  * or kill — only shape, happy path, scope and `not_a_repo`. What the extraction did was **double the blast
  * radius**: the same oracle-less engine now serves `git_diff` and `git_status`, and `git-status.ts`
- * publica `timeoutMs?`/`maxStdoutBytes?` como se fossem garantias verificadas.
+ * publishes `timeoutMs?`/`maxStdoutBytes?` as if they were verified guarantees.
  *
  * Covering it now is this milestone's responsibility because it is what doubled the reach.
  */
@@ -35,7 +35,7 @@ execFileSync("git", ["init", "-q"], { cwd: repo });
 execFileSync("git", ["config", "user.email", "t@t"], { cwd: repo });
 execFileSync("git", ["config", "user.name", "t"], { cwd: repo });
 
-describe("M76 review — o motor de git honra os limites que publica", () => {
+describe("M76 review — the git engine honours the limits it publishes", () => {
   it("test_the_stdout_ceiling_TRUNCATES_and_signals", async () => {
     // Many untracked files => large output. With the ceiling at 200 bytes, the real output exceeds it
     // and the `truncated` flag must go up. Without the ceiling, a repo with thousands of files would return

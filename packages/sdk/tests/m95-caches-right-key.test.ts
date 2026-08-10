@@ -22,10 +22,10 @@ import {
 import { hydratedKeys, sessions, transcriptKey } from "../src/internal/session/session-cache.js";
 import type { SessionRecord, SessionStore } from "../src/types/session-store.js";
 
-const CWD = "/algum/cwd";
+const CWD = "/some/cwd";
 
 /** A store that accepts everything — the target here is the caches, not persistence. */
-const storeInerte = (): SessionStore => ({
+const inertStore = (): SessionStore => ({
   readRecords: async (): Promise<SessionRecord[]> => [],
   appendRecords: async (): Promise<void> => undefined,
 });
@@ -40,7 +40,7 @@ describe("M95/HIGH-1 — discardSession erases by the key the write used", () =>
     clearAll();
     // Populated via the REAL path — `persistTurnToTranscript` is what writes, and it uses
     // `transcriptKey(cwd, agentId)`. Populating by hand would test the double.
-    persistTurnToTranscript(storeInerte(), { cwd: CWD, agentId: "ag", model: "m" }, "ag", {
+    persistTurnToTranscript(inertStore(), { cwd: CWD, agentId: "ag", model: "m" }, "ag", {
       userText: "oi",
       conversation: [],
     });
@@ -52,7 +52,7 @@ describe("M95/HIGH-1 — discardSession erases by the key the write used", () =>
 
   it("erases pendingWrites BEFORE the flush — the moment it exists", () => {
     clearAll();
-    persistTurnToTranscript(storeInerte(), { cwd: CWD, agentId: "ag2", model: "m" }, "ag2", {
+    persistTurnToTranscript(inertStore(), { cwd: CWD, agentId: "ag2", model: "m" }, "ag2", {
       userText: "oi",
       conversation: [],
     });

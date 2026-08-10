@@ -231,7 +231,7 @@ export const realProbes: BwrapProbes = {
  * (`codex-rs/linux-sandbox/src/launcher.rs:52`), and its expensive probe runs once per process,
  * only to print a UI warning (`sandboxing/src/bwrap.rs:40-72`).
  *
- * **The price, stated plainly — in BOTH directions.** The original m71-custo-por-turn#ADR-1 declared
+ * **The price, stated plainly — in BOTH directions.** The original m71-cost-per-turn#ADR-1 declared
  * only one of them; the M71 review (F-perf-9) showed the omitted one was precisely the one with a
  * security consequence:
  *
@@ -267,7 +267,7 @@ export function detectBwrapMemoized(probes: BwrapProbes = realProbes): BwrapDete
   return memo;
 }
 
-/** TEST seam — clears the memo. Production never calls it (see m71-custo-por-turn#ADR-1). */
+/** TEST seam — clears the memo. Production never calls it (see m71-cost-per-turn#ADR-1). */
 export function resetBwrapMemo(): void {
   memo = undefined;
 }

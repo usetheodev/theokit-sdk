@@ -22,7 +22,7 @@ describe("runGoalLoop (public)", () => {
     const judge = async (): Promise<JudgeResult> => {
       calls += 1;
       return calls < 2
-        ? { verdict: "continue", reason: "mais", parseFailed: false }
+        ? { verdict: "continue", reason: "more", parseFailed: false }
         : { verdict: "done", reason: "ok", parseFailed: false };
     };
     const gen = runGoalLoop(agent, "goal X", { maxTurns: 5 }, { judge });
@@ -36,7 +36,7 @@ describe("runGoalLoop (public)", () => {
       }
       events.push(r.value);
     }
-    expect(sent.length).toBe(2); // turno 1 (goal) + turno 2 (continuation)
+    expect(sent.length).toBe(2); // turn 1 (goal) + turn 2 (continuation)
     expect(sent[1]).toContain("goal X"); // the continuation carries the goal intact
     expect((result as { status: string }).status).toBe("completed");
     expect((result as { tokensUsed: number }).tokensUsed).toBe(20);

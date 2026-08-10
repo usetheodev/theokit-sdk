@@ -9,7 +9,13 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Agent, Memory } from "/home/paulo/Projetos/usetheo/theokit-sdk/packages/sdk/dist/index.js";
+import { fileURLToPath } from "node:url";
+import { Agent, Memory } from "../packages/sdk/dist/index.js";
+
+// The repository root, derived from this file's location. It used to be the hardcoded absolute
+// path of one developer's checkout, which no longer exists — this script was broken on every
+// machine, including the one that wrote it.
+const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 const cwd = mkdtempSync(join(tmpdir(), "memory-audit-"));
 console.log(`Workspace: ${cwd}`);
@@ -144,9 +150,6 @@ ${queries.map((q) => `- [${q.topic}] q="${q.q}" pattern=\`${q.expect}\``).join("
 
 **${passed ? "PASS" : "FAIL"}** — clusters: ${sweepResult.clustersCreated}/${clusterTarget}, recall: ${recallRate}%
 `;
-writeFileSync(
-  "/home/paulo/Projetos/usetheo/theokit-sdk/.claude/knowledge-base/reviews/memory-scale-2026-05-17.md",
-  snapshot,
-);
+writeFileSync(`${REPO_ROOT}.claude/knowledge-base/reviews/memory-scale-2026-05-17.md`, snapshot);
 console.log("Wrote: .claude/knowledge-base/reviews/memory-scale-2026-05-17.md");
 process.exit(passed ? 0 : 1);

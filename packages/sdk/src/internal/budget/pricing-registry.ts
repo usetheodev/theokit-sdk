@@ -135,7 +135,7 @@ export function getPricingEntry(opts: {
 // PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
 // sweeping these files (a nested root under refactor/). It is not new code and was not touched
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
-// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// risky. Tracked in usetheodev/theokit-sdk#151.
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
 function catalogCostFallback(provider: string, cleanedModel: string): PricingEntry | undefined {
   // M44 L10 fix — also try the date-stripped id (parity with the LiteLLM chain's step 2).

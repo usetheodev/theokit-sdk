@@ -5,7 +5,7 @@
  * so API keys, tokens and passwords leaked into hook scripts and shell tools.
  * `resolveChildEnv` computes the env a child receives under an explicit policy,
  * modeled on codex's `ShellEnvironmentPolicy`
- * (referencia: codex/codex-rs/protocol/src/shell_environment.rs).
+ * (reference: codex/codex-rs/protocol/src/shell_environment.rs).
  *
  * Modes:
  *  - `inherit-scrubbed` (DEFAULT) — inherit all parent vars EXCEPT secret-like

@@ -3,7 +3,7 @@
  *
  * ## ADR-1: the new type is NOT called `SessionMessage`
  *
- * O ROADMAP pede "o SDK publica `SessionMessage { role; content: Array<…> }`". Medido:
+ * The ROADMAP asks for "the SDK publishes `SessionMessage { role; content: Array<…> }`". Measured:
  * `SessionMessage` **already exists** (`internal/session/session-types.ts:49`) and is `{role, text}` — an
  * **incompatible** shape. Reusing the name would make assignments fail silently for existing consumers:
  * exactly M91, where repurposing `BudgetExceededError` cost two patches. The new type is
@@ -28,8 +28,8 @@ describe("M94 — TranscriptMessage", () => {
   });
 
   it("the existing SessionMessage stays intact — ADR-1 anti-regression", () => {
-    const antigo: SessionMessage = { role: "assistant", text: "texto plano" };
-    expect(antigo.text).toBe("texto plano");
+    const legacy: SessionMessage = { role: "assistant", text: "plain text" };
+    expect(legacy.text).toBe("plain text");
   });
 });
 
@@ -40,13 +40,13 @@ describe("M94 — Provider.forModel", () => {
 
   it("an id WITHOUT a slash returns undefined — today that silently became the default path", () => {
     // `modelId.slice(0, modelId.indexOf('/'))` with indexOf === -1 returns the id minus its LAST
-    // caractere ('claude-opus-5' -> 'claude-opus-'), casa provider nenhum, e o consumidor
+    // character ('claude-opus-5' -> 'claude-opus-'), matches no provider, and the consumer
     // fell through to the default without distinguishing that from a hit.
     expect(Provider.forModel("claude-opus-5")).toBeUndefined();
   });
 
   it("a nonexistent provider returns undefined, not a partial match", () => {
-    expect(Provider.forModel("naoexiste/algum-modelo")).toBeUndefined();
+    expect(Provider.forModel("nonexistent/some-model")).toBeUndefined();
   });
 
   it("aliases and case resolve — the grammar has ONE owner", () => {
@@ -62,6 +62,6 @@ describe("M94 — Provider.forModel", () => {
   });
 
   it("a trailing slash does not become an empty provider", () => {
-    expect(Provider.forModel("/modelo")).toBeUndefined();
+    expect(Provider.forModel("/model")).toBeUndefined();
   });
 });

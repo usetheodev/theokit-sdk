@@ -225,7 +225,7 @@ export class LocalAgent implements SDKAgent {
     // Everything after the acquisition runs under `try`: an init failing AFTER taking the lease would leave
     // the lock held by this very process — alive, same host — and `reclaimable` would be `false` forever.
     // The session would stay locked for the process's lifetime, with no crash and no recovery: the
-    // mesma classe que este milestone existe para eliminar, entrando por outra porta.
+    // same class this milestone exists to remove, coming in through another door.
     //
     // Measured with an unreadable transcript (EACCES), which `readRecords` must throw on by contract.
     try {

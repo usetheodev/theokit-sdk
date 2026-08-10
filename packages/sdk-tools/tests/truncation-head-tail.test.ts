@@ -17,7 +17,7 @@
  *  - **head+tail**: the cut was head-only (`truncation.ts:48`). For command output, the END usually
  *    carries what matters — the error, the summary, the prompt. Cutting only the tail discards the conclusion.
  *  - **machine-readable marker**: the signal was an English sentence injected into the middle of the text
- *    (`"[Output truncated. Full output: …]"`). Um consumidor que quisesse saber quanto foi perdido
+ *    (`"[Output truncated. Full output: …]"`). A consumer wanting to know how much was lost
  *    would have to parse prose. `originalBytes` solves that.
  *
  * ## What this test does NOT do
@@ -38,12 +38,14 @@ const outputDir = mkdtempSync(join(tmpdir(), "m77-trunc-"));
 afterAll(() => rmSync(outputDir, { recursive: true, force: true }));
 
 /** 60 numbered lines — the ends are identifiable, the middle is disposable. */
-const longo = Array.from({ length: 60 }, (_, i) => `line-${String(i).padStart(2, "0")}`).join("\n");
+const longText = Array.from({ length: 60 }, (_, i) => `line-${String(i).padStart(2, "0")}`).join(
+  "\n",
+);
 
-describe("M77 T4.1 — truncamento head+tail", () => {
-  it("test_head_tail_preserva_INICIO_e_FIM", () => {
+describe("M77 T4.1 — head+tail truncation", () => {
+  it("test_head_tail_preserves_the_START_and_the_END", () => {
     // The whole point of the mode: with head-only, `line-59` — where a command's error lives — disappears.
-    const r = truncateOutput(longo, { maxBytes: 200, mode: "head-tail", outputDir });
+    const r = truncateOutput(longText, { maxBytes: 200, mode: "head-tail", outputDir });
 
     expect(r.truncated).toBe(true);
     expect(r.content, "the beginning must survive").toContain("line-00");
@@ -53,21 +55,21 @@ describe("M77 T4.1 — truncamento head+tail", () => {
 
   it("test_originalBytes_reports_the_REAL_size_and_not_the_truncated_one", () => {
     // The machine-readable marker. Without it, knowing how much was lost requires parsing the prose
-    // injetada no meio do texto.
-    const r = truncateOutput(longo, { maxBytes: 200, mode: "head-tail", outputDir });
+    // injected into the middle of the text.
+    const r = truncateOutput(longText, { maxBytes: 200, mode: "head-tail", outputDir });
 
-    expect(r.originalBytes).toBe(Buffer.byteLength(longo, "utf-8"));
+    expect(r.originalBytes).toBe(Buffer.byteLength(longText, "utf-8"));
     expect(
       r.originalBytes,
       "must be LARGER than the ceiling, otherwise no truncation happened",
     ).toBeGreaterThan(200);
   });
 
-  it("test_modo_head_continua_o_DEFAULT", () => {
+  it("test_head_mode_remains_the_DEFAULT", () => {
     // Backward compatibility: the helper is exported from the public barrel. Changing the default silently
     // would change the output of any future consumer that had already adopted the old mode.
-    const noMode = truncateOutput(longo, { maxBytes: 200, outputDir });
-    const withHead = truncateOutput(longo, { maxBytes: 200, mode: "head", outputDir });
+    const noMode = truncateOutput(longText, { maxBytes: 200, outputDir });
+    const withHead = truncateOutput(longText, { maxBytes: 200, mode: "head", outputDir });
 
     // Compare the SEGMENT, not the whole string: the trailer carries the `overflowPath`, which is now
     // deliberately unique per call (the collision fix just below). The first version
@@ -82,11 +84,11 @@ describe("M77 T4.1 — truncamento head+tail", () => {
     // Without this, an implementation that ALWAYS truncated would pass the tests above. And `originalBytes`
     // must be present even on the happy path — a field that only appears on failure forces the
     // consumer to test for `undefined`, which is the doorway to a magic value.
-    const curto = "abc";
+    const short = "abc";
     for (const mode of ["head", "head-tail"] as const) {
-      const r = truncateOutput(curto, { maxBytes: 100, mode, outputDir });
+      const r = truncateOutput(short, { maxBytes: 100, mode, outputDir });
       expect(r.truncated).toBe(false);
-      expect(r.content).toBe(curto);
+      expect(r.content).toBe(short);
       expect(r.originalBytes).toBe(3);
     }
   });
@@ -106,15 +108,15 @@ describe("M77 T4.1 — truncamento head+tail", () => {
     //
     // It surfaced as an intermittent failure when running two truncation suites together; the cause was in
     // production code, not in the test. `rules/testing.md` § 3: a flake is a bug.
-    const a = truncateOutput(`${longo}-A`, { maxBytes: 100, outputDir });
-    const b = truncateOutput(`${longo}-B`, { maxBytes: 100, outputDir });
+    const a = truncateOutput(`${longText}-A`, { maxBytes: 100, outputDir });
+    const b = truncateOutput(`${longText}-B`, { maxBytes: 100, outputDir });
 
     expect(a.overflowPath).not.toBe(b.overflowPath);
   });
 
   it("test_head_tail_with_a_tiny_ceiling_does_not_produce_corrupt_utf8", () => {
     // Edge: the cut is by BYTE, and an odd ceiling in the middle of a multibyte character would split the code
-    // point. `Buffer.toString` substituiria por U+FFFD, e o modelo leria lixo.
+    // point. `Buffer.toString` would substitute U+FFFD, and the model would read garbage.
     const accented = "\u00e1\u00e9\u00ed\u00f3\u00fa".repeat(40);
     const r = truncateOutput(accented, { maxBytes: 9, mode: "head-tail", outputDir });
 

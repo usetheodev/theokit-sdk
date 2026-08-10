@@ -54,7 +54,7 @@
  * literally `No test files found, exiting with code 1`. That directory only runs under
  * `pnpm test:roadmap`. Writing the lock there would produce a gate that never runs at the real
  * checkpoint (`pnpm test`) with an acceptance criterion impossible to satisfy — vacuity of the kind
- * `.claude/rules/mecanismo-anti-esquecimento.md` § 5.4 says to avoid. Here, the file is collected by
+ * `.claude/rules/anti-forgetting-mechanism.md` § 5.4 says to avoid. Here, the file is collected by
  * the default `include`.
  *
  * ## The race this file FOUND (did not predict)
@@ -114,11 +114,11 @@ async function persist(agentId: string, cwd: string): Promise<void> {
 
 const ids = (r: { items: { agentId: string }[] }): string[] => r.items.map((i) => i.agentId);
 
-let projetos: string[] = [];
+let projects: string[] = [];
 
 function project(): string {
   const p = mkdtempSync(join(tmpdir(), "m107-list-cwd-"));
-  projetos.push(p);
+  projects.push(p);
   return p;
 }
 
@@ -134,11 +134,11 @@ afterEach(async () => {
   removeRegisteredAgent("agent-without-cwd");
   await flushRegistrySaves();
   clearAgentRegistry();
-  for (const p of projetos) rmSync(p, { recursive: true, force: true });
-  projetos = [];
+  for (const p of projects) rmSync(p, { recursive: true, force: true });
+  projects = [];
 });
 
-describe("M107 T1.3 — Agent.list honra o cwd que o tipo promete", () => {
+describe("M107 T1.3 — Agent.list honours the cwd the type promises", () => {
   it("test_list_with_a_foreign_cwd_returns_that_cwds_entries", async () => {
     // Arrange — the entry exists ON DISK in a project that is not the process's, and the in-memory
     // registry is cleared. Without clearing, the entry would come back from memory and the test would
@@ -196,13 +196,14 @@ describe("M107 T1.3 — Agent.list honra o cwd que o tipo promete", () => {
     registerAgent(entry("agent-without-cwd"));
 
     // Act
-    const doProcesso = await Agent.list({ runtime: "local" });
+    const fromProcess = await Agent.list({ runtime: "local" });
     const fromOther = await Agent.list({ runtime: "local", cwd: otherProject });
 
     // Assert
-    expect(ids(doProcesso), "uma entry sem cwd sumiu da listagem do cwd do processo").toContain(
-      "agent-without-cwd",
-    );
+    expect(
+      ids(fromProcess),
+      "an entry with no cwd vanished from the process-cwd listing",
+    ).toContain("agent-without-cwd");
     expect(ids(fromOther)).not.toContain("agent-without-cwd");
   });
 

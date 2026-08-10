@@ -1,17 +1,17 @@
 /**
  * M75 T3.1 — the PTY accepts an injected wrap function instead of requiring inheritance.
  *
- * ## O que existia e por que trocou
+ * ## What was there and why it changed
  *
- * O agent-builder tinha `SandboxedInteractiveBackend extends PtyInteractiveBackend`, 99 linhas cujo
+ * agent-builder had `SandboxedInteractiveBackend extends PtyInteractiveBackend`, 99 lines whose
  * `override startInteractive` rewrote the **whole** method — just to transform a string. Because it
  * lived there, the override accumulated what is not its own: bwrap detection, the WARN-once and the `cwd`
  * default. Every PTY evolution (a new field in `StartInteractiveOptions`, a change in
- * assinatura) obrigava a subclasse a acompanhar.
+ * signature) forced the subclass to follow along.
  *
  * A function is the minimal contract (ISP): the PTY keeps owning the spawn, the sandbox keeps owning the
  * policy, and neither needs to know the other's type. That is what allows
- * `createInteractiveShellTool({ interactive, sandbox })` compor de verdade.
+ * `createInteractiveShellTool({ interactive, sandbox })` compose for real.
  *
  * ## Why `string | null` and not `string`
  *
@@ -24,17 +24,17 @@ import { describe, expect, it } from "vitest";
 import { PtyInteractiveBackend } from "../src/pty-interactive-backend.js";
 
 /**
- * Captura o comando que CHEGA ao `pty.spawn`, sem tocar num PTY real.
+ * Captures the command that REACHES `pty.spawn`, without touching a real PTY.
  *
  * The first version of this helper replaced the whole of `spawnPty` — and so the wrap, which lives INSIDE
  * it, never ran: the test measured its own fixture and failed by construction. Intercepting the
  * `node-pty` module measures the real path (`startInteractive` -> `spawnPty` -> wrap -> `pty.spawn`), which is the
  * only thing that proves the link.
  */
-const capturaComandoSpawnado = (backend: PtyInteractiveBackend): string[] => {
+const captureSpawnedCommand = (backend: PtyInteractiveBackend): string[] => {
   const seen: string[] = [];
-  const alvo = backend as unknown as { ptyModule: unknown };
-  alvo.ptyModule = {
+  const target = backend as unknown as { ptyModule: unknown };
+  target.ptyModule = {
     spawn: (_shell: string, args: string[]) => {
       seen.push(args[1] ?? "");
       throw new Error("spawn intercepted — the command was already captured");
@@ -43,10 +43,10 @@ const capturaComandoSpawnado = (backend: PtyInteractiveBackend): string[] => {
   return seen;
 };
 
-describe("M75 T3.1 — wrapCommand injetado no PtyInteractiveBackend", () => {
+describe("M75 T3.1 — wrapCommand injected into PtyInteractiveBackend", () => {
   it("test_the_wrap_is_applied_before_the_spawn", async () => {
     const b = new PtyInteractiveBackend({ wrapCommand: (cmd) => `WRAPPED:${cmd}` });
-    const seen = capturaComandoSpawnado(b);
+    const seen = captureSpawnedCommand(b);
     await b.startInteractive("echo hi").catch(() => undefined);
     expect(seen[0], "the command reached the spawn without going through the wrap").toBe(
       "WRAPPED:echo hi",
@@ -63,14 +63,14 @@ describe("M75 T3.1 — wrapCommand injetado no PtyInteractiveBackend", () => {
         return cmd;
       },
     });
-    capturaComandoSpawnado(b);
+    captureSpawnedCommand(b);
     await b.startInteractive("true", { cwd: "/tmp" }).catch(() => undefined);
     expect(cwds[0]).toBe("/tmp");
   });
 
   it("test_null_means_do_not_wrap", async () => {
     const b = new PtyInteractiveBackend({ wrapCommand: () => null });
-    const seen = capturaComandoSpawnado(b);
+    const seen = captureSpawnedCommand(b);
     await b.startInteractive("echo hi").catch(() => undefined);
     expect(seen[0], "null must leave the command exactly as it came").toBe("echo hi");
   });
@@ -79,7 +79,7 @@ describe("M75 T3.1 — wrapCommand injetado no PtyInteractiveBackend", () => {
     // Backward compatibility: the change is ADDITIVE. Every consumer already building the backend without
     // options is unchanged — that is what allows publishing as a minor.
     const b = new PtyInteractiveBackend();
-    const seen = capturaComandoSpawnado(b);
+    const seen = captureSpawnedCommand(b);
     await b.startInteractive("echo hi").catch(() => undefined);
     expect(seen[0]).toBe("echo hi");
   });

@@ -255,7 +255,7 @@ describe("M55 — token budget + budget_limited state", () => {
   });
 
   it("token_budget_absent_usage_never_trips", async () => {
-    // usage ausente → budget nunca conta (fail-open); para por maxTurns=2 → failed
+    // usage absent → the budget never counts (fail-open); stops at maxTurns=2 → failed
     const agent = buildFakeAgentWithUsage(["r1", "r2"], undefined);
     const { result } = await collect(
       runUntilImpl(agent, "goal", { tokenBudget: 10, maxTurns: 2 }, { judge: alwaysContinue }),
@@ -286,18 +286,18 @@ describe("M55 — token budget + budget_limited state", () => {
   });
 });
 
-describe("M55 — continuation fiel ao Codex", () => {
+describe("M55 — continuation faithful to Codex", () => {
   it("continuation_prompt_keeps_full_objective_and_audit_language", async () => {
     const agent = buildFakeAgentWithUsage(["r1", "r2", "r3"], 1);
     const { events } = await collect(
       runUntilImpl(agent, "WHOLE_GOAL_XYZ", { maxTurns: 3 }, { judge: alwaysContinue }),
     );
-    // turno 1 envia o goal cru; a continuation FIEL aparece nos turnos 2+ (prompt composto).
+    // turn 1 sends the raw goal; the FAITHFUL continuation appears on turns 2+ (a composed prompt).
     const cont = events.find((e) => e.type === "continuation" && e.turn >= 2);
     expect(cont).toBeDefined();
     if (cont && cont.type === "continuation") {
       expect(cont.prompt).toContain("WHOLE_GOAL_XYZ"); // goal intact
-      expect(cont.prompt.toLowerCase()).toMatch(/evidence|audit/); // linguagem fiel ao continuation.md
+      expect(cont.prompt.toLowerCase()).toMatch(/evidence|audit/); // language faithful to continuation.md
     }
   });
 });
@@ -324,7 +324,7 @@ describe("M55 review — abort threaded into the in-flight run", () => {
           },
           wait: async () => {
             await blocked;
-            return { result: "interrompido" };
+            return { result: "interrupted" };
           },
         };
       },
@@ -353,18 +353,18 @@ describe("M55 review — abort threaded into the in-flight run", () => {
   });
 });
 
-describe("M56 review — continuation marcada + preview tail-biased", () => {
+describe("M56 review — marked continuation + tail-biased preview", () => {
   it("continuation_carries_stable_marker_and_tail_of_last_response", async () => {
     const { composeContinuation } = await import(
       "../../../src/internal/runtime/lifecycle/run-until.js"
     );
     const { GOAL_CONTINUATION_MARKER } = await import("../../../src/goal-loop.js");
-    const long = `INICIO ${"x".repeat(2000)} CONCLUSAO-FINAL`;
+    const long = `START ${"x".repeat(2000)} FINAL-CONCLUSION`;
     const prompt = composeContinuation("obj", long);
     // stable marker on the 1st line — consumers (collapsed timeline, backtrack, compact) detect
     expect(prompt.startsWith(GOAL_CONTINUATION_MARKER)).toBe(true);
     // tail-biased preview: the previous turn's CONCLUSION survives, not the opening narration
-    expect(prompt).toContain("CONCLUSAO-FINAL");
-    expect(prompt).not.toContain("INICIO ");
+    expect(prompt).toContain("FINAL-CONCLUSION");
+    expect(prompt).not.toContain("START ");
   });
 });

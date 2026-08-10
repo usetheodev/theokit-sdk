@@ -1,12 +1,12 @@
-// MIGRADO do agent-builder no M75 T4.1. A regra do plano (D4) e que os testes atravessem SEM
+// MIGRATED from agent-builder in M75 T4.1. The plan's rule (D4) is that the tests cross over WITHOUT
 // assertion rewriting: if a test had to change in order to pass, that would be a FINDING, not an adjustment — and
-// e a unica defesa contra afrouxar silenciosamente uma garantia de seguranca numa migracao.
+// and is the only defence against silently loosening a security guarantee during a migration.
 //
-// Mudancas permitidas e efetivamente feitas: as linhas de `import` e o nome da classe
-// (BwrapSandbox -> LinuxSandbox). Nenhum corpo de teste, nenhuma assercao.
+// Changes permitted and actually made: the `import` lines and the class name
+// (BwrapSandbox -> LinuxSandbox). No test body, no assertion.
 //
 // These are the 10 `itLive` tests proving REAL confinement via execute(): it blocks writes outside the
-// workspace, permite no cwd, bloqueia rede, .git read-only, aspas sobrevivem ao duplo shell, seccomp
+// workspace, allows in cwd, blocks the network, .git read-only, quotes survive the double shell, seccomp
 // blocks ptrace and AF_INET but allows AF_UNIX. They had never run in CI until M75.
 
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
@@ -76,19 +76,19 @@ describe("LinuxSandbox (real integration with bwrap)", () => {
     await sbx.execute("mkdir -p .git"); // .git did not exist in the mkdtemp — created outside the protection test
     // a new instance re-evaluates gitDirExists at execute time
     const r = await sbx.execute("touch .git/m53-hook");
-    expect(r.exitCode).not.toBe(0); // permissions.rs:22-31 — .git RO por cima do bind RW
+    expect(r.exitCode).not.toBe(0); // permissions.rs:22-31 — .git RO on top of the RW bind
   });
 
   itLive("quotes_survive_the_double_shell", async () => {
     const sbx = new LinuxSandbox({ workDir, timeoutMs: 10_000 }, { mode: "workspace-write" });
-    // aspas simples internas + metacaracteres literais devem atravessar o `/bin/sh -c` extra intactos
+    // inner single quotes + literal metacharacters must cross the extra `/bin/sh -c` intact
     const r = await sbx.execute(`printf '%s' 'a"b\`c$d' && printf '%s' " e'f"`);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toBe("a\"b`c$d e'f");
   });
 });
 
-describe("createSandboxBackend (fallback honesto)", () => {
+describe("createSandboxBackend (honest fallback)", () => {
   it("fallback_local_when_unavailable_warns_once", () => {
     const warns: string[] = [];
     const make = () =>
@@ -137,7 +137,7 @@ describe("M53 review fixes — MEDIUM-1 absolute bin + MEDIUM-2 posture", () => 
     );
     const wrapped = (sbx as unknown as { wrapCommand(c: string): string }).wrapCommand("echo hi");
     expect(wrapped.startsWith("'/opt/trusted/bwrap' ")).toBe(true);
-    expect(wrapped).not.toMatch(/(^|\s)bwrap\s/); // nunca o nome bare
+    expect(wrapped).not.toMatch(/(^|\s)bwrap\s/); // never the bare name
   });
 
   it("resolveSandboxPosture_reports_enforced_and_downgrade", async () => {
@@ -275,12 +275,12 @@ describe("M57 T0.1 — wrapCommandForSandbox (pure function, single source of th
 });
 
 describe("M63 review HIGH — no brick on non-x86_64 arch", () => {
-  it("non_x64_arch_skips_seccomp_and_warns (fallback honesto, nunca brick)", () => {
+  it("non_x64_arch_skips_seccomp_and_warns (honest fallback, never a brick)", () => {
     const warns: string[] = [];
     // aarch64: generating the x86_64 filter would kill EVERY syscall -> it must skip (undefined), never brick
     expect(seccompPathForArch("arm64", (m) => warns.push(m))).toBeUndefined();
     expect(seccompPathForArch("ppc64", () => {})).toBeUndefined(); // any non-x64
-    // x64: gera normalmente (path .bpf)
+    // x64: emits normally (the .bpf path)
     const p = seccompPathForArch("x64", () => {});
     expect(typeof p).toBe("string");
     expect(p).toMatch(/\.bpf$/);

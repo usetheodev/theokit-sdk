@@ -150,7 +150,7 @@ export async function compactSessionTranscript(opts: {
 }
 
 /**
- * M50 review F6 (corrigido no probe) — the summarizer's provider route, PURE and unit-tested.
+ * M50 review F6 (fixed by the probe) — the summarizer's provider route, PURE and unit-tested.
  * Precedence mirrors the run's M4 rule exactly:
  *   1. an EXPLICIT credential's provider wins (an sk-or- key + `openai/…` model must summarize via
  *      OpenRouter — the key is the ground truth of which endpoint gets called);
