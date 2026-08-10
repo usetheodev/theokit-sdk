@@ -1,5 +1,52 @@
 # Changelog
 
+## 4.41.0
+
+### Minor Changes
+
+- ea99026: Three facts the SDK already knew are now answerable, instead of being re-derived by every consumer.
+
+  - `assertSecureModes(dir, file)` — the 0700-dir / 0600-file gate, exported from `@theokit/sdk/auth`.
+    Its own docstring names the attack it prevents (a writable directory lets someone swap the
+    credential file for a symlink to their own), and that reasoning is not specific to this SDK's
+    credential file: consumers keep sensitive stores beside it and were reading them with no check at
+    all, because the gate was private.
+
+  - `writableRootsFor(mode, cwd)` — what a sandbox mode may write to, answerable WITHOUT spawning.
+    `buildBwrapArgv` knew it, but only while building an argv, and consumers need the answer earlier:
+    tools are scoped at agent construction, before any process exists. `[]` means nothing is writable;
+    `null` means unrestricted — not `["/"]`, because unrestricted is the absence of a root rather than
+    a root that happens to be `/`.
+
+  - `atomicWriteTempTarget(name)` — the file a leftover `<file>.<pid>.<hex>.tmp` was replacing.
+    `replaceFileAtomic` creates those and has no opinion about sweeping them, so a consumer wanting to
+    had to know a format that lived only in the implementation. Deliberately strict about pid digits
+    and a 16-char hex suffix: matching any `.tmp` would claim other tools' scratch on a path whose
+    purpose is deleting files.
+
+  Each is derived from the same helper its writer uses, so the answer and the behaviour cannot drift
+  apart. All three were measured from a consumer that had reimplemented them — one of them by copying
+  a regex out of a compiled chunk.
+
+- 994808f: Emit `mcp_server_failed` on the typed run-event stream when a configured MCP server's tools cannot be listed. Additive `RunEvent` variant; the sink stays opt-in and no existing signature changed.
+- 4d64479: `classifySessionArtifact(name, isDirectory)` — what a file in a project directory is, when this SDK
+  wrote it.
+
+  Four kinds get created here and reasoned about nowhere: `<id>.jsonl` (`transcriptPath`),
+  `<id>.jsonl.writer.lock` (the writer lease), `<id>.jsonl.lock` (`withFileLock`, a DIRECTORY since it
+  locks by `mkdir`), and `<file>.<pid>.<hex>.tmp` (`replaceFileAtomic`, left behind by a crash between
+  the open and the rename). There is no retention, no collector, and there was no way even to ask what
+  an entry is — so a consumer reclaiming disk had to re-derive the suffixes from this source, and a
+  suffix changing here would have left its classifier mislabelling files on a path that deletes them.
+
+  Deliberately NOT a garbage collector. Retention is policy — how many days, how many to keep, which
+  session is live, whether to delete at all — and the application is the only one that can answer that.
+  What belongs here is the half only the SDK can: what did I write, and what is it.
+
+  `undefined` means "not written by this SDK", which is the answer that matters most — a caller
+  deleting what it does not recognise is how someone's editor swap file gets collected. The `temp` case
+  defers to `atomicWriteTempTarget` rather than matching `.tmp`, for that reason.
+
 ## 4.40.0
 
 ### Minor Changes
