@@ -1,7 +1,7 @@
 /**
  * M75 T3.2 — `interactiveWrapCommand`: the missing composition.
  *
- * ## Por que ela existe, e por que no SDK
+ * ## Why it exists, and why in the SDK
  *
  * `createSandboxBackend` already does this composition for the **non-interactive** path: it detects bwrap,
  * decides between confining and degrading honestly, and returns a ready backend. The interactive path
@@ -10,11 +10,11 @@
  *
  * Without this function, every consumer wanting a confined interactive shell would rewrite the same
  * sequence: `detectBwrapMemoized` -> `if (!ok) WARN-once` -> `wrapCommandForSandbox` with
- * `allowlistedEnv` e `restrictedSeccompPath`. Era o que o agent-builder fazia em 99 linhas de
+ * `allowlistedEnv` and `restrictedSeccompPath`. It is what agent-builder did in 99 lines of
  * subclass, and it is precisely what M75 exists to eliminate — "what every theokit consumer
- * que rode comandos vai reimplementar".
+ * that runs commands will reimplement".
  *
- * ## O invariante que os testes protegem
+ * ## The invariant these tests protect
  *
  * The two "do not confine" routes are **semantically different** and the code must not merge them:
  * `danger-full-access` is an explicit opt-out (no warning), while bwrap being unavailable is a
@@ -28,12 +28,12 @@ import {
   resetInteractiveWarnLatch,
 } from "../src/sandbox/index.js";
 
-const detectaOk = (): BwrapDetection => ({ ok: true, bin: "/usr/bin/bwrap" });
+const detectOk = (): BwrapDetection => ({ ok: true, bin: "/usr/bin/bwrap" });
 const detectFailure = (): BwrapDetection => ({ ok: false, reason: "bwrap not found in PATH" });
 
 describe("M75 T3.2 — interactiveWrapCommand", () => {
   it("test_confines_when_bwrap_exists", () => {
-    const wrap = interactiveWrapCommand({ mode: "workspace-write", detect: detectaOk });
+    const wrap = interactiveWrapCommand({ mode: "workspace-write", detect: detectOk });
     const out = wrap("python3 -i", "/w");
     expect(out, "with bwrap available the command MUST be wrapped").not.toBeNull();
     expect(out).toContain("/usr/bin/bwrap");
@@ -48,7 +48,7 @@ describe("M75 T3.2 — interactiveWrapCommand", () => {
     const warnings: string[] = [];
     const wrap = interactiveWrapCommand({
       mode: "danger-full-access",
-      detect: detectaOk,
+      detect: detectOk,
       warn: (m) => warnings.push(m),
     });
     expect(wrap("bash", "/w")).toBeNull();
@@ -74,12 +74,12 @@ describe("M75 T3.2 — interactiveWrapCommand", () => {
       /PATH.*workspace-write/s,
     );
     expect(warnings[0], "the warning must make clear there is NO confinement").toMatch(
-      /WITHOUT|sem confinamento|not confined/i,
+      /WITHOUT|unconfined|not confined/i,
     );
   });
 
   it("test_read_only_grants_no_write_even_on_the_cwd", () => {
-    const out = interactiveWrapCommand({ mode: "read-only", detect: detectaOk })("bash", "/w");
+    const out = interactiveWrapCommand({ mode: "read-only", detect: detectOk })("bash", "/w");
     // `wrapCommandForSandbox` returns the SHELL-QUOTED string (each flag in single quotes), not the
     // raw argv. The first version of this test asserted the raw form — and the NEGATIVE assertion
     // passed vacuously: `not.toContain("--bind /w /w")` would be true even with the bind
@@ -89,10 +89,10 @@ describe("M75 T3.2 — interactiveWrapCommand", () => {
     expect(out, "read-only must not write-bind the cwd").not.toContain("'--bind' '/w' '/w'");
   });
 
-  it("test_a_lente_negativa_do_read_only_e_capaz_de_falhar", () => {
+  it("test_the_negative_lens_on_read_only_is_able_to_fail", () => {
     // Proof the assertion above is NOT vacuous: in the mode that MUST write to the cwd, the same
     // the searched string does appear. Without this counter-proof, `not.toContain` would stay green forever.
-    const rw = interactiveWrapCommand({ mode: "workspace-write", detect: detectaOk })("bash", "/w");
+    const rw = interactiveWrapCommand({ mode: "workspace-write", detect: detectOk })("bash", "/w");
     expect(rw, "workspace-write MUST write-bind the cwd").toContain("'--bind' '/w' '/w'");
   });
 
@@ -105,7 +105,7 @@ describe("M75 T3.2 — interactiveWrapCommand", () => {
       mode: "workspace-write",
       detect: () => {
         calls++;
-        return detectaOk();
+        return detectOk();
       },
     });
     wrap("a", "/w");
@@ -117,37 +117,37 @@ describe("M75 T3.2 — interactiveWrapCommand", () => {
 /**
  * M75 review (architecture, MEDIUM) — the rule "seccomp only with a restricted network" had TWO copies.
  *
- * O construtor de `LinuxSandbox` decidia condicionalmente; `interactiveWrapCommand` instalava
+ * The `LinuxSandbox` constructor decided conditionally; `interactiveWrapCommand` installed
  * unconditionally. They diverged in the very first version, and the effect is the worst possible combination: with
- * `network: true` o bwrap **permite** a rede (sem `--unshare-net`) e o seccomp a **nega** com EPERM.
+ * `network: true` bwrap **allows** the network (no `--unshare-net`) while seccomp **denies** it with EPERM.
  * The user asks for network, gets the bind, and the calls die with no explanation.
  *
  * This test locks both paths to the SAME decision. If anyone duplicates the rule again, it fails.
  */
-describe("M75 review — seccomp e rede decidem juntos nos dois caminhos", () => {
+describe("M75 review — seccomp and network decide together on both paths", () => {
   it("test_an_open_network_does_NOT_install_seccomp_interactively", () => {
     const out = interactiveWrapCommand({
       mode: "workspace-write",
       network: true,
-      detect: detectaOk,
+      detect: detectOk,
     })("bash", "/w");
     expect(out, "with the network open bwrap must not isolate it").not.toContain("--unshare-net");
     expect(
       out,
       "the cBPF filter denies network syscalls: installing it with the network open makes bwrap allow and " +
-        "seccomp negar a MESMA coisa",
+        "seccomp to deny the SAME thing",
     ).not.toContain("--seccomp");
   });
 
-  it("test_rede_restrita_instala_seccomp_no_interativo", () => {
+  it("test_a_restricted_network_installs_seccomp_in_the_interactive_path", () => {
     // COUNTER-PROOF: without it the `not.toContain` above would stay green even if seccomp were never
     // installed — and then the test would protect the filter's absence instead of the rule's coherence.
     const out = interactiveWrapCommand({
       mode: "workspace-write",
       network: false,
-      detect: detectaOk,
+      detect: detectOk,
     })("bash", "/w");
     expect(out).toContain("--unshare-net");
-    expect(out, "com a rede fechada o filtro TEM de ser instalado").toContain("--seccomp");
+    expect(out, "with the network closed the filter MUST be installed").toContain("--seccomp");
   });
 });

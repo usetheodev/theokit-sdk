@@ -26,7 +26,28 @@ export type RunEvent =
   | RunCompactBoundaryEvent
   | RunCompactionFallbackEvent
   | RunTripwireEvent
-  | RunCompletionCheckEvent;
+  | RunCompletionCheckEvent
+  | RunMcpServerFailedEvent;
+
+/**
+ * theokit#188 — an MCP server was configured but its tools could not be listed, so NONE of its
+ * tools exist for this run.
+ *
+ * The failure was always caught (`safeListTools` returns `[]` so one broken server cannot take the
+ * turn down) and always DIAGNOSED — to `diag()`, i.e. the SDK's stderr. Nothing reached the
+ * consumer, so a UI listing configured servers could show one as present while every tool it
+ * provides had silently vanished. Degrading gracefully is right; degrading INVISIBLY is not.
+ *
+ * Emitted once per failing server per run, on the same catch path that already had both the name
+ * and the reason.
+ */
+export interface RunMcpServerFailedEvent {
+  readonly type: "mcp_server_failed";
+  /** The server as named in the MCP configuration, so the consumer can match it to what it lists. */
+  readonly serverName: string;
+  /** Why listing failed — a spawn error, a handshake timeout, a protocol error. */
+  readonly message: string;
+}
 
 /**
  * SE24 — a guardrail processor called `abort()`; the run stops with a tripwire.

@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { Agent } from "../src/agent.js";
 
 /**
- * M91 — o docstring de `getOrCreate` afirmava o oposto do comportamento real.
+ * M91 — the `getOrCreate` docstring claimed the opposite of the real behaviour.
  *
- * Ele dizia: *"Disposed agents are NOT auto-deleted from the registry. To force a fresh agent, call
+ * It said: *"Disposed agents are NOT auto-deleted from the registry. To force a fresh agent, call
  * `Agent.delete(agentId)` first."* Measured, that is false: `dispose()` calls `liveAgentRegistry.forget(id)`,
  * so the next `getOrCreate(id)` builds a fresh handle.
  *
@@ -22,8 +22,8 @@ describe("M91 — getOrCreate after dispose", () => {
   };
 
   it("a LIVE cache hit returns the same instance", async () => {
-    const a = await Agent.getOrCreate("m91-vivo", opts as never);
-    const b = await Agent.getOrCreate("m91-vivo", opts as never);
+    const a = await Agent.getOrCreate("m91-live", opts as never);
+    const b = await Agent.getOrCreate("m91-live", opts as never);
     expect(b).toBe(a);
     await a.dispose();
   });

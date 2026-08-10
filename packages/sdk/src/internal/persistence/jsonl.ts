@@ -8,7 +8,7 @@
  *   (M6 ADR D1): each record is appended as one whole `\n`-terminated line the
  *   instant it is produced, and a re-run resumes by skipping already-keyed rows.
  *
- * referencia: knowledge-base/references/theocode-eval/lib/swebench-dataset.ts:82
+ * reference: knowledge-base/references/theocode-eval/lib/swebench-dataset.ts:82
  * (parseJsonl + line-N error) and swebench-batch.ts:113,205 (resume + per-line
  * flush).
  *
@@ -121,7 +121,7 @@ function parseLine(
  * the event loop serializes writes and each call writes its line atomically —
  * interleave-safe for the bounded-concurrency batch runner.
  *
- * referencia: swebench-batch.ts:192 (mkdir-before-append), :205 (per-line flush).
+ * reference: swebench-batch.ts:192 (mkdir-before-append), :205 (per-line flush).
  */
 export function appendJsonl(path: string, record: unknown): void {
   mkdirSync(dirname(path), { recursive: true });
@@ -178,7 +178,7 @@ function needsLineBreakBefore(path: string): boolean {
  * interrupted append is tolerated (skipped, not thrown), and a missing file
  * yields an empty set.
  *
- * referencia: swebench-batch.ts:113 (readDoneIds), :129 (success-only),
+ * reference: swebench-batch.ts:113 (readDoneIds), :129 (success-only),
  * :131 (tolerate partial line).
  */
 export function readJsonlIds(

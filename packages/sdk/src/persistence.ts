@@ -1,5 +1,5 @@
 /**
- * Public persistence primitives (V2-3 — Theo Harness Capability Map, Tema G).
+ * Public persistence primitives (V2-3 — Theo Harness Capability Map, Theme G).
  *
  * Promotes the consumer-grade persistence helpers from `internal/persistence`
  * to a STABLE, semver-protected public sub-path so consumers (e.g. a code
@@ -8,7 +8,7 @@
  * semver-exempt `@theokit/sdk/internal/persistence` path.
  *
  * Several of these were extracted FROM a real consumer (theocode's SWE-bench
- * harness — see the `referencia:` comments in `internal/persistence/jsonl.ts`);
+ * harness — see the `reference:` comments in `internal/persistence/jsonl.ts`);
  * this sub-path lets that consumer adopt its own contributed pattern back from a
  * stable home. DTS is generated via tsc (this barrel reaches `internal/`, like
  * `retry`/`compaction` — see `tsconfig.tools-dts.json`).
@@ -18,6 +18,7 @@
 export type { AtomicWriteJsonOptions } from "./internal/persistence/atomic-write.js";
 export {
   atomicWriteJson,
+  atomicWriteTempTarget,
   atomicWriteText,
   replaceFileAtomic,
 } from "./internal/persistence/atomic-write.js";
@@ -37,6 +38,10 @@ export {
   readJsonlIds,
 } from "./internal/persistence/jsonl.js";
 export { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
+export {
+  classifySessionArtifact,
+  type SessionArtifact,
+} from "./internal/persistence/session-artifacts.js";
 // SE40 — native session transcript (Claude-shaped `.jsonl`, theokit-native). The
 // on-disk session format IS this shape. `encodeProjectDir` + `transcriptPath` are
 // the path helpers a consumer reuses to locate a session file under
@@ -78,5 +83,5 @@ export {
   type ReadJsonlTailOptions,
   readJsonlTail,
 } from "./internal/persistence/transcript-ops.js";
-// M94 — a forma do registro deixa de ser `Record<string, unknown>`; o consumidor derrubava os casts.
+// M94 — the record shape stops being `Record<string, unknown>`; the consumer used to litter casts.
 export type { TranscriptBlock, TranscriptMessage } from "./types/session-record.js";

@@ -51,7 +51,7 @@ export function mergeEnv(...layers) {
   return merged;
 }
 
-// biome-ignore lint/suspicious/noControlCharactersInRegex: ESC introduz sequências ANSI — remover é o propósito do pattern.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: ESC introduces ANSI sequences — removing them is the whole point of the pattern.
 const ANSI_PATTERN = /\u001B\[[0-9;]*[A-Za-z]/g;
 
 /** Strip ANSI escape sequences so the browser output pane stays clean. */

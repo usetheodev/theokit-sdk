@@ -11,7 +11,7 @@ describe("createQuestionTool", () => {
 
     expect(result.ok).toBe(true);
     expect(result.answer).toBe("yes, proceed");
-    // M76 — o asker passou a receber um 2o argumento: o `threadId` da run, para que uma tool
+    // M76 — the asker now receives a 2nd argument: the run's `threadId`, so that a tool
     // shared across sessions scopes state per session. There is no `ctx` here, so it comes through as
     // `undefined` — the assertion makes that explicit instead of hiding the new argument.
     expect(askUser).toHaveBeenCalledWith("Continue?", undefined);

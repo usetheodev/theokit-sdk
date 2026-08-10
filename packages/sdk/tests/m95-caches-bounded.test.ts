@@ -3,7 +3,7 @@
  *
  * `agent-session.ts` and `session-cache.ts` keep four process-wide maps — `sessions`,
  * `hydratedKeys`, `pendingWrites`, `recordCounts` — and none erases an entry by id at the end of an
- * do agente. Medido: `invalidateSessionCache` limpa **dois** (`sessions`, `hydratedKeys`); os
+ * of the agent. Measured: `invalidateSessionCache` clears **two** (`sessions`, `hydratedKeys`); the
  * the other two are never touched by id. In a long-lived process running many sessions, that is
  * ownerless growth.
  */
@@ -15,9 +15,9 @@ import {
 } from "../src/internal/session/agent-session.js";
 import { hydratedKeys, sessions, transcriptKey } from "../src/internal/session/session-cache.js";
 
-const CWD = "/algum/cwd";
+const CWD = "/some/cwd";
 
-describe("M95 — discardSession apaga as QUATRO entradas", () => {
+describe("M95 — discardSession deletes ALL FOUR entries", () => {
   it("erases hydratedKeys but PRESERVES sessions — there is a legitimate post-dispose reader", () => {
     // `sessions` holds the readable conversation, and the golden `two-concurrent-sends-serialize`
     // reads it AFTER `agent.dispose()`. Erasing it here returned an empty list. The LRU ceiling is
@@ -54,11 +54,11 @@ describe("M95 — ceiling on cached sessions", () => {
     for (const s of [...sessions.keys()]) sessions.delete(s);
     appendSessionMessage("active", { role: "user", text: "x" });
     for (let i = 0; i < MAX_CACHED_SESSIONS - 1; i++) {
-      appendSessionMessage(`enche-${i}`, { role: "user", text: "x" });
+      appendSessionMessage(`fill-${i}`, { role: "user", text: "x" });
     }
-    // Toca a "active" de novo — passa a ser a mais recente.
+    // Touch "active" again — it becomes the most recent.
     appendSessionMessage("active", { role: "user", text: "y" });
-    appendSessionMessage("estoura", { role: "user", text: "x" });
+    appendSessionMessage("overflow", { role: "user", text: "x" });
     expect(sessions.has("active"), "the active session was evicted (plan risk #2)").toBe(true);
   });
 });

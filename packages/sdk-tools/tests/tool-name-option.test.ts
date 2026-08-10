@@ -12,11 +12,11 @@
  * agent-builder, four renames stacked at the composition point — `registry.ts:97,104,107` and
  * `subagents/analyst.ts:28` — and a name that only exists after the tool has been built.
  *
- * ## O que estes testes protegem
+ * ## What these tests protect
  *
  * The change is **additive**, and the test that matters most is the DEFAULT one: omitting the option must produce
- * exatamente o literal de hoje. Se o default escorregasse, o modelo veria outra tool e — pior — os
- * approvals gravados por nome deixariam de casar, silenciosamente.
+ * exactly today's literal. If the default slipped, the model would see a different tool and — worse — the
+ * approvals recorded by name would stop matching, silently.
  *
  * `withName`/`withDescription` still exist for the dynamic case; the last test guarantees they
  * do not regress.
@@ -31,37 +31,37 @@ import { createShellTool } from "../src/shell-exec.js";
 const root = "/tmp";
 
 describe("M76 T1.2 — name/description as a factory option", () => {
-  it("test_name_da_fabrica_vence_o_default", () => {
+  it("test_the_factory_name_beats_the_default", () => {
     const t = createSearchTextTool({ projectRoot: root, name: "grep" });
     expect(t.name).toBe("grep");
   });
 
-  it("test_description_da_fabrica_vence_o_default", () => {
-    const t = createSearchTextTool({ projectRoot: root, description: "Busca literal ou regex." });
-    expect(t.description).toBe("Busca literal ou regex.");
+  it("test_the_factory_description_beats_the_default", () => {
+    const t = createSearchTextTool({ projectRoot: root, description: "Literal or regex search." });
+    expect(t.description).toBe("Literal or regex search.");
   });
 
-  it("test_sem_name_o_default_e_preservado", () => {
-    // O teste mais importante: retrocompatibilidade. Um default que escorrega muda a tool que o
+  it("test_without_a_name_the_default_is_preserved", () => {
+    // The most important test: backward compatibility. A default that slips changes the tool the
     // the model sees and breaks approvals recorded by name — with no error, no log.
     expect(createSearchTextTool({ projectRoot: root }).name).toBe("search_text");
     expect(createListDirTool({ projectRoot: root }).name).toBe("list_dir");
   });
 
-  it("test_sem_description_o_default_e_preservado", () => {
+  it("test_without_a_description_the_default_is_preserved", () => {
     // M76 review (M2) — the two earlier assertions (`length > 0` and `not.toBe("")`) said the SAME
     // thing two ways, and neither tested what the name promises: that the default is
     // PRESERVED. Replacing the description with "x" satisfied both. The default's oracle is the
     // default itself — the description the model reads must contain what the tool does.
     const t = createSearchTextTool({ projectRoot: root });
-    expect(t.description).toMatch(/search|busca|grep|text/i);
+    expect(t.description).toMatch(/search|grep|text|find/i);
     // And it must not be affected by passing `name`: the two options are independent.
     expect(createSearchTextTool({ projectRoot: root, name: "grep" }).description).toBe(
       t.description,
     );
   });
 
-  it("test_M1_name_e_description_valem_para_edit_file_e_shell_exec", () => {
+  it("test_M1_name_and_description_apply_to_edit_file_and_shell_exec", () => {
     // M76 review (M1) — the DoD said "all *ToolOptions", and the test covered only `search_text` and
     // `list_dir`. `edit_file` and `shell_exec` are precisely the two tools whose name is an
     // APPROVAL key: renaming one of them with nothing checking is the shortest path to a recorded
@@ -70,12 +70,12 @@ describe("M76 T1.2 — name/description as a factory option", () => {
     expect(edit.name).toBe("apply_patch");
     expect(createEditFileTool({ projectRoot: root }).name).toBe("edit_file");
 
-    const sh = createShellTool({ projectRoot: root, name: "rodar" });
-    expect(sh.name).toBe("rodar");
+    const sh = createShellTool({ projectRoot: root, name: "run" });
+    expect(sh.name).toBe("run");
     expect(createShellTool({ projectRoot: root }).name).toBe("shell_exec");
   });
 
-  it("test_with_name_continua_funcionando", () => {
+  it("test_with_name_keeps_working", () => {
     // The dynamic path does not regress: renaming AFTERWARDS remains possible for callers deciding the
     // name outside construction.
     const t = withName(createSearchTextTool({ projectRoot: root }), "grep");

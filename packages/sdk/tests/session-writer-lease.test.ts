@@ -1,7 +1,7 @@
 /**
  * M81 T1.2 — single-writer lease for a session.
  *
- * ## O problema medido
+ * ## The measured problem
  *
  * Nothing today stops two processes appending to the same JSONL transcript. The concrete case M81
  * cites: `exec resume --last` can write into the TUI's live session. Two interleaved writes in an
@@ -14,7 +14,7 @@
  * SHAPE. `withFileLock(path, fn)` is scope-based — it holds the lock for a callback's duration.
  * A session lease is held **across turns**, for as long as the process owns the session, with an
  * explicit `release()`. Wrapping the session's whole lifecycle in a callback would invert the
- * controle do agent loop.
+ * control of the agent loop.
  *
  * The implementation uses the SAME primitive `withFileLock` uses underneath — an exclusive-creation
  * lockfile (`wx`) — with lease semantics on top. The mechanism stays single; only its lifetime changed.
@@ -24,7 +24,7 @@
  *
  * A second writer waiting for the lease would block `exec` behind a TUI session that can
  * last hours. `rules/error-handling.md` § 2 asks for a typed error; here it also has to be immediate,
- * para o chamador poder decidir entre forkar e desistir.
+ * so the caller can choose between forking and giving up.
  */
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -83,9 +83,9 @@ describe("M81 T1.2 — session writer lease", () => {
     await b.release();
   });
 
-  it("test_duas_aquisicoes_concorrentes_so_uma_vence", async () => {
+  it("test_two_concurrent_acquisitions_only_one_wins", async () => {
     // Concurrent test with an atomic-counter invariant: `Promise.allSettled` of two acquisitions =>
-    // exatamente 1 `fulfilled` e 1 `rejected`. Um lease que deixasse as duas passarem seria
+    // exactly 1 `fulfilled` and 1 `rejected`. A lease that let both through would be
     // decorative — and that is precisely today's state, with no lease at all.
     const p = session("e");
     const r = await Promise.allSettled([acquireSessionWriter(p), acquireSessionWriter(p)]);

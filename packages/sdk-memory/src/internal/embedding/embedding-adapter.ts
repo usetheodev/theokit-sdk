@@ -2,7 +2,7 @@
  * Memory embedding provider adapter contract (ADR D3 of memory-system-peer-project-parity).
  *
  * Mirrors peer-project's `MemoryEmbeddingProviderAdapter` from
- * `referencia/peer-project/extensions/openai/memory-embedding-adapter.ts` so
+ * `reference/peer-project/extensions/openai/memory-embedding-adapter.ts` so
  * adding a new provider becomes one new file under `adapters/`.
  *
  * @internal

@@ -8,7 +8,7 @@
  * `close()` — the union of those four methods is the portable surface.
  *
  * Why a separate file (vs declaring inline in `index-manager.ts`)? D43
- * promised "extrair interface abstrata `MemoryIndex` em
+ * promised "extract an abstract `MemoryIndex` interface in
  * `internal/memory/index-interface.ts`". Keeping the contract physically
  * separated from one of its implementations preserves OCP — future
  * backends (Qdrant, PGVector) can land without touching IndexManager.

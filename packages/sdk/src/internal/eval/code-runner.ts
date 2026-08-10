@@ -8,7 +8,7 @@
  * verify-gate grades. Every command rides {@link SandboxBackend.execute}
  * (ADR D2 — portable across Local/Docker/E2B).
  *
- * referencia: knowledge-base/references/theocode-eval/lib/swebench-batch.ts:154
+ * reference: knowledge-base/references/theocode-eval/lib/swebench-batch.ts:154
  * (build prediction from captured diff), :157 (reverse apply-check on the
  * mutated tree).
  *

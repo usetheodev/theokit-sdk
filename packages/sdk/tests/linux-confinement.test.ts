@@ -1,7 +1,7 @@
 /**
  * M75 T2.1 — the pure kernel-confinement functions, promoted out of the agent-builder.
  *
- * ## Por que promover
+ * ## Why promote it
  *
  * `buildBwrapArgv`, `detectBwrap` and `buildSeccompFilter` have nothing agent-builder-specific about them:
  * they are the infrastructure **every** theokit consumer that runs commands would reimplement. Measured
@@ -16,7 +16,7 @@
  *
  * ## What this file does NOT replace
  *
- * Os 24 testes originais migraram em `tests/bwrap-argv.test.ts` (18) e `tests/seccomp-filter.test.ts`
+ * The 24 original tests migrated into `tests/bwrap-argv.test.ts` (18) and `tests/seccomp-filter.test.ts`
  * (6), changing **only** `import` lines (D4 of the plan). This file is the promotion's RED, not the
  * parity suite — confusing the two would leave the migration without an oracle.
  *
@@ -37,15 +37,15 @@ import {
 } from "../src/sandbox/index.js";
 
 /** Injectable probes: no test in this file touches the host. */
-const probesFalsos = (over: Partial<BwrapProbes> = {}): BwrapProbes => ({
+const fakeProbes = (over: Partial<BwrapProbes> = {}): BwrapProbes => ({
   which: () => "/usr/bin/bwrap",
   helpText: () => "--perms\n--ro-bind\n--unshare-user",
   userns: () => true,
   ...over,
 });
 
-describe("M75 T2.1 — buildBwrapArgv promovido", () => {
-  it("test_workspace_write_confina_fs_e_rede", () => {
+describe("M75 T2.1 — buildBwrapArgv promoted", () => {
+  it("test_workspace_write_confines_both_fs_and_network", () => {
     const argv = buildBwrapArgv("workspace-write", {
       cwd: "/w",
       network: false,
@@ -72,21 +72,21 @@ describe("M75 T2.1 — buildBwrapArgv promovido", () => {
   });
 });
 
-describe("M75 T2.1 — detectBwrap promovido", () => {
+describe("M75 T2.1 — detectBwrap promoted", () => {
   it("test_it_detects_when_every_probe_passes", () => {
-    expect(detectBwrap(probesFalsos())).toEqual({ ok: true, bin: "/usr/bin/bwrap" });
+    expect(detectBwrap(fakeProbes())).toEqual({ ok: true, bin: "/usr/bin/bwrap" });
   });
 
   it("test_a_blocked_userns_is_an_honest_failure_with_a_reason", () => {
     // This is exactly the path the agent-builder's CI exercised: bubblewrap installed, userns
     // blocked by Ubuntu 24.04's AppArmor. The contract is to degrade with a REASON — never pretend.
-    const d = detectBwrap(probesFalsos({ userns: () => false }));
+    const d = detectBwrap(fakeProbes({ userns: () => false }));
     expect(d.ok).toBe(false);
     expect(d.ok === false && d.reason, "the failure must say WHY").toMatch(/namespace/i);
   });
 
   it("test_a_null_which_is_an_honest_failure", () => {
-    // O anti-hijack (recusar um `bwrap` que vive dentro do workspace) mora DENTRO de
+    // The anti-hijack (refusing a `bwrap` that lives inside the workspace) lives INSIDE
     // `realProbes.which`, not in `detectBwrap` — injecting a fake probe would bypass it, and a test
     // that "verifies" it via an injected probe would be measuring its own fixture.
     //
@@ -97,14 +97,14 @@ describe("M75 T2.1 — detectBwrap promovido", () => {
     // open; claiming coverage that does not exist is worse than the gap, because it stops anyone
     // from looking. What is measured here is `detectBwrap`'s contract facing a `which` that did not
     // resolve.
-    const d = detectBwrap(probesFalsos({ which: () => null }));
+    const d = detectBwrap(fakeProbes({ which: () => null }));
     expect(d.ok).toBe(false);
     expect(d.ok === false && d.reason).toMatch(/PATH|found/i);
   });
 });
 
-describe("M75 T2.1 — buildSeccompFilter promovido", () => {
-  it("test_gera_programa_cbpf_como_buffer_sem_dependencia_nativa", () => {
+describe("M75 T2.1 — buildSeccompFilter promoted", () => {
+  it("test_it_emits_a_cbpf_program_as_a_buffer_with_no_native_dependency", () => {
     const f = buildSeccompFilter({ networkRestricted: true });
     expect(Buffer.isBuffer(f)).toBe(true);
     // Each cBPF instruction takes 8 bytes; a valid program is a multiple of 8 and is not empty.
@@ -130,16 +130,16 @@ describe("M75 T2.1 — the detection memo", () => {
     resetBwrapMemo();
     // The counter has to be MINE: `realProbeCount()` only counts `realProbes` probes, and this test
     // does not touch the host. Counting the injected probe's calls is what actually measures the memo.
-    let sondagens = 0;
-    const contando = probesFalsos({
+    let probeCount = 0;
+    const counting = fakeProbes({
       which: () => {
-        sondagens++;
+        probeCount++;
         return "/usr/bin/bwrap";
       },
     });
-    await Promise.all(Array.from({ length: 20 }, async () => detectBwrapMemoized(contando)));
+    await Promise.all(Array.from({ length: 20 }, async () => detectBwrapMemoized(counting)));
     expect(
-      sondagens,
+      probeCount,
       "20 concurrent calls probed more than once — the memo did not serialize",
     ).toBe(1);
   });

@@ -1,9 +1,9 @@
 // MIGRATED from the agent-builder in M75 T4.1 — SECOND attempt, and the reason is in the review.
 //
-// A primeira "migracao" escreveu testes NOVOS com probes injetados e deletou estes 24. O review
+// The first "migration" wrote NEW tests with injected probes and deleted these 24. The review
 // proved by MUTATION what that cost: swapping buildSeccompFilter for `Buffer.alloc(8)` — a filter
 // that denies NOTHING, no arch guard, no ptrace, no io_uring, no AF_INET — passed 9/9. The
-// semantica inteira do filtro cBPF estava vacua.
+// entire semantics of the cBPF filter was vacuous.
 //
 // Here the change is ONLY in the import block (D4). No body, no assertion.
 
@@ -16,11 +16,11 @@ import { buildSeccompFilter } from "../src/sandbox/seccomp.js";
  * Default ALLOW; deny → ERRNO(EPERM); KILL only on arch/x32 guard. socket-family via args[0].
  */
 
-// decodifica sock_filter (8 bytes LE) → {code,jt,jf,k}
+// decodes sock_filter (8 bytes LE) → {code,jt,jf,k}
 function decode(buf: Buffer): { code: number; jt: number; jf: number; k: number }[] {
   const out = [];
   for (let i = 0; i < buf.length; i += 8) {
-    // `readUInt8` em vez de `buf[i+2]`: o SDK compila com `noUncheckedIndexedAccess`, que tipa o
+    // `readUInt8` instead of `buf[i+2]`: the SDK compiles with `noUncheckedIndexedAccess`, which types the
     // raw index as possibly undefined. This changes ACCESS, not the assertion — the value read is
     // the same byte, and D4 is still honored (no `expect` in this file changed).
     out.push({
@@ -32,7 +32,7 @@ function decode(buf: Buffer): { code: number; jt: number; jf: number; k: number 
   }
   return out;
 }
-// syscalls que aparecem como k de um JEQ (BPF_JMP|BPF_JEQ|BPF_K = 0x15)
+// syscalls that appear as the k of a JEQ (BPF_JMP|BPF_JEQ|BPF_K = 0x15)
 function jeqConstants(buf: Buffer): number[] {
   return decode(buf)
     .filter((f) => f.code === 0x15)
@@ -52,7 +52,7 @@ describe("buildSeccompFilter", () => {
     const ks = jeqConstants(buildSeccompFilter({ networkRestricted: true }));
     // always-denied (landlock.rs:179-184)
     for (const nr of [101, 310, 311, 425, 426, 427]) expect(ks).toContain(nr);
-    // recvfrom(45) e sendmsg(46) NUNCA negados (landlock.rs:198-201)
+    // recvfrom(45) and sendmsg(46) NEVER denied (landlock.rs:198-201)
     expect(ks).not.toContain(45);
     expect(ks).not.toContain(46);
   });
@@ -69,13 +69,13 @@ describe("buildSeccompFilter", () => {
 
   it("socket_family_checks_args0_offset16", () => {
     const f = decode(buildSeccompFilter({ networkRestricted: true }));
-    // socket(41)/socketpair(53) presentes
+    // socket(41)/socketpair(53) present
     const ks = f.filter((x) => x.code === 0x15).map((x) => x.k);
     expect(ks).toContain(41);
     expect(ks).toContain(53);
     // there is an absolute LD of offset 16 (args[0] low dword): code BPF_LD|BPF_W|BPF_ABS=0x20, k=16
     expect(f.some((x) => x.code === 0x20 && x.k === 16)).toBe(true);
-    // AF_UNIX(1) comparado
+    // AF_UNIX(1) compared
     expect(ks).toContain(1);
   });
 
@@ -84,7 +84,7 @@ describe("buildSeccompFilter", () => {
     // 1st instruction: LD arch@4
     expect(f[0]?.code).toBe(0x20);
     expect(f[0]?.k).toBe(4);
-    // AUDIT_ARCH_X86_64 comparado
+    // AUDIT_ARCH_X86_64 compared
     expect(f.some((x) => x.code === 0x15 && x.k === 0xc000003e)).toBe(true);
     // guard x32: JGE 0x40000000 (BPF_JMP|BPF_JGE|BPF_K = 0x35)
     expect(f.some((x) => x.code === 0x35 && x.k === 0x40000000)).toBe(true);
@@ -97,7 +97,7 @@ describe("buildSeccompFilter", () => {
     // the fall-through (1st RET, after all denies) MUST be ALLOW — default allow
     const firstRet = f.find((x) => x.code === 0x06);
     expect(firstRet?.k).toBe(ALLOW_RET);
-    // existem RET ERRNO(EPERM) e RET KILL
+    // RET ERRNO(EPERM) and RET KILL both exist
     expect(f.some((x) => x.code === 0x06 && x.k === EPERM_RET)).toBe(true);
     expect(f.some((x) => x.code === 0x06 && x.k === 0x80000000)).toBe(true);
   });

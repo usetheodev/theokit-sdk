@@ -34,9 +34,9 @@ function storeWith(initial: SessionRecord[]): SessionStore & { records: SessionR
 function seedHistory(): SessionRecord[] {
   const t = new SessionTranscript({ cwd: LOC.cwd, sessionId: LOC.agentId, model: LOC.model });
   t.appendUserTurn("my favorite city is Curitiba");
-  t.appendAssistantTurn({ text: "anotado" });
+  t.appendAssistantTurn({ text: "noted" });
   t.appendUserTurn("what is the weather like there?");
-  t.appendAssistantTurn({ text: `ameno no inverno. ${"detalhe irrelevante ".repeat(200)}` });
+  t.appendAssistantTurn({ text: `mild in winter. ${"irrelevant detail ".repeat(200)}` });
   return [...t.records()];
 }
 
@@ -59,7 +59,7 @@ describe("compactSessionTranscript", () => {
     );
     const joined = texts.join("\n");
     expect(joined).toContain(COMPACT_SUMMARY_MARKER);
-    expect(joined).toContain("Curitiba"); // user message verbatim preservada
+    expect(joined).toContain("Curitiba"); // the user message is preserved verbatim
     expect(joined).not.toContain("mild in winter"); // the assistant message is NOT preserved verbatim
     expect(result.postTokens).toBeLessThan(result.preTokens); // REAL reduction with non-trivial history
   });
@@ -75,7 +75,7 @@ describe("compactSessionTranscript", () => {
       loc: LOC,
       sessionId: LOC.agentId,
       trigger: "manual",
-      summarize: async () => "novo resumo",
+      summarize: async () => "a new summary",
     });
 
     const msgs = reconstructMessages(store.records);
@@ -117,7 +117,7 @@ describe("compactSessionTranscript", () => {
       loc: LOC,
       sessionId: LOC.agentId,
       trigger: "manual",
-      summarize: async () => "resumo",
+      summarize: async () => "a summary",
     });
     expect(store.records.length).toBeGreaterThan(beforeLen); // only grows, never shrinks
     expect(store.records.slice(0, beforeLen).map((r) => r.uuid)).toEqual(
@@ -132,7 +132,7 @@ describe("M50 review fixes — F1 cache invalidation + F9 hardened asserts", () 
       await import("../../../src/internal/session/agent-session.js");
     clearAllSessions();
     const store = storeWith(seedHistory());
-    // simula o processo vivo: cache hidratado + mensagens do processo
+    // simulates the live process: hydrated cache + in-process messages
     await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
     appendSessionMessage(LOC.agentId, { role: "user", text: "in-memory turn" });
     expect(getSessionMessages(LOC.agentId).length).toBeGreaterThan(0);
@@ -142,7 +142,7 @@ describe("M50 review fixes — F1 cache invalidation + F9 hardened asserts", () 
       loc: LOC,
       sessionId: LOC.agentId,
       trigger: "manual",
-      summarize: async () => "resumo",
+      summarize: async () => "a summary",
     });
 
     // post-compact: the cache was invalidated — the NEXT hydration re-reads disk (replacement)
@@ -151,7 +151,7 @@ describe("M50 review fixes — F1 cache invalidation + F9 hardened asserts", () 
     const rehydrated = getSessionMessages(LOC.agentId);
     const joined = rehydrated.map((m) => m.text).join("\n");
     expect(joined).toContain(COMPACT_SUMMARY_MARKER); // the replacement, not the old history
-    expect(joined).not.toContain("ameno no inverno");
+    expect(joined).not.toContain("mild in winter");
     clearAllSessions();
   });
 
@@ -163,7 +163,7 @@ describe("M50 review fixes — F1 cache invalidation + F9 hardened asserts", () 
       loc: LOC,
       sessionId: LOC.agentId,
       trigger: "manual",
-      summarize: async () => "resumo",
+      summarize: async () => "a summary",
     });
     const afterPrefix = JSON.stringify(store.records.slice(0, JSON.parse(beforePrefix).length));
     expect(afterPrefix).toBe(beforePrefix); // BYTE-identical prefix — real immutability
@@ -176,7 +176,7 @@ describe("M50 review fixes — F1 cache invalidation + F9 hardened asserts", () 
       loc: LOC,
       sessionId: LOC.agentId,
       trigger: "manual",
-      summarize: async () => "resumo",
+      summarize: async () => "a summary",
     });
     // next turn through the real persistence seam
     const t = SessionTranscript.fromRecords(store.records, {

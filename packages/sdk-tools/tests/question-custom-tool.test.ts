@@ -13,7 +13,7 @@
  *
  * ## Why this matters outside the SDK
  *
- * O consumidor era obrigado a escrever DOIS casts para registrar a tool
+ * The consumer was forced to write TWO casts to register the tool
  * (`agent-builder/agents/chat.ts:94-95`). A cast is the signature of a contract that does not close: it does not
  * fix the type, it only silences the compiler — and silencing here means a signature change
  * in the SDK would reach the consumer as a runtime error, not a compile error.
@@ -30,8 +30,8 @@ import { createQuestionTool } from "../src/question.js";
 
 const fakeAsker = async (): Promise<string> => "answer";
 
-describe("M76 T1.1 — o contrato de question fecha sem cast", () => {
-  it("test_input_schema_e_objeto_em_runtime", () => {
+describe("M76 T1.1 — the question contract closes with no cast", () => {
+  it("test_input_schema_is_an_object_at_runtime", () => {
     // The basis of the argument that narrowing is additive: the value ALREADY is what the narrow type declares.
     const t = createQuestionTool({ askUser: fakeAsker });
     const schema = t.inputSchema as Record<string, unknown>;
@@ -40,7 +40,7 @@ describe("M76 T1.1 — o contrato de question fecha sem cast", () => {
     expect(schema.required).toEqual(["question"]);
   });
 
-  it("test_o_schema_e_indexavel_como_record", () => {
+  it("test_the_schema_is_indexable_as_a_record", () => {
     // `unknown` is not indexable; `Record<string, unknown>` is. This test fails at COMPILE time with the
     // old type — and it is that failure, not the execution, that proves the change.
     const t = createQuestionTool({ askUser: fakeAsker });
@@ -54,13 +54,13 @@ describe("M76 T1.1 — o contrato de question fecha sem cast", () => {
     expect(t.inputSchema.required).toEqual(["question"]);
   });
 
-  it("test_handler_de_um_argumento_continua_valido", () => {
+  it("test_a_one_argument_handler_is_still_valid", () => {
     // Handler backward compatibility: callers passing 1 argument are unaffected. The 2nd (`ctx`) is optional.
     const t = createQuestionTool({ askUser: fakeAsker });
     expect(t.handler.length).toBeLessThanOrEqual(2);
   });
 
-  it("test_nome_e_descricao_seguem_os_defaults_de_hoje", () => {
+  it("test_name_and_description_follow_todays_defaults", () => {
     // ANCHOR: if the promotion changed the default silently, the model would see a different tool and
     // approvals recorded by name would stop matching. The name is a contract, not a label (blueprint Q1).
     const t = createQuestionTool({ askUser: fakeAsker });

@@ -1,6 +1,7 @@
 # @theokit/sdk — Harness Roadmap
 
-> **Part of the [TheoKit Ecosystem Roadmap](../ROADMAP.md).** This file is the authoritative home
+> **Part of the TheoKit ecosystem.** The group-level `../ROADMAP.md` did not survive the 2026-08
+> repo-group split and does not exist today (verified 2026-08-06). This file is the authoritative home
 > for the **Harness-hardening milestones (M0–M3)** — the 15 cross-validation gaps (#54–#68) filed on
 > `usetheo/theokit-sdk`. The cross-pillar integration milestones (M4–M8: Skills↔Harness, UI↔Harness,
 > Runtime↔Harness, GA) live in the ecosystem roadmap. Keep the M0–M3 checkboxes in sync between the
@@ -9,7 +10,7 @@
 The `@theokit/sdk` is the **Harness** pillar of Theo. This roadmap tracks the closure of the
 edge-case & bottleneck gaps surfaced by the 2026-06/07 cross-validation sweep against state-of-the-art
 agent runtimes. Master map:
-[`.claude/knowledge-base/audits/cross-validation/MASTER-edge-case-bottleneck-map.md`](./.claude/knowledge-base/audits/cross-validation/MASTER-edge-case-bottleneck-map.md).
+`.claude/knowledge-base/audits/cross-validation/MASTER-edge-case-bottleneck-map.md` — **missing file** (verified 2026-08-06). The `.claude/knowledge-base/` tree was absorbed into `wiki/` on 2026-08-06 and this map was never among its contents, so the path is dead in both directions.
 
 ## How to work these milestones
 
@@ -74,7 +75,8 @@ Owned by the ecosystem roadmap — the SDK is a **dependency** of those seams, n
 
 - **M4** Skills↔Harness · **M5** UI↔Harness · **M6** cluster consolidation · **M7** Runtime↔Harness (cloud, pre-release) · **M8** ecosystem GA.
 
-See [`../ROADMAP.md`](../ROADMAP.md) for objectives, DoD, and dependencies.
+The group-level `../ROADMAP.md` that used to carry the cross-pillar objectives, DoD and
+dependencies no longer exists (see the note at the top of this file).
 
 ---
 
@@ -185,7 +187,7 @@ session API, so hosts (TheoKit) can build session UIs without reaching into stor
 ### SE5 — [x] File checkpoint/rewind (GATED — ADR first)
 
 > **RESOLVED 2026-07-09 → framework/tool-layer owned (no SDK code).** See
-> [ADR 0003](docs/adr/0003-file-checkpointing-is-framework-owned.md). The runtime is BYO-tools and
+> `ADR 0003` (file-checkpointing-is-framework-owned — **document absent**: this repo has no `docs/adr/`, verified 2026-08-06). The runtime is BYO-tools and
 > tool-agnostic — it ships no file tools and the agent loop performs no file I/O, so it cannot know
 > which files a consumer tool mutated. A runtime checkpoint would need either an unbounded
 > whole-working-tree snapshot or a file-mutation reporting contract coupling every tool to a
@@ -214,7 +216,7 @@ the loop does not own file I/O — checkpointing may not fit the runtime cleanly
 ### SE6 — [x] Provider prewarm / first-token latency (GATED — measure first)
 
 > **RESOLVED 2026-07-09 → NEGLIGIBLE, no `prewarm()` API (YAGNI).** See
-> [ADR 0004](docs/adr/0004-no-provider-prewarm-in-process-coldstart-negligible.md). Measured with a
+> `ADR 0004` (no-provider-prewarm — **document absent**: this repo has no `docs/adr/`, verified 2026-08-06). Measured with a
 > reproducible harness (`packages/sdk/scripts/measure-cold-start.mts`, fixture runtime / no network,
 > Node 22, 12 runs ×2): the only cost a runtime `prewarm()` could amortize (Agent.create cold Δ +
 > first-run cold Δ) is **4–5 ms**, an order of magnitude below the 50 ms materiality threshold and

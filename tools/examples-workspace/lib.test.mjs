@@ -16,7 +16,7 @@ import {
   stripAnsi,
 } from "./lib.mjs";
 
-test("parseEnvFile ignora comentários, linhas vazias e linhas sem '='", () => {
+test("parseEnvFile ignores comments, blank lines and lines with no '='", () => {
   const parsed = parseEnvFile(
     ["# comment", "", "OPENROUTER_API_KEY=sk-or-abc", "not a pair", "  # indented comment"].join(
       "\n",
@@ -25,14 +25,14 @@ test("parseEnvFile ignora comentários, linhas vazias e linhas sem '='", () => {
   assert.deepEqual(parsed, { OPENROUTER_API_KEY: "sk-or-abc" });
 });
 
-test("parseEnvFile remove aspas, prefixo export e preserva '=' no valor", () => {
+test("parseEnvFile strips quotes and the export prefix, and preserves '=' inside the value", () => {
   const parsed = parseEnvFile(
     ['export A="quoted value"', "B='single'", "C=a=b=c", "D=  spaced  "].join("\n"),
   );
   assert.deepEqual(parsed, { A: "quoted value", B: "single", C: "a=b=c", D: "spaced" });
 });
 
-test("mergeEnv: overlay posterior vence; valores undefined são descartados", () => {
+test("mergeEnv: a later overlay wins; undefined values are discarded", () => {
   const merged = mergeEnv({ A: "base", B: "keep", C: undefined }, { A: "root" }, { A: "example" });
   assert.equal(merged.A, "example");
   assert.equal(merged.B, "keep");
@@ -46,7 +46,7 @@ test("stripAnsi remove escapes de cor e cursor", () => {
   );
 });
 
-test("isSafeSlug aceita kebab-case e rejeita path traversal", () => {
+test("isSafeSlug accepts kebab-case and rejects path traversal", () => {
   assert.equal(isSafeSlug("agent-basics"), true);
   assert.equal(isSafeSlug("workflow-retry"), true);
   assert.equal(isSafeSlug("../etc"), false);
@@ -55,7 +55,7 @@ test("isSafeSlug aceita kebab-case e rejeita path traversal", () => {
   assert.equal(isSafeSlug("UPPER"), false);
 });
 
-test("resolveRunCommand: run.ts presente → tsx do root; ausente → null", async () => {
+test("resolveRunCommand: run.ts present → tsx from the root; absent → null", async () => {
   const root = await mkdtemp(join(tmpdir(), "ews-root-"));
   try {
     const withEntry = join(root, "examples", "with-entry");

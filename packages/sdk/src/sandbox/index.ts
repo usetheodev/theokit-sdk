@@ -1,6 +1,6 @@
-// M75 T2.1 — confinamento de kernel promovido do agent-builder. Aditivo: nenhum consumidor existente
-// muda, e o subsistema se auto-protege por deteccao em runtime (fallback honesto) em vez de por
-// gating de plataforma no build.
+// M75 T2.1 — kernel confinement promoted from agent-builder. Additive: no existing consumer
+// changes, and the subsystem protects itself by runtime detection (an honest fallback) rather than by
+// platform gating at build time.
 export {
   type BwrapArgvOptions,
   type BwrapDetection,
@@ -12,8 +12,9 @@ export {
   realProbes,
   resetBwrapMemo,
   type SandboxMode,
+  writableRootsFor,
 } from "./bwrap.js";
-// M75 T2.2 — o backend com enforcement de kernel + o wrap + a postura. `wrapCommandForSandbox` e
+// M75 T2.2 — the backend with kernel enforcement + the wrap + the posture. `wrapCommandForSandbox` is
 // `resolveSandboxPosture` are PUBLIC API as required by M75 (T2.3): the first for whoever composes the
 // wrap elsewhere (the interactive PTY), the second so the UI can answer "am I confined right now?".
 export {

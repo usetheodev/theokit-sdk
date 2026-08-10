@@ -6,9 +6,23 @@ name: Release
 # vehicle for multi-package per-package release notes + sequential publish.
 # (Backend-DX, gateways, react, rag, voice, google-workspace skill were
 # extracted to sibling repos — plan monorepo-cohesion-split, 2026-06-18.)
-# OIDC trusted-publisher binding (per-package config at npmjs.com) attests
-# provenance automatically. NPM_TOKEN intentionally NOT used — per EC-2
-# absorbed, token env disables OIDC silently.
+# Auth is NPM_TOKEN (granular automation token) via NODE_AUTH_TOKEN — see the
+# publish step below for the full rationale. OIDC trusted-publisher binding is
+# NOT configured for @theokit/*, and provenance is disabled because npm refuses
+# attestation for private source repositories.
+#
+# This comment used to claim the opposite ("NPM_TOKEN intentionally NOT used —
+# token env disables OIDC silently"), contradicting the step it describes. The
+# publish here failed from ~2026-07-24 with E404 on the PUT of @theokit/sdk; the
+# cause was an expired NPM_TOKEN, renewed 2026-08-06, after which 4.40.0
+# published from CI unchanged. A header asserting the token was unused is the
+# worst possible thing to read while debugging a token failure. Keep this block
+# and the publish step in agreement, or delete this one — a header that
+# disagrees with the code it summarizes is worse than no header.
+#
+# NOT related: usetheodev/theokit#169 is a different repo's release.yml failing
+# with EUNKNOWNCONFIG (--git-checks) from a pnpm 9.15 / npm >= 11 conflict via
+# its own `npm install -g npm@latest` step. This workflow has no such step.
 
 on:
   push:

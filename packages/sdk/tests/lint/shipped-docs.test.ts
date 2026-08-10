@@ -1,13 +1,17 @@
 /**
  * Guard: the SDK reference docs actually ship in the npm tarball.
  *
- * `docs/` lives at the repo root (linked from the root README/CONTRIBUTING/
- * CLAUDE.md) but npm's `files` cannot reach outside the package, so `build`
- * copies it via `scripts/copy-docs.mjs`. Two ways that silently rots:
+ * They live at the repo root in the OKF wiki bundle (`wiki/reference/`, linked from
+ * the root README/CONTRIBUTING/CLAUDE.md) but npm's `files` cannot reach outside the
+ * package, so `build` copies them via `scripts/copy-docs.mjs`. Two ways that silently
+ * rots:
  *   1. `files` loses the `docs` entry -> tarball ships no docs.
- *   2. A new reference doc lands in root `docs/` but nobody adds it to the copy
+ *   2. A new reference doc lands in `wiki/reference/` but nobody adds it to the copy
  *      list -> it never reaches consumers.
  * This test fails on both. Static only (no build required).
+ *
+ * `wiki/reference/` is therefore gate-scoped: it holds ONLY the consumer-facing
+ * reference concepts. Every other wiki concept belongs in a sibling folder.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -17,8 +21,8 @@ import { describe, expect, it } from "vitest";
 const PKG_ROOT = join(import.meta.dirname, "..", "..");
 const REPO_ROOT = join(PKG_ROOT, "..", "..");
 
-/** The repo-root docs/ nav page is intentionally repo-only (its links are repo-relative). */
-const REPO_ONLY = new Set(["README.md"]);
+/** The bundle's own nav page is intentionally repo-only (an OKF index is navigation, not a concept). */
+const REPO_ONLY = new Set(["index.md"]);
 
 function shippedDocList(): string[] {
   const script = readFileSync(join(PKG_ROOT, "scripts", "copy-docs.mjs"), "utf-8");
@@ -39,7 +43,7 @@ describe("shipped reference docs", () => {
   });
 
   it("every root reference doc is on the shipped list (no silent omission)", () => {
-    const rootDocs = readdirSync(join(REPO_ROOT, "docs"))
+    const rootDocs = readdirSync(join(REPO_ROOT, "wiki", "reference"))
       .filter((f) => f.endsWith(".md") && !REPO_ONLY.has(f))
       .sort();
     expect(rootDocs.length).toBeGreaterThan(0);

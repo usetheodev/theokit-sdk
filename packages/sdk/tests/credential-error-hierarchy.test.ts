@@ -1,23 +1,23 @@
 /**
- * M78 T1.1 — `CredentialError` entra na hierarquia tipada do SDK.
+ * M78 T1.1 — `CredentialError` joins the SDK's typed hierarchy.
  *
- * ## A cadeia causal que este teste fecha
+ * ## The causal chain this test closes
  *
  * `isTransientError` is `err instanceof TheokitAgentError && err.isRetryable === true`
- * (`src/errors.ts:443`). `CredentialError` estendia `Error` NU
+ * (`src/errors.ts:443`). `CredentialError` extended a BARE `Error`
  * (`src/internal/auth/credential-store.ts:58`), so **no credential error could ever be
  * classified** — neither as transient nor as permanent. The predicate was not "forgotten" by the
  * consumer: it was useless there by construction.
  *
  * ## Why in the SDK, and not in the consumer
  *
- * O agent-builder importa `CredentialError` da camada desde o M73
+ * agent-builder has imported `CredentialError` from the layer since M73
  * (`agents/lib/auth/credentials.ts:90`) — it does not own the class and cannot reparent it. The ROADMAP's
  * DoD frames this as consumer-side work; measurement showed it is not.
  *
  * ## What the single reference does
  *
- * O Codex tem UMA enum raiz — `CodexErr` (`protocol/src/error.rs:176`) — com `is_retryable()` como
+ * Codex has ONE root enum — `CodexErr` (`protocol/src/error.rs:176`) — with `is_retryable()` as
  * method enumerating by variant. There are no parallel classes extending the language's `Error`. This is
  * our version of that.
  *
@@ -32,7 +32,7 @@ import { describe, expect, it } from "vitest";
 import { AuthenticationError, isTransientError, TheokitAgentError } from "../src/errors.js";
 import { CredentialError } from "../src/internal/auth/credential-store.js";
 
-describe("M78 T1.1 — CredentialError na hierarquia tipada", () => {
+describe("M78 T1.1 — CredentialError in the typed hierarchy", () => {
   it("test_CredentialError_e_um_TheokitAgentError", () => {
     // Two levels up: CredentialError -> AuthenticationError -> TheokitAgentError.
     const err = new CredentialError("missing key");
@@ -40,7 +40,7 @@ describe("M78 T1.1 — CredentialError na hierarquia tipada", () => {
     expect(err).toBeInstanceOf(AuthenticationError);
   });
 
-  it("test_CredentialError_continua_sendo_ELA_MESMA", () => {
+  it("test_CredentialError_remains_ITSELF", () => {
     // The preservation half. Without it, swapping the whole class for `AuthenticationError` would pass
     // the test above and break `login.ts:48` silently.
     const err = new CredentialError("missing key");
@@ -53,12 +53,12 @@ describe("M78 T1.1 — CredentialError na hierarquia tipada", () => {
     // Reparenting grants access to the classification; it must not TURN ON retry by accident. A revoked
     // credential retried in a loop is worse than an immediate failure — `AuthenticationError` already pins
     // `isRetryable: false` (`errors.ts:181`), and this test locks that.
-    expect(isTransientError(new CredentialError("revogada"))).toBe(false);
+    expect(isTransientError(new CredentialError("revoked"))).toBe(false);
   });
 
-  it("test_um_catch_generico_discrimina_framework_de_app_com_UM_instanceof", () => {
+  it("test_a_generic_catch_tells_framework_from_app_with_ONE_instanceof", () => {
     // The milestone's DoD 5, proven where it originates. Before, a `catch` received a bare `Error` from the
-    // store e `Error` nu vindo do app, sem forma de distinguir sem comparar strings de `name`.
+    // store and a bare `Error` from the app, with no way to tell them apart short of comparing `name` strings.
     const doFramework: unknown = new CredentialError("do store");
     const doApp: unknown = new Error("do app");
 

@@ -1,7 +1,7 @@
 /**
  * M81 T1.1 — the transcript operations the consumer performed by hand inside the store.
  *
- * ## O que existe hoje, medido
+ * ## What exists today, measured
  *
  * `agents/lib/session/backtrack.ts:188` (agent-builder) writes like this:
  *
@@ -12,9 +12,9 @@
  * A **raw** write into the framework's transcript store: no atomicity, no lock, not going through
  * no API at all. That is 243 LoC reimplementing parsing, truncation and writing of a format the framework owns.
  *
- * ## A regra que viaja junto (ADR D3 do plano)
+ * ## The rule that travels with it (plan ADR D3)
  *
- * `rules/audit-trail-rotation.md § Session transcripts (M60)` estabelece uma lista NEVER-delete:
+ * `rules/audit-trail-rotation.md § Session transcripts (M60)` establishes a NEVER-delete list:
  * the live pointer, the most recent transcript, and any active registry entry. That rule lives
  * today in the CONSUMER. Moving the operation into the framework without moving the rule would create an API able to
  * erase exactly what the rule protects — the same design that produced `reconcileUpdateGoalStatus`
@@ -49,8 +49,8 @@ function writeTranscriptFile(nome: string, n: number): string {
 }
 
 describe("M81 T1.1 — transcript operations", () => {
-  it("test_forkTranscript_PRESERVA_a_origem_intacta", () => {
-    const src = writeTranscriptFile("origem.jsonl", 10);
+  it("test_forkTranscript_PRESERVES_the_source_intact", () => {
+    const src = writeTranscriptFile("source.jsonl", 10);
     const before = readFileSync(src, "utf8");
 
     forkTranscript(src, join(dir, "fork-a.jsonl"), { beforeRecordIndex: 4 });
@@ -60,8 +60,8 @@ describe("M81 T1.1 — transcript operations", () => {
     expect(readFileSync(src, "utf8"), "the source must survive byte for byte").toBe(before);
   });
 
-  it("test_forkTranscript_corta_no_beforeRecordIndex", () => {
-    const src = writeTranscriptFile("origem2.jsonl", 10);
+  it("test_forkTranscript_cuts_at_beforeRecordIndex", () => {
+    const src = writeTranscriptFile("source2.jsonl", 10);
     const dst = join(dir, "fork-b.jsonl");
 
     forkTranscript(src, dst, { beforeRecordIndex: 4 });
@@ -69,11 +69,11 @@ describe("M81 T1.1 — transcript operations", () => {
     expect(loadJsonl(dst)).toHaveLength(4);
   });
 
-  it("test_forkTranscript_RECUSA_sobrescrever_um_destino_existente", () => {
+  it("test_forkTranscript_REFUSES_to_overwrite_an_existing_destination", () => {
     // Overwriting silently is data loss without an error — the worst failure mode for an operation
     // that touches a user's session.
-    const src = writeTranscriptFile("origem3.jsonl", 5);
-    const dst = writeTranscriptFile("ja-existe.jsonl", 3);
+    const src = writeTranscriptFile("source3.jsonl", 5);
+    const dst = writeTranscriptFile("already-exists.jsonl", 3);
 
     expect(() => forkTranscript(src, dst, { beforeRecordIndex: 2 })).toThrow();
     expect(loadJsonl(dst), "the existing destination must not have been touched").toHaveLength(3);
@@ -82,7 +82,7 @@ describe("M81 T1.1 — transcript operations", () => {
   it("test_forkTranscript_REFUSES_to_write_over_the_live_pointer", () => {
     // M60's NEVER-delete list, now inside the framework (ADR D3). A TYPED error, not a generic one:
     // the caller needs to tell "protected session" from "disk full".
-    const src = writeTranscriptFile("origem4.jsonl", 5);
+    const src = writeTranscriptFile("source4.jsonl", 5);
     const live = writeTranscriptFile("session-viva.jsonl", 5);
 
     expect(() =>
@@ -101,21 +101,21 @@ describe("M81 T1.1 — transcript operations", () => {
     ).toEqual([97, 98, 99]);
   });
 
-  it("test_readJsonlTail_le_de_TRAS_para_frente", () => {
+  it("test_readJsonlTail_reads_BACK_to_front", () => {
     // The point of the operation: a long transcript must not be loaded whole to read its last
     // lines. Without this, `readJsonlTail` would be just a `slice` with a better name.
     // 40,000 records ~ 500 KB — several times the 64 KB chunk. With a fixture smaller than one
     // chunk, the first read would grab the whole file and the test would pass by accident of size,
     // not because the implementation is right.
-    const src = writeTranscriptFile("grande.jsonl", 40_000);
-    const bytesTotais = readFileSync(src).length;
+    const src = writeTranscriptFile("large.jsonl", 40_000);
+    const totalBytes = readFileSync(src).length;
     const { bytesRead } = readJsonlTail<{ i: number }>(src, {
       maxRecords: 2,
       _stats: true,
     }) as never;
 
     expect(bytesRead, "read the whole file — the backwards read is not happening").toBeLessThan(
-      bytesTotais / 2,
+      totalBytes / 2,
     );
   });
 
@@ -143,8 +143,8 @@ describe("M81 T1.1 — transcript operations", () => {
     // wins, the other fails with a typed error. Without an atomic write, both would write over each
     // other and the winner would be the last to close the descriptor — with the file possibly half
     // written.
-    const src = writeTranscriptFile("origem5.jsonl", 20);
-    const dst = join(dir, "disputado.jsonl");
+    const src = writeTranscriptFile("source5.jsonl", 20);
+    const dst = join(dir, "contended.jsonl");
 
     const r = await Promise.allSettled([
       Promise.resolve().then(() => forkTranscript(src, dst, { beforeRecordIndex: 5 })),
@@ -159,7 +159,7 @@ describe("M81 T1.1 — transcript operations", () => {
 });
 
 /**
- * M107 T1.2 — o destino do fork nasce PRIVADO.
+ * M107 T1.2 — the fork destination is born PRIVATE.
  *
  * ## The defect, measured before the change
  *
@@ -167,9 +167,9 @@ describe("M81 T1.1 — transcript operations", () => {
  * born `0o666 & ~umask`. Measured on this machine, reproducing that line:
  *
  * ```
- * umask 0o002  ->  destino=0o664      <-- group-WRITABLE
- * umask 0o022  ->  destino=0o644      <-- world-readable
- * umask 0o200  ->  destino=0o466      <-- group E world readable
+ * umask 0o002  ->  destination=0o664      <-- group-WRITABLE
+ * umask 0o022  ->  destination=0o644      <-- world-readable
+ * umask 0o200  ->  destination=0o466      <-- group E world readable
  * ```
  *
  * A transcript carries the conversation's content. `0o664` is strictly worse than the `0o644` the
@@ -180,14 +180,14 @@ describe("M81 T1.1 — transcript operations", () => {
  * ## Why a DEFAULT and not a knob (D6)
  *
  * A mandatory knob would reach zero consumers by **omission** — the failure mode that
- * `.claude/rules/mecanismo-anti-esquecimento.md § 3` nomeia como a decisiva. O `mode?` existe para
+ * `.claude/rules/anti-forgetting-mechanism.md § 3` names as the decisive one. The `mode?` exists to
  * whoever needs a different value; the fix does not depend on anyone remembering it.
  *
  * ## Why there is NO mode reassertion here, unlike `atomicWriteJson`
  *
  * Under `umask 0o200` the destination comes out `0o400` instead of `0o600` — the `umask` cleared the owner's
  * owner. That is accepted on purpose: the invariant this item buys is *"neither group nor other"*, and
- * `0o400` o satisfaz **com folga**. Reafirmar com `fchmod` devolveria um bit que o operador pediu
+ * `0o400` satisfies it **with room to spare**. Reasserting with `fchmod` would hand back a bit the operator asked
  * to remove them, i.e. the SDK would be loosening the `umask` — the wrong direction in a security
  * fix. In `atomicWriteJson` the reassertion exists because there the mode is an EXPLICIT request
  * from the caller; here it is an SDK default.
@@ -195,10 +195,10 @@ describe("M81 T1.1 — transcript operations", () => {
  * ## What this block deliberately does NOT test
  *
  * `EEXIST` on an existing destination and the typed refusal of a live session **already have an owner** —
- * `test_forkTranscript_RECUSA_sobrescrever_um_destino_existente` e
+ * `test_forkTranscript_REFUSES_to_overwrite_an_existing_destination` e
  * `test_forkTranscript_REFUSES_to_write_over_the_live_pointer`, above in this file, and both run in the
  * the same command. Repeating them here would be a second oracle over the same fact, which is what
- * `.claude/rules/mecanismo-anti-esquecimento.md` § 5.6 forbids: two oracles diverge.
+ * `.claude/rules/anti-forgetting-mechanism.md` § 5.6 forbids: two oracles diverge.
  *
  * ## Mutation counter-proof (executed; output in the iteration log)
  *
@@ -206,7 +206,7 @@ describe("M81 T1.1 — transcript operations", () => {
  * |---|---|
  * | `openSync(dst, "wx", options.mode ?? 0o600)` -> `openSync(dst, "wx")` | the three in this block |
  */
-describe("M107 T1.2 — o destino do fork nasce privado", () => {
+describe("M107 T1.2 — the fork destination is born private", () => {
   const dirMode = mkdtempSync(join(tmpdir(), "m107-fork-mode-"));
   afterAll(() => rmSync(dirMode, { recursive: true, force: true }));
 
@@ -223,16 +223,16 @@ describe("M107 T1.2 — o destino do fork nasce privado", () => {
     }
   }
 
-  function origem(nome: string): string {
-    const p = join(dirMode, nome);
+  function source(name: string): string {
+    const p = join(dirMode, name);
     writeFileSync(p, '{"i":0}\n{"i":1}\n');
     return p;
   }
 
-  it("test_o_destino_do_fork_nasce_0600", () => {
+  it("test_the_fork_destination_is_born_0600", () => {
     // Arrange — `umask 0o002` is this machine's, and it is what produced `0o664` (group-writable).
-    const src = origem("o1.jsonl");
-    const dst = join(dirMode, "nasce-0600.jsonl");
+    const src = source("o1.jsonl");
+    const dst = join(dirMode, "born-0600.jsonl");
 
     // Act
     sobUmask(0o002, () => forkTranscript(src, dst));
@@ -241,10 +241,10 @@ describe("M107 T1.2 — o destino do fork nasce privado", () => {
     expect(mode(dst)).toBe(0o600);
   });
 
-  it("test_nenhum_umask_deixa_grupo_ou_outros_enxergarem_o_transcript", () => {
+  it("test_no_umask_lets_group_or_others_see_the_transcript", () => {
     // Arrange — the item's REAL invariant, across the three measured umasks. Under `0o200` the result is
-    // `0o400`: mais restritivo que o pedido, nunca menos (ver o docblock).
-    const src = origem("o2.jsonl");
+    // `0o400`: more restrictive than requested, never less (see the docblock).
+    const src = source("o2.jsonl");
 
     for (const mask of [0o002, 0o022, 0o200]) {
       const dst = join(dirMode, `mask-${mask.toString(8)}.jsonl`);
@@ -252,18 +252,18 @@ describe("M107 T1.2 — o destino do fork nasce privado", () => {
       // Act
       sobUmask(mask, () => forkTranscript(src, dst));
 
-      // Assert — zero bits para grupo e para outros, sob qualquer umask.
+      // Assert — zero bits for group and for others, under any umask.
       expect(mode(dst) & 0o077, `umask 0o${mask.toString(8)} leaked permission`).toBe(0);
       expect(mode(dst) & 0o400).toBe(0o400);
     }
   });
 
-  it("test_mode_explicito_e_honrado", () => {
+  it("test_an_explicit_mode_is_honoured", () => {
     // Arrange — the primitive changes the DEFAULT, not the caller's freedom: a mode more permissive
     // than `0o600` is honored, because imposing policy here would be the primitive deciding for the
     // consumer.
-    const src = origem("o3.jsonl");
-    const dst = join(dirMode, "explicito.jsonl");
+    const src = source("o3.jsonl");
+    const dst = join(dirMode, "explicit.jsonl");
 
     // Act
     sobUmask(0o002, () => forkTranscript(src, dst, { mode: 0o640 }));
@@ -275,8 +275,8 @@ describe("M107 T1.2 — o destino do fork nasce privado", () => {
   it("test_two_concurrent_forks_to_the_same_destination_only_one_wins_and_the_winner_is_private", async () => {
     // Arrange — exclusivity (`wx`) and the mode must hold TOGETHER: without this assertion we would
     // prove exclusivity and not privacy.
-    const src = origem("o4.jsonl");
-    const dst = join(dirMode, "disputado-mode.jsonl");
+    const src = source("o4.jsonl");
+    const dst = join(dirMode, "contended-mode.jsonl");
 
     // Act
     const r = await sobUmask(0o002, async () =>

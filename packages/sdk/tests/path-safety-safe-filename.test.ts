@@ -29,7 +29,7 @@ describe("safeFilenameForId", () => {
 
   it("test_safeFilenameForId_hashes_leading_dash_and_unicode_and_slash", () => {
     expect(safeFilenameForId("-rf")).toMatch(/^h-[0-9a-f]{16}$/);
-    expect(safeFilenameForId("meu-agente-🤖")).toMatch(/^h-[0-9a-f]{16}$/);
+    expect(safeFilenameForId("my-agent-🤖")).toMatch(/^h-[0-9a-f]{16}$/);
     expect(safeFilenameForId("team/project")).toMatch(/^h-[0-9a-f]{16}$/);
   });
 

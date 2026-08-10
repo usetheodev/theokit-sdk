@@ -124,7 +124,7 @@ async function handleRun(_req, res, example) {
   const runCommand = resolveRunCommand({ rootDir: ROOT, exampleDir, hasRunTs: example.runnable });
   if (runCommand === null) {
     sendJson(res, 422, {
-      error: `"${example.slug}" não tem run.ts — rode manualmente (veja o README).`,
+      error: `"${example.slug}" has no run.ts — run it by hand (see the README).`,
     });
     return;
   }
@@ -202,7 +202,7 @@ async function handleRun(_req, res, example) {
 async function handleStop(res, slug) {
   const entry = running.get(slug);
   if (entry === undefined) {
-    sendJson(res, 404, { error: `"${slug}" não está em execução.` });
+    sendJson(res, 404, { error: `"${slug}" is not running.` });
     return;
   }
   killProcessGroup(entry.child, "SIGTERM");
@@ -235,7 +235,7 @@ async function handleState(_req, res) {
 async function handleFilesRoute(_req, res, slug) {
   const example = await findExample(slug);
   if (example === null) {
-    sendJson(res, 404, { error: "example não encontrado" });
+    sendJson(res, 404, { error: "example not found" });
     return;
   }
   const dir = join(EXAMPLES_DIR, example.slug);
@@ -248,7 +248,7 @@ async function handleFilesRoute(_req, res, slug) {
 async function handleRunRoute(req, res, slug) {
   const example = await findExample(slug);
   if (example === null) {
-    sendJson(res, 404, { error: "example não encontrado" });
+    sendJson(res, 404, { error: "example not found" });
     return;
   }
   await handleRun(req, res, example);
@@ -256,7 +256,7 @@ async function handleRunRoute(req, res, slug) {
 
 async function handleStopRoute(_req, res, slug) {
   if (!isSafeSlug(slug)) {
-    sendJson(res, 400, { error: "slug inválido" });
+    sendJson(res, 400, { error: "invalid slug" });
     return;
   }
   await handleStop(res, slug);
@@ -280,7 +280,7 @@ const server = createServer(async (req, res) => {
       await route.handler(req, res, match[1]);
       return;
     }
-    sendJson(res, 404, { error: "rota desconhecida" });
+    sendJson(res, 404, { error: "unknown route" });
   } catch (error) {
     console.error(`${req.method} ${url.pathname} failed:`, error);
     if (!res.headersSent) sendJson(res, 500, { error: error.message });
@@ -293,7 +293,7 @@ server.listen(PORT, HOST, () => {
   const present = PROVIDER_ENV_KEYS.filter((key) => (process.env[key] ?? "").length > 0);
   console.log(
     present.length > 0
-      ? `provider keys detectadas no ambiente: ${present.join(", ")}`
+      ? `provider keys detected in the environment: ${present.join(", ")}`
       : "no provider key in the server environment — examples still read examples/<slug>/.env and the root .env",
   );
 });

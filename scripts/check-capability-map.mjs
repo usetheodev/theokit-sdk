@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // V2-3 — Capability-map resolve-check.
 // Extracts every `import { ... } from "@theokit/sdk*"` / "@theokit/sdk-tools"
-// in docs/harness-capability-map.md and verifies each named symbol resolves.
+// in wiki/reference/harness-capability-map.md and verifies each named symbol resolves.
 // `@theokit/sdk*` is checked from packages/sdk (self-reference resolves there);
 // `@theokit/sdk-tools` from packages/sdk-tools. Exits non-zero on any unresolved
 // symbol so the map can never document a non-existent import.
@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const MAP = join(ROOT, "docs", "harness-capability-map.md");
+const MAP = join(ROOT, "wiki", "reference", "harness-capability-map.md");
 
 const IMPORT_RE = /import\s*\{([\s\S]*?)\}\s*from\s*["'](@theokit\/sdk[^"']*|@theokit\/sdk-tools)["']/g;
 

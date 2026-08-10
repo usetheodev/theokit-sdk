@@ -16,12 +16,12 @@ import { transcriptPath } from "../src/internal/persistence/session-transcript.j
 import { SessionBusyError } from "../src/internal/persistence/session-writer.js";
 import type { SessionRecord } from "../src/types/session-record.js";
 
-const abertos: FsSessionStore[] = [];
+const opened: FsSessionStore[] = [];
 afterEach(async () => {
-  for (const s of abertos.splice(0)) await s.dispose();
+  for (const s of opened.splice(0)) await s.dispose();
 });
 
-const registro = (uuid: string): SessionRecord => ({
+const record = (uuid: string): SessionRecord => ({
   type: "user",
   uuid,
   parentUuid: null,
@@ -29,69 +29,69 @@ const registro = (uuid: string): SessionRecord => ({
   timestamp: new Date(0).toISOString(),
 });
 
-function novoStore(baseDir: string): FsSessionStore {
-  const s = new FsSessionStore({ baseDir, cwd: "/algum/cwd" });
-  abertos.push(s);
+function newStore(baseDir: string): FsSessionStore {
+  const s = new FsSessionStore({ baseDir, cwd: "/some/cwd" });
+  opened.push(s);
   return s;
 }
 
 describe("M95 — the lease is wired", () => {
-  it("acquire() toma o lease", async () => {
-    const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
-    const store = novoStore(base);
+  it("acquire() takes the lease", async () => {
+    const base = mkdtempSync(join(tmpdir(), "m95-wired-"));
+    const store = newStore(base);
     await store.acquire("ag");
-    expect(existsSync(`${transcriptPath(base, "/algum/cwd", "ag")}.writer.lock`)).toBe(true);
+    expect(existsSync(`${transcriptPath(base, "/some/cwd", "ag")}.writer.lock`)).toBe(true);
   });
 
   it("appendRecords NEVER throws SessionBusyError — the turn does not vanish silently", async () => {
     // BLOCKER-1 from adversarial review. The `SessionStore` contract says an append rejection is
     // best-effort: "logged to stderr, NOT thrown to the caller". Acquiring the lease there made the
-    // SessionBusyError ser ENGOLIDO, e o perdedor perdia o turno inteiro sem nada em disco e sem
-    // como reagir — pior que o problema original, que era intercalar linhas.
-    const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
-    const path = transcriptPath(base, "/algum/cwd", "ag");
+    // SessionBusyError being SWALLOWED, and the loser lost the whole turn with nothing on disk and no
+    // way to react — worse than the original problem, which was interleaved lines.
+    const base = mkdtempSync(join(tmpdir(), "m95-wired-"));
+    const path = transcriptPath(base, "/some/cwd", "ag");
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(
       `${path}.writer.lock`,
       JSON.stringify({ pid: process.ppid, hostname: hostname(), mtime: Date.now() }),
     );
-    const store = novoStore(base);
-    await expect(store.appendRecords("ag", [registro("b")])).resolves.toBeUndefined();
+    const store = newStore(base);
+    await expect(store.appendRecords("ag", [record("b")])).resolves.toBeUndefined();
   });
 
-  it("dispose libera o lease", async () => {
-    const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
-    const store = new FsSessionStore({ baseDir: base, cwd: "/algum/cwd" });
+  it("dispose releases the lease", async () => {
+    const base = mkdtempSync(join(tmpdir(), "m95-wired-"));
+    const store = new FsSessionStore({ baseDir: base, cwd: "/some/cwd" });
     await store.acquire("ag");
     await store.dispose();
-    expect(existsSync(`${transcriptPath(base, "/algum/cwd", "ag")}.writer.lock`)).toBe(false);
+    expect(existsSync(`${transcriptPath(base, "/some/cwd", "ag")}.writer.lock`)).toBe(false);
   });
 
   it("ANOTHER live PROCESS holding the lock produces SessionBusyError", async () => {
     // The lease protects against another PROCESS — two stores in the SAME process are a legitimate pattern
     // (the golden compaction tests do exactly that, and failed when the first version refused
     // its own owner). So a foreign owner is simulated by the parent process's pid: alive, and not us.
-    const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
-    const path = transcriptPath(base, "/algum/cwd", "ag");
+    const base = mkdtempSync(join(tmpdir(), "m95-wired-"));
+    const path = transcriptPath(base, "/some/cwd", "ag");
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(
       `${path}.writer.lock`,
       JSON.stringify({ pid: process.ppid, hostname: hostname(), mtime: Date.now() }),
     );
-    const store = novoStore(base);
+    const store = newStore(base);
     await expect(store.acquire("ag")).rejects.toBeInstanceOf(SessionBusyError);
   });
 
   it("reading does NOT acquire a lease — concurrent reads stay free", async () => {
-    const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
-    const store = novoStore(base);
+    const base = mkdtempSync(join(tmpdir(), "m95-wired-"));
+    const store = newStore(base);
     await store.readRecords("ag");
-    expect(existsSync(`${transcriptPath(base, "/algum/cwd", "ag")}.writer.lock`)).toBe(false);
+    expect(existsSync(`${transcriptPath(base, "/some/cwd", "ag")}.writer.lock`)).toBe(false);
   });
 
   it("dispose is idempotent", async () => {
-    const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
-    const store = new FsSessionStore({ baseDir: base, cwd: "/algum/cwd" });
+    const base = mkdtempSync(join(tmpdir(), "m95-wired-"));
+    const store = new FsSessionStore({ baseDir: base, cwd: "/some/cwd" });
     await store.acquire("ag");
     await store.dispose();
     await expect(store.dispose()).resolves.toBeUndefined();

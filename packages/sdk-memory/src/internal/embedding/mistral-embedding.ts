@@ -8,7 +8,7 @@ import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
  * (`POST /v1/embeddings` against `https://api.mistral.ai`). Default model
  * `mistral-embed` (1024 dims).
  *
- * Mirrors `referencia/peer-project/extensions/mistral/memory-embedding-adapter.ts`.
+ * Mirrors `reference/peer-project/extensions/mistral/memory-embedding-adapter.ts`.
  *
  * Iter 74 (Stage 3 source-move #32): hybrid copy from sdk-core's
  * `internal/memory/adapters/mistral-embedding.ts`.
