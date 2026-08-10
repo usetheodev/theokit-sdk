@@ -35,15 +35,15 @@ export interface CreateGitStatusToolOptions {
   maxStdoutBytes?: number;
   /**
    * Injected execution backend (`@theokit/sdk/sandbox`) — when present, `git status` runs via
-   * `SandboxBackend.execute`; omitido ⇒ o `git` local (inalterado).
+   * `SandboxBackend.execute`; omitted ⇒ the local `git` (unchanged).
    *
    * Symmetry with `createGitDiffTool`, flagged by the M76 review: without it `git_diff` would run
    * confined and `git_status` not, in the same session — and the asymmetry would be invisible until someone
-   * perceber que uma das duas escapa do sandbox.
+   * notice that one of the two escapes the sandbox.
    */
   sandbox?: SandboxProvider;
   /**
-   * M76 — nome exposto ao modelo. Omitido ⇒ `"git_status"` (aditivo).
+   * M76 — the name exposed to the model. Omitted ⇒ `"git_status"` (additive).
    *
    * The name is a contract: the approval key, what the model sees and what telemetry records.
    */
@@ -99,7 +99,7 @@ export function createGitStatusTool(opts: CreateGitStatusToolOptions): CustomToo
 }
 
 /**
- * Os argumentos do `git status`.
+ * The arguments to `git status`.
  *
  * `--porcelain=v1` is deliberate: it is the stable contract for machine reading. The human format
  * changes across git versions and would break the consumer's parsing without warning.

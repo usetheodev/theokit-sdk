@@ -1,6 +1,6 @@
-// Promovido do agent-builder no M75 (plano m75-sandbox-kernel-no-framework, D1): confinamento de
+// Promoted from agent-builder in M75 (plan m75-sandbox-kernel-no-framework, D1): confinement with
 // kernel confinement is framework infrastructure, not the consumer's. Measured cost of the promotion: ZERO
-// dependencias — so node:child_process, node:fs e node:path. O filtro cBPF e um Buffer em JS puro.
+// no dependencies — only node:child_process, node:fs and node:path. The cBPF filter is a Buffer in pure JS.
 
 /**
  * M63 — cBPF seccomp filter generator, byte-faithful to Codex's Linux sandbox
@@ -134,7 +134,7 @@ export function buildSeccompFilter(opts: SeccompOptions): Buffer {
   // The branching IS the cBPF program: ALLOW/DENY/KILL are symbolic targets resolved to an
   // offset RELATIVE to the next instruction. Breaking it into helpers does not reduce real complexity —
   // it moves the jump arithmetic to another file and makes auditing against landlock.rs harder, the
-  // fonte autoritativa.
+  // the authoritative source.
   //
   // Not refactoring NOW is an M75 process decision: this function is being MIGRATED without behavior
   // change (plan m75, D4) and there is still no byte-for-byte equivalence oracle against the
@@ -148,8 +148,8 @@ export function buildSeccompFilter(opts: SeccompOptions): Buffer {
     if (off < 0 || off > 255) throw new RangeError(`seccomp jump out of range at ${i}: ${off}`);
     return off;
   };
-  // `for...of` com entries em vez de indice cru: o SDK compila com `noUncheckedIndexedAccess`, que
-  // (corretamente) tipa `body[i]` como possivelmente indefinido. Iterar da a garantia no tipo em vez
+  // `for...of` over entries instead of a raw index: the SDK compiles with `noUncheckedIndexedAccess`, which
+  // (correctly) types `body[i]` as possibly undefined. Iterating gives the guarantee in the type instead
   // requiring a `!` — the code already could not leave the range, and now the compiler knows it.
   for (const [i, b] of body.entries()) {
     if (b.code === JEQ_K || b.code === JGE_K) {

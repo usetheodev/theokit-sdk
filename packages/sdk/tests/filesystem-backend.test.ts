@@ -111,8 +111,8 @@ describe("SE31 — LocalFilesystem backend", () => {
 
   it("list() on a regular file throws a typed FilesystemError (not a raw ENOTDIR)", async () => {
     const fs = new LocalFilesystem({ basePath: base });
-    await fs.writeFile("afile.txt", "x");
-    await expect(fs.list("afile.txt")).rejects.toBeInstanceOf(FilesystemError);
+    await fs.writeFile("plain.txt", "x");
+    await expect(fs.list("plain.txt")).rejects.toBeInstanceOf(FilesystemError);
   });
 
   it("writeFile whose parent component is a file throws a typed FilesystemError", async () => {

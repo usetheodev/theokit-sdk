@@ -1,9 +1,9 @@
 /**
  * M77 T2.1 — the context budget stops being silent.
  *
- * ## O que existia
+ * ## What was there
  *
- * Um `process.stderr.write` uma-vez-por-processo (`post-run-lifecycle.ts:113-124`), guardado por um
+ * A once-per-process `process.stderr.write` (`post-run-lifecycle.ts:113-124`), guarded by a
  * `Set` on a global symbol. No surface can react to that: the TUI does not read its own process's
  * stderr, headless exec does not correlate it with the turn, and a second unknown model in the same
  * session **warns nothing** because the `Set` already has the key.
@@ -13,7 +13,7 @@
  *
  * ## The inverted-comment gate
  *
- * `post-run-lifecycle.ts:108` dizia:
+ * `post-run-lifecycle.ts:108` said:
  *
  * > *"Missing usage/window ⇒ the trigger never fires (fail-safe)"*
  *
@@ -33,9 +33,9 @@ import { buildContextBudgetEvent } from "../src/internal/runtime/lifecycle/conte
 import type { RunEvent } from "../src/types/run-events.js";
 
 describe("M77 T2.1 — structured context-budget event", () => {
-  it("test_modelo_fora_do_catalogo_emite_compaction_fallback", () => {
+  it("test_a_model_outside_the_catalog_emits_compaction_fallback", () => {
     const resolved = resolveEffectiveContextWindow({ margin: 0.95, floor: 128_000 });
-    const event = buildContextBudgetEvent("openrouter/algum-modelo", resolved);
+    const event = buildContextBudgetEvent("openrouter/some-model", resolved);
 
     expect(event, "an unknown model must produce an event, not silence").toBeDefined();
     expect(event?.type).toBe("compaction_fallback");
@@ -62,10 +62,10 @@ describe("M77 T2.1 — structured context-budget event", () => {
   it("test_an_override_is_also_silent_because_the_user_ALREADY_knows", () => {
     // The user who declared the window does not need to be told it was used.
     const resolved = resolveEffectiveContextWindow({ override: 50_000, margin: 0.95 });
-    expect(buildContextBudgetEvent("qualquer", resolved)).toBeUndefined();
+    expect(buildContextBudgetEvent("anything", resolved)).toBeUndefined();
   });
 
-  it("test_o_evento_e_uma_variante_LEGITIMA_de_RunEvent", () => {
+  it("test_the_event_is_a_LEGITIMATE_RunEvent_variant", () => {
     // A type proof, not an execution one: if `compaction_fallback` were not part of the `RunEvent` union,
     // this assignment would fail at COMPILE time. `tsc` is what checks, not vitest.
     const resolved = resolveEffectiveContextWindow({ margin: 0.95, floor: 128_000 });
@@ -79,7 +79,7 @@ describe("M77 T2.1 — structured context-budget event", () => {
   it("test_the_post_run_lifecycle_comment_no_longer_calls_it_fail_safe", () => {
     // Docs truthfulness gate — M67 precedent. The comment described as "fail-safe" the
     // behavior that makes the context overflow; a reader would believe the silence was safe.
-    const fonte = readFileSync(
+    const source = readFileSync(
       join(import.meta.dirname, "../src/internal/runtime/lifecycle/post-run-lifecycle.ts"),
       "utf-8",
     );
@@ -88,13 +88,13 @@ describe("M77 T2.1 — structured context-budget event", () => {
     // corrective comment QUOTES the wrong term to explain it was wrong. Banning the word
     // would ban the correction too — the oracle must target the CLAIM, not the vocabulary.
     expect(
-      /trigger never fires \(fail-safe\)/i.test(fonte),
+      /trigger never fires \(fail-safe\)/i.test(source),
       "the inverted claim is back: turning compaction off is NOT fail-safe",
     ).toBe(false);
 
     // And the counter-proof: without it, deleting the whole comment would pass — and the lesson goes with it.
     expect(
-      /fail-OPEN/.test(fonte),
+      /fail-OPEN/.test(source),
       "the correction must be written down, not just the wrong sentence removed",
     ).toBe(true);
   });

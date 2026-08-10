@@ -358,7 +358,7 @@ describe("oauth-device — RFC 8628 + OpenAI two-step + JWT", () => {
       verificationUri: "https://auth.test/verify",
     };
     const responses = [
-      okJson({ device_auth_id: "dai", user_code: "UC", interval: 1 }), // usercode
+      okJson({ device_auth_id: "d1", user_code: "UC", interval: 1 }), // user code
       new Response("pending", { status: 403 }), // poll pending
       okJson({ authorization_code: "AC", code_verifier: "CV" }), // poll ready
       okJson({ access_token: "final-acc", refresh_token: "final-ref", expires_in: 3600 }), // exchange

@@ -1,16 +1,16 @@
 /**
  * M77 T3.1 — the MCP client stops being recreated on every turn.
  *
- * ## O custo medido
+ * ## The measured cost
  *
  * `real-local-run.ts:349` calls `createMcpClient` inside `buildMcpMap`, which runs **per run**.
  * Every `send` redoes the server's spawn + handshake: 193 / 138 / 134 ms per turn, measured.
  *
  * ## What the single reference does
  *
- * O Codex ancora o `McpConnectionManager` em `SessionServices` (`core/src/state/service.rs:116`) — o
+ * Codex anchors `McpConnectionManager` in `SessionServices` (`core/src/state/service.rs:116`) — the
  * same struct whose neighboring field carries the comment *"Session-scoped model client shared across
- * turns"* — e **substitui** o runtime (`service.rs:136`, `self.mcp_runtime.replace(connections)`) em
+ * turns"* — and **replaces** the runtime (`service.rs:136`, `self.mcp_runtime.replace(connections)`) on
  * instead of rebuilding it. The path that builds and immediately destroys
  * (`core/src/connectors.rs:245` ... `:334 shutdown()`) is one-shot connector discovery, not the turn
  * loop; conflating the two would lead to the opposite conclusion.
@@ -22,7 +22,7 @@
  * with different configuration. Keying only by `(session, name)` would return a client connected to the
  * wrong server — a wrong answer, not an error.
  *
- * ## Por que `'run'` continua o default
+ * ## Why `'run'` remains the default
  *
  * Keeping clients alive across turns changes the failure model: a server dying mid-session
  * is now a reachable state. Cron and one-shot gain nothing from the pool and would pay that risk, so
@@ -51,7 +51,7 @@ function countedFactory(): { create: () => FakeClient; calls: () => number } {
   };
 }
 
-const CFG = { command: "node", args: ["servidor.js"] };
+const CFG = { command: "node", args: ["server.js"] };
 
 describe("M77 T3.1 — per-session MCP client pool", () => {
   it("test_a_second_turn_of_the_SAME_session_REUSES_the_client", () => {
@@ -90,7 +90,7 @@ describe("M77 T3.1 — per-session MCP client pool", () => {
   });
 
   it("test_COUNTERPROOF_config_key_order_does_not_change_identity", () => {
-    // Sem esta, o hash poderia ser `JSON.stringify` cru — e `{a,b}` vs `{b,a}` produziriam clientes
+    // Without this one, the hash could be a raw `JSON.stringify` — and `{a,b}` vs `{b,a}` would produce different
     // distinct for IDENTICAL configurations, respawning every turn and silently nullifying the pool.
     const f = countedFactory();
     const pool = new McpClientPool<FakeClient>();
@@ -118,8 +118,8 @@ describe("M77 T3.1 — per-session MCP client pool", () => {
   });
 
   it("test_disposing_one_session_does_NOT_touch_the_other", () => {
-    // CONTRAPROVA: sem ela, um `disposeSession` que limpasse o Map inteiro passaria no teste acima e
-    // derrubaria os servidores de toda conversa concorrente.
+    // COUNTERPROOF: without it, a `disposeSession` that cleared the whole Map would pass the test above and
+    // tear down the servers of every concurrent conversation.
     const f = countedFactory();
     const pool = new McpClientPool<FakeClient>();
 
@@ -131,7 +131,7 @@ describe("M77 T3.1 — per-session MCP client pool", () => {
     expect(b.closed, "the neighboring session must not be torn down with it").toBe(false);
   });
 
-  it("test_TTL_de_ociosidade_fecha_o_cliente_parado", () => {
+  it("test_the_idle_TTL_closes_a_client_that_stopped", () => {
     // INJECTED clock — `rules/testing.md` § 6 forbids real time in a unit test. Without the TTL, a
     // long session that used a server once keeps it alive until dispose.
     let now = 1_000;
@@ -149,7 +149,7 @@ describe("M77 T3.1 — per-session MCP client pool", () => {
   });
 
   it("test_COUNTERPROOF_recent_use_is_NOT_collected", () => {
-    // Sem esta, um `reapIdle` que fechasse tudo passaria no teste do TTL e mataria o cliente que
+    // Without this one, a `reapIdle` that closed everything would pass the TTL test and kill the client that
     // was just used — the worst possible outcome, worse than having no pool.
     let now = 1_000;
     const f = countedFactory();
@@ -162,7 +162,7 @@ describe("M77 T3.1 — per-session MCP client pool", () => {
     expect(a.closed).toBe(false);
   });
 
-  it("test_acquire_RENOVA_a_ociosidade", () => {
+  it("test_acquire_RENEWS_the_idle_clock", () => {
     // The TTL is about IDLENESS, not lifetime. A server used every turn must not be collected just
     // because it was created long ago.
     let now = 1_000;

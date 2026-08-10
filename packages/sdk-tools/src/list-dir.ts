@@ -37,13 +37,13 @@ import {
   PathTraversalError,
   safePathJoin,
 } from "./internal/path-guard.js";
-import { ehProibidoEmQualquerProfundidade } from "./path-scope.js";
+import { isForbiddenAtAnyDepth } from "./path-scope.js";
 
 const DEFAULT_MAX_ENTRIES = 500;
 
 export interface CreateListDirToolOptions {
   /**
-   * M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo).
+   * M76 — the name exposed to the model. Omitted ⇒ today's literal (additive).
    *
    * It exists because, in Codex, the name is BORN in the tool definition and is the approval decision key —
    * three consumers (model, approval, telemetry) of a string decided in one place. Renaming
@@ -54,8 +54,8 @@ export interface CreateListDirToolOptions {
   /** M76 — description exposed to the model. Omitted => today's literal (additive). */
   description?: string;
   /**
-   * M76 — opt-in "lista-em-qualquer-lugar": honra um `path` ABSOLUTO fora de `projectRoot`
-   * (paridade com `createReadFileTool`/`createSearchTextTool`, sandbox read-only do Codex).
+   * M76 — opt-in "list anywhere": honours an ABSOLUTE `path` outside `projectRoot`
+   * (parity with `createReadFileTool`/`createSearchTextTool`, Codex's read-only sandbox).
    *
    * The ANY-segment secret guard still applies, and is not separable: `isForbiddenPath`
    * only blocks the sensitive item when it is the FIRST segment, so a `/home/u/proj/.env/sub`
@@ -91,7 +91,7 @@ export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
     }),
     handler: async ({ path }, ctx) => {
       const relative = path === "" || path === "." ? "." : path;
-      const verdict = decidirEscopo(relative, path, opts.allowAbsolute === true);
+      const verdict = decideScope(relative, path, opts.allowAbsolute === true);
       if (verdict.error !== undefined) return verdict.error;
       if (verdict.absoluteRoot !== undefined) {
         return listViaLocalFs(verdict.absoluteRoot, ".", path, max);
@@ -117,7 +117,7 @@ export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
  * Returns `{ error }` when the path is refused, `{ absoluteRoot }` when it is an honored absolute, or
  * `{}` for the usual relative case.
  */
-function decidirEscopo(
+function decideScope(
   relative: string,
   original: string,
   allowAbsolute: boolean,
@@ -132,7 +132,7 @@ function decidirEscopo(
   // M76 — absolute only with opt-in, and ALWAYS with the per-segment guard: `isForbiddenPath` above only looks at
   // the FIRST segment, so a `/home/u/proj/.env/sub` would slip past it.
   if (!allowAbsolute) return refuse("path_traversal");
-  if (ehProibidoEmQualquerProfundidade(relative)) return refuse("forbidden_path");
+  if (isForbiddenAtAnyDepth(relative)) return refuse("forbidden_path");
   return { absoluteRoot: relative };
 }
 

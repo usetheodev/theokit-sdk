@@ -3,7 +3,7 @@
  *
  * Adversarial review measured that deleting the init acquisition **and** the propagation of
  * `SessionBusyError` left the whole suite green: 3960/3960. It is the same kind of debt that opened
- * este milestone — `acquireSessionWriter` com zero chamadores enquanto o roadmap a registrava como
+ * this milestone — `acquireSessionWriter` with zero callers while the roadmap recorded it as
  * delivered — now in the fix for the BLOCKER it came to close.
  *
  * These tests are the ones that fail both mutants.
@@ -18,9 +18,9 @@ import { transcriptPath } from "../src/internal/persistence/session-transcript.j
 import { SessionBusyError } from "../src/internal/persistence/session-writer.js";
 import type { AgentOptions } from "../src/types/agent.js";
 
-const criados: LocalAgent[] = [];
+const created: LocalAgent[] = [];
 afterEach(async () => {
-  for (const a of criados.splice(0)) await a.dispose();
+  for (const a of created.splice(0)) await a.dispose();
 });
 
 function options(baseDir: string, agentId: string): AgentOptions {
@@ -32,9 +32,9 @@ function options(baseDir: string, agentId: string): AgentOptions {
   } as unknown as AgentOptions;
 }
 
-async function agente(baseDir: string, agentId: string): Promise<LocalAgent> {
+async function makeAgent(baseDir: string, agentId: string): Promise<LocalAgent> {
   const a = new LocalAgent(options(baseDir, agentId));
-  criados.push(a);
+  created.push(a);
   await a.initialize();
   return a;
 }
@@ -50,14 +50,14 @@ function lockFromAnotherProcess(baseDir: string, agentId: string): string {
   return p;
 }
 
-describe("M95 — o init toma o lease (mutante N1)", () => {
+describe("M95 — init takes the lease (mutant N1)", () => {
   it("after initialize(), the lock exists", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
-    await agente(base, "ag-n1");
+    await makeAgent(base, "ag-n1");
     expect(existsSync(`${transcriptPath(base, base, "ag-n1")}.writer.lock`)).toBe(true);
   });
 
-  it("dispose() solta o lock", async () => {
+  it("dispose() releases the lock", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
     const a = new LocalAgent(options(base, "ag-n1b"));
     await a.initialize();
@@ -66,12 +66,12 @@ describe("M95 — o init toma o lease (mutante N1)", () => {
   });
 });
 
-describe("M95 — SessionBusyError PROPAGA do init (mutante N2)", () => {
+describe("M95 — SessionBusyError PROPAGATES from init (mutant N2)", () => {
   it("initialize() throws when another live process holds the session", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
     lockFromAnotherProcess(base, "ag-n2");
     const a = new LocalAgent(options(base, "ag-n2"));
-    criados.push(a);
+    created.push(a);
     await expect(a.initialize()).rejects.toBeInstanceOf(SessionBusyError);
   });
 });
@@ -99,8 +99,8 @@ describe("M95 — an init that fails AFTER acquiring releases the lease (HIGH-1)
 describe("M95/LOW-1 — a failing init does not release OTHER agents' leases", () => {
   it("a live agent's lease survives another agent's init failure", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
-    const vivo = await agente(base, "ag-vivo");
-    expect(existsSync(`${transcriptPath(base, base, "ag-vivo")}.writer.lock`)).toBe(true);
+    const live = await makeAgent(base, "ag-live");
+    expect(existsSync(`${transcriptPath(base, base, "ag-live")}.writer.lock`)).toBe(true);
 
     // A second agent IN THE SAME store fails at init after acquiring.
     const p = transcriptPath(base, base, "ag-fails");
@@ -111,13 +111,13 @@ describe("M95/LOW-1 — a failing init does not release OTHER agents' leases", (
       local: {
         cwd: base,
         baseDir: base,
-        sessionStore: (vivo as unknown as { sessionStore: unknown }).sessionStore,
+        sessionStore: (live as unknown as { sessionStore: unknown }).sessionStore,
       },
     } as never);
     await b.initialize().catch(() => undefined);
 
     expect(
-      existsSync(`${transcriptPath(base, base, "ag-vivo")}.writer.lock`),
+      existsSync(`${transcriptPath(base, base, "ag-live")}.writer.lock`),
       "one agent's failure released another's lease, which is still writing",
     ).toBe(true);
   });

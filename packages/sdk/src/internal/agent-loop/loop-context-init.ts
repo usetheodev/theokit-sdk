@@ -21,6 +21,7 @@ function buildUserContent(text: string, images: SDKUserMessage["images"]): LlmCo
   return content;
 }
 
+import { emitRunEvent, type RunEventSink } from "../../types/run-events.js";
 import { diag } from "../diagnostics.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
 import type { MemoryProviderHandle } from "../runtime/memory/memory-provider.js";
@@ -98,7 +99,7 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
       memoryProviderHandle = undefined;
     }
   }
-  const tools = await collectTools(inputs.mcp);
+  const tools = await collectTools(inputs.mcp, inputs.runEventSink);
   for (const memTool of inputs.memoryTools ?? []) {
     tools.push({
       name: memTool.name,
@@ -197,18 +198,29 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
  * Exported for unit-test access to the catch path; internal-only.
  * @internal
  */
-export async function safeListTools(client: McpClient, serverName?: string): Promise<McpTool[]> {
+export async function safeListTools(
+  client: McpClient,
+  serverName?: string,
+  sink?: RunEventSink,
+): Promise<McpTool[]> {
   try {
     return await client.listTools();
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     const server = serverName ?? "unknown";
     diag(`[theokit-sdk] mcp listTools failed (server=${server}): ${message}\n`);
+    // theokit#188 — the diagnostic above goes to the SDK's stderr, which an embedding UI does not
+    // read. The same fact now reaches the consumer through the typed sink, so a panel listing
+    // configured servers can say this one produced no tools instead of showing it as healthy.
+    emitRunEvent(sink, { type: "mcp_server_failed", serverName: server, message });
     return [];
   }
 }
 
-async function collectTools(mcp: Map<string, McpClient>): Promise<ResolvedTool[]> {
+async function collectTools(
+  mcp: Map<string, McpClient>,
+  sink?: RunEventSink,
+): Promise<ResolvedTool[]> {
   const tools: ResolvedTool[] = [
     {
       name: "shell",
@@ -222,7 +234,7 @@ async function collectTools(mcp: Map<string, McpClient>): Promise<ResolvedTool[]
     },
   ];
   for (const [serverName, client] of mcp.entries()) {
-    const mcpTools = await safeListTools(client, serverName);
+    const mcpTools = await safeListTools(client, serverName, sink);
     for (const tool of mcpTools) {
       tools.push({
         name: `mcp_${sanitize(serverName)}_${sanitize(tool.name)}`,

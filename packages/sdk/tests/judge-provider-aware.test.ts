@@ -18,14 +18,14 @@
  * They are errors of different kinds (`rules/error-handling.md` § 2). A nonexistent model does not improve
  * on retry — burning 3 turns before giving up is waste with a diagnostic worse than the error. A
  * non-parseable verdict **is** recoverable: the loop decides on consecutive failures, a policy
- * documentada em `judge-call.ts:44-48`, e abortar nela quebraria goals que hoje funcionam.
+ * documented at `judge-call.ts:44-48`, and aborting on it would break goals that work today.
  *
  * ## A correction to this milestone's blueprint
  *
  * The blueprint concluded that `blocked` "is already in the vocabulary" — true for
  * `GoalResult.status` (`types/goal-events.ts:60`) and **false** for the judge's verdict, which is
- * `"done" | "continue" | "skipped"`. Eu li metade da DoD e declarei a outra metade pronta. O teste
- * abaixo cobre a metade que faltava.
+ * `"done" | "continue" | "skipped"`. I read half the DoD and declared the other half done. The test
+ * below covers the half that was missing.
  */
 import { describe, expect, it } from "vitest";
 
@@ -37,15 +37,15 @@ const ctx = { goal: "do X", lastResponse: "did X", turnsUsed: 1 } as unknown as 
 
 /** Fake agent: records the requested model and returns the configured text (or throws). */
 function fakeAgent(behavior: { text?: string; error?: Error }) {
-  const modelos: string[] = [];
-  const chaves: (string | undefined)[] = [];
+  const models: string[] = [];
+  const keys: (string | undefined)[] = [];
   return {
-    modelos,
-    chaves,
+    models,
+    keys,
     deps: {
       create: async (options: { model?: { id?: string }; apiKey?: string }) => {
-        modelos.push(options.model?.id ?? "(sem modelo)");
-        chaves.push(options.apiKey);
+        models.push(options.model?.id ?? "(no model)");
+        keys.push(options.apiKey);
         return {
           send: async () => {
             if (behavior.error !== undefined) throw behavior.error;
@@ -59,18 +59,18 @@ function fakeAgent(behavior: { text?: string; error?: Error }) {
 }
 
 describe("M80 T1.1 — judge provider-aware", () => {
-  it("test_judge_deriva_o_modelo_do_agente_conduzido", async () => {
+  it("test_the_judge_derives_the_model_from_the_agent_it_drives", async () => {
     const a = fakeAgent({ text: "DONE: pronto" });
     await judgeCallImpl(ctx, { apiKey: "sk-x", agentModel: "anthropic/claude-4" }, a.deps);
 
     expect(
-      a.modelos[0],
+      a.models[0],
       "without an explicit `judgeModel`, the judge must follow the driven agent's model — " +
         "the fixed default only resolves on OpenRouter",
     ).toBe("anthropic/claude-4");
   });
 
-  it("test_judgeModel_explicito_VENCE_a_derivacao", () => {
+  it("test_an_explicit_judgeModel_BEATS_the_derivation", () => {
     // COUNTER-PROOF: the derivation is the DEFAULT, not an imposition. M64's A/B showed the cheap judge
     // winning on short goals, and whoever knows that must be able to say so.
     const a = fakeAgent({ text: "DONE: pronto" });
@@ -79,7 +79,7 @@ describe("M80 T1.1 — judge provider-aware", () => {
       { apiKey: "sk-x", agentModel: "anthropic/claude-4", judgeModel: "openai/gpt-4o-mini" },
       a.deps,
     ).then(() => {
-      expect(a.modelos[0]).toBe("openai/gpt-4o-mini");
+      expect(a.models[0]).toBe("openai/gpt-4o-mini");
     });
   });
 
@@ -89,7 +89,7 @@ describe("M80 T1.1 — judge provider-aware", () => {
     const a = fakeAgent({ error: Object.assign(new Error("401 Unauthorized"), { status: 401 }) });
 
     await expect(
-      judgeCallImpl(ctx, { apiKey: "sk-ruim", agentModel: "m" }, a.deps),
+      judgeCallImpl(ctx, { apiKey: "sk-bad", agentModel: "m" }, a.deps),
     ).rejects.toBeInstanceOf(TheokitAgentError);
   });
 
@@ -99,7 +99,7 @@ describe("M80 T1.1 — judge provider-aware", () => {
     });
 
     await expect(
-      judgeCallImpl(ctx, { apiKey: "sk-x", agentModel: "inexistente/modelo" }, a.deps),
+      judgeCallImpl(ctx, { apiKey: "sk-x", agentModel: "nonexistent/model" }, a.deps),
     ).rejects.toBeInstanceOf(TheokitAgentError);
   });
 
@@ -122,9 +122,9 @@ describe("M80 T1.1 — judge provider-aware", () => {
     expect(r.parseFailed).toBe(true);
   });
 
-  it("test_blocked_entra_no_vocabulario_de_VERDICT", async () => {
+  it("test_blocked_joins_the_VERDICT_vocabulary", async () => {
     // The half of DoD 3 this milestone's blueprint mistakenly declared done: `blocked` already
-    // existia em `GoalResult.status`, mas o verdict do judge era `done | continue | skipped`. Sem
+    // existed on `GoalResult.status`, but the judge's verdict was `done | continue | skipped`. Without
     // it, the judge has no way to say "impossible to proceed" — only "continue", which the loop repeats.
     const a = fakeAgent({ text: "BLOCKED: the same blocker recurred" });
     const r = await judgeCallImpl(ctx, { apiKey: "sk-x", agentModel: "m" }, a.deps);

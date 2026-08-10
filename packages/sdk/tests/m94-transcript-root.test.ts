@@ -2,7 +2,7 @@
  * M94 Phase 1 — the transcript root honors THEOKIT_HOME like its siblings.
  *
  * The ROADMAP says "like `catalog-source-models-dev.ts:49`". Measured: that sibling is
- * **home-ancorado com override por env**. O `getTheokitHome(cwd)` de `paths.ts`
+ * **home-anchored with an env override**. The `getTheokitHome(cwd)` in `paths.ts`
  * is **cwd-anchored** — reusing it would move the transcript of everyone who does NOT set
  * the variable, far beyond ROADMAP risk #1. See the plan's ADR-2.
  */
@@ -20,8 +20,8 @@ afterEach(() => {
 
 describe("M94 — transcriptRoot", () => {
   it("honors THEOKIT_HOME when it is set", () => {
-    process.env.THEOKIT_HOME = "/tmp/m94-raiz-custom";
-    expect(transcriptRoot()).toBe("/tmp/m94-raiz-custom");
+    process.env.THEOKIT_HOME = "/tmp/m94-custom-root";
+    expect(transcriptRoot()).toBe("/tmp/m94-custom-root");
   });
 
   it("ignores an empty or whitespace-only THEOKIT_HOME (same discipline as the sibling)", () => {
@@ -36,7 +36,7 @@ describe("M94 — transcriptRoot", () => {
   });
 
   it("defaultBaseDir delegates — an inlined homedir() fails here", () => {
-    process.env.THEOKIT_HOME = "/tmp/m94-delega";
-    expect(defaultBaseDir()).toBe("/tmp/m94-delega");
+    process.env.THEOKIT_HOME = "/tmp/m94-delegates";
+    expect(defaultBaseDir()).toBe("/tmp/m94-delegates");
   });
 });

@@ -37,7 +37,7 @@ export type { AgentDefinition } from "./types/agent.js";
  */
 export type SubagentSource = "project";
 
-const FONTES_ACEITAS: readonly SubagentSource[] = ["project"];
+const ACCEPTED_SOURCES: readonly SubagentSource[] = ["project"];
 
 /** Options for {@link discoverSubagents} / {@link loadSubagentDefinition}. */
 export interface DiscoverSubagentsOptions {
@@ -53,18 +53,18 @@ export interface DiscoverSubagentsOptions {
 // Validated at the boundary (error-handling.md § 2): the union is erased at runtime, so a JS
 // caller — or a value crossing a serialization hop — can still carry a source nobody honors.
 // Dropping it silently would read as "no subagents found", which is the same shape as success.
-function resolverFontes(options: DiscoverSubagentsOptions | undefined): readonly SubagentSource[] {
-  const declaradas = options?.settingSources;
-  if (declaradas === undefined) return FONTES_ACEITAS;
-  for (const fonte of declaradas) {
-    if (!FONTES_ACEITAS.includes(fonte)) {
+function resolveSources(options: DiscoverSubagentsOptions | undefined): readonly SubagentSource[] {
+  const declared = options?.settingSources;
+  if (declared === undefined) return ACCEPTED_SOURCES;
+  for (const source of declared) {
+    if (!ACCEPTED_SOURCES.includes(source)) {
       throw new ConfigurationError(
-        `Unknown subagent setting source "${String(fonte)}" (accepted: ${FONTES_ACEITAS.join(", ")})`,
+        `Unknown subagent setting source "${String(source)}" (accepted: ${ACCEPTED_SOURCES.join(", ")})`,
         { code: "subagent_unknown_setting_source" },
       );
     }
   }
-  return declaradas;
+  return declared;
 }
 
 /**
@@ -76,8 +76,8 @@ export async function discoverSubagents(
   cwd: string,
   options?: DiscoverSubagentsOptions,
 ): Promise<Record<string, AgentDefinition>> {
-  const fontes = resolverFontes(options);
-  return loadSubagents(cwd, fontes.includes("project"), undefined);
+  const sources = resolveSources(options);
+  return loadSubagents(cwd, sources.includes("project"), undefined);
 }
 
 /**

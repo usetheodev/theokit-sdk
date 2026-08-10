@@ -100,7 +100,7 @@ export interface PtyInteractiveBackendOptions {
 /**
  * M77 — the {@link PtyInteractiveBackendOptions.maxSessions} ceiling was reached.
  *
- * Carrega `liveSessionIds` por design: `rules/error-handling.md § 2` pede mensagem com contexto
+ * Carries `liveSessionIds` by design: `rules/error-handling.md § 2` asks for a message with enough context
  * enough context to act, and here the action is reusing an existing session. An error merely stating
  * "limit reached" would leave the model with no way out — it would retry, and fail again.
  */
@@ -184,11 +184,11 @@ export class PtyInteractiveBackend extends InteractiveBackend {
     }
     // M75 T3.1 — the wrap goes HERE: after the cwd is resolved and validated, before the spawn. It is the
     // single point every command passes through, so no path escapes the confinement.
-    const efetivo = this.wrapCommand?.(command, cwd) ?? command;
+    const effective = this.wrapCommand?.(command, cwd) ?? command;
 
     const shell = process.env.SHELL ?? "/bin/bash";
     try {
-      return pty.spawn(shell, ["-c", efetivo], {
+      return pty.spawn(shell, ["-c", effective], {
         name: "xterm-color",
         cols: opts?.cols ?? 80,
         rows: opts?.rows ?? 24,

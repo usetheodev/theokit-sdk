@@ -1,13 +1,13 @@
 /**
  * D14 — Fault injection via `THEOKIT_TEST_RESPONSE_OVERRIDE` env var.
  *
- * Determinismo de chaos test: substitui hit real ao provider por response
- * sintetizado a partir de JSON em env var. Gated por `NODE_ENV=test` para
+ * Chaos-test determinism: replaces a real provider hit with a response
+ * synthesized from JSON in an env var. Gated by `NODE_ENV=test` so
  * prevent accidental use in production (FAANG fail-safe).
  *
  * Mandatory BDD coverage:
- *   - Gate: NODE_ENV != "test" → noop (no fault injection ativado)
- *   - Gate: env var ausente / empty → noop
+ *   - Gate: NODE_ENV != "test" → noop (no fault injection enabled)
+ *   - Gate: env var absent / empty → noop
  *   - Gate: invalid JSON -> one-shot stderr warn + noop (graceful)
  *   - Active: status 200 + text content → yield text_delta + stop end_turn
  *   - Active: status 429 → throw RateLimitError com providerId

@@ -70,24 +70,10 @@ const FILE_ALLOWLIST = new Set<string>([
   // satisfy this gate would narrow what the probe accepts and weaken the audit it exists to run.
   // Same category as the skipped session transcripts: linting the user's own words, not our prose.
   "tools/audit-memory-scale.mjs",
-  // 2156 lines of Portuguese teaching prose, exempted DELIBERATELY on 2026-08-05 — the only file in
-  // the repository this gate knowingly lets through.
-  //
-  // Every reason this gate exists is about the published contract: JSDoc emitted into `.d.ts`,
-  // identifiers in the public surface, test names read as documentation. None of them reach here.
-  // The course ships to nobody — `packages/sdk`'s `files[]` publishes `packages/sdk/docs`, not this
-  // one, and the repository root is private — and `docs/README.md` already labels it teaching
-  // material that loses to the exported types wherever they disagree.
-  //
-  // So the question it raises is who the course is FOR, which is an audience decision and not a
-  // correctness one. Translating 18k words of deliberate Portuguese pedagogy to satisfy a rule aimed
-  // at published type signatures would be applying the letter of the policy against its purpose.
-  //
-  // What was NOT acceptable is what held until today: the gate stopped at `packages/`, so this file
-  // was not exempt — it was merely unseen, along with anything else that might land in `docs/`. The
-  // exemption is the point. It makes the exception one line someone can argue with, instead of a
-  // blind spot nobody knew to look at. Delete this entry the day the course becomes English.
-  "docs/course/theokit-agent-ai-course.md",
+  // The `docs/course/theokit-agent-ai-course.md` exemption was removed on 2026-08-06, on the
+  // condition its own comment set: "delete this entry the day the course becomes English". The
+  // course was decomposed into the `wiki/` bundle in English, so the gate now covers every word
+  // that replaced it and there is no exempt prose left in the repository.
 ]);
 
 /**

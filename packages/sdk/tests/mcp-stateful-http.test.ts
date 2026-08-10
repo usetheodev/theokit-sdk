@@ -31,14 +31,14 @@ import { createMcpClient } from "../src/internal/mcp/client.js";
 
 const SESSION = "sess-abc-123";
 
-interface Visto {
+interface Seen {
   method: string;
   sessionId: string | undefined;
   accept: string | undefined;
 }
 
 /** The body of one request, already read. */
-function lerCorpo(req: import("node:http").IncomingMessage): Promise<string> {
+function readBody(req: import("node:http").IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
     const parts: Buffer[] = [];
     req.on("data", (c: Buffer) => parts.push(c));
@@ -49,7 +49,7 @@ function lerCorpo(req: import("node:http").IncomingMessage): Promise<string> {
 }
 
 /** The RPC result for a method — tools for `tools/list`, the handshake otherwise. */
-function resultadoDe(method: string | undefined): Record<string, unknown> {
+function resultFor(method: string | undefined): Record<string, unknown> {
   if (method === "tools/list") {
     return { tools: [{ name: "ping", description: "p", inputSchema: { type: "object" } }] };
   }
@@ -72,12 +72,12 @@ function missingSession(
 /** A local server that speaks the stateful half of the MCP handshake. */
 function statefulServer(opts: { emitSessionId: boolean }): Promise<{
   url: string;
-  seen: Visto[];
+  seen: Seen[];
   close: () => Promise<void>;
 }> {
-  const seen: Visto[] = [];
+  const seen: Seen[] = [];
   const srv: Server = createServer((req, res) => {
-    void lerCorpo(req).then((body) => {
+    void readBody(req).then((body) => {
       const parsed = JSON.parse(body) as { id?: unknown; method?: string };
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
       seen.push({
@@ -104,7 +104,7 @@ function statefulServer(opts: { emitSessionId: boolean }): Promise<{
       }
       res.writeHead(200, headers);
       res.end(
-        JSON.stringify({ jsonrpc: "2.0", id: parsed.id ?? 1, result: resultadoDe(parsed.method) }),
+        JSON.stringify({ jsonrpc: "2.0", id: parsed.id ?? 1, result: resultFor(parsed.method) }),
       );
     });
   });
@@ -209,15 +209,15 @@ describe("MCP Streamable HTTP — stateful session", () => {
  */
 function sseServer(): Promise<{ url: string; close: () => Promise<void> }> {
   const srv: Server = createServer((req, res) => {
-    void lerCorpo(req).then((body) => {
+    void readBody(req).then((body) => {
       const parsed = JSON.parse(body) as { id?: unknown; method?: string };
-      const aceita = String(req.headers.accept ?? "");
+      const accepts = String(req.headers.accept ?? "");
       const payload = JSON.stringify({
         jsonrpc: "2.0",
         id: parsed.id ?? 1,
-        result: resultadoDe(parsed.method),
+        result: resultFor(parsed.method),
       });
-      if (aceita.includes("text/event-stream")) {
+      if (accepts.includes("text/event-stream")) {
         res.writeHead(200, { "content-type": "text/event-stream" });
         res.end(`event: message\ndata: ${payload}\n\n`);
         return;

@@ -13,7 +13,7 @@
  *   408     → `NetworkError`          (`code: "timeout"`)
  *   5xx     → `NetworkError`          (`code: "server_error"` — covers 529
  *                                       overloaded_error common at peak
- *                                       de pico)
+ *                                       at peak)
  *   other   → `UnknownAgentError`     (`code: "unknown"`)
  *
  * Never throws — caller is already in an error path.

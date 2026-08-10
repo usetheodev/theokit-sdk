@@ -72,10 +72,10 @@ export const MAX_CACHED_SESSIONS = 32;
 
 function enforceCeiling(): void {
   while (sessions.size > MAX_CACHED_SESSIONS) {
-    const maisAntiga = sessions.keys().next().value;
-    if (maisAntiga === undefined) return;
-    sessions.delete(maisAntiga);
-    esquecerEscrituracao(maisAntiga);
+    const oldest = sessions.keys().next().value;
+    if (oldest === undefined) return;
+    sessions.delete(oldest);
+    forgetBookkeeping(oldest);
   }
 }
 
@@ -92,17 +92,17 @@ function enforceCeiling(): void {
  * `transcriptKey` produces. A scan rather than an index because these maps hold tens of entries, not
  * thousands: a reverse index here would be new structure for a problem that does not exist.
  */
-function esquecerEscrituracao(agentId: string): void {
-  const sufixo = transcriptKey("", agentId).slice(0 - agentId.length - 2);
-  for (const k of [...hydratedKeys]) if (k.endsWith(sufixo)) hydratedKeys.delete(k);
-  for (const k of [...pendingWrites.keys()]) if (k.endsWith(sufixo)) pendingWrites.delete(k);
-  for (const k of [...recordCounts.keys()]) if (k.endsWith(sufixo)) recordCounts.delete(k);
+function forgetBookkeeping(agentId: string): void {
+  const suffix = transcriptKey("", agentId).slice(0 - agentId.length - 2);
+  for (const k of [...hydratedKeys]) if (k.endsWith(suffix)) hydratedKeys.delete(k);
+  for (const k of [...pendingWrites.keys()]) if (k.endsWith(suffix)) pendingWrites.delete(k);
+  for (const k of [...recordCounts.keys()]) if (k.endsWith(suffix)) recordCounts.delete(k);
 }
 
 /**
  * Erases the agent's module bookkeeping and returns how many entries were removed.
  *
- * M95 — `invalidateSessionCache` limpava **dois** dos quatro mapas (`sessions`, `hydratedKeys`);
+ * M95 — `invalidateSessionCache` used to clear **two** of the four maps (`sessions`, `hydratedKeys`);
  * `pendingWrites` and `recordCounts` were never touched by id, so they grew for the life of the
  * process. Neither is large per entry — the leak is in count, not volume — but a cache with no owner
  * for removal is a cache that only grows.
@@ -152,7 +152,7 @@ export function persistTurnToTranscript(
   // PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
   // sweeping these files (a nested root under refactor/). It is not new code and was not touched
   // by M75; refactoring SDK internals without review would trade a visible problem for a diff
-  // arriscado. Rastreado em usetheodev/theokit-sdk#151.
+  // risky. Tracked in usetheodev/theokit-sdk#151.
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
   const chained = (pendingWrites.get(key) ?? Promise.resolve()).then(async () => {
     try {

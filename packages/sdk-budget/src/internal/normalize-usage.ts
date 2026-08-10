@@ -1,7 +1,7 @@
 /**
  * normalizeUsage — convert provider-shaped raw `usage` object to
  * canonical `TokenUsage`. Ports Hermes Agent's `normalize_usage`
- * (referencia/peer-agent/agent/usage_pricing.py:672-742).
+ * (reference/peer-agent/agent/usage_pricing.py:672-742).
  *
  * Handles 3 API shapes:
  *   - Anthropic Messages: 4 explicit buckets (input/output/cache_read/cache_creation).

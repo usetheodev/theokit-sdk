@@ -98,9 +98,34 @@ export interface AtomicWriteFileOptions {
   /**
    * Create the temp file with `wx` (exclusive creation) instead of `w`. Default:
    * `false` — the previous flag. With `true`, a pre-existing temp file becomes
-   * `EEXIST` em vez de ser truncado.
+   * `EEXIST` instead of being truncated.
    */
   exclusive?: boolean;
+}
+
+/** The one place the temp-path format is written. `atomicWriteTempTarget` reverses it. */
+function atomicWriteTempPath(filePath: string, pid: number, suffix: string): string {
+  return `${filePath}.${String(pid)}.${suffix}.tmp`;
+}
+
+/** Reverses {@link atomicWriteTempPath}: `<file>.<pid>.<hex>.tmp` → `<file>`. */
+const TEMP_PATTERN = /^(.+)\.\d+\.[0-9a-f]{16}\.tmp$/;
+
+/**
+ * U-9 — the file a leftover temp was replacing, or `undefined` if this is not one of ours.
+ *
+ * A crash between the open and the rename leaves `<file>.<pid>.<hex>.tmp` behind, and nothing here
+ * collects it: this module creates temps and has no opinion about sweeping them. A consumer that
+ * wants to has to know the format — which lived only in the implementation, so one copied it out of
+ * a compiled chunk as a regex. That copy would have gone on reporting "nothing to collect" the day
+ * the format changed, which is the quietest possible way for a cleanup to stop working.
+ *
+ * Deliberately strict: the pid must be digits and the suffix exactly 16 hex characters. Matching any
+ * `.tmp` would claim editors' swap files and other tools' scratch, on a path whose purpose is
+ * deleting them.
+ */
+export function atomicWriteTempTarget(name: string): string | undefined {
+  return TEMP_PATTERN.exec(name)?.[1];
 }
 
 /**
@@ -114,7 +139,7 @@ export interface AtomicWriteFileOptions {
  * already moved its tmp into place.
  *
  * Mirrors peer-project's `replaceFileAtomic` from
- * `referencia/peer-project/packages/memory-host-sdk/src/host/fs-utils.ts` with
+ * `reference/peer-project/packages/memory-host-sdk/src/host/fs-utils.ts` with
  * the multi-writer robustness fix.
  *
  * ## M107 — `options` is optional, and the default is byte-identical
@@ -130,14 +155,14 @@ export interface AtomicWriteFileOptions {
  * umask 0o002  ->  0o600      umask 0o022  ->  0o600      umask 0o200  ->  0o400
  * ```
  *
- * Um `chmod` incondicional levaria o terceiro caso de `0o400` para `0o600` — uma
+ * An unconditional `chmod` would take the third case from `0o400` to `0o600` — a
  * an on-disk change for every caller that asked for nothing, including external
  * consumers. When the caller DOES ask for a mode, however, letting the `umask` decide
  * silently is the defect this parameter exists to close; hence the reassertion.
  *
  * It goes on the DESCRIPTOR, before the `rename`, never after: chmod-ing the final
  * final one would leave a window where it carries the `umask`'s mode — the anti-pattern
- * de `upstream/packages/core/src/fs-util.ts:110-114`. A forma escolhida (modo como
+ * from `upstream/packages/core/src/fs-util.ts:110-114`. The chosen shape (mode as
  * `open` argument) is that of `upstream/network-proxy/src/certs.rs:687,783-791`.
  *
  * @internal
@@ -157,7 +182,7 @@ export async function replaceFileAtomic(
   // attacker observing the process can no longer predict the next
   // tmp path and pre-stage a hostile file to be renamed into place.
   const suffix = randomBytes(8).toString("hex");
-  const tmp = `${filePath}.${process.pid}.${suffix}.tmp`;
+  const tmp = atomicWriteTempPath(filePath, process.pid, suffix);
   // T5.7 — mode 0o600 on the tmp file (owner read+write only). The
   // tmp file holds the FULL in-flight content (credential snapshots,
   // OAuth tokens) before the rename. World-readable default would

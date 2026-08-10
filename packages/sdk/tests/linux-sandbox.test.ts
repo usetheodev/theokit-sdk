@@ -1,9 +1,9 @@
 /**
- * M75 T2.2 — `LinuxSandbox` + o wrap + a postura, promovidos do agent-builder.
+ * M75 T2.2 — `LinuxSandbox` + the wrap + the posture, promoted from agent-builder.
  *
- * ## Por que cabe no contrato sem breaking
+ * ## Why it fits the contract without breaking it
  *
- * `SandboxBackend` declara exatamente 2 abstratos (`execute`, `uploadFile`); `readFile`/`writeFile`/
+ * `SandboxBackend` declares exactly 2 abstracts (`execute`, `uploadFile`); `readFile`/`writeFile`/
  * `glob`/`grep` are concrete over `execute`. `LinuxSandbox` only does `override execute` — the method
  * **already abstract** — and **adds** `wrapCommand`. No member is missing, so promoting forces no major.
  *
@@ -29,11 +29,11 @@ import {
   wrapCommandForSandbox,
 } from "../src/sandbox/index.js";
 
-const detectaOk = (): BwrapDetection => ({ ok: true, bin: "/usr/bin/bwrap" });
+const detectOk = (): BwrapDetection => ({ ok: true, bin: "/usr/bin/bwrap" });
 const detectFailure = (): BwrapDetection => ({ ok: false, reason: "bwrap not found in PATH" });
 
 describe("M75 T2.2 — wrapCommandForSandbox", () => {
-  it("test_embrulha_com_bwrap_e_preserva_o_comando_entre_aspas", () => {
+  it("test_it_wraps_with_bwrap_and_preserves_the_quoted_command", () => {
     const w = wrapCommandForSandbox(
       "workspace-write",
       { cwd: "/w", network: false, env: {}, bin: "/usr/bin/bwrap" },
@@ -78,7 +78,7 @@ describe("M75 T2.2 — allowlistedEnv", () => {
 });
 
 describe("M75 T2.2 — LinuxSandbox", () => {
-  it("test_e_um_sandbox_backend_do_contrato", () => {
+  it("test_it_is_a_sandbox_backend_of_the_contract", () => {
     const s = new LinuxSandbox(
       { workDir: "/w" },
       { mode: "workspace-write", bin: "/usr/bin/bwrap" },
@@ -86,7 +86,7 @@ describe("M75 T2.2 — LinuxSandbox", () => {
     expect(s).toBeInstanceOf(SandboxBackend);
   });
 
-  it("test_wrap_command_do_objeto_usa_o_modo_da_construcao", () => {
+  it("test_the_objects_wrap_command_uses_the_mode_it_was_built_with", () => {
     const s = new LinuxSandbox(
       { workDir: "/w" },
       { mode: "workspace-write", bin: "/usr/bin/bwrap" },
@@ -149,8 +149,8 @@ describe("M75 T2.2 — honest degradation (negative cases)", () => {
 });
 
 describe("M75 T2.2 — resolveSandboxPosture", () => {
-  it("test_confinado_diz_kernel", () => {
-    const p = resolveSandboxPosture({ mode: "workspace-write", detect: detectaOk });
+  it("test_confined_reports_kernel", () => {
+    const p = resolveSandboxPosture({ mode: "workspace-write", detect: detectOk });
     expect(p.enforced).toBe(true);
     expect(p.detail).toMatch(/kernel/i);
   });
@@ -164,7 +164,7 @@ describe("M75 T2.2 — resolveSandboxPosture", () => {
   });
 
   it("test_danger_full_access_is_honestly_not_confined", () => {
-    const p = resolveSandboxPosture({ mode: "danger-full-access", detect: detectaOk });
+    const p = resolveSandboxPosture({ mode: "danger-full-access", detect: detectOk });
     expect(p.enforced, "danger-full-access may never report confinement").toBe(false);
   });
 });

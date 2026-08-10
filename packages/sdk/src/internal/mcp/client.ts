@@ -472,8 +472,8 @@ class HttpMcpClient extends BaseMcpClient {
    * A single JSON-RPC reply arrives as one event, so the FIRST parseable `data:` is the answer.
    */
   private async readBody(response: Response): Promise<unknown> {
-    const tipo = response.headers.get("content-type") ?? "";
-    if (!tipo.includes("text/event-stream")) return (await response.json()) as unknown;
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/event-stream")) return (await response.json()) as unknown;
     const text = await response.text();
     for (const line of text.split(/\r?\n/)) {
       if (!line.startsWith("data:")) continue;

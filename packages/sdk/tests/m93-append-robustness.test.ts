@@ -1,7 +1,7 @@
 /**
  * M93 — H1 and H2 from adversarial review: permissions and a truncated line.
  *
- * As duas nasceram da mesma troca: sair de `replaceFileAtomic` (que reescrevia tudo, com `0o600`)
+ * Both were born of the same swap: moving off `replaceFileAtomic` (which rewrote everything, with `0o600`)
  * to incremental append. The append is what makes writing linear rather than quadratic — but
  * inherited the umask and lost the self-healing of a file broken by a crash.
  */
@@ -15,11 +15,11 @@ import { readTranscript } from "../src/internal/persistence/session-transcript.j
 
 const dir = (): string => mkdtempSync(join(tmpdir(), "m93-append-"));
 
-describe("M93/H1 — o transcript nasce 0600", () => {
+describe("M93/H1 — the transcript is born 0600", () => {
   it("a new file is NOT readable by others, whatever the umask", () => {
     const p = join(dir(), "t.jsonl");
     appendJsonl(p, { a: 1 });
-    // 0o077 = qualquer bit de grupo/outros. Sob `umask 022` o append cru dava 0o664 e reprovava.
+    // 0o077 = any group/other bit. Under `umask 022` the raw append gave 0o664 and failed.
     expect(statSync(p).mode & 0o077).toBe(0);
   });
 });
@@ -33,9 +33,9 @@ describe("M93/H2 — appending over a truncated line does not swallow the new re
     appendJsonl(p, { type: "user", uuid: "c", parentUuid: null, sessionId: "s", timestamp: "t" });
 
     // `readTranscript` is the store's real reader and skips ANY malformed line — the partial disappears
-    // (esperado, ele nunca esteve completo) mas o registro seguinte tem de sobreviver.
+    // (expected — it was never complete) but the record after it has to survive.
     const ids = (await readTranscript(p)).map((r) => r.uuid);
-    expect(ids, "o registro novo sumiu junto com o partial").toContain("c");
+    expect(ids, "the new record vanished along with the partial one").toContain("c");
     expect(ids).toContain("a");
   });
 

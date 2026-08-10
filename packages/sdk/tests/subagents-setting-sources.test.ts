@@ -1,9 +1,9 @@
 /**
  * M96 U3 (Phase 1, T1.1/T1.2) — `settingSources` stops being a literal `true` on the public port.
  *
- * ## O defeito que estes testes fecham
+ * ## The defect these tests close
  *
- * `subagents-loader.ts:29-31` chamava `loadSubagents(cwd, true, undefined)`. O loader interno
+ * `subagents-loader.ts:29-31` called `loadSubagents(cwd, true, undefined)`. The internal loader
  * (`internal/runtime/skills/subagents-loader.ts:19`) has ALWAYS accepted the
  * `settingSourcesIncludeProject` parameter — it was the public port that hid it behind a literal, against
  * the SDK's own `settingSources` docstring. Publishing the parameter is U3.
@@ -12,8 +12,8 @@
  *
  * A positional `boolean` cannot admit a third source without breaking, and is unreadable at the call
  * site. The peer that solved the same problem used a named parameter
- * (`gemini-cli/agentLoader.ts:637-642`). O default `['project']` reproduz byte a byte o
- * comportamento do `true` de hoje.
+ * (`gemini-cli/agentLoader.ts:637-642`). The `['project']` default reproduces byte for byte the
+ * behaviour of today's `true`.
  *
  * ## The negative case's oracle (ADR D4)
  *
@@ -40,7 +40,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 });
 
 const { readdir } = await import("node:fs/promises");
-const readdirEspiao = vi.mocked(readdir);
+const readdirSpy = vi.mocked(readdir);
 
 const cwd = mkdtempSync(join(tmpdir(), "m96-setting-sources-"));
 afterAll(() => rmSync(cwd, { recursive: true, force: true }));
@@ -52,34 +52,34 @@ writeFileSync(
   "---\nname: analyst\ndescription: analyzes\n---\n\nYou analyze.\n",
 );
 
-function leiturasDoDiretorioDeAgentes(): unknown[] {
-  return readdirEspiao.mock.calls.filter(
+function readsOfTheAgentsDirectory(): unknown[] {
+  return readdirSpy.mock.calls.filter(
     ([p]) => typeof p === "string" && p.includes(join(".theokit", "agents")),
   );
 }
 
 describe("M96 U3 — settingSources on the loader public port", () => {
-  it("test_discoverSubagents_sem_opcoes_continua_lendo_a_fonte_de_projeto", async () => {
-    // A contraprova do default: sem ela, trocar o default para `[]` passaria em todos os
+  it("test_discoverSubagents_with_no_options_still_reads_the_project_source", async () => {
+    // The counterproof for the default: without it, changing the default to `[]` would pass every
     // new tests and would silently erase the project-subagent route.
     const found = await discoverSubagents(cwd);
     expect(Object.keys(found)).toContain("analyst");
   });
 
-  it("test_settingSources_project_e_equivalente_ao_default", async () => {
-    const comDefault = await discoverSubagents(cwd);
-    const explicito = await discoverSubagents(cwd, { settingSources: ["project"] });
-    expect(explicito).toEqual(comDefault);
+  it("test_settingSources_project_is_equivalent_to_the_default", async () => {
+    const withDefault = await discoverSubagents(cwd);
+    const explicit = await discoverSubagents(cwd, { settingSources: ["project"] });
+    expect(explicit).toEqual(withDefault);
   });
 
   it("test_NEGATIVE_an_empty_settingSources_returns_an_empty_object_AND_DOES_NOT_READ_THE_DIRECTORY", async () => {
-    readdirEspiao.mockClear();
+    readdirSpy.mockClear();
 
     const found = await discoverSubagents(cwd, { settingSources: [] });
 
     expect(found, "with no declared source there is no subagent to return").toEqual({});
     expect(
-      leiturasDoDiretorioDeAgentes(),
+      readsOfTheAgentsDirectory(),
       "the absent side effect (D4): the directory must not have been read",
     ).toHaveLength(0);
   });
@@ -87,28 +87,28 @@ describe("M96 U3 — settingSources on the loader public port", () => {
   it("test_NEGATIVE_an_unknown_source_is_a_typed_error", async () => {
     // error-handling.md § 2: a typed error naming the received value and the accepted sources, never a
     // neither a silent `undefined` nor a filter that discards the invalid source without warning.
-    const fonteInvalida = ["global"] as unknown as readonly "project"[];
+    const invalidSource = ["global"] as unknown as readonly "project"[];
 
-    await expect(discoverSubagents(cwd, { settingSources: fonteInvalida })).rejects.toThrow(
+    await expect(discoverSubagents(cwd, { settingSources: invalidSource })).rejects.toThrow(
       ConfigurationError,
     );
-    await expect(discoverSubagents(cwd, { settingSources: fonteInvalida })).rejects.toThrow(
+    await expect(discoverSubagents(cwd, { settingSources: invalidSource })).rejects.toThrow(
       /global.*project/s,
     );
   });
 
   it("test_NEGATIVE_an_unknown_source_DOES_NOT_READ_THE_DIRECTORY", async () => {
     // The effect half of the negative case above: refusing AFTER reading would already have read.
-    readdirEspiao.mockClear();
-    const fonteInvalida = ["global"] as unknown as readonly "project"[];
+    readdirSpy.mockClear();
+    const invalidSource = ["global"] as unknown as readonly "project"[];
 
-    await expect(discoverSubagents(cwd, { settingSources: fonteInvalida })).rejects.toThrow(
+    await expect(discoverSubagents(cwd, { settingSources: invalidSource })).rejects.toThrow(
       ConfigurationError,
     );
-    expect(leiturasDoDiretorioDeAgentes()).toHaveLength(0);
+    expect(readsOfTheAgentsDirectory()).toHaveLength(0);
   });
 
-  it("test_loadSubagentDefinition_repassa_as_opcoes", async () => {
+  it("test_loadSubagentDefinition_forwards_the_options", async () => {
     // The module's second public port must not go without the parameter; without this assertion
     // U3 would close half the surface.
     expect(await loadSubagentDefinition("analyst", cwd)).toBeDefined();
@@ -124,7 +124,7 @@ describe("M96 U3 — settingSources on the loader public port", () => {
   });
 
   it("test_the_definition_type_is_reachable_via_the_loader_subpath", async () => {
-    // D6: a camada `@theokit/agents` vai aliasar este tipo como `SubagentDefinition`, e o alias
+    // D6: the `@theokit/agents` layer will alias this type as `SubagentDefinition`, and the alias
     // needs a symbol to resolve from. `tsconfig.json` includes `tests/**/*`, so
     // `pnpm typecheck` is what executes this assertion — the runtime value only anchors it.
     const found: Record<string, AgentDefinition> = await discoverSubagents(cwd);
