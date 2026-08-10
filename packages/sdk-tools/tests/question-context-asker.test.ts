@@ -3,7 +3,7 @@
  *
  * ## The design was already written down by the SDK's own authors
  *
- * A doc de `CustomTool.handler` descreve este caso de uso em duas frases:
+ * The `CustomTool.handler` doc describes this use case in two sentences:
  *
  * > *"M7 — the same `ctx` also carries an optional user `context` (provided once via
  * > `SendOptions.context`), so shared config like a `projectRoot` **is read by every tool instead of
@@ -31,57 +31,57 @@ import { describe, expect, it } from "vitest";
 
 import { createQuestionTool } from "../src/question.js";
 
-describe("M76 T3.1 — o asker vem do contexto", () => {
-  it("test_asker_do_contexto_vence_o_da_fabrica", async () => {
+describe("M76 T3.1 — the asker comes from the context", () => {
+  it("test_the_context_asker_beats_the_factory_one", async () => {
     let fromFactory = 0;
-    let doContexto = 0;
+    let fromContext = 0;
     const t = createQuestionTool({
       askUser: async () => {
         fromFactory++;
-        return "fabrica";
+        return "factory";
       },
     });
 
     const out = await t.handler(
-      { question: "qual?" },
+      { question: "which?" },
       {
         context: {
           askUser: async () => {
-            doContexto++;
-            return "contexto";
+            fromContext++;
+            return "context";
           },
         },
       },
     );
 
     // Counting CAUSE, not inspecting text: it proves which function ran.
-    expect(doContexto, "o asker do contexto tem de ser o chamado").toBe(1);
+    expect(fromContext, "the context asker must be the one called").toBe(1);
     expect(fromFactory, "the factory one must NOT be called when one exists in the context").toBe(
       0,
     );
-    expect(out).toContain("contexto");
+    expect(out).toContain("context");
   });
 
-  it("test_sem_contexto_usa_o_da_fabrica", async () => {
+  it("test_without_a_context_it_uses_the_factory_one", async () => {
     // Backward compatibility: callers already building with `askUser` are unaffected.
     let fromFactory = 0;
     const t = createQuestionTool({
       askUser: async () => {
         fromFactory++;
-        return "fabrica";
+        return "factory";
       },
     });
-    const out = await t.handler({ question: "qual?" });
+    const out = await t.handler({ question: "which?" });
     expect(fromFactory).toBe(1);
-    expect(out).toContain("fabrica");
+    expect(out).toContain("factory");
   });
 
   it("test_NEGATIVE_with_no_asker_an_immediate_typed_error", async () => {
     // With no asker, the old design would return a pending promise and the turn would stall 5 minutes.
     const t = createQuestionTool({});
-    const inicio = Date.now();
-    const out = (await t.handler({ question: "qual?" })) as string;
-    const elapsed = Date.now() - inicio;
+    const start = Date.now();
+    const out = (await t.handler({ question: "which?" })) as string;
+    const elapsed = Date.now() - start;
 
     const parsed = JSON.parse(out) as { ok: boolean; error?: string };
     expect(parsed.ok).toBe(false);
@@ -90,14 +90,14 @@ describe("M76 T3.1 — o asker vem do contexto", () => {
     expect(elapsed, "must resolve immediately, not wait for the timeout").toBeLessThan(100);
   });
 
-  it("test_contexto_sem_askUser_cai_no_da_fabrica", async () => {
+  it("test_a_context_without_askUser_falls_back_to_the_factory_one", async () => {
     // COUNTER-PROOF: a `context` present but without `askUser` must not be mistaken for "an asker exists".
     // Without this, an implementation checking only `ctx.context != null` would pass the tests above.
     let fromFactory = 0;
     const t = createQuestionTool({
       askUser: async () => {
         fromFactory++;
-        return "fabrica";
+        return "factory";
       },
     });
     await t.handler({ question: "q" }, { context: { projectRoot: "/tmp" } });
@@ -118,10 +118,10 @@ describe("M76 T3.1 — o asker vem do contexto", () => {
     // The PER-SESSION isolation invariant — what actually justified killing the singleton — lives where
     // the state lives: `agents/interactive/ask-bridge.test.ts`, in the consumer. Here it would be vacuous.
     const t = createQuestionTool({});
-    const chamadas: string[] = [];
+    const calls: string[] = [];
     const asker = (tag: string) => async (): Promise<string> => {
       await new Promise((r) => setTimeout(r, 5));
-      chamadas.push(tag);
+      calls.push(tag);
       return tag;
     };
 
@@ -130,7 +130,7 @@ describe("M76 T3.1 — o asker vem do contexto", () => {
       t.handler({ question: "q" }, { threadId: "s2", context: { askUser: asker("s2") } }),
     ]);
 
-    expect(chamadas.sort()).toEqual(["s1", "s2"]);
+    expect(calls.sort()).toEqual(["s1", "s2"]);
     expect(a).toContain("s1");
     expect(b).toContain("s2");
   });
@@ -139,7 +139,7 @@ describe("M76 T3.1 — o asker vem do contexto", () => {
 /**
  * M76 review (HIGH-1 and MEDIUM-1) — the WIRING, not the capability.
  *
- * O review adversarial encontrou o defeito central do milestone: `AskBridge` suportava escopo por
+ * The adversarial review found the milestone's central defect: `AskBridge` supported scoping by
  * session and the handler received `ctx.threadId`, but **the value was never forwarded**. The `Map` had one
  * key forever — `let pending` under another name. The earlier tests built the bridge by hand
  * and passed `'s1'`/`'s2'`: they proved the CLASS supports it, not that the SYSTEM uses it.
@@ -147,11 +147,11 @@ describe("M76 T3.1 — o asker vem do contexto", () => {
  * These two test the link. Without them, unhooking it again would break nothing.
  */
 describe("M76 review — threadId wiring and slot release", () => {
-  it("test_o_threadId_do_ctx_CHEGA_ao_asker", async () => {
-    const recebidos: (string | undefined)[] = [];
+  it("test_the_ctx_threadId_REACHES_the_asker", async () => {
+    const received: (string | undefined)[] = [];
     const t = createQuestionTool({
       askUser: async (_q, threadId) => {
-        recebidos.push(threadId);
+        received.push(threadId);
         return "ok";
       },
     });
@@ -159,7 +159,7 @@ describe("M76 review — threadId wiring and slot release", () => {
     await t.handler({ question: "q" }, { threadId: "session-42" });
 
     expect(
-      recebidos[0],
+      received[0],
       "the threadId did not reach the asker — the bridge Map would always fall into the default slot",
     ).toBe("session-42");
   });
@@ -169,7 +169,7 @@ describe("M76 review — threadId wiring and slot release", () => {
     // subsequent question gets "one is already pending" — a permanent error for something nobody awaits.
     const abandoned: (string | undefined)[] = [];
     const t = createQuestionTool({
-      askUser: () => new Promise<string>(() => undefined), // nunca resolve
+      askUser: () => new Promise<string>(() => undefined), // never resolves
       timeoutMs: 20,
       onAbandon: (threadId) => abandoned.push(threadId),
     });

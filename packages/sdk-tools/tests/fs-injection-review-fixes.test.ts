@@ -74,14 +74,14 @@ describe("M15 review fix — edit_file backend classifies read failures like the
   it("does NOT swallow a directory read as not_found — the error propagates (fail-loud)", async () => {
     const root = mkdtempSync(join(tmpdir(), "fs-edit-dir-"));
     roots.push(root);
-    mkdirSync(join(root, "adir"));
+    mkdirSync(join(root, "plaindir"));
     const tool = createEditFileTool({
       projectRoot: root,
       filesystem: new LocalFilesystem({ basePath: root }),
     });
     // Reading a directory is not "file missing" — it must not masquerade as not_found.
     await expect(
-      textHandler(tool)({ path: "adir", old_string: "a", new_string: "b" }),
+      textHandler(tool)({ path: "plaindir", old_string: "a", new_string: "b" }),
     ).rejects.toThrow();
   });
 });

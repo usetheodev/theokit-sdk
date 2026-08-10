@@ -1,7 +1,7 @@
 /**
  * The library's single diagnostics channel — silent by default (#147).
  *
- * ## O problema
+ * ## The problem
  *
  * The SDK wrote diagnostics straight to `process.stderr` from hot paths — 92 sites across 51
  * files under `internal/`. In a TUI host (Ink, alternate screen), those writes interleave with the
@@ -12,7 +12,7 @@
  * A library cannot assume `stdout`/`stderr` are free sinks. The application owns the terminal, not
  * the dependency.
  *
- * ## O contrato
+ * ## The contract
  *
  * - **`setDiagnosticsSink(fn)`** hands the messages to the application, which decides where to put
  *   them (a status line, a file, a panel). It is what was missing for a TUI to coexist with the SDK.

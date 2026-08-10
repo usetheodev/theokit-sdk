@@ -1,5 +1,5 @@
 /**
- * Singleton por realm, chaveado por `Symbol.for`.
+ * One singleton per realm, keyed by `Symbol.for`.
  *
  * It exists because a package can be loaded more than once in the same process (two copies in
  * `node_modules`, ESM and CJS side by side, a monorepo with distinct versions) — and then a module-level

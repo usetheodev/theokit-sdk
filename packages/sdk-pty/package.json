@@ -1,6 +1,6 @@
 {
   "name": "@theokit/sdk-pty",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Local interactive-shell backend for @theokit/sdk — a node-pty implementation of InteractiveBackend. Opt-in, terminal-surface only; node-pty is optional so install never fails on a native build.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -31,7 +31,7 @@
     "node-pty": "^1.1.0"
   },
   "devDependencies": {
-    "@theokit/sdk": "workspace:*",
+    "@theokit/sdk": "^4.40.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^4.1.8"

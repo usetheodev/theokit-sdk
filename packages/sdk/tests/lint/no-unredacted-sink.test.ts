@@ -55,7 +55,7 @@ const SINK_PATTERNS: Sink[] = [
  *
  *   DECLARED RESIDUE: the allowlist is per FILE, so this entry also exempts
  *   mechanically the two `console.warn` calls in the same file — and a new `console.warn`
- *   adicionado ali no futuro escaparia do gate. Os dois atuais passam por
+ *   added there in future would escape the gate. The two current ones go through
  *   `redactSecrets` (the detection-failure reason carries a filesystem
  *   path), but that is DISCIPLINE, not enforcement. Per-line granularity
  *   would solve it; it does not exist today, and inventing it here would be another milestone's scope.

@@ -12,11 +12,11 @@ import { transcriptPath } from "../src/internal/persistence/session-transcript.j
  *
  * It used to be `readTranscript` + `writeTranscript` of the **whole** file, per turn: O(n) of I/O **and**
  * of parsing on every turn, O(n^2) per session. The consumer note records 1.4 MB / 3000 lines over 200
- * turnos.
+ * turns.
  *
  * Correct because the format **is already append-only** — the `parentUuid` DAG does not depend on line order.
  * And `appendJsonl` **already existed in the package**, with a single caller; the primitive was there and the store
- * ignorava.
+ * ignored.
  */
 const reg = (id: string) => ({ uuid: id, type: "user", message: { role: "user", content: id } });
 
@@ -50,8 +50,8 @@ describe("M93 — append incremental", () => {
     const { store } = build();
     await store.appendRecords("ag-1", [reg("a"), reg("b")] as never);
     await store.appendRecords("ag-1", [reg("c")] as never);
-    const relido = (await store.readRecords("ag-1")) as { uuid: string }[];
-    expect(relido.map((r) => r.uuid)).toEqual(["a", "b", "c"]);
+    const reread = (await store.readRecords("ag-1")) as { uuid: string }[];
+    expect(reread.map((r) => r.uuid)).toEqual(["a", "b", "c"]);
   });
 
   it("CONSECUTIVE appends neither duplicate nor lose a record", async () => {
@@ -90,7 +90,7 @@ describe("M93 — append incremental", () => {
   });
 
   /**
-   * **atomic-counter invariant**: dois `appendRecords` concorrentes de 3 e 4 registros produzem
+   * **atomic-counter invariant**: two concurrent `appendRecords` of 3 and 4 records produce
    * exactly 7 lines — none lost, none duplicated. `withFileLock` stays and is what
    * serializes; swapping the operation must not loosen that.
    */
@@ -114,7 +114,7 @@ describe("M93 — append incremental", () => {
       store.appendRecords("ag-1", [reg("a"), reg("b"), reg("c")] as never),
       store.appendRecords("ag-1", [reg("d"), reg("e"), reg("f"), reg("g")] as never),
     ]);
-    const relido = (await store.readRecords("ag-1")) as { uuid: string }[];
-    expect(relido).toHaveLength(7);
+    const reread = (await store.readRecords("ag-1")) as { uuid: string }[];
+    expect(reread).toHaveLength(7);
   });
 });

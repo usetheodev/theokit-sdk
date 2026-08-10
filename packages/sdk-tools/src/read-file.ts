@@ -43,7 +43,7 @@ import {
   PathTraversalError,
   safePathJoin,
 } from "./internal/path-guard.js";
-import { ehProibidoEmQualquerProfundidade } from "./path-scope.js";
+import { isForbiddenAtAnyDepth } from "./path-scope.js";
 import type { ReadTracker } from "./read-tracker.js";
 
 /** Max single-file read size, in bytes. 5 MB ceiling — enough for any source file. */
@@ -95,7 +95,7 @@ function forbiddenReadError(path: string, allowAbsolute: boolean): string | null
   if (isForbiddenPath(path)) {
     return JSON.stringify({ ok: false, error: "forbidden_path", path });
   }
-  if (allowAbsolute && isAbsolute(path) && ehProibidoEmQualquerProfundidade(path)) {
+  if (allowAbsolute && isAbsolute(path) && isForbiddenAtAnyDepth(path)) {
     return JSON.stringify({ ok: false, error: "forbidden_path", path });
   }
   return null;

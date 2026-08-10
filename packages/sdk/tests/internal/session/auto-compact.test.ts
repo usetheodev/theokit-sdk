@@ -34,7 +34,7 @@ function storeWith(initial: SessionRecord[]): SessionStore & { records: SessionR
 
 function seed(): SessionRecord[] {
   const t = new SessionTranscript({ cwd: LOC.cwd, sessionId: LOC.agentId, model: LOC.model });
-  t.appendUserTurn("contexto longo");
+  t.appendUserTurn("a long context");
   t.appendAssistantTurn({ text: "answer" });
   return [...t.records()];
 }
@@ -42,7 +42,7 @@ function seed(): SessionRecord[] {
 describe("shouldAutoCompact (Codex formula 0.9*cw)", () => {
   it("auto_compact_fires_at_ninety_percent", () => {
     expect(shouldAutoCompact({ usageTotal: 91_000, contextWindow: 100_000 })).toBe(true);
-    expect(shouldAutoCompact({ usageTotal: 90_000, contextWindow: 100_000 })).toBe(true); // >= no limiar
+    expect(shouldAutoCompact({ usageTotal: 90_000, contextWindow: 100_000 })).toBe(true); // >= at the threshold
     expect(shouldAutoCompact({ usageTotal: 85_000, contextWindow: 100_000 })).toBe(false);
   });
 
@@ -52,7 +52,7 @@ describe("shouldAutoCompact (Codex formula 0.9*cw)", () => {
   });
 });
 
-describe("autoCompactIfNeeded (guard anti-cascata)", () => {
+describe("autoCompactIfNeeded (anti-cascade guard)", () => {
   it("compacts_once_and_not_again_without_new_turn", async () => {
     const store = storeWith(seed());
     let calls = 0;
@@ -72,7 +72,7 @@ describe("autoCompactIfNeeded (guard anti-cascata)", () => {
     // same turnCount (no new turn) -> does not repeat, even above the threshold
     expect(await autoCompactIfNeeded(opts)).toBe(false);
     expect(calls).toBe(1);
-    // turno NOVO acima do limiar → dispara de novo
+    // a NEW turn above the threshold → fires again
     expect(await autoCompactIfNeeded({ ...opts, turnCount: 8 })).toBe(true);
     expect(calls).toBe(2);
   });
@@ -137,7 +137,7 @@ describe("M50 review F5 — corrida compact × persist (serializada na chain)", 
         loc: LOC,
         sessionId: LOC.agentId,
         trigger: "manual",
-        summarize: async () => "resumo lento",
+        summarize: async () => "a slow summary",
       });
     });
     // ...a concurrent turn queued right after — it MUST wait for the compact
@@ -148,11 +148,11 @@ describe("M50 review F5 — corrida compact × persist (serializada na chain)", 
         sessionId: LOC.agentId,
         model: LOC.model,
       });
-      t.appendUserTurn("turno concorrente");
+      t.appendUserTurn("a concurrent turn");
       await store.appendRecords(LOC.agentId, t.records().slice(store.records.length));
     });
     await Promise.all([slow, turn]);
-    expect(order).toEqual(["compact", "turn"]); // serializado — nunca intercala
+    expect(order).toEqual(["compact", "turn"]); // serialized — never interleaves
     // and the turn parents POST-replacement (does not become an orphan)
     const msgs = reconstructMessages(store.records);
     const joined = msgs
@@ -162,14 +162,14 @@ describe("M50 review F5 — corrida compact × persist (serializada na chain)", 
           : "",
       )
       .join("\n");
-    expect(joined).toContain("turno concorrente");
+    expect(joined).toContain("a concurrent turn");
     expect(joined).toContain("[[theokit:compact-summary]]");
     clearAllSessions();
   });
 });
 
 describe("M50 F6 — resolveSummarizerRoute (M4 precedence)", () => {
-  it("explicit_key_outranks_prefix (sk-or- + openai/model → openrouter, slug completo)", async () => {
+  it("explicit_key_outranks_prefix (sk-or- + openai/model → openrouter, full slug)", async () => {
     const { resolveSummarizerRoute } = await import(
       "../../../src/internal/session/compact-session.js"
     );

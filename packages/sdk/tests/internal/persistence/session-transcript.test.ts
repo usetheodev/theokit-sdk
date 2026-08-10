@@ -230,7 +230,7 @@ describe("M50 — compact boundary with replacement (end of the amnesia)", () =>
     // compact: boundary (new root) + replacement chained onto it (recent user + handoff summary)
     t.appendCompactBoundary({ preTokens: 1000, trigger: "manual" });
     t.appendUserTurn("old question 2"); // recent user message preserved verbatim
-    t.appendUserTurn("[COMPACT SUMMARY]\nprogresso: X decidido; falta Y");
+    t.appendUserTurn("[COMPACT SUMMARY]\nprogress: X decided; Y outstanding");
     // post-compact continuation
     t.appendUserTurn("new question");
     t.appendAssistantTurn({ text: "new answer" });

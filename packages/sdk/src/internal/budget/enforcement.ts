@@ -5,7 +5,7 @@
  *   `BudgetExceededError` before the LLM call if any limit would be
  *   exceeded (EC-9 — the caller invokes it inside the mutex section).
  * - `chargeAndCheckThresholds(name, actualUsd)` — apply charge ao
- *   ledger + invoca onThreshold/onExceed callbacks isolated em
+ *   ledger + invokes onThreshold/onExceed callbacks isolated in
  *   try/catch (EC-8).
  *
  * @internal

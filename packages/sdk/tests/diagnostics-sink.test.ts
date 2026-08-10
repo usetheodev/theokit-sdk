@@ -25,60 +25,60 @@ describe("interceptable diagnostics channel (#147)", () => {
     // `vitest.setup.ts` forwards to stderr during tests so the 36 suites asserting "a warning is
     // emitted" survive, hence the explicit clear here.
     setDiagnosticsSink(undefined);
-    const escrever = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
 
-    diag("[theokit-sdk] algo aconteceu\n");
+    diag("[theokit-sdk] something happened\n");
 
-    expect(escrever).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
   });
 
   it("with a sink installed, the application receives the message", () => {
-    const recebidas: string[] = [];
-    setDiagnosticsSink((m) => recebidas.push(m));
+    const received: string[] = [];
+    setDiagnosticsSink((m) => received.push(m));
 
-    diag("[theokit-sdk] recall falhou\n");
+    diag("[theokit-sdk] recall failed\n");
 
-    expect(recebidas).toEqual(["[theokit-sdk] recall falhou\n"]);
+    expect(received).toEqual(["[theokit-sdk] recall failed\n"]);
   });
 
   it("with a sink installed, stderr gets NO copy", () => {
-    const escrever = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     setDiagnosticsSink(() => undefined);
 
     // Duplicating destinations would hand the problem back to the TUI that installed the sink precisely to get
     // the messages out of the terminal — it is the reported defect, back again.
     diag("[theokit-sdk] x\n");
 
-    expect(escrever).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
   });
 
   it("an empty sink is the path for anyone wanting silence today", () => {
-    const escrever = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     setDiagnosticsSink(() => {
-      /* descarta */
+      /* discard */
     });
 
     diag("[theokit-sdk] x\n");
 
-    expect(escrever).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
   });
 
   it("removing the sink returns to silence, not to stderr (#147)", () => {
     // Was "removing the sink gives stderr back". Since theokit#147 flipped the default, uninstalling
     // returns to the production default — silence — rather than to the terminal. A host that tears
     // its sink down on shutdown must not start writing onto the screen it just released.
-    const escrever = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     setDiagnosticsSink(() => undefined);
     setDiagnosticsSink(undefined);
 
     diag("[theokit-sdk] x\n");
 
-    expect(escrever).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
   });
 
   it("a throwing sink does not take down the run it merely observes", () => {
     setDiagnosticsSink(() => {
-      throw new Error("sink quebrado");
+      throw new Error("sink is broken");
     });
 
     expect(() => diag("[theokit-sdk] x\n")).not.toThrow();

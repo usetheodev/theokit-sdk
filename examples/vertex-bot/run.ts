@@ -34,7 +34,7 @@ const agent = await Agent.create({
   systemPrompt: "You are a concise assistant. Reply in one short sentence.",
 });
 
-const question = process.argv[2] ?? "Qual é a capital do Brasil?";
+const question = process.argv[2] ?? "What is the capital of Brazil?";
 console.log(
   `[vertex] model=${modelId} project=${process.env.GOOGLE_CLOUD_PROJECT} ` +
     `location=${process.env.GOOGLE_CLOUD_LOCATION ?? "us-central1"} question="${question}"`,

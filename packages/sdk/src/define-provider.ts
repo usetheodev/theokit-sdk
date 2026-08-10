@@ -97,7 +97,7 @@ export class Provider {
     // real `lmstudio` builtin via the parser and to NOTHING via the slice — and since the consumer now
     // throwing when there is no provider, a custom command that worked before M94 would start
     // fails. `Anthropic/...`, ` openai/...`, `llama.cpp/...` likewise. And the inverse: `openai/` (empty name) the
-    // parser rejeita e o slice aceitava.
+    // the parser rejects and the slice used to accept.
     const { provider } = parseModelId(modelId);
     if (provider === undefined) return undefined;
     return Provider.builtins().find((p) => p.name === provider);

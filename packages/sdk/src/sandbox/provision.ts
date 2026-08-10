@@ -7,7 +7,7 @@
  * theocode's `prepareRepo` (`swebench-provision.ts:37`) onto the SDK's sandbox
  * abstraction.
  *
- * referencia: knowledge-base/references/theocode-eval/lib/swebench-provision.ts:37
+ * reference: knowledge-base/references/theocode-eval/lib/swebench-provision.ts:37
  * (clone+checkout), :13 (ProvisionError with instanceId).
  *
  * @public

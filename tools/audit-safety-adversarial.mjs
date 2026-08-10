@@ -7,10 +7,13 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  Agent,
-  ConfigurationError,
-} from "/home/user/Projetos/usetheo/theokit-sdk/packages/sdk/dist/index.js";
+import { fileURLToPath } from "node:url";
+import { Agent, ConfigurationError } from "../packages/sdk/dist/index.js";
+
+// The repository root, derived from this file's location. It used to be the hardcoded absolute
+// path of one developer's checkout, which no longer exists — this script was broken on every
+// machine, including the one that wrote it.
+const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 // API key is intentionally not used — all scenarios are validation-only and
 // must reject pre-LLM (no real provider call required). Keeping the env check
@@ -315,7 +318,7 @@ ${crashed} crashes, ${unexpected} unexpected.
   Future work tracked in v1.2 backlog.
 `;
 writeFileSync(
-  "/home/user/Projetos/usetheo/theokit-sdk/.claude/knowledge-base/reviews/safety-adversarial-2026-05-17.md",
+  `${REPO_ROOT}.claude/knowledge-base/reviews/safety-adversarial-2026-05-17.md`,
   snapshot,
 );
 console.log("Wrote: .claude/knowledge-base/reviews/safety-adversarial-2026-05-17.md");

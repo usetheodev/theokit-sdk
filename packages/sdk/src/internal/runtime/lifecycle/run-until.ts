@@ -37,7 +37,7 @@ export async function* runUntilImpl(
 ): AsyncGenerator<GoalEvent, GoalResult, void> {
   const maxTurns = options?.maxTurns ?? 20;
   const maxFails = options?.maxConsecutiveJudgeFailures ?? 3;
-  const tokenBudget = options?.tokenBudget; // M55 — undefined ⇒ ilimitado
+  const tokenBudget = options?.tokenBudget; // M55 — undefined ⇒ unlimited
   const signal = options?.signal;
   // Use a function (not direct property access) so TS does not narrow
   // `signal.aborted` to `false | undefined` after the initial check.
@@ -46,7 +46,7 @@ export async function* runUntilImpl(
   const isAborted = (): boolean => signal !== undefined && signal.aborted;
   let turn = 0;
   let consecutiveFailures = 0;
-  let tokensUsed = 0; // M55 — soma observada (0 se usage ausente — fail-open)
+  let tokensUsed = 0; // M55 — the observed sum (0 when usage is absent — fail-open)
   let lastResponse = "";
 
   // EC-C: signal already aborted BEFORE first event → emit only [paused].
