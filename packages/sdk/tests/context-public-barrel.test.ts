@@ -26,6 +26,7 @@ import {
 
 /** Exactly what the barrel promises. A new symbol here is a deliberate public-surface decision. */
 const DECLARED_SYMBOLS = [
+  "DEFAULT_DISCOVERY_SPECS",
   "parseRules",
   "resolveContextImports",
   "runDiscovery",
@@ -71,6 +72,20 @@ describe("the context barrel is a curated public surface", () => {
     });
     expect(out).not.toContain("SENTINEL-OUTSIDE");
     expect(out).toContain("refused");
+  });
+
+  it("test_the_default_specs_are_reachable_so_custom_specs_can_extend_them", async () => {
+    // REVIEW F1 — `runDiscovery` does `opts.specs ?? DEFAULT_DISCOVERY_SPECS`, so passing `specs`
+    // REPLACES the built-in conventions. Without the constant on the public surface a consumer
+    // registering one convention of its own silently loses AGENTS.md, CLAUDE.md and the rules
+    // globs, and the loss is invisible: discovery just returns fewer sources.
+    const { DEFAULT_DISCOVERY_SPECS } = await import("../src/context/index.js");
+
+    expect(DEFAULT_DISCOVERY_SPECS.length).toBeGreaterThan(0);
+    expect(DEFAULT_DISCOVERY_SPECS.map((s) => s.id)).toContain("AGENTS.md");
+    // The spread a consumer is expected to write must type-check and preserve the built-ins.
+    const extended = [...DEFAULT_DISCOVERY_SPECS];
+    expect(extended.length).toBe(DEFAULT_DISCOVERY_SPECS.length);
   });
 
   it("test_public_run_discovery_refuses_an_import_outside_the_repository", async () => {
