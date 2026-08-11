@@ -21,12 +21,16 @@
  * A missing release tag is not noticed on the day. It is noticed weeks later by whoever is
  * bisecting, and by then the version it should have marked is ambiguous.
  *
- * ## Why here rather than in a wrapper
+ * ## Where it runs, and why not inside `pnpm release`
  *
- * A `git-push-verified` wrapper only helps whoever remembers to call it — the same failure mode as
- * writing the rule down, which is already done (`CLAUDE.md`, rule 5). Wiring the check into
- * `pnpm release`, after `changeset publish`, makes it unskippable for the path that actually cuts
- * releases.
+ * As its own step in the release workflow, AFTER the changesets action. `changeset publish` creates
+ * the tags; the ACTION pushes them, in a step of its own once publish returns. Wiring the check
+ * into `pnpm release` therefore ran it before the pusher and failed every release — measured on
+ * 4.45.0, where the tag it reported missing was on the remote moments later. A gate that fails
+ * every time is a gate people learn to ignore, which is worse than no gate.
+ *
+ * Locally it is `pnpm verify:refs`, run after a manual publish. There it CAN legitimately fail:
+ * `changeset publish` leaves the tags for you to push, and the refusal prints the exact command.
  *
  * The check is against the REMOTE, deliberately: `git tag --list` would answer from the local
  * repository, which is exactly the thing whose word is not being taken.
