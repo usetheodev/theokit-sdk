@@ -39,7 +39,11 @@ import { fileURLToPath } from "node:url";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function git(args) {
-  return execFileSync("git", args, { encoding: "utf8", cwd: REPO_ROOT }).trim();
+  // PATH resolution, reviewed as in the sibling release guards: this is maintainer/CI tooling in a
+  // repository whose entire toolchain arrives through PATH, and anyone able to write to that PATH
+  // already controls the build. The marker sits on the flagged line because Sonar ignores it
+  // anywhere else — learned the hard way on `check-no-reconsumed-changesets.mjs`.
+  return execFileSync("git", args, { encoding: "utf8", cwd: REPO_ROOT }).trim(); // NOSONAR
 }
 
 /**
