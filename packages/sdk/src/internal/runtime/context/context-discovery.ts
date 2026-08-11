@@ -17,7 +17,7 @@
  */
 
 import { existsSync, realpathSync } from "node:fs";
-import { readdir } from "node:fs/promises";
+import { glob } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
 /** Single filename ("AGENTS.md") or relative glob (".cursor/rules/*.mdc"). */
@@ -198,38 +198,51 @@ export function walkUpForFile(
 }
 
 /**
- * Glob-style discovery scoped to a single directory under cwd (e.g.
- * `.cursor/rules/*.mdc`). Flat — does NOT recurse into subdirectories
- * (EC-R: nested directories deferred to v2). Returns absolute,
- * lex-sorted paths.
+ * Glob-style discovery under `cwd` (e.g. `.cursor/rules/*.mdc`, `.theokit/rules/**\/*.md`).
+ * Returns absolute, lex-sorted paths.
+ *
+ * `*` matches within one path segment and `**` spans any depth, including zero — so
+ * `.theokit/rules/**\/*.md` finds `rules/top.md` as well as `rules/deep/nested/inner.md`, while
+ * `.theokit/rules/*.md` keeps its flat meaning and finds only the first. That distinction is the
+ * compatibility contract: every existing spec uses a single `*`, and widening it would silently
+ * start absorbing nested files nobody chose to expose.
+ *
+ * ## Why this used to be flat, and what changed (B-119)
+ *
+ * The previous implementation split the pattern at its LAST `/`, treated the prefix as a literal
+ * directory and did one `readdir` — documented as "nested directories deferred to v2" (EC-R). The
+ * deferral was deliberate; what made it a defect was measured from a consumer. TheoCode's own rule
+ * loader descends recursively, so migrating it onto the `theokit-rules` spec would have silently
+ * dropped every nested rule — on the path that decides whether a repository's hooks execute. And a
+ * pattern written to say so, `.theokit/rules/**\/*.md`, resolved its directory part to a literal
+ * `**` and matched NOTHING, not even the top-level file it matched before the globstar was added.
+ *
+ * ## Why the stdlib rather than a walker
+ *
+ * `fs.promises.glob` (Node ≥ 22, and this package requires ≥ 22.12) implements exactly these
+ * semantics, verified against a fixture before adoption: `**\/*.md` returns all three depths,
+ * `*.md` returns one, and it emits no experimental warning. Writing a recursive walker here would
+ * have been a third implementation of matching inside one package — the same duplication that let
+ * the enumerator and the compiler in `context-glob.ts` disagree in the first place. `globToRegex`
+ * stays where it belongs: deciding whether a rule APPLIES to a set of paths, which is a different
+ * question from which files exist.
+ *
+ * `isSafePattern` still runs first and is unchanged, so `..` is refused before any I/O.
  *
  * @internal
  */
 export async function walkUpForGlob(cwd: string, pattern: string): Promise<string[]> {
   if (!isSafePattern(pattern)) return [];
-  const lastSlash = pattern.lastIndexOf("/");
-  if (lastSlash < 0) {
-    // Single filename — treat as cwd-only single match.
-    const candidate = join(cwd, pattern);
-    return existsSync(candidate) ? [resolve(candidate)] : [];
-  }
-  const dirPart = pattern.slice(0, lastSlash);
-  const filePart = pattern.slice(lastSlash + 1);
-  const dir = join(cwd, dirPart);
-  if (!existsSync(dir)) return [];
-  // Build a regex from the file part — supports only `*` wildcard.
-  const fileRe = filePartToRegex(filePart);
-  let entries: string[];
+  const found: string[] = [];
   try {
-    entries = await readdir(dir);
+    for await (const entry of glob(pattern, { cwd })) {
+      found.push(resolve(cwd, entry));
+    }
   } catch {
+    // A pattern whose directory does not exist is the ordinary case — most projects have no
+    // `.cursor/rules/`. Same outcome as matching nothing.
     return [];
   }
-  const matched = entries.filter((e) => fileRe.test(e)).sort();
-  return matched.map((e) => resolve(join(dir, e)));
-}
-
-function filePartToRegex(filePart: string): RegExp {
-  const escaped = filePart.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
-  return new RegExp(`^${escaped}$`);
+  // Sorted, because discovery order becomes prompt order and must not vary with the filesystem.
+  return found.sort();
 }
