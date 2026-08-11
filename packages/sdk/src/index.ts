@@ -172,6 +172,13 @@ export type {
   LiveAgentRegistry,
 } from "./internal/runtime/registry/live-agent-registry.js";
 export { JobQueue, type JobQueueOptions } from "./job-queue.js";
+export {
+  type DeclaredLayer,
+  foldLayers,
+  LayerOrderError,
+  type LayerValues,
+  verifyLayerOrdering,
+} from "./layer-fold.js";
 // Memory subsystem (public surfaces)
 export {
   type DreamingSweepOptions,
