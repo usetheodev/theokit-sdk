@@ -43,6 +43,11 @@ export default defineConfig({
     "sandbox/index": "src/sandbox/index.ts",
     "filesystem/index": "src/filesystem/index.ts",
     "interactive/index": "src/interactive/index.ts",
+    // B-103 — the sanctioned public barrel for context assembly. Its DTS goes through the
+    // `tsc` path below, NOT `dts.entry`: rollup-plugin-dts trips on the
+    // `types/agent.ts <-> fork-agent.ts` cycle whenever a sub-entry reaches into
+    // `internal/runtime`, which this barrel does by construction.
+    "context/index": "src/context/index.ts",
     // internal/persistence is a publicly accessible sub-path used by extracted
     // packages (sdk-memory, sdk-cache) for shared persistence primitives.
     // Documented as "internal API — semver-exempt" in README. The plugin
