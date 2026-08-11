@@ -36,7 +36,8 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
   },
   "peerDependencies": {
     "@agentclientprotocol/sdk": "^0.22.1",
