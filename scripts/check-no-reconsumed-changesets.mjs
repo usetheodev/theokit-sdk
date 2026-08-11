@@ -48,11 +48,37 @@ function git(args, opts = {}) {
   return execFileSync("git", args, { encoding: "utf8", cwd: REPO_ROOT, ...opts }).trim();
 }
 
+/**
+ * A ref that git will read as a REF and never as an option.
+ *
+ * The refs reaching this script come from the CI context — `github.base_ref` and the PR head sha —
+ * which is data from a pull request, not from a maintainer. `execFileSync` already rules out shell
+ * injection (there is no shell), but it does nothing about ARGUMENT injection: a value beginning
+ * with `-` is parsed by git as a flag, so a branch named `--output=…` would be an option rather
+ * than the thing being inspected.
+ *
+ * Two defences, because each covers what the other misses. `--end-of-options` (git ≥ 2.24) tells
+ * git that everything after it is an operand, which handles flags git knows. The character check
+ * rejects the value outright, which also covers older git and makes the refusal legible instead of
+ * producing a confusing git error. Failing loudly beats a guard that inspects the wrong ref and
+ * reports clean.
+ */
+function assertPlainRef(ref) {
+  if (typeof ref !== "string" || ref.length === 0 || ref.startsWith("-")) {
+    throw new Error(
+      `refusing to inspect ${JSON.stringify(ref)}: a ref must not be empty or begin with "-", ` +
+        `which git would read as an option rather than a revision`,
+    );
+  }
+  return ref;
+}
+
 /** @returns every `.changeset/*.md` entry present at `ref` (excluding the upstream README). */
 export function changesetsAt(ref) {
+  assertPlainRef(ref);
   let out;
   try {
-    out = git(["ls-tree", "-r", "--name-only", ref, ".changeset/"]);
+    out = git(["ls-tree", "-r", "--name-only", "--end-of-options", ref, "--", ".changeset/"]);
   } catch {
     return [];
   }
@@ -70,8 +96,19 @@ export function changesetsAt(ref) {
  * which is true of every un-consumed changeset too.
  */
 export function wasDeletedOn(baseRef, path) {
+  assertPlainRef(baseRef);
   try {
-    return git(["log", baseRef, "--diff-filter=D", "--format=%H", "--", path]).length > 0;
+    return (
+      git([
+        "log",
+        "--diff-filter=D",
+        "--format=%H",
+        "--end-of-options",
+        baseRef,
+        "--",
+        path,
+      ]).length > 0
+    );
   } catch {
     return false;
   }
@@ -89,7 +126,16 @@ function main() {
   const base = process.argv[2] ?? "origin/main";
   const head = process.argv[3] ?? "HEAD";
 
-  const offenders = reconsumedChangesets(base, head);
+  let offenders;
+  try {
+    offenders = reconsumedChangesets(base, head);
+  } catch (err) {
+    // A rejected ref is a legible refusal, not a crash. An uncaught throw prints a Node stack
+    // trace, and a guard whose failure looks like a bug IN the guard is a guard people route
+    // around. Exit 2 distinguishes "could not check" from exit 1's "checked, and it is unsafe".
+    console.error(`\n✗ ${err instanceof Error ? err.message : String(err)}\n`);
+    process.exit(2);
+  }
   if (offenders.length === 0) {
     console.log(`✓ no changeset on ${head} has already been consumed by ${base}`);
     return;
