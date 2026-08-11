@@ -44,5 +44,10 @@
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
     "vitest": "^4.1.8"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usetheodev/theokit-sdk.git",
+    "directory": "packages/memory-mem0"
   }
 }
