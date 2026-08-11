@@ -320,3 +320,9 @@ export {
 // session needs to name these types; without them the method's return would only be reachable
 // through an inline `import(...)` in the emitted .d.ts.
 export type { SessionMessage, SessionMessagePart } from "./types/session-message.js";
+export {
+  recordWiring,
+  UngatedCapabilityError,
+  type WiredEntity,
+  type WiringRecordInput,
+} from "./wiring-record.js";
