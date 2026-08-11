@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **`planReaping` — which session artifacts may be deleted, decided without deleting anything.** The
+  package creates transcripts, locks and temp files and cleans up only what is in flight in the
+  operation doing the cleaning, so every consumer either writes its own collector or lets the
+  directory grow. Planning is separated from deleting on purpose: the plan IS the dry run, a value
+  someone reads before anything is removed, and the decision stays pure enough to test. The tri-state
+  is the point — an artifact whose liveness could not be established is never reaped and never
+  counted as kept, because collapsing "could not determine" into "not there" is how a collector
+  deletes a session running on another machine.
+
+### Added
+
 - **`auditEnvReachability` — every config key is settable from the environment, or says why not.** A
   key settable only by editing a file cannot be set in CI, in a container, or for one invocation, and
   the gap is invisible: nothing fails, the key simply has no environment path. The opposite failure
