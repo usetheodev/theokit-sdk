@@ -15,11 +15,11 @@
  * @internal
  */
 
-import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve as resolvePath } from "node:path";
+import { dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
 
 import { loadPlainMarkdown } from "./context-loaders.js";
+import { insideRoot } from "./path-containment.js";
 
 /** EC-Q: line-anchored. `@path` must be alone on its line. */
 const IMPORT_RE = /^@(\S+)\s*$/gm;
@@ -49,26 +49,6 @@ export interface ResolveImportsOptions {
    * same value it already uses to keep absolute paths out of `<source name="">`.
    */
   readonly projectRoot?: string;
-}
-
-/** The real path, or the lexical one when it cannot be resolved (a missing file). */
-function realOrResolved(path: string): string {
-  try {
-    return realpathSync(path);
-  } catch {
-    return path;
-  }
-}
-
-/**
- * Whether `target` is inside `root`, compared AFTER symlink resolution.
- *
- * The comparison has to be on the real path: a link whose name sits inside the root and
- * whose target does not is precisely the shape a lexical `startsWith` admits.
- */
-function insideRoot(target: string, root: string): boolean {
-  const rel = relative(realOrResolved(root), realOrResolved(target));
-  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 }
 
 /**
