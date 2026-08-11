@@ -36,7 +36,7 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "start": "pnpm run build",
-    "release": "pnpm run build && node scripts/check-publish-no-workspace.mjs && changeset publish",
+    "release": "pnpm run build && node scripts/check-publish-no-workspace.mjs && changeset publish && node scripts/verify-release-refs.mjs",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "quality:dead-internal": "node tools/check-internal-deadcode.mjs"
   },
