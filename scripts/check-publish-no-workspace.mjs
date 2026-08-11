@@ -72,16 +72,31 @@ function publishingAgent() {
   return null;
 }
 
-/** @returns the `package.json` inside the tarball `pnpm pack` produces for `packageDir`. */
+/**
+ * @returns the `package.json` inside the tarball `pnpm pack` produces for `packageDir`.
+ *
+ * Both `pnpm` and `tar` are resolved through PATH, which SonarCloud raises as its "fixed,
+ * unwriteable directories" hotspot. Reviewed and accepted for the same reason as the sibling
+ * guard: this is a maintainer/CI release script in a repository whose entire toolchain arrives
+ * through PATH, and anyone able to write to that PATH already controls the build — so pinning
+ * absolute paths moves no risk while breaking every nvm and macOS checkout.
+ *
+ * `pnpm` specifically CANNOT be pinned even in principle: it is the tool under test here. The rule
+ * this whole script enforces is that only pnpm rewrites the `workspace:` protocol while packing, so
+ * the artifact must be produced by whichever pnpm the operator's publish will actually use. A
+ * hardcoded path would verify a different binary than the one that ships the package.
+ */
 function packedManifest(packageDir) {
   const dest = mkdtempSync(join(tmpdir(), "wsguard-"));
   try {
+    // NOSONAR — PATH resolution reviewed above; pnpm is the tool under test and must not be pinned.
     execFileSync("pnpm", ["pack", "--pack-destination", dest], {
       cwd: packageDir,
       stdio: ["ignore", "ignore", "pipe"],
     });
     const tarball = readdirSync(dest).find((f) => f.endsWith(".tgz"));
     if (!tarball) throw new Error(`pnpm pack produced no tarball in ${dest}`);
+    // NOSONAR — same review; `tar` reads a tarball this process just created in a temp dir.
     const raw = execFileSync("tar", ["-xzOf", join(dest, tarball), "package/package.json"], {
       encoding: "utf8",
     });
