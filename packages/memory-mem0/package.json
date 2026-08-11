@@ -31,7 +31,8 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
   },
   "peerDependencies": {
     "@theokit/sdk": "workspace:^",

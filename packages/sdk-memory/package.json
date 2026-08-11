@@ -40,7 +40,8 @@
   "scripts": {
     "build": "tsup && tsc -p tsconfig.build.json && cp dist/index.d.ts dist/index.d.cts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
   },
   "peerDependencies": {
     "@theokit/sdk": ">=4.0.0",
