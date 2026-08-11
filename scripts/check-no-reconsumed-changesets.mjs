@@ -58,8 +58,9 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  * which is the real defence and is tested.
  */
 function git(args, opts = {}) {
-  // NOSONAR — PATH resolution reviewed above; deliberate and consistent with the repo's toolchain.
-  return execFileSync("git", args, { encoding: "utf8", cwd: REPO_ROOT, ...opts }).trim();
+  // Reviewed above: PATH resolution is deliberate here, and `assertPlainRef` is the real defence
+  // against the argument-injection half of the same rule. The marker must sit on the flagged line.
+  return execFileSync("git", args, { encoding: "utf8", cwd: REPO_ROOT, ...opts }).trim(); // NOSONAR
 }
 
 /**

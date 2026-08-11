@@ -89,15 +89,15 @@ function publishingAgent() {
 function packedManifest(packageDir) {
   const dest = mkdtempSync(join(tmpdir(), "wsguard-"));
   try {
-    // NOSONAR — PATH resolution reviewed above; pnpm is the tool under test and must not be pinned.
-    execFileSync("pnpm", ["pack", "--pack-destination", dest], {
+    // Reviewed above: pnpm is the tool under test and cannot be pinned even in principle.
+    execFileSync("pnpm", ["pack", "--pack-destination", dest], { // NOSONAR
       cwd: packageDir,
       stdio: ["ignore", "ignore", "pipe"],
     });
     const tarball = readdirSync(dest).find((f) => f.endsWith(".tgz"));
     if (!tarball) throw new Error(`pnpm pack produced no tarball in ${dest}`);
-    // NOSONAR — same review; `tar` reads a tarball this process just created in a temp dir.
-    const raw = execFileSync("tar", ["-xzOf", join(dest, tarball), "package/package.json"], {
+    // Same review; `tar` reads a tarball this process just created in a temp dir it owns.
+    const raw = execFileSync("tar", ["-xzOf", join(dest, tarball), "package/package.json"], { // NOSONAR
       encoding: "utf8",
     });
     return JSON.parse(raw);
