@@ -78,9 +78,15 @@ const hookMissing = !existsSync(HOOK);
 describe.skipIf(hookMissing)("pre-push — the no-new-commits skip (B-113)", () => {
   // A commit origin demonstrably does not have, created without moving any branch.
   const newSha = git("commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "test fixture: unpushed");
-  // A commit origin demonstrably does have. Any remote-tracking ref will do; HEAD's merge-base with
-  // origin is the honest choice because it holds whether or not this checkout is up to date.
-  const pushedSha = git("rev-list", "-1", "HEAD", "--remotes=origin");
+  // A commit origin demonstrably DOES have — the tip of the newest remote-tracking ref.
+  //
+  // Written first as `rev-list -1 HEAD --remotes=origin`, which is wrong and passed anyway: there,
+  // `--remotes` adds the remote refs as extra STARTING points rather than filtering by them, so
+  // what comes back is the newest commit reachable from EITHER side. That agreed with the intent
+  // only while this checkout happened to be level with origin, and began returning a local
+  // unpushed commit the moment one was committed — turning the skip case into a case that must not
+  // skip. Caught by the very gate this file tests, on the push that carried it.
+  const pushedSha = git("rev-list", "-1", "--remotes=origin");
 
   it("test_the_gate_is_skipped_for_a_tag_on_an_already_pushed_commit", () => {
     // The case B-113 was filed for: the release tag push.
