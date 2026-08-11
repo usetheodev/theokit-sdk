@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.48.0
+
+### Minor Changes
+
+- d9ddcbe: Add `recordWiring`: report which project entities a build requested, which it wired, and which a trust posture withheld — derived from the values handed to the builder rather than from re-reading configuration.
+
 ## 4.47.0
 
 ### Minor Changes
