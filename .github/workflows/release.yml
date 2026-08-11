@@ -61,14 +61,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Auth via granular npm automation token (NODE_AUTH_TOKEN; setup-node wired
-          # the registry .npmrc to read it). Token-auth path — the tokenless OIDC
-          # trusted-publisher binding is not yet configured for the @theokit/* packages.
-          # PROVENANCE IS DISABLED: npm refuses provenance attestation for PRIVATE source
-          # repositories (E422 "Unsupported GitHub Actions source repository visibility:
-          # private"). This repo is currently private, and the already-published versions
-          # have no attestation either — so provenance:true was aspirational and never
-          # worked. `provenance` was removed from each package's publishConfig too.
-          # Migration path: when the repo goes public (Apache-2.0 open SDK), re-add
-          # NPM_CONFIG_PROVENANCE + publishConfig.provenance and configure trusted
-          # publishers at npmjs.com/package/<pkg>/settings to go fully tokenless+attested.
+          # the registry .npmrc to read it).
+          #
+          # PROVENANCE IS ENABLED (B-112, 2026-08-11). It was disabled with the reason
+          # "npm refuses provenance attestation for PRIVATE source repositories (E422)
+          # — this repo is currently private". Measured: `gh repo view` answers PUBLIC.
+          # The precondition the comment itself named as the migration trigger was
+          # already met and nothing had acted on it, so the block was describing a
+          # repository that no longer exists. `id-token: write` is already granted
+          # above, which is the other half provenance needs.
+          #
+          # What it buys: a consumer can verify the tarball was built by THIS workflow
+          # from THIS commit, instead of trusting that whoever held the token was us.
+          # That matters here more than usually — this publish step has failed twice on
+          # an expired token (E404 on PUT, 2026-07-24 and 2026-08-11) and both releases
+          # were then completed by hand from a developer machine.
+          #
+          # REMAINING, and deliberately not done here: the tokenless OIDC binding. It is
+          # configured per package at npmjs.com/package/<pkg>/settings, not in this file,
+          # so it cannot land in a commit. Until it does, NPM_TOKEN stays the auth and
+          # stays the failure mode. Provenance is the half that IS in our control.
+          NPM_CONFIG_PROVENANCE: "true"
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
