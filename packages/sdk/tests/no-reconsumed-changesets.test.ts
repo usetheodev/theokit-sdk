@@ -78,3 +78,34 @@ describe.skipIf(historyMissing)("re-release guard — mechanics", () => {
     expect(guard.changesetsAt("4b825dc642cb6eb9a060e54bf8d69288fbee4904")).toEqual([]);
   });
 });
+
+describe("re-release guard — a ref is a ref, never an option", () => {
+  // The refs reaching this script come from the CI context (`github.base_ref`, the PR head sha),
+  // which is pull-request data rather than maintainer input. `execFileSync` rules out SHELL
+  // injection — there is no shell — and does nothing about ARGUMENT injection: git reads a value
+  // beginning with `-` as a flag, so a branch named `--output=…` would be an option instead of the
+  // thing being inspected.
+  //
+  // The refusal has to be LOUD, which is why these assert a throw rather than an empty result.
+  // `changesetsAt` swallows git failures and returns `[]`, and for this guard empty means "all
+  // clear" — an injected ref that merely failed would be reported as a clean release.
+  const hostile = ["--output=/tmp/pwned", "-n", "--upload-pack=x", ""];
+
+  for (const ref of hostile) {
+    it(`test_changesetsAt_refuses_${JSON.stringify(ref)}`, () => {
+      expect(() => guard.changesetsAt(ref)).toThrow(/must not be empty or begin with/);
+    });
+
+    it(`test_wasDeletedOn_refuses_${JSON.stringify(ref)}`, () => {
+      expect(() => guard.wasDeletedOn(ref, ".changeset/x.md")).toThrow(
+        /must not be empty or begin with/,
+      );
+    });
+  }
+
+  it("test_an_ordinary_ref_is_still_accepted", () => {
+    // Anti-vacuity: the guard must not have become one that refuses everything.
+    expect(() => guard.changesetsAt("HEAD")).not.toThrow();
+    expect(() => guard.wasDeletedOn("HEAD", ".changeset/x.md")).not.toThrow();
+  });
+});
