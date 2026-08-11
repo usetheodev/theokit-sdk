@@ -24,7 +24,22 @@ export type {
   DiscoveryScope,
   DiscoverySpec,
 } from "../internal/runtime/context/context-discovery.js";
-
+/**
+ * The seven conventions {@link runDiscovery} looks for when `specs` is omitted — `AGENTS.md`,
+ * `GEMINI.md`, `CLAUDE.md`, `.cursor/rules/*.mdc`, `.theokit/rules/*.md`, `.theokit/context/*.md`
+ * and `.theokit/THEO.md`.
+ *
+ * Exported because `specs` REPLACES this list rather than extending it. Without the constant, a
+ * consumer registering one convention of its own silently loses every built-in one, and the loss is
+ * invisible — discovery simply returns fewer sources. Spread it to extend:
+ *
+ * ```ts
+ * await runDiscovery({ cwd, maxBytesPerFile, specs: [...DEFAULT_DISCOVERY_SPECS, mySpec] });
+ * ```
+ *
+ * @public
+ */
+export { DEFAULT_DISCOVERY_SPECS } from "../internal/runtime/context/context-discovery.js";
 export {
   type DiscoveryRunnerOptions,
   runDiscovery,
