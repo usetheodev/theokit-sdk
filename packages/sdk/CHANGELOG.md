@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.50.0
+
+### Minor Changes
+
+- 7e6a0d4: Add `planReaping`: decide which session artifacts may be deleted — and never delete them. Tri-state (keep / reap / undetermined), a keep-last floor, and liveness that outranks age.
+
 ## 4.49.0
 
 ### Minor Changes
