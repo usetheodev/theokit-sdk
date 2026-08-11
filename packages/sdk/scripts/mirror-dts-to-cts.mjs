@@ -66,6 +66,10 @@ const targets = [
   // publint both flagged it).
   join(DIST, "interactive"),
   join(DIST, "server"),
+  // B-103: the sanctioned public context barrel. Same failure mode the `interactive`
+  // comment above records — without a mirror, `exports["./context"].require.types`
+  // points at a file that does not exist and attw + publint both flag it.
+  join(DIST, "context"),
   // EC-1 absorbed: internal sub-paths exposed for extracted packages.
   join(DIST, "internal", "persistence"),
   // theokit#160: the embedding runtime shared with @theokit/sdk-memory.
