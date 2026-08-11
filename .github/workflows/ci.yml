@@ -87,3 +87,30 @@ jobs:
       # the declared budget at .bundle-budget.json fails CI before merge.
       - name: Bundle budget gate
         run: pnpm check:bundle
+
+  no-reconsumed-changesets:
+    # B-109 — refuse a release PR that would re-release work already shipped.
+    #
+    # `changesets/action` consumes the `.changeset/*.md` files in a "Version Packages" PR into
+    # `main`, and nothing carries that back to `develop`. On 2026-08-11 the drift reached 10 commits
+    # and three already-released changesets; merging `develop → main` in that state would have
+    # re-published three shipped features as fresh minors. It was avoided only because someone
+    # looked. This job is what looks.
+    #
+    # Separate from `validate` on purpose: it needs no install and no build, so it answers in
+    # seconds and its failure names one cause instead of arriving inside a ten-minute matrix.
+    name: no re-consumed changesets
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The check asks git whether the BASE has ever deleted a path. A shallow clone has no
+          # such history and would answer "no" for everything — a silent pass, which for a guard is
+          # worse than an error.
+          fetch-depth: 0
+
+      - name: Check that no changeset on this branch was already consumed by the base
+        run: |
+          node scripts/check-no-reconsumed-changesets.mjs \
+            "origin/${{ github.base_ref }}" "${{ github.event.pull_request.head.sha }}"
