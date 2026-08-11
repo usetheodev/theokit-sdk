@@ -35,7 +35,8 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
   },
   "dependencies": {
     "@clack/prompts": "^0.7.0",
