@@ -244,5 +244,11 @@ export async function walkUpForGlob(cwd: string, pattern: string): Promise<strin
     return [];
   }
   // Sorted, because discovery order becomes prompt order and must not vary with the filesystem.
-  return found.sort();
+  //
+  // The comparator is explicit and deliberately NOT `localeCompare`, which is the usual suggestion
+  // for a bare `.sort()`. `localeCompare` orders by the machine's locale, so the same tree would
+  // assemble a different prompt on a differently-configured machine — trading one source of
+  // non-determinism for a subtler one. Code-unit ordering is what a bare `.sort()` already does for
+  // strings; writing it out states the intent and keeps the result machine-independent.
+  return found.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
