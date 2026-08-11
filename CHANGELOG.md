@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **`auditEnvReachability` — every config key is settable from the environment, or says why not.** A
+  key settable only by editing a file cannot be set in CI, in a container, or for one invocation, and
+  the gap is invisible: nothing fails, the key simply has no environment path. The opposite failure
+  rots more quietly — an opt-out for a key that has since gained an env path, or that no longer
+  exists, still reads as a considered decision while exempting nothing. Both axes are answered by one
+  call so a consumer cannot check the gap and forget the rot.
+
+### Added
+
 - **`recordWiring` — what a build actually wired, as opposed to what configuration asked for.** A
   product that reads a project directory decides while building which of its entities to honour;
   when a trust posture withholds them the build proceeds with fewer, and every surface that later
