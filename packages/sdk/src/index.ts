@@ -202,6 +202,11 @@ export {
   PermissionPlugin,
   type PermissionPluginOptions,
 } from "./permission-plugin.js";
+export {
+  loadProjectEnv,
+  SOVEREIGN_ENV_KEYS,
+  type SovereignEnvKey,
+} from "./project-env.js";
 // M23 — schema normalizer (Zod default; JSON Schema / ArkType / Valibot adapters).
 export { type NormalizedJsonSchema, normalizeSchema } from "./schema-normalizer.js";
 // Personality presets (Hermes #26, ADRs D160-D169)
