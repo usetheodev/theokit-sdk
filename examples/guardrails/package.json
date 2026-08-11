@@ -1,7 +1,7 @@
 {
   "name": "@theokit/example-guardrails",
   "private": true,
-  "version": "0.0.71",
+  "version": "0.0.72",
   "type": "module",
   "scripts": {
     "start": "tsx run.ts"
