@@ -16,6 +16,45 @@ if [ "${CI:-}" = "true" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
   exit 0
 fi
 
+# B-113 — a push that introduces NO new commit has nothing for the gate to validate.
+#
+# The CI skip above already makes this argument once: a context that adds no code should not re-run
+# the suite. A tag pointing at a commit the remote already has is the same case, and it is the push
+# that happens during a RELEASE — so the ten minutes are paid at the worst possible moment. Measured
+# 2026-08-11: three such pushes in one session, each re-validating a tree the push that carried its
+# commits had already validated.
+#
+# Git feeds ref updates on stdin as `<local-ref> <local-sha> <remote-ref> <remote-sha>`. For each,
+# `rev-list <local-sha> --not --remotes=origin` lists the commits origin does not already have. The
+# gate is skipped only when that list is empty for EVERY ref in the push.
+#
+# The failure direction is deliberate, and is the whole reason this is safe: stale remote-tracking
+# refs make MORE commits look new, so an out-of-date checkout runs the gate rather than skipping it.
+# There is no input that makes an unvalidated commit look already-pushed. A deletion (all-zero local
+# sha) carries no tree to validate and is skipped; an empty stdin means git told us nothing, so the
+# gate runs.
+introduces_new_commits() {
+  local _lref lsha _rref _rsha saw_ref=0
+  while read -r _lref lsha _rref _rsha; do
+    [ -z "${lsha:-}" ] && continue
+    case "$lsha" in
+      *[!0]*) ;;        # a real sha — classify below
+      *) continue ;;    # all zeros: a deletion
+    esac
+    saw_ref=1
+    if [ -n "$(git rev-list "$lsha" --not --remotes=origin 2>/dev/null | head -1)" ]; then
+      return 0
+    fi
+  done
+  [ "$saw_ref" -eq 1 ] && return 1 || return 0
+}
+
+if ! introduces_new_commits; then
+  echo "→ pre-push: no new commits in this push (tag, or a ref origin already has) — gate not re-run."
+  echo "  Those commits were validated by the push that carried them."
+  exit 0
+fi
+
 if [ -s "$HOME/.nvm/nvm.sh" ]; then
   # shellcheck source=/dev/null
   . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1 || true
