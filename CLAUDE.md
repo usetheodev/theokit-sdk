@@ -205,6 +205,32 @@ pnpm build                    # tsup → dist/{index,errors}.{js,cjs,d.ts}
 pnpm validate                 # everything above plus publint + attw
 ```
 
+### A local `.npmrc` with an unresolved variable breaks publishing, as a 404
+
+`.npmrc` is gitignored — the repository ships none, and CI writes its own via
+`actions/setup-node` (`registry-url` + `NODE_AUTH_TOKEN`). A local one written as
+`//registry.npmjs.org/:_authToken=${NPM_TOKEN}` is CI's shape, not a developer's: with
+`NPM_TOKEN` unset in the shell, pnpm resolves it to an empty token, that empty token
+**overrides a perfectly valid user-level credential**, and the registry answers the
+unauthenticated `PUT` with **404, not 401**.
+
+The 404 is what makes this expensive. It reads as "this package does not exist for you",
+so the investigation goes to token scopes and package ownership — and `npm whoami`
+succeeds and `npm owner ls` names you as the owner, which makes the wrong theory look
+confirmed. Measured 2026-08-11 (B-118): hours lost, and a security release published by
+hand as a result. Same token, same machine, same minute: `pnpm publish` 404s,
+`npm publish` succeeds.
+
+pnpm prints the cause on every invocation and it is easy to read past:
+
+```
+WARN  Issue while reading ".../.npmrc". Failed to replace env in config: ${NPM_TOKEN}
+```
+
+If you see that line, fix the file before diagnosing anything else: put a real token in
+it, export `NPM_TOKEN`, or delete it and let `~/.npmrc` answer. And prefer letting CI
+publish — a manual publish cannot carry a provenance attestation (B-112).
+
 ## Inviolable rules
 
 1. **95% confidence gate.** Stop and ask if uncertain.
