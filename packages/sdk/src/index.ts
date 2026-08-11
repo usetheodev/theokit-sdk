@@ -216,6 +216,7 @@ export { type NormalizedJsonSchema, normalizeSchema } from "./schema-normalizer.
 // `Agent.usePersonality(...)` method, not direct construction.
 // Security namespace (secret redaction; ADR D68)
 export { Security } from "./security.js";
+export { applySecurityFloor, type SecurityFloorInput } from "./security-floor.js";
 // M3 #62 — scoped session state helpers (app:/user:/temp:).
 export { type SessionScope, scopedConversationId, sessionScopePrefix } from "./session-scope.js";
 // Squad — sequential multi-agent team (composes Workflow+agentStep; cross-val Gap 1)
