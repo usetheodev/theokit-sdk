@@ -43,8 +43,22 @@ import { fileURLToPath } from "node:url";
  */
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** @returns stdout, trimmed. Throws with git's stderr attached, so a failure is diagnosable. */
+/**
+ * @returns stdout, trimmed. Throws with git's stderr attached, so a failure is diagnosable.
+ *
+ * `git` is resolved through PATH, and SonarCloud raises its "fixed, unwriteable directories"
+ * hotspot on that. Reviewed and accepted, for a reason specific to where this runs: it is a
+ * maintainer/CI release script in a repository whose ENTIRE toolchain arrives through PATH —
+ * `pnpm`, `node`, `turbo`, `git` — and the pre-existing scripts beside it (`check-capability-map`,
+ * `preflight-native-bindings`, `check-cycles`) do the same. An attacker able to write to this
+ * PATH already controls the build, so pinning an absolute `git` here moves nothing, while breaking
+ * every nvm and macOS checkout where git does not live at a fixed location.
+ *
+ * The argument-injection half of the same rule is NOT waved away — see `assertPlainRef` below,
+ * which is the real defence and is tested.
+ */
 function git(args, opts = {}) {
+  // NOSONAR — PATH resolution reviewed above; deliberate and consistent with the repo's toolchain.
   return execFileSync("git", args, { encoding: "utf8", cwd: REPO_ROOT, ...opts }).trim();
 }
 
