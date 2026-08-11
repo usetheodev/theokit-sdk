@@ -40,6 +40,12 @@ export { type DefineProviderOptions, Provider } from "./define-provider.js";
 // SE23 — opt-in `skill_read` tool factory (model-facing lazy skill read).
 export { SkillReadTool } from "./define-skill-read-tool.js";
 export { type DefineToolSpec, Tool } from "./define-tool.js";
+export {
+  auditEnvReachability,
+  type EnvOptOut,
+  type EnvReachabilityAudit,
+  type EnvReachabilityInput,
+} from "./env-reachability.js";
 // Errors (runtime classes)
 export {
   AgentDisposedError,
