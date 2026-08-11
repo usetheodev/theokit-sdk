@@ -253,6 +253,13 @@ export { Theokit, type TheokitRequestOptions } from "./theokit.js";
 export { ToolError } from "./tool-error.js";
 // Trajectory export (ADR D139) — opt-in ShareGPT converter
 export { toShareGptTrajectory } from "./trajectory-helpers.js";
+export {
+  resolveTrustPosture,
+  type TrustLevel,
+  type TrustPosture,
+  type TrustPostureInput,
+  type TrustSource,
+} from "./trust-posture.js";
 // CustomTool type — explicit re-export so rollup-dts surfaces it in the
 // bundled .d.ts (the `export type *` indirection through `./types/index.js`
 // does not propagate to the rollup-dts output reliably). Needed by extracted
