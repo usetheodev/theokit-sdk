@@ -15,8 +15,9 @@
  * @internal
  */
 
+import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve as resolvePath } from "node:path";
 
 import { loadPlainMarkdown } from "./context-loaders.js";
 
@@ -31,6 +32,43 @@ export interface ResolveImportsOptions {
   readonly depth: number;
   /** Per-import file cap (EC-D). Forwarded to loadPlainMarkdown. */
   readonly maxBytesPerFile: number;
+  /**
+   * The directory an import may not escape. When set, a target resolving outside it is
+   * refused and replaced with a placeholder.
+   *
+   * The file carrying the import is REPOSITORY-CONTROLLED — `CLAUDE.md` and `GEMINI.md`
+   * are the two default specs with `followImports: true`, and both are found by
+   * `git-root-walk` inside the tree the agent was pointed at. Without a root, a cloned
+   * repository could name `@~/.ssh/id_rsa` or any absolute path and have its contents
+   * inlined into the system prompt, and from there sent to the model provider. The
+   * traversal guard that already existed (`isSafePattern`) guards the discovery PATTERN,
+   * not the import TARGET, so it never saw this.
+   *
+   * OPTIONAL, so a caller outside the discovery path keeps the previous behaviour rather
+   * than breaking on an upgrade. `runDiscovery` always supplies `gitRoot ?? cwd` — the
+   * same value it already uses to keep absolute paths out of `<source name="">`.
+   */
+  readonly projectRoot?: string;
+}
+
+/** The real path, or the lexical one when it cannot be resolved (a missing file). */
+function realOrResolved(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+/**
+ * Whether `target` is inside `root`, compared AFTER symlink resolution.
+ *
+ * The comparison has to be on the real path: a link whose name sits inside the root and
+ * whose target does not is precisely the shape a lexical `startsWith` admits.
+ */
+function insideRoot(target: string, root: string): boolean {
+  const rel = relative(realOrResolved(root), realOrResolved(target));
+  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 }
 
 /**
@@ -56,6 +94,13 @@ export async function resolveImports(
   const baseDir = dirname(basePath);
   return replaceAsync(content, IMPORT_RE, async (raw) => {
     const absolute = resolveImportPath(raw, baseDir);
+    // Containment BEFORE the read. Reporting the refusal after loading the file would
+    // already have put the bytes in memory, and the placeholder names the path the author
+    // wrote rather than the resolved one — echoing `/home/<user>/.ssh/id_rsa` back into the
+    // prompt would leak the layout of the machine to the same untrusted document.
+    if (opts.projectRoot !== undefined && !insideRoot(absolute, opts.projectRoot)) {
+      return `[@import outside the project root, refused: ${raw}]`;
+    }
     if (opts.visited.has(absolute)) {
       return `[@import cycle detected: ${raw}]`;
     }
@@ -64,11 +109,14 @@ export async function resolveImports(
     if (loaded === undefined) {
       return `[@import not found: ${raw}]`;
     }
-    // Recurse with same visited set + incremented depth.
+    // Recurse with same visited set + incremented depth. `projectRoot` is FORWARDED: an
+    // imported file is repository-controlled too, so a root that applied only at depth 0
+    // would be escapable in one extra hop.
     return resolveImports(loaded.content, absolute, {
       visited: opts.visited,
       depth: opts.depth + 1,
       maxBytesPerFile: opts.maxBytesPerFile,
+      ...(opts.projectRoot === undefined ? {} : { projectRoot: opts.projectRoot }),
     });
   });
 }

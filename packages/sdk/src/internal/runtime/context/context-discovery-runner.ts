@@ -40,6 +40,15 @@ export interface DiscoveryRunnerOptions {
   readonly touchedFiles?: ReadonlyArray<string>;
   /** When true, skip `theokit-context` spec — caller already handles the legacy path. */
   readonly skipLegacyTheokitContext?: boolean;
+  /**
+   * The root an `@import` may not escape. Defaults to `gitRoot ?? cwd` — the same value
+   * this runner already uses to keep absolute paths out of `<source name="">`.
+   *
+   * Present so an embedder with a trust boundary narrower than the repository can declare
+   * it. Absent, the repository IS the boundary, which is the honest default for a document
+   * discovered by walking the repository.
+   */
+  readonly importRoot?: string;
 }
 
 /**
@@ -110,7 +119,7 @@ async function loadOneSource(
     return undefined;
   }
   // plain-markdown
-  return loadPlainMarkdownSource(spec, path, id, opts);
+  return loadPlainMarkdownSource(spec, path, id, opts, gitRoot);
 }
 
 /**
@@ -164,6 +173,7 @@ async function loadPlainMarkdownSource(
   path: string,
   id: string,
   opts: DiscoveryRunnerOptions,
+  gitRoot: string | undefined,
 ): Promise<AggregatorSource | undefined> {
   const loaded = await loadPlainMarkdown(path, { maxBytesPerFile: opts.maxBytesPerFile });
   if (loaded === undefined) return undefined;
@@ -173,6 +183,11 @@ async function loadPlainMarkdownSource(
       visited: new Set([path]),
       depth: 0,
       maxBytesPerFile: opts.maxBytesPerFile,
+      // The document carrying the import is repository-controlled, so the repository is the
+      // boundary it may not cross. Without this, `CLAUDE.md` / `GEMINI.md` — the two specs
+      // with `followImports: true` — could name any absolute or `~/` path and have it
+      // inlined into the system prompt.
+      projectRoot: opts.importRoot ?? gitRoot ?? opts.cwd,
     });
   }
   return {
