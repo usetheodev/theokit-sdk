@@ -1,6 +1,6 @@
 {
   "name": "@theokit/memory-supermemory",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Supermemory memory adapter for @theokit/sdk — wraps supermemory@^4 with the MemoryAdapter contract (ADR D141).",
   "license": "Apache-2.0",
   "type": "module",
