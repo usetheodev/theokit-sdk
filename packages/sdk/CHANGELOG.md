@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.49.0
+
+### Minor Changes
+
+- d0d62bd: Add `auditEnvReachability`: report config keys with no environment path and no documented opt-out, and opt-outs that no longer exempt anything.
+
 ## 4.48.0
 
 ### Minor Changes
