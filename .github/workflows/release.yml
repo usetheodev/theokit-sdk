@@ -54,12 +54,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Create Release Pull Request or Publish
+        id: changesets
         uses: changesets/action@v1
         with:
-          # `pnpm release` rather than `changeset publish` directly: the release script chains the
-          # workspace-protocol guard (B-111) BEFORE the publish and the ref verification (B-114)
-          # AFTER it. Calling `changeset publish` here skipped both, so the two guards existed for
-          # the local path only — which is the path releases do NOT normally take.
+          # `pnpm release` rather than `changeset publish` directly, so the workspace-protocol
+          # guard (B-111) runs BEFORE the publish. Calling `changeset publish` here skipped it,
+          # leaving that guard on the local path only — the path releases do NOT normally take.
+          #
+          # The ref verification (B-114) is NOT here. `changeset publish` creates the tags; this
+          # ACTION pushes them, in a step of its own after the publish returns. Verifying inside
+          # `publish:` therefore checked before the pusher ran and failed every release — measured
+          # on 4.45.0, where the tag it reported missing was on the remote moments later. A gate
+          # that fails every time is a gate people learn to ignore, so it moved to its own step
+          # below.
           publish: pnpm release
           version: pnpm changeset version
         env:
@@ -87,3 +94,12 @@ jobs:
           # stays the failure mode. Provenance is the half that IS in our control.
           NPM_CONFIG_PROVENANCE: "true"
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # B-114 — an exit code is not evidence a ref transferred. git contacts the remote BEFORE
+      # `pre-push` runs, the hook can take minutes, and the idle connection is dropped before the
+      # transfer: git then dies of SIGPIPE (141) silently, with output ending in a green gate line.
+      # A missing release tag is not noticed that day; it is noticed weeks later by whoever is
+      # bisecting. Runs only when something was actually published.
+      - name: verify release refs reached the remote
+        if: steps.changesets.outputs.published == 'true'
+        run: node scripts/verify-release-refs.mjs
