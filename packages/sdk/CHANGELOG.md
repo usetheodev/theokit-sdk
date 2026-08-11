@@ -1,5 +1,58 @@
 # Changelog
 
+## 4.43.0
+
+### Minor Changes
+
+- b9bf261: `globbed` discovery now understands `**`.
+
+  A spec whose pattern contains a globstar finds files at every depth — `.theokit/rules/**/*.md`
+  returns `rules/top.md` as well as `rules/deep/nested/inner.md`. Patterns with a single `*` keep
+  their flat meaning, and no default spec changed: the capability is new, the behaviour of every
+  existing consumer is not.
+
+  The previous implementation split the pattern at its last `/`, treated the prefix as a literal
+  directory and read it once — documented as "nested directories deferred to v2". The deferral was
+  deliberate; what turned it into a defect was measured from a consumer. A product whose own rule
+  loader descends recursively could not migrate onto the `theokit-rules` spec without silently
+  dropping every nested rule, on the path that decides whether a repository's hooks execute. Worse,
+  writing `**` explicitly matched NOTHING — the directory part resolved to a literal `**`, so the
+  pattern lost even the top-level file it used to find.
+
+  Implemented with `fs.promises.glob` rather than a hand-written walker. It provides exactly these
+  semantics, verified against a fixture before adoption, and the package already requires Node
+
+  > = 22.12. Writing a walker would have been a third matcher inside one package — the duplication
+  > that let the enumerator and `context-glob.ts` disagree in the first place.
+
+### Patch Changes
+
+- e080296: Publish with npm provenance attestation.
+
+  The release workflow disabled it with the reason "npm refuses provenance attestation for PRIVATE
+  source repositories — this repo is currently private". The repository is public; the precondition the
+  comment named as its own migration trigger was already met and nothing had acted on it.
+
+  A consumer can now verify a tarball was built by the release workflow from a specific commit, rather
+  than trusting that whoever held the publish token was us. The tokenless OIDC binding — configured per
+  package on npmjs.com rather than in this repository — remains the next step.
+
+- 8790f70: Refuse a `workspace:` range before it can reach npm.
+
+  Five of this repo's twelve publishable packages declare internal dependencies as `workspace:^`, which
+  is correct on disk and becomes an unrecoverable defect if the publish goes out through a tool that
+  does not rewrite it: `pnpm` resolves the protocol while packing, `npm` ships the manifest verbatim.
+  A version published that way fails to install for everyone and cannot be corrected — only
+  deprecated.
+
+  Every publishable package now runs the guard in `prepublishOnly`, so it fires whichever way the
+  publish is invoked, and `pnpm release` runs it once across the repo before `changeset publish`.
+
+  Note for anyone reading a published manifest: the `prepublishOnly` entry points at a path inside
+  this repository. It never runs for a consumer — the hook only fires when the package itself is
+  published — and guarding the entry point that a hand-run `npm publish` actually uses was worth the
+  cosmetic wart of shipping the line.
+
 ## 4.42.1
 
 ### Patch Changes
