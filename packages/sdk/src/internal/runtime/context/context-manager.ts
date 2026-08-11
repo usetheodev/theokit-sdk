@@ -20,6 +20,7 @@ import {
 import { runDiscovery } from "./context-discovery-runner.js";
 import { ContextSourceFrontmatterSchema } from "./context-frontmatter.js";
 import { DEFAULT_MAX_BYTES_PER_FILE } from "./context-loaders.js";
+import { insideRoot } from "./path-containment.js";
 
 /**
  * File-based context manager. Reads `.theokit/context.json` from the
@@ -112,13 +113,22 @@ export class FileContextManager implements SDKContextManager {
       touchedFiles,
     });
 
-    const legacyAsAggregator: AggregatorSource[] = legacy.map((src) => ({
-      id: src.name,
-      source: src.path,
-      content: src.tokens.join(""),
-      priority: 50, // matches DEFAULT_DISCOVERY_SPECS theokit-context
-      truncated: false,
-    }));
+    // An excluded source must NOT be resurrected here. `loadSources` marks a source `excluded` when
+    // it resolves outside the project root (or matches `exclude`), and this mapping used to carry
+    // EVERY legacy source into the aggregator — after which `loadedSources` below stamps
+    // `"included"` on everything the budget kept. The containment verdict was computed and then
+    // discarded three statements later, so `snapshot()` reported an excluded source as included.
+    // The content was empty, so nothing leaked through this path; the STATUS was a lie, and a
+    // consumer auditing "what is in my context" got the wrong answer.
+    const legacyAsAggregator: AggregatorSource[] = legacy
+      .filter((src) => src.status !== "excluded")
+      .map((src) => ({
+        id: src.name,
+        source: src.path,
+        content: src.tokens.join(""),
+        priority: 50, // matches DEFAULT_DISCOVERY_SPECS theokit-context
+        truncated: false,
+      }));
 
     const { kept } = applyAggregateCap([...discovered, ...legacyAsAggregator], maxBytesTotal);
 
@@ -287,7 +297,10 @@ async function loadSources(
       continue;
     }
     const absolute = resolvePath(cwd, source.path);
-    if (!absolute.startsWith(resolvePath(cwd))) {
+    // The path comes from `.theokit/context/*.md` frontmatter — repository-controlled, so untrusted.
+    // This was `absolute.startsWith(resolvePath(cwd))`, which admitted a sibling directory whose
+    // name extends the project's (`<cwd>-evil`) and any symlink resolving outside the root.
+    if (!insideRoot(absolute, cwd)) {
       results.push({ ...source, status: "excluded", tokens: [] });
       continue;
     }
