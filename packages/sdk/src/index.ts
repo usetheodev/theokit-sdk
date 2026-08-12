@@ -11,6 +11,14 @@ export { AgentFactory } from "./agent-factory.js";
 // SE9 — integrated structured output on `agent.generate(input, { output })`.
 export type { GenerateOptions, GenerateRunResult } from "./agent-generate.js";
 export {
+  type ApprovalDecision,
+  type ApprovalInput,
+  type ApprovalMode,
+  type ApprovalOutcome,
+  type ApprovalReason,
+  decideApproval,
+} from "./approval-policy.js";
+export {
   type BlastRadiusDecision,
   type BlastRadiusInput,
   type BlastRadiusOutcome,
@@ -40,6 +48,11 @@ export {
 } from "./built-in-processors.js";
 // M22 — code-defined inline skills (`createSkill`) usable alongside filesystem skills.
 export { type CreateSkillSpec, type InlineSkill, Skill } from "./create-skill.js";
+export {
+  type CredentialInput,
+  type CredentialReport,
+  describeCredential,
+} from "./credential-presence.js";
 // Semantic cache — EXTRACTED to `@theokit/sdk-cache` (SDK 2.0 split, Phase 3 / T3.1).
 // Consumers: `import { Cache, CacheEmbedderError, CacheInvalidTtlError } from "@theokit/sdk-cache"`.
 // Cron façade
@@ -248,6 +261,11 @@ export { type NormalizedJsonSchema, normalizeSchema } from "./schema-normalizer.
 // Security namespace (secret redaction; ADR D68)
 export { Security } from "./security.js";
 export { applySecurityFloor, type SecurityFloorInput } from "./security-floor.js";
+export {
+  guardSessionDestruction,
+  LiveSessionError,
+  type LiveSessionReason,
+} from "./session-guard.js";
 // M3 #62 — scoped session state helpers (app:/user:/temp:).
 export { type SessionScope, scopedConversationId, sessionScopePrefix } from "./session-scope.js";
 // Squad — sequential multi-agent team (composes Workflow+agentStep; cross-val Gap 1)
@@ -273,6 +291,11 @@ export { Task, type TaskConfigureOptions, type TaskWorkContext, type TaskWorkFn 
 // Consumers: `import { Subscription, tracked, subscribe } from "@theokit/sdk/subscription"` (SE36 — Subscription.create).
 // Theokit namespace
 export { Theokit, type TheokitRequestOptions } from "./theokit.js";
+export {
+  describeAction,
+  type WithBlastRadius,
+  withBlastRadius,
+} from "./tool-blast-radius.js";
 // SE7 — ToolError (thrown from a tool handler; own module for the G8 LoC budget).
 export { ToolError } from "./tool-error.js";
 // Trajectory export (ADR D139) — opt-in ShareGPT converter
