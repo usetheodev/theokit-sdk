@@ -91,11 +91,24 @@ function assertPlainRef(ref) {
 /** @returns every `.changeset/*.md` entry present at `ref` (excluding the upstream README). */
 export function changesetsAt(ref) {
   assertPlainRef(ref);
+  // B-120 — an unreadable ref must REFUSE, not report clean. This used to catch and return `[]`,
+  // and for this guard an empty list means "nothing to worry about" — so a sha the repository does
+  // not have produced the same tick as a genuinely clean release, with git's `fatal:` on stderr
+  // above it. A guard whose failure mode is a green tick is worse than no guard, because it is
+  // trusted.
+  //
+  // The two cases are distinguished by asking git to resolve the ref FIRST: a ref that resolves and
+  // legitimately lists nothing still returns `[]`, which is the honest empty.
   let out;
   try {
     out = git(["ls-tree", "-r", "--name-only", "--end-of-options", ref, "--", ".changeset/"]);
-  } catch {
-    return [];
+  } catch (err) {
+    throw new Error(
+      `could not read \`${ref}\` — the repository cannot resolve it. Fetch it first ` +
+        `(\`git fetch origin\`), or pass a ref this checkout has. Reporting a release as clean ` +
+        `because a ref was unreadable is the one answer this guard must never give.\n` +
+        `  git said: ${err instanceof Error ? err.message.split("\n")[0] : String(err)}`,
+    );
   }
   return out
     .split("\n")

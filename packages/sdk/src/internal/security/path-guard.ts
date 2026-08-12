@@ -20,9 +20,10 @@
 
 import { createHash } from "node:crypto";
 import { lstatSync, readlinkSync, realpathSync, type Stats } from "node:fs";
-import { dirname, resolve, sep } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
+import { atOrInsideRoot } from "../runtime/context/path-containment.js";
 
 /**
  * Thrown when a path operation would escape its allowed base directory.
@@ -77,9 +78,15 @@ export class ForbiddenPathError extends ConfigurationError {
  * Both arguments MUST already be resolved absolute paths.
  */
 function isInside(target: string, base: string): boolean {
-  if (target === base) return true;
-  const prefix = base.endsWith(sep) ? base : base + sep;
-  return target.startsWith(prefix);
+  // B-117 — compared after symlink resolution, via the shared rule. A prefix test judges a link by
+  // its NAME: `<base>/link/x` where `link` points outside is lexically inside and physically not.
+  // Measured reachable from the plugin manager and the MCP client before this was changed.
+  //
+  // The root itself stays allowed, which `insideRoot` alone does not answer: it returns false for
+  // `target === base` (correct for its own caller, wrong here, where `safePathJoin(base)` with no
+  // parts must return `base`). Kept as an explicit second clause rather than by weakening the
+  // shared rule for everyone.
+  return atOrInsideRoot(target, base);
 }
 
 /**
