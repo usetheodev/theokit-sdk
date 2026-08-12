@@ -15,6 +15,16 @@ interface RunnerOptions {
   envFile?: string;
   /** Pass `--watch` to tsx. Default true (production). Tests use false. */
   watch?: boolean;
+  /**
+   * How the child's streams are wired. Default `"inherit"` — `theokit dev` MUST show the child's
+   * output, which is most of what the command is for.
+   *
+   * A test asserting the child's EXIT CODE does not want its output: with `inherit`, a deliberately
+   * broken entry file makes tsx print a transform error onto the test worker's stderr, and CI reads
+   * that as a failed run even though the case passed. Measured on `develop`: four validate legs red
+   * with every test green.
+   */
+  stdio?: "inherit" | "ignore";
 }
 
 interface RunnerHandle {
@@ -46,7 +56,7 @@ export function startRunner(opts: RunnerOptions): RunnerHandle {
 
   const child = spawn(process.execPath, [tsxBin, ...args], {
     cwd: opts.cwd,
-    stdio: "inherit",
+    stdio: opts.stdio ?? "inherit",
     env: process.env,
   });
 
