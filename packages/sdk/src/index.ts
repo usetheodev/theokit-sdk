@@ -10,6 +10,14 @@ export { AgentBuilder } from "./agent-builder.js";
 export { AgentFactory } from "./agent-factory.js";
 // SE9 — integrated structured output on `agent.generate(input, { output })`.
 export type { GenerateOptions, GenerateRunResult } from "./agent-generate.js";
+export {
+  type BlastRadiusDecision,
+  type BlastRadiusInput,
+  type BlastRadiusOutcome,
+  type BlastRadiusReason,
+  type DeclaredAction,
+  evaluateBlastRadius,
+} from "./blast-radius.js";
 // Task observability registry (Adoption Roadmap gap #2; ADRs D361-D374)
 // Token budget + cost tracker (Adoption Roadmap gap #1 post-Tasks; ADRs D375-D388)
 export {
