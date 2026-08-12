@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+
+- **The two remaining containment guards judge a symlink by where it POINTS, not by its name
+  (B-117).** `safePathJoin` (reached from the plugin manager and the MCP client) and `memory_get`'s
+  own check both accepted `<root>/link/file` where `link` targets a sibling directory. Measured with
+  a real link before the change, not deduced. Both now consume the shared containment rule rather
+  than carrying a third and fourth copy of it — three copies at three strengths is how the first two
+  drifted apart.
+
 ### Added
 
 - **`planReaping` — which session artifacts may be deleted, decided without deleting anything.** The

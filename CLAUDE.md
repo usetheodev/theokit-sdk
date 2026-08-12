@@ -216,7 +216,7 @@ pnpm validate                 # everything above plus publint + attw
 
 ```
 npm   ->  //registry.npmjs.org/:_authToken = (protected) ; overridden by project
-pnpm  ->  TOKEN_DE_USUARIO          # drops the unresolvable line, keeps yours
+pnpm  ->  YOUR_REAL_TOKEN          # drops the unresolvable line, keeps yours
 ```
 
 npm substitutes the unset variable with an EMPTY token, and project config outranks user

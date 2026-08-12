@@ -1,6 +1,7 @@
 import { resolve as resolvePath } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
+import { insideRoot, realOrResolved } from "../runtime/context/path-containment.js";
 import type { MemorySearchHit } from "./index-manager.js";
 import type { MemoryIndex } from "./memory-index.js";
 import { memoryDir } from "./storage/markdown-store.js";
@@ -170,7 +171,16 @@ function capByTotalChars(
   return { hits: kept, truncated: false };
 }
 
+/**
+ * B-117 — compared after symlink resolution, via the shared rule.
+ *
+ * The prefix test this replaces judged a link by its NAME: a symlink at `<memoryRoot>/escape`
+ * pointing anywhere on disk made `memory_get` read that target, because the path it checked was
+ * lexically inside. Measured with a real link before changing it, not deduced.
+ *
+ * The root itself stays accepted, matching the previous behaviour — `insideRoot` answers false for
+ * it, which is right for its own caller and would be a silent behaviour change here.
+ */
 function isPathInside(root: string, candidate: string): boolean {
-  const normalizedRoot = root.endsWith("/") ? root : `${root}/`;
-  return candidate === root || candidate.startsWith(normalizedRoot);
+  return insideRoot(candidate, root) || realOrResolved(candidate) === realOrResolved(root);
 }
