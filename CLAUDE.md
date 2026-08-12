@@ -209,17 +209,30 @@ pnpm validate                 # everything above plus publint + attw
 
 `.npmrc` is gitignored — the repository ships none, and CI writes its own via
 `actions/setup-node` (`registry-url` + `NODE_AUTH_TOKEN`). A local one written as
-`//registry.npmjs.org/:_authToken=${NPM_TOKEN}` is CI's shape, not a developer's: with
-`NPM_TOKEN` unset in the shell, pnpm resolves it to an empty token, that empty token
-**overrides a perfectly valid user-level credential**, and the registry answers the
-unauthenticated `PUT` with **404, not 401**.
+`//registry.npmjs.org/:_authToken=${NPM_TOKEN}` is CI's shape, not a developer's.
 
-The 404 is what makes this expensive. It reads as "this package does not exist for you",
-so the investigation goes to token scopes and package ownership — and `npm whoami`
-succeeds and `npm owner ls` names you as the owner, which makes the wrong theory look
-confirmed. Measured 2026-08-11 (B-118): hours lost, and a security release published by
-hand as a result. Same token, same machine, same minute: `pnpm publish` 404s,
-`npm publish` succeeds.
+**The two package managers disagree, and the difference is the whole trap.** Measured
+2026-08-11 with a valid user credential in `~/.npmrc` and `NPM_TOKEN` unset in the shell:
+
+```
+npm   ->  //registry.npmjs.org/:_authToken = (protected) ; overridden by project
+pnpm  ->  YOUR_REAL_TOKEN          # drops the unresolvable line, keeps yours
+```
+
+npm substitutes the unset variable with an EMPTY token, and project config outranks user
+config — so your real credential is replaced by nothing, and the registry answers the
+unauthenticated `PUT` with **404, not 401**. pnpm refuses to resolve the line at all and
+falls through to `~/.npmrc`, which is why the same command can succeed under one tool and
+fail under the other on the same machine, in the same minute.
+
+*(This corrects the first version of this note and B-118's own evidence, which had the two
+tools the other way round. The failure was real; the attribution was not — measured, not
+reasoned.)*
+
+The 404 is what makes it expensive. It reads as "this package does not exist for you", so
+the investigation goes to token scopes and package ownership — and `npm whoami` succeeds
+and `npm owner ls` names you as the owner, which makes the wrong theory look confirmed.
+Hours lost, and a security release published by hand as a result.
 
 pnpm prints the cause on every invocation and it is easy to read past:
 
