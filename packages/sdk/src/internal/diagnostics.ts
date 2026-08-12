@@ -102,3 +102,39 @@ export function diag(message: string): void {
     // Observability never breaks the run — same principle as `emitRunEvent`.
   }
 }
+
+/**
+ * Emits a diagnostic that reports a USER-VISIBLE FAILURE, and is never silently dropped.
+ *
+ * `diag` is silent with no sink installed, and that is right for chatter: a library must not assume
+ * the host's stderr is a free-form log, because in a TUI it is the render surface. A failure is a
+ * different message. `theokit-sdk#189` is the record of the difference — an MCP server failed to
+ * start, the only report went to `diag()`, the embedding UI never read it, and the user saw an
+ * agent with missing tools and no reason given.
+ *
+ * The two failure modes are not symmetric, which is the whole decision: a corrupted frame is
+ * visible and recoverable, while a silently dropped failure is neither. So this falls back to
+ * stderr rather than to silence.
+ *
+ * A sink still takes precedence — the host installed it precisely to keep these off the terminal —
+ * EXCEPT when the sink throws. A broken sink swallowing the one report of a failure is the same
+ * defect one layer further in.
+ *
+ * @internal
+ */
+export function diagFailure(message: string): void {
+  const sink = currentSink();
+  if (sink !== undefined) {
+    try {
+      sink(message);
+      return;
+    } catch {
+      // Fall through: the sink is broken, and this message is too important to drop with it.
+    }
+  }
+  try {
+    process.stderr.write(`${message}\n`);
+  } catch {
+    // Nothing left to try. Observability never breaks the run.
+  }
+}
