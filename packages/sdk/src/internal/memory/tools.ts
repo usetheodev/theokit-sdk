@@ -1,7 +1,7 @@
 import { resolve as resolvePath } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
-import { insideRoot, realOrResolved } from "../runtime/context/path-containment.js";
+import { atOrInsideRoot } from "../runtime/context/path-containment.js";
 import type { MemorySearchHit } from "./index-manager.js";
 import type { MemoryIndex } from "./memory-index.js";
 import { memoryDir } from "./storage/markdown-store.js";
@@ -182,5 +182,5 @@ function capByTotalChars(
  * it, which is right for its own caller and would be a silent behaviour change here.
  */
 function isPathInside(root: string, candidate: string): boolean {
-  return insideRoot(candidate, root) || realOrResolved(candidate) === realOrResolved(root);
+  return atOrInsideRoot(candidate, root);
 }

@@ -23,7 +23,7 @@ import { lstatSync, readlinkSync, realpathSync, type Stats } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
-import { insideRoot, realOrResolved } from "../runtime/context/path-containment.js";
+import { atOrInsideRoot } from "../runtime/context/path-containment.js";
 
 /**
  * Thrown when a path operation would escape its allowed base directory.
@@ -86,7 +86,7 @@ function isInside(target: string, base: string): boolean {
   // `target === base` (correct for its own caller, wrong here, where `safePathJoin(base)` with no
   // parts must return `base`). Kept as an explicit second clause rather than by weakening the
   // shared rule for everyone.
-  return insideRoot(target, base) || realOrResolved(target) === realOrResolved(base);
+  return atOrInsideRoot(target, base);
 }
 
 /**
