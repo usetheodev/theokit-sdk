@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.51.0
+
+### Minor Changes
+
+- 265f51d: Add `evaluateBlastRadius` and `withBlastRadius`: a tool declares the scope it reaches and whether its action is reversible, and the approval layer gates on those rather than on the tool's name.
+- c24a8d8: Add `guardSessionDestruction`, `decideApproval` and `describeCredential`: three rules every agent product rebuilds — refusing to destroy a live session, deciding a tool call by precedence, and reporting a credential's presence without its value.
+
+### Patch Changes
+
+- 5c08eb9: Containment guards in `safePathJoin` and `memory_get` now compare paths after symlink resolution, so a link inside the root pointing outside it is refused.
+
 ## 4.50.0
 
 ### Minor Changes
