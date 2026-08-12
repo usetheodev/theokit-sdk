@@ -137,16 +137,18 @@ describe("re-release guard — an unreadable ref is a refusal, not a pass", () =
 
   it("test_a_ref_that_resolves_and_has_no_changesets_still_reports_clean", () => {
     // The distinction the DoD asks for, and the anti-vacuity floor: throwing for every ref would
-    // satisfy the case above while making the guard useless. The repository's own first commit
-    // predates `.changeset/`, so it resolves and legitimately lists nothing.
-    const firstCommit = execFileSync("git", ["rev-list", "--max-parents=0", "HEAD"], {
+    // satisfy the case above while making the guard useless.
+    //
+    // The EMPTY TREE rather than the repository's first commit. The first version used
+    // `rev-list --max-parents=0`, assuming the root predates `.changeset/` — it does not, and the
+    // case then listed today's changesets and failed in CI while passing locally. git's empty tree
+    // is a constant that resolves everywhere and contains nothing, by construction.
+    const emptyTree = execFileSync("git", ["hash-object", "-t", "tree", "/dev/null"], {
       cwd: REPO,
       encoding: "utf8",
-    })
-      .trim()
-      .split("\n")[0] as string;
+    }).trim();
 
-    expect(guard.changesetsAt(firstCommit)).toEqual([]);
+    expect(guard.changesetsAt(emptyTree)).toEqual([]);
   });
 
   it("test_the_script_exits_2_rather_than_0_for_an_unreadable_ref", () => {
