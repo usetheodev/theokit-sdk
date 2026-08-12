@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Three rules every agent product rebuilds, each with the vocabulary as data (B-096, B-098,
+  B-099).** `guardSessionDestruction` refuses to destroy a session another process is writing, and
+  distinguishes "it is live" from "liveness could not be determined" — a product that swallowed a
+  read error and returned an empty set would otherwise hand the guard the one input that disables
+  it, on the path that destroys data. `decideApproval` makes a veto a typed decision rather than a
+  tool result the model reads as output and retries around, with denial outranking both allowance
+  and every mode. `describeCredential` reports presence and a hashed fingerprint, never the value —
+  the default rather than each consumer's discipline, because a prefix of a live key is still the
+  key.
+
 ### Security
 
 - **The two remaining containment guards judge a symlink by where it POINTS, not by its name
