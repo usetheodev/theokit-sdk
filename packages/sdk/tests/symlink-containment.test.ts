@@ -17,22 +17,23 @@
  * two drifted apart.
  */
 
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { safePathJoin } from "../src/internal/security/path-guard.js";
+import { createTempWorkspace, type TempWorkspace } from "./helpers/temp-workspace.js";
 
-let dir: string;
+let workspace: TempWorkspace;
 let root: string;
 let outside: string;
 
-beforeEach(() => {
-  // realpath the temp dir itself: on macOS `/tmp` is a symlink, and a test that did not resolve it
+beforeEach(async () => {
+  workspace = await createTempWorkspace();
+  // realpath the workspace itself: on macOS `/tmp` is a symlink, and a test that did not resolve it
   // would fail for that reason rather than for the one it is about.
-  dir = realpathSync(mkdtempSync(join(tmpdir(), "b117-")));
+  const dir = realpathSync(workspace.cwd);
   root = join(dir, "root");
   outside = join(dir, "outside");
   mkdirSync(root);
@@ -41,8 +42,8 @@ beforeEach(() => {
   symlinkSync(outside, join(root, "escape"));
 });
 
-afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+afterEach(async () => {
+  await workspace.cleanup();
 });
 
 describe("safePathJoin — a symlink out of the root is refused", () => {
