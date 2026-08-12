@@ -109,3 +109,62 @@ describe("re-release guard — a ref is a ref, never an option", () => {
     expect(() => guard.wasDeletedOn("HEAD", ".changeset/x.md")).not.toThrow();
   });
 });
+
+/**
+ * B-120 — a ref the repository cannot read must REFUSE, never report clean.
+ *
+ * `changesetsAt` wrapped its `git ls-tree` in a catch that returned `[]`, and for this guard an
+ * empty list means "nothing to worry about". So an unreadable ref produced the same output as a
+ * genuinely clean one: git printed `fatal: not a tree object` to stderr and the guard printed a
+ * tick and exited 0.
+ *
+ * Third appearance of one shape in this file. The cwd-relative pathspec reported clean from any
+ * subdirectory; argument injection was closed by `assertPlainRef`. This one survived both because a
+ * well-formed sha the repository does not have is neither malformed nor a bad pathspec.
+ *
+ * Unreachable in CI today — the job checks out with `fetch-depth: 0` and passes a ref it has. It is
+ * reachable by every human running the script locally, which is exactly when someone is deciding
+ * whether a release is safe.
+ */
+describe("re-release guard — an unreadable ref is a refusal, not a pass", () => {
+  /** Well-formed, and not in this repository. Deliberately not a random string: a malformed ref is
+   *  already refused by `assertPlainRef`, and refusing THAT would prove nothing about this. */
+  const ABSENT = "0123456789abcdef0123456789abcdef01234567";
+
+  it("test_a_well_formed_sha_the_repository_does_not_have_is_refused", () => {
+    expect(() => guard.changesetsAt(ABSENT)).toThrow(/could not read|not a tree|unresolvable/i);
+  });
+
+  it("test_a_ref_that_resolves_and_has_no_changesets_still_reports_clean", () => {
+    // The distinction the DoD asks for, and the anti-vacuity floor: throwing for every ref would
+    // satisfy the case above while making the guard useless.
+    //
+    // The EMPTY TREE rather than the repository's first commit. The first version used
+    // `rev-list --max-parents=0`, assuming the root predates `.changeset/` — it does not, and the
+    // case then listed today's changesets and failed in CI while passing locally. git's empty tree
+    // is a constant that resolves everywhere and contains nothing, by construction.
+    const emptyTree = execFileSync("git", ["hash-object", "-t", "tree", "/dev/null"], {
+      cwd: REPO,
+      encoding: "utf8",
+    }).trim();
+
+    expect(guard.changesetsAt(emptyTree)).toEqual([]);
+  });
+
+  it("test_the_script_exits_2_rather_than_0_for_an_unreadable_ref", () => {
+    // Exit code, not just the throw: `main` already distinguishes 2 ("could not check") from 1
+    // ("checked, and it is unsafe"). What was missing is anything reaching it.
+    let status = 0;
+    try {
+      execFileSync(
+        process.execPath,
+        [join(REPO, "scripts", "check-no-reconsumed-changesets.mjs"), "origin/main", ABSENT],
+        { cwd: REPO, stdio: "pipe" },
+      );
+    } catch (err) {
+      status = (err as { status?: number }).status ?? 0;
+    }
+
+    expect(status, "an unreadable ref reported a clean release").toBe(2);
+  });
+});

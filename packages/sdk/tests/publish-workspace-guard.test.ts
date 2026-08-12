@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -102,3 +102,49 @@ describe("workspace: publish guard — coverage", () => {
     expect(dirs.some((d) => d.endsWith("/cli"))).toBe(true);
   });
 });
+
+/**
+ * B-118 — no `.npmrc` in this repository may declare a registry auth token.
+ *
+ * The line that was here, `//registry.npmjs.org/:_authToken=${NPM_TOKEN}`, is correct for CI and
+ * harmful everywhere else, and the two package managers disagree about how — which is why this is
+ * pinned rather than remembered.
+ *
+ * MEASURED with a user credential present and `NPM_TOKEN` unset:
+ *
+ *   npm  →  `//registry.npmjs.org/:_authToken = (protected) ; overridden by project`
+ *           the unset variable becomes an EMPTY token and outranks the user's real one, so the
+ *           registry answers an unauthenticated PUT with 404 — which reads as "this package does
+ *           not exist for you" and sends the investigation to token scopes and package ownership.
+ *   pnpm →  drops the unresolvable line with a warning; the user credential survives.
+ *
+ * That asymmetry also corrects B-118's own account, which had the two tools the other way round.
+ *
+ * CI does not need the line: `actions/setup-node` with `registry-url` writes the runner's user-level
+ * `.npmrc` to read `NODE_AUTH_TOKEN`, which the release workflow sets from the secret.
+ */
+describe("B-118 — the repository declares no registry credential", () => {
+  const REPO_ROOT = resolve(import.meta.dirname, "../../..");
+
+  it("test_no_npmrc_in_the_repository_declares_an_auth_token", () => {
+    const candidates = [".npmrc", "packages/sdk/.npmrc", ".github/.npmrc"];
+    const offenders = candidates.filter((rel) => {
+      const body = readIfPresent(join(REPO_ROOT, rel));
+      return body !== null && /_authToken\s*=/.test(body);
+    });
+
+    expect(
+      offenders,
+      "a committed .npmrc declaring an auth token overrides the developer's own credential with " +
+        "an empty string under npm, and the registry reports that as a 404 about package ownership",
+    ).toEqual([]);
+  });
+});
+
+function readIfPresent(path: string): string | null {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+}
