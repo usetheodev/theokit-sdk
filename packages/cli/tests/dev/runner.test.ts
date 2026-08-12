@@ -54,7 +54,10 @@ describe("startRunner (T4.1)", () => {
     // receives it. We assert non-zero exit and child stderr inheritance.
     const entry = join(workDir, "syntax-broken.ts");
     writeFileSync(entry, "const x = ;\n");
-    const handle = startRunner({ entry, cwd: workDir, watch: false });
+    // `stdio: "ignore"`: this case asserts the EXIT CODE, and with the default `inherit` tsx prints
+    // its transform error onto the worker's stderr — which CI reads as a failed run even though the
+    // case passes. Four validate legs were red on develop with every test green.
+    const handle = startRunner({ entry, cwd: workDir, watch: false, stdio: "ignore" });
     const code = await handle.exited;
     // tsx exits non-zero on syntax error (commonly 1).
     expect(code).not.toBe(0);
