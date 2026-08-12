@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.51.1
+
+### Patch Changes
+
+- 219fe14: Add `diagFailure`: a diagnostic reporting a user-visible failure falls back to stderr when no sink is installed, instead of being dropped.
+
 ## 4.51.0
 
 ### Minor Changes
