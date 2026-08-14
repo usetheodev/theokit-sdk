@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **`createViewImageTool` in `@theokit/sdk-tools`** — the one tool a consumer had to write from scratch (89 LOC). It reads an image from the project and hands it to the model as an `ImageBlock` through `toModelOutput` (the SE17 multimodal shape the SDK already defines). What makes it worth a reviewed built-in rather than product code is the confinement: **an image reader that honours any path is a file exfiltration primitive with a friendly name** — `/etc/passwd` renamed to `.png` is one prompt away. It reuses `checkPathScope` and `isForbiddenAtAnyDepth` instead of re-deriving the rule (the copies would have to agree on what counts as an escape, and one fixed without the other reopens the hole in the forgotten tool). 5 MB ceiling by default: base64 inflates by 4/3 and lands directly in the model's context.
+
 - **Three rules every agent product rebuilds, each with the vocabulary as data (B-096, B-098,
   B-099).** `guardSessionDestruction` refuses to destroy a session another process is writing, and
   distinguishes "it is live" from "liveness could not be determined" — a product that swallowed a
