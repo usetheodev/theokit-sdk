@@ -113,6 +113,11 @@ export {
   truncateOutput,
 } from "./truncation.js";
 export { createUpdatePlanTool } from "./update-plan.js";
+export {
+  type CreateViewImageToolOptions,
+  createViewImageTool,
+  DEFAULT_MAX_IMAGE_BYTES,
+} from "./view-image.js";
 export { type CreateWebFetchToolOptions, createWebFetchTool } from "./web-fetch.js";
 export {
   type CreateWebSearchToolOptions,
