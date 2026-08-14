@@ -69,7 +69,7 @@ describe("foldLayers — later layers win", () => {
       { layer: "defaults", values: { model: "small" } },
       { layer: "user", values: { model: "large" } },
     ]);
-    expect(out["model"]).toBe("large");
+    expect(out.model).toBe("large");
   });
 
   it("test_undefined_does_not_overwrite_what_an_earlier_layer_set", () => {
@@ -79,7 +79,7 @@ describe("foldLayers — later layers win", () => {
       { layer: "defaults", values: { model: "small" } },
       { layer: "user", values: { model: undefined } },
     ]);
-    expect(out["model"]).toBe("small");
+    expect(out.model).toBe("small");
   });
 
   it("test_keys_only_one_layer_mentions_survive", () => {
@@ -106,7 +106,7 @@ describe("foldLayers — accumulating keys", () => {
       ],
       ["hooks"],
     );
-    expect(out["hooks"]).toEqual(["user-hook", "project-hook"]);
+    expect(out.hooks).toEqual(["user-hook", "project-hook"]);
   });
 
   it("test_a_key_not_declared_accumulating_still_replaces", () => {
@@ -116,7 +116,7 @@ describe("foldLayers — accumulating keys", () => {
       { layer: "user", values: { skills: ["a"] } },
       { layer: "project", values: { skills: ["b"] } },
     ]);
-    expect(out["skills"]).toEqual(["b"]);
+    expect(out.skills).toEqual(["b"]);
   });
 
   it("test_a_non_array_value_for_an_accumulating_key_replaces_rather_than_appending", () => {
@@ -129,15 +129,15 @@ describe("foldLayers — accumulating keys", () => {
       ],
       ["hooks"],
     );
-    expect(out["hooks"]).toBe("not-a-list");
+    expect(out.hooks).toBe("not-a-list");
   });
 
   it("test_accumulation_does_not_leak_between_calls", () => {
     // The accumulator is per-fold. A module-level one would make the second call inherit the first
     // call's hooks — the shape of bug that only appears once two sessions run in one process.
     const entries = [{ layer: "user", values: { hooks: ["h"] } }];
-    expect(foldLayers(entries, ["hooks"])["hooks"]).toEqual(["h"]);
-    expect(foldLayers(entries, ["hooks"])["hooks"]).toEqual(["h"]);
+    expect(foldLayers(entries, ["hooks"]).hooks).toEqual(["h"]);
+    expect(foldLayers(entries, ["hooks"]).hooks).toEqual(["h"]);
   });
 
   it("test_the_caller_input_is_not_mutated", () => {
@@ -174,6 +174,6 @@ describe("foldLayers — the ordering is enforced, not assumed", () => {
       { layer: "a", values: { k: 1 } },
       { layer: "b", values: { k: 2 } },
     ]);
-    expect(out["k"]).toBe(2);
+    expect(out.k).toBe(2);
   });
 });
