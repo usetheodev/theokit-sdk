@@ -40,7 +40,7 @@ describe("loadProjectEnv — a project .env cannot set a sovereign key", () => {
     const env: Record<string, string | undefined> = {};
     loadProjectEnv(env, fakeLoad(env, { THEOKIT_AUTH_HOME: "/tmp/attacker-store" }));
 
-    expect(env["THEOKIT_AUTH_HOME"]).toBeUndefined();
+    expect(env.THEOKIT_AUTH_HOME).toBeUndefined();
   });
 
   it("test_a_sovereign_key_set_by_the_operator_keeps_the_operator_value", () => {
@@ -49,7 +49,7 @@ describe("loadProjectEnv — a project .env cannot set a sovereign key", () => {
     const env: Record<string, string | undefined> = { THEOKIT_HOME: "/home/real/.theokit" };
     loadProjectEnv(env, fakeLoad(env, { THEOKIT_HOME: "/tmp/attacker-home" }));
 
-    expect(env["THEOKIT_HOME"]).toBe("/home/real/.theokit");
+    expect(env.THEOKIT_HOME).toBe("/home/real/.theokit");
   });
 
   it.each([...SOVEREIGN_ENV_KEYS])("test_%s_cannot_be_set_by_the_project", (key) => {
@@ -66,10 +66,10 @@ describe("loadProjectEnv — a project .env cannot set a sovereign key", () => {
     const env: Record<string, string | undefined> = {};
     loadProjectEnv(env, fakeLoad(env, { OPENROUTER_API_KEY: "sk-project", THEOKIT_API_KEY: "tk" }));
 
-    expect(env["OPENROUTER_API_KEY"]).toBe("sk-project");
+    expect(env.OPENROUTER_API_KEY).toBe("sk-project");
     // THEOKIT_API_KEY is deliberately NOT sovereign — a project supplying its own key is the
     // documented path, and treating it as sovereign would break every scaffolded product.
-    expect(env["THEOKIT_API_KEY"]).toBe("tk");
+    expect(env.THEOKIT_API_KEY).toBe("tk");
   });
 
   it("test_a_load_that_throws_leaves_the_environment_untouched", () => {
@@ -79,14 +79,14 @@ describe("loadProjectEnv — a project .env cannot set a sovereign key", () => {
       throw new Error("ENOENT");
     });
 
-    expect(env["THEOKIT_HOME"]).toBe("/home/real");
+    expect(env.THEOKIT_HOME).toBe("/home/real");
   });
 
   it("test_no_loader_is_a_no_op_rather_than_a_throw", () => {
     // A runtime without `process.loadEnvFile` must degrade, not crash the product at startup.
     const env: Record<string, string | undefined> = { A: "1" };
     expect(() => loadProjectEnv(env, undefined)).not.toThrow();
-    expect(env["A"]).toBe("1");
+    expect(env.A).toBe("1");
   });
 
   it("test_the_sovereign_set_names_what_it_protects", () => {
@@ -117,13 +117,13 @@ describe("loadProjectEnv — against a real .env on disk", () => {
     const before = { ...process.env };
     try {
       process.chdir(dir);
-      delete process.env["THEOKIT_AUTH_HOME"];
-      delete process.env["OPENROUTER_API_KEY"];
+      delete process.env.THEOKIT_AUTH_HOME;
+      delete process.env.OPENROUTER_API_KEY;
 
       loadProjectEnv();
 
-      expect(process.env["THEOKIT_AUTH_HOME"]).toBeUndefined();
-      expect(process.env["OPENROUTER_API_KEY"]).toBe("sk-from-project");
+      expect(process.env.THEOKIT_AUTH_HOME).toBeUndefined();
+      expect(process.env.OPENROUTER_API_KEY).toBe("sk-from-project");
     } finally {
       process.chdir(cwd);
       for (const k of ["THEOKIT_AUTH_HOME", "OPENROUTER_API_KEY"]) {
