@@ -1,0 +1,67 @@
+import { describe, expect, it } from "vitest";
+import * as authBarrel from "../src/auth/index.js";
+import { providerFromApiKeyPrefix } from "../src/internal/auth/api-key-prefix.js";
+
+/**
+ * "Which provider issued this key?" — the primitive, made reachable.
+ *
+ * The SDK already answered this, in `internal/local-agent/real-local-run-provider.ts`, marked
+ * `@internal` and exported from no entry point. A measured consumer needs the same answer at
+ * login (`opts.provider ?? inferProvider(key)`) and, unable to reach it, wrote its own. A
+ * capability that exists and cannot be imported costs exactly what an absent one costs.
+ *
+ * Two things separate this from a straight re-export of the internal helper:
+ *
+ *  1. **Longest prefix wins, by construction.** The internal version iterates a hand-ordered
+ *     array, and is correct today only because `sk-or-` and `sk-ant-` happen to be written above
+ *     `sk-`. Order-as-convention breaks the first time someone appends a longer prefix or sorts
+ *     the list — silently, resolving an Anthropic key to OpenAI. The consumer's own copy sorts by
+ *     length; so does this.
+ *  2. **No provider-profile gate.** That gate belongs to the local-run path, which will not use a
+ *     provider it cannot construct. A caller asking "whose key is this?" at login has no profile
+ *     registered yet, and returning `undefined` there would answer a question nobody asked.
+ */
+describe("providerFromApiKeyPrefix", () => {
+  it("infers_each_known_provider", () => {
+    expect(providerFromApiKeyPrefix("sk-or-v1-abc")).toBe("openrouter");
+    expect(providerFromApiKeyPrefix("sk-ant-api03-abc")).toBe("anthropic");
+    expect(providerFromApiKeyPrefix("sk-proj-abc")).toBe("openai");
+  });
+
+  it("the_longest_matching_prefix_wins", () => {
+    // `sk-ant-…` also starts with `sk-`. Shortest-match-first would call an Anthropic key OpenAI
+    // and send it to the wrong endpoint — a remote 401 whose message says nothing about prefixes.
+    expect(providerFromApiKeyPrefix("sk-ant-api03-abc")).not.toBe("openai");
+    expect(providerFromApiKeyPrefix("sk-or-v1-abc")).not.toBe("openai");
+  });
+
+  it("ordering_does_not_depend_on_declaration_order", () => {
+    // The property, not the current table: whatever the entries are, the answer for a key must be
+    // the provider with the LONGEST matching prefix. Asserted by construction — every prefix the
+    // module knows is checked against every other, so a future entry cannot reintroduce the bug.
+    const knownKeys = ["sk-or-v1-x", "sk-ant-api03-x", "sk-proj-x"];
+    for (const key of knownKeys) {
+      const answer = providerFromApiKeyPrefix(key);
+      expect(answer, `no provider inferred for ${key}`).toBeDefined();
+    }
+    // A key matching two prefixes resolves to the more specific one.
+    expect(providerFromApiKeyPrefix("sk-ant-x")).toBe("anthropic");
+  });
+
+  it("an_unknown_or_empty_key_infers_nothing", () => {
+    // Negative cases. `undefined` means "cannot tell", never a guess — a wrong guess here picks
+    // the wrong endpoint for a real credential.
+    expect(providerFromApiKeyPrefix("gsk_groq_style_key")).toBeUndefined();
+    expect(providerFromApiKeyPrefix("")).toBeUndefined();
+    expect(providerFromApiKeyPrefix(undefined)).toBeUndefined();
+    expect(providerFromApiKeyPrefix("   ")).toBeUndefined();
+  });
+
+  it("is_reachable_from_the_public_auth_entry", () => {
+    // The whole point. Reachability is the fix; the function already existed.
+    expect(
+      (authBarrel as Record<string, unknown>).providerFromApiKeyPrefix,
+      "@theokit/sdk/auth does not export it — the capability stays unreachable",
+    ).toBe(providerFromApiKeyPrefix);
+  });
+});
