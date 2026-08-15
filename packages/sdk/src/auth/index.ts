@@ -13,6 +13,15 @@
  * @packageDocumentation
  */
 
+/**
+ * "Which provider issued this key?" — the question a login flow asks before any profile exists.
+ *
+ * Made REACHABLE rather than written: the SDK already answered it, in a module marked `@internal`
+ * that no entry point exported, and a measured consumer wrote its own copy because it could not
+ * import ours. The lookup now derives its longest-first ordering instead of depending on the order
+ * the table happens to be typed in.
+ */
+export { providerFromApiKeyPrefix } from "../internal/auth/api-key-prefix.js";
 // Contract types (leaf module — single canonical origin).
 export type {
   CredentialStoreConfig,
@@ -28,7 +37,6 @@ export type {
   StoredCredential,
   StoredOAuthCredential,
 } from "../internal/auth/auth-types.js";
-
 // Credential store.
 export {
   assertSecureModes,
@@ -56,7 +64,6 @@ export {
   persistOAuthTokens,
   refreshOAuthTokens,
 } from "../internal/auth/oauth-engine.js";
-
 // The public composition entrypoint.
 export {
   type ResolveCredentialOptions,
