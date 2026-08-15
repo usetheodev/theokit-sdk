@@ -6,28 +6,23 @@
  * @internal
  */
 
+import { providerFromApiKeyPrefix } from "../auth/api-key-prefix.js";
 import { getProviderProfile } from "../providers/index.js";
 
 /**
- * Infer the provider from an API-key prefix (`sk-or-` → openrouter, `sk-ant-` →
- * anthropic, `sk-` → openai), but only when that provider has a registered
- * profile. Returns `undefined` when no prefix matches a known provider.
+ * The provider a key belongs to, **restricted to providers this runtime can construct**.
+ *
+ * The prefix table moved to `auth/api-key-prefix.ts` and is no longer duplicated here — it was the
+ * same knowledge in two places, and the copy here relied on its entries being hand-written in
+ * longest-first order to be correct at all. What stays is the part that is genuinely this path's
+ * policy: the local run will not name a provider it has no profile for.
  *
  * @internal
  */
 export function inferProviderFromApiKey(apiKey: string | undefined): string | undefined {
-  if (apiKey === undefined || apiKey.length === 0) return undefined;
-  const byPrefix: ReadonlyArray<{ provider: string; prefix: string }> = [
-    { provider: "openrouter", prefix: "sk-or-" },
-    { provider: "anthropic", prefix: "sk-ant-" },
-    { provider: "openai", prefix: "sk-" },
-  ];
-  for (const { provider, prefix } of byPrefix) {
-    if (apiKey.startsWith(prefix) && getProviderProfile(provider) !== undefined) {
-      return provider;
-    }
-  }
-  return undefined;
+  const provider = providerFromApiKeyPrefix(apiKey);
+  if (provider === undefined) return undefined;
+  return getProviderProfile(provider) === undefined ? undefined : provider;
 }
 
 /**
