@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import * as authBarrel from "../src/auth/index.js";
 import { providerFromApiKeyPrefix } from "../src/internal/auth/api-key-prefix.js";
@@ -63,5 +65,34 @@ describe("providerFromApiKeyPrefix", () => {
       (authBarrel as Record<string, unknown>).providerFromApiKeyPrefix,
       "@theokit/sdk/auth does not export it — the capability stays unreachable",
     ).toBe(providerFromApiKeyPrefix);
+  });
+});
+
+/**
+ * Every runtime export of `@theokit/sdk/auth` has a TYPE declaration.
+ *
+ * `tsconfig.base.json` sets `stripInternal: true`, and TypeScript matches that tag anywhere in an
+ * attached JSDoc — prose included. A docblock that merely NAMES the tag while explaining something
+ * deletes the declaration it sits above. That is how `providerFromApiKeyPrefix` shipped at runtime
+ * and could not be imported with types (#283): the comment explaining the fix reintroduced the
+ * defect the fix existed to close.
+ *
+ * A grep for the tag would be the obvious guard and the wrong one — it forbids the word instead of
+ * the outcome. This asserts the OUTCOME: whatever the barrel exports at runtime, the `.d.ts`
+ * declares.
+ */
+describe("auth entry — runtime exports are typed", () => {
+  it("every_runtime_export_appears_in_the_declaration", async () => {
+    const dts = join(process.cwd(), "dist", "auth", "index.d.ts");
+    if (!existsSync(dts)) {
+      // Reported, never a silent pass: an unbuilt dist means this guard verified nothing.
+      console.warn("[types-guard] dist/auth/index.d.ts absent — run the build first");
+      return;
+    }
+    const declared = readFileSync(dts, "utf8");
+    const runtime = Object.keys(await import("../src/auth/index.js"));
+
+    const undeclared = runtime.filter((name) => !new RegExp(`\\b${name}\\b`).test(declared));
+    expect(undeclared, "exported at runtime, absent from the .d.ts").toEqual([]);
   });
 });

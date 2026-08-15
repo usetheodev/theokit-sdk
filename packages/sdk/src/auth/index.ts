@@ -16,10 +16,16 @@
 /**
  * "Which provider issued this key?" — the question a login flow asks before any profile exists.
  *
- * Made REACHABLE rather than written: the SDK already answered it, in a module marked `@internal`
- * that no entry point exported, and a measured consumer wrote its own copy because it could not
- * import ours. The lookup now derives its longest-first ordering instead of depending on the order
- * the table happens to be typed in.
+ * Made REACHABLE rather than written: the SDK already answered it, from a module no entry point
+ * exported, and a measured consumer wrote its own copy because it could not import ours. The lookup
+ * now derives its longest-first ordering instead of depending on the order the table happens to be
+ * typed in.
+ *
+ * NOTE — do not name the internal-visibility tag in this docblock. `tsconfig.base.json` sets
+ * `stripInternal: true`, and TypeScript matches the tag anywhere in an attached JSDoc, prose
+ * included. Mentioning it here deleted this very line from `dist/auth/index.d.ts`: the symbol
+ * shipped at runtime and could not be imported with types — the exact defect this export exists to
+ * fix, reintroduced by the comment explaining the fix (usetheodev/theokit-sdk#283).
  */
 export { providerFromApiKeyPrefix } from "../internal/auth/api-key-prefix.js";
 // Contract types (leaf module — single canonical origin).
