@@ -5,7 +5,13 @@
  * an auth question. The local-run path additionally refuses a provider it has no profile for; that
  * is its policy, not part of this answer, so it stays there and composes with this.
  *
- * @internal — re-exported from the public `@theokit/sdk/auth` entry.
+ * Lives under `internal/` by FOLDER, and is PUBLIC by contract — re-exported from
+ * `@theokit/sdk/auth`.
+ *
+ * Deliberately NOT tagged `@internal`: `tsconfig.base.json` sets `stripInternal: true`, so that tag
+ * deletes the declaration from every emitted `.d.ts`. The symbol then exists at runtime and cannot
+ * be imported with types — which is the exact defect this module was published to fix, reintroduced
+ * one layer down by a docblock. Measured: usetheodev/theokit-sdk#283.
  */
 
 /** Prefix → provider. Order here is irrelevant: the lookup sorts. */

@@ -1,30 +1,48 @@
 # Changelog
 
+## 4.52.1
+
+### Patch Changes
+
+- **`providerFromApiKeyPrefix` now appears in `dist/auth/index.d.ts`.** Fixes #283.
+
+  It shipped at runtime and was absent from the type declaration, so a TypeScript consumer could not
+  import it: `TS2305`. The same defect the export existed to close, one layer down.
+
+  Root cause, and it is worth naming precisely: `tsconfig.base.json` sets `stripInternal: true`, and
+  TypeScript matches that tag **anywhere in an attached JSDoc — prose included**. The docblock above
+  the export explained the fix by describing the module as having been marked internal, and naming the
+  tag deleted the very line it documented.
+
+  Guarded by outcome rather than by word: a test asserts that every runtime export of
+  `@theokit/sdk/auth` appears in the emitted `.d.ts`. A grep for the tag would forbid the word instead
+  of the failure, and would not catch the next way a declaration goes missing.
+
 ## 4.52.0
 
 ### Minor Changes
 
-- 40125a5: **`providerFromApiKeyPrefix` fica alcancavel a partir de `@theokit/sdk/auth`.**
+- 40125a5: **`providerFromApiKeyPrefix` becomes reachable from `@theokit/sdk/auth`.**
 
-  A pergunta "de qual provider e esta chave?" ja era respondida aqui — em
-  `internal/local-agent/real-local-run-provider.ts`, marcada `@internal` e exportada por
-  nenhuma entry. Um consumidor medido precisa dela no login (`opts.provider ?? inferProvider(key)`),
-  nao conseguiu importar, e escreveu a propria copia. Uma capacidade que existe e nao se alcanca
-  custa exatamente o que uma ausente custa.
+  "Which provider issued this key?" was already answered here — in
+  `internal/local-agent/real-local-run-provider.ts`, marked internal and exported from no entry
+  point. A measured consumer needs it at login (`opts.provider ?? inferProvider(key)`), could not
+  import it, and wrote its own copy. A capability that exists and cannot be reached costs exactly
+  what an absent one costs.
 
-  Duas coisas separam isto de um re-export:
+  Two things separate this from a re-export:
 
-  1. **O prefixo mais longo vence, por construcao.** A versao interna percorria um array escrito a
-     mao e so estava correta porque `sk-or-` e `sk-ant-` calharam de vir antes de `sk-`. Ordem como
-     convencao quebra na primeira vez que alguem acrescenta um prefixo mais longo ou ordena a lista
-     por legibilidade — em silencio, resolvendo uma chave Anthropic como OpenAI. A ordenacao agora e
-     derivada do comprimento.
-  2. **Sem o gate de perfil de provider.** Esse gate pertence ao caminho de local-run, que nao vai
-     nomear um provider que nao consegue construir. Quem pergunta "de quem e esta chave?" no login
-     ainda nao tem perfil registrado, e devolver `undefined` ali responderia outra pergunta.
+  1. **The longest prefix wins, by construction.** The internal version walked a hand-ordered array
+     and was correct only because `sk-or-` and `sk-ant-` happened to precede `sk-`. Order-as-
+     convention breaks the first time somebody appends a longer prefix or sorts the list for
+     readability — silently, resolving an Anthropic key as OpenAI. The ordering is now derived from
+     prefix length.
+  2. **No provider-profile gate.** That gate belongs to the local-run path, which will not name a
+     provider it cannot construct. A caller asking "whose key is this?" at login has no profile
+     registered yet, and returning `undefined` there would answer a different question.
 
-  A tabela de prefixos deixa de existir em duas copias: `inferProviderFromApiKey` passa a delegar e
-  mantem so o que e politica dele.
+  The prefix table no longer exists in two copies: `inferProviderFromApiKey` delegates and keeps only
+  what is its own policy.
 
 ## 4.51.1
 
