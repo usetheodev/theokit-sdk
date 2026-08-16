@@ -124,7 +124,22 @@ function parseLine(
  * reference: swebench-batch.ts:192 (mkdir-before-append), :205 (per-line flush).
  */
 export function appendJsonl(path: string, record: unknown): void {
-  mkdirSync(dirname(path), { recursive: true });
+  // T2.4 — `0o700` for the same reason the file below is `0o600`, and it is the half M93 missed. A
+  // private file inside a group-writable directory can be replaced wholesale, and the replacement's
+  // mode is whatever the writer chose. Under `umask 002` this directory was born `0775`.
+  //
+  // The directory sits under `~/.theokit`, shared with the credential and trust stores, and the
+  // framework already wrote the diagnosis while fixing a sibling (`@theokit/agents
+  // config/trust-store.ts:157-161`): the mode argument is a no-op on a directory that already
+  // exists, "and this one is shared with the SDK's transcript root — whoever creates it first sets
+  // the permissions". Whoever creates it first is usually THIS function, because a session writes a
+  // transcript before it ever touches a credential. So `assertSecureModes` was not wrong to demand a
+  // private directory; this path was wrong to produce one that fails it, depending on run order.
+  //
+  // Creation-time only, deliberately: repairing a pre-existing directory means `stat` + `chmod` on
+  // every append, and this is the hot path of every session. The pre-existing case is what
+  // `assertSecureModes` is for.
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const prefix = needsLineBreakBefore(path) ? "\n" : "";
   // M93 (adversarial review, H1) — `0o600`. `appendFileSync` takes no `mode`, so the permission came
   // from the umask: under `umask 022` the transcript was born `0664`, world-readable. The previous
