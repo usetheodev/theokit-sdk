@@ -109,6 +109,12 @@ export interface ReadJsonlTailOptions {
   /** Maximum records to return, counted from the END. */
   readonly maxRecords?: number;
   /** Stop once a line contains this marker (exclusive). */
+  /**
+   * Start the window AFTER the last record whose `subtype` (or `type`) equals this.
+   *
+   * Matched STRUCTURALLY since T2.5. It used to be `line.includes(marker)`, so any message
+   * mentioning the marker in its text truncated the read — silently, with a successful return.
+   */
   readonly sinceMarker?: string;
   /** Test-only: also report how many bytes were read, to prove the read is not whole-file. */
   readonly _stats?: boolean;
@@ -158,6 +164,27 @@ function nonEmptyLines(text: string): string[] {
  * transcript grows without bound; loading megabytes to show the last three turns is the cost this
  * exists to avoid — and a `slice` over a full read would be that same cost with a better name.
  */
+
+/**
+ * Whether a raw JSONL line IS the marker record, rather than a line that talks about it.
+ *
+ * Matches on the record's own discriminants (`subtype`, then `type`) — the fields that identify
+ * what a record *is*. Free text is never consulted, which is the whole point: content is the user's
+ * and must not steer the reader.
+ *
+ * A line that does not parse is not a marker. Deciding a window boundary from bytes that are not a
+ * record would be guessing, and this function exists because guessing is what it replaced.
+ */
+function isMarkerRecord(line: string, marker: string): boolean {
+  let record: { type?: unknown; subtype?: unknown };
+  try {
+    record = JSON.parse(line) as { type?: unknown; subtype?: unknown };
+  } catch {
+    return false;
+  }
+  return record.subtype === marker || record.type === marker;
+}
+
 export function readJsonlTail<T = Record<string, unknown>>(
   path: string,
   options: ReadJsonlTailOptions = {},
@@ -168,7 +195,13 @@ export function readJsonlTail<T = Record<string, unknown>>(
   let sel = lines;
   if (options.sinceMarker !== undefined) {
     const marker = options.sinceMarker;
-    const idx = sel.findLastIndex((l) => l.includes(marker));
+    // STRUCTURAL, not `line.includes(marker)`.
+    //
+    // A raw substring match is true for any line that merely MENTIONS the marker — a user asking
+    // "how does compact_boundary work?" silently truncated the window to start at their question.
+    // The read then succeeded, returned fewer records than exist, and said nothing. That is the
+    // measured reason the only would-be consumer kept its own reader instead of this one.
+    const idx = sel.findLastIndex((l) => isMarkerRecord(l, marker));
     if (idx >= 0) sel = sel.slice(idx + 1);
   }
   if (Number.isFinite(want)) sel = sel.slice(-want);
