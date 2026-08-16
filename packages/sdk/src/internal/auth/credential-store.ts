@@ -120,6 +120,13 @@ const fileSchema = z.union([oauthFileSchema, apiFileSchema]);
  * agent then runs on THEIR account.
  */
 export function assertSecureModes(dirPath: string, path: string): void {
+  // Windows has no POSIX mode bits. `statSync().mode` there is SYNTHETIC — 0666 for any writable
+  // entry, whatever the ACLs actually say — so `mode & 0o022` was non-zero for every valid store and
+  // this gate refused all of them, which made the credential path unreadable on that platform
+  // rather than protected. A check that cannot observe the real permission system must not report a
+  // verdict about it; ACL enforcement is a separate mechanism and not one this function can fake.
+  if (process.platform === "win32") return;
+
   const dirMode = statSync(dirPath).mode & 0o777;
   if ((dirMode & 0o022) !== 0) {
     throw new CredentialError(

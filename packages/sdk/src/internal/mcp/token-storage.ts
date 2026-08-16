@@ -1,7 +1,8 @@
-import { chmodSync, existsSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { assertSecureModes } from "../auth/credential-store.js";
 import { diag } from "../diagnostics.js";
 import { atomicWriteJson } from "../persistence/atomic-write.js";
 
@@ -20,6 +21,31 @@ export interface OAuthTokens {
 
 const KEYTAR_SERVICE = "theokit-mcp";
 const FILE_PATH = join(homedir(), ".theokit", "mcp-tokens.json");
+
+/**
+ * Make the directory private BEFORE anything is written into it.
+ *
+ * `atomicWriteJson` auto-creates the parent with a bare recursive `mkdir`, so under the common umask
+ * 002 `~/.theokit` was born 0775 — and the `chmod 600` applied to the file afterwards protects the
+ * wrong thing. Write permission on a DIRECTORY is permission to unlink and recreate its contents, so
+ * a 0600 file inside a group-writable directory can be replaced wholesale by another local user. The
+ * secret here is a REFRESH TOKEN: replacing it swaps which account the agent authenticates as.
+ *
+ * The `chmod` is unconditional and not a fallback for the `mkdir` mode: `mkdir`'s mode applies only
+ * at CREATION, so every machine that already ran an older build has the loose directory sitting
+ * there, and a fix that only covers fresh installs does not reach the population that has the
+ * problem.
+ */
+function ensurePrivateStoreDir(): void {
+  const dir = dirname(FILE_PATH);
+  try {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    chmodSync(dir, 0o700);
+  } catch {
+    // Windows: chmod is a no-op and the mode argument is meaningless. Same posture as the file
+    // chmod below — documented in ADR D41 / EC-14.
+  }
+}
 
 interface KeytarLike {
   setPassword: (service: string, account: string, password: string) => Promise<void>;
@@ -63,7 +89,8 @@ export async function setTokens(serverName: string, tokens: OAuthTokens): Promis
     await kt.setPassword(KEYTAR_SERVICE, serverName, payload);
     return;
   }
-  // File fallback. atomicWriteJson auto-creates the parent directory.
+  // File fallback. The directory is locked down first — see `ensurePrivateStoreDir`.
+  ensurePrivateStoreDir();
   let allTokens: Record<string, OAuthTokens> = {};
   if (existsSync(FILE_PATH)) {
     try {
@@ -99,6 +126,12 @@ export async function getTokens(serverName: string): Promise<OAuthTokens | undef
     }
   }
   if (!existsSync(FILE_PATH)) return undefined;
+  // The same gate the credential file gets, and deliberately the same implementation rather than a
+  // second one: a refresh token is a credential, and `assertSecureModes` already carries the attack
+  // it defends against in its docstring. It is called OUTSIDE the try/catch on purpose — the catch
+  // below exists to treat a corrupt file as absent, and letting it swallow this would turn "someone
+  // else can replace your token" into a silent `undefined`, which reads as "not logged in".
+  assertSecureModes(dirname(FILE_PATH), FILE_PATH);
   try {
     const all = JSON.parse(readFileSync(FILE_PATH, "utf8")) as Record<string, OAuthTokens>;
     return all[serverName];
