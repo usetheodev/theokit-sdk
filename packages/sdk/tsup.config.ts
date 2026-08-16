@@ -57,6 +57,11 @@ export default defineConfig({
     // 2026-07-09 dead-code review): `internal/plugins/index.ts` stays as an
     // internal relative import; `internal/observability` is reached via the
     // live `tracer-loader.ts` directly, its barrel was dead.
+    // T1.3 — MCP OAuth (PKCE + refresh + token storage). A sanctioned public barrel rather than a
+    // new `internal/*` sub-path: that convention is being retired (`internal/persistence/index.ts`
+    // carries an `@deprecated` pointing at the public barrel), so a new one would extend a shape
+    // the package is withdrawing.
+    "mcp-auth": "src/mcp-auth.ts",
     "internal/persistence/index": "src/internal/persistence/index.ts",
     "internal/security/index": "src/internal/security/index.ts",
     // theokit#160 — the embedding runtime, shared with @theokit/sdk-memory so the two packages stop

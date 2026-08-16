@@ -57,6 +57,8 @@
     "src/server/**/*",
     "src/event-bus.ts",
     "src/job-queue.ts",
-    "src/permission-engine.ts"
+    "src/permission-engine.ts",
+    "src/mcp-auth.ts",
+    "src/internal/mcp/**/*"
   ]
 }
