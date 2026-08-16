@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+
+- **The MCP OAuth store protected the token file and left the room it sits in unlocked.**
+  `setTokens` wrote through `atomicWriteJson`, whose parent-directory `mkdir` carries no mode, so
+  under the common umask 002 `~/.theokit` was born **0775** — and the `chmod 600` applied to
+  `mcp-tokens.json` afterwards protects the wrong thing. Write permission on a DIRECTORY is
+  permission to unlink and recreate what is inside it, so another local user could replace the token
+  file wholesale. The secret is a **refresh token**: replacing it changes which account the agent
+  authenticates as. The read path had no permission check at all, so the substitution would be
+  picked up in silence.
+
+  The directory is now created `0700` **and** `chmod`-ed unconditionally — `mkdir`'s mode applies
+  only at creation, so every machine that ran an earlier build already has the loose directory, and
+  a fix covering only fresh installs does not reach the population that has the problem. The read
+  path calls `assertSecureModes`, the same gate the credential file already uses, deliberately the
+  same implementation rather than a second dialect: a refresh token is a credential, and that
+  function already carries the attack it defends against in its docstring.
+
+- **`assertSecureModes` refused every store on Windows instead of protecting any.** The gate was
+  unconditional, and Windows has no POSIX mode bits — `statSync().mode` there is synthetic (0666 for
+  any writable entry, whatever the ACLs say), so `mode & 0o022` was non-zero for every valid store
+  and the credential path could not be read at all on that platform. It now returns early on
+  `win32`. A check that cannot observe the real permission system must not report a verdict about
+  it; that is a gap to name, not one to fake.
+
 ### Added
 
 - **`createViewImageTool` in `@theokit/sdk-tools`** — the one tool a consumer had to write from scratch (89 LOC). It reads an image from the project and hands it to the model as an `ImageBlock` through `toModelOutput` (the SE17 multimodal shape the SDK already defines). What makes it worth a reviewed built-in rather than product code is the confinement: **an image reader that honours any path is a file exfiltration primitive with a friendly name** — `/etc/passwd` renamed to `.png` is one prompt away. It reuses `checkPathScope` and `isForbiddenAtAnyDepth` instead of re-deriving the rule (the copies would have to agree on what counts as an escape, and one fixed without the other reopens the hole in the forgotten tool). 5 MB ceiling by default: base64 inflates by 4/3 and lands directly in the model's context.
