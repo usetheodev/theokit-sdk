@@ -41,7 +41,7 @@ fi
 # edit carry no new content, and a deleted file cannot introduce a credential.
 mapfile -d '' STAGED < <(git diff --cached --name-only --diff-filter=ACM -z)
 
-if [ ${#STAGED[@]} -eq 0 ]; then
+if [[ ${#STAGED[@]} -eq 0 ]]; then
   exit 0
 fi
 
@@ -55,15 +55,26 @@ for path in "${STAGED[@]}"; do
   git show ":$path" > "$STAGE_DIR/$path"
 done
 
-# --results=verified,unknown is what blocks. `verified` means TruffleHog authenticated
-# the credential against the provider and it is live. `unknown` means verification
-# could not complete — no network, no verifier for that detector, provider throttling.
-# Treating `unknown` as a pass would mean an offline machine silently accepts every
-# secret, so both classes stop the commit. Confirmed false positives are silenced per
-# line with a `trufflehog:ignore` comment, which is reviewable in the diff, rather than
-# by excluding whole paths — an excluded fixture file hides real secrets forever.
+# All three detection classes block. TruffleHog separates them and the distinction is
+# not the intuitive one:
+#
+#   verified   — authenticated against the provider; the credential is live.
+#   unknown    — verification could not COMPLETE: no network, provider throttling.
+#   unverified — DETECTED but not confirmed live: the provider said invalid, or the
+#                detector has no verifier at all.
+#
+# `unverified` carries most of the value, and leaving it out was measured to be a hole
+# rather than a theory: with `--results=verified,unknown` a staged `ghp_…` GitHub token
+# was scanned and the commit was ALLOWED (exit 0). With `unverified` added the same
+# content exits 183 and the commit is blocked. A gate that only stops credentials it can
+# prove are live misses every revoked, rotated, typo'd or not-yet-activated one — and a
+# secret written into the history is the leak, whether or not it authenticates today.
+#
+# Confirmed false positives are silenced per line with a `trufflehog:ignore` comment,
+# which is reviewable in the diff, rather than by excluding whole paths — an excluded
+# fixture file hides real secrets forever.
 if ! trufflehog filesystem "$STAGE_DIR" \
-     --results=verified,unknown \
+     --results=verified,unknown,unverified \
      --fail \
      --no-update \
      --concurrency=4 2>&1 | sed "s|$STAGE_DIR/||g"; then

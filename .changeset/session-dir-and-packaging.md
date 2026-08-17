@@ -6,6 +6,6 @@
 
 **`isValidTaskId` and `TASK_RESERVED_PREFIXES` now exist at runtime** (#279). The bundled `.d.ts` had declared both as values since 4.51.1 while `dist/index.js` exported neither, so `import { isValidTaskId } from "@theokit/sdk"` typechecked clean and threw at the call site.
 
-**Four `@theokit/sdk/persistence`, `@theokit/sdk/path-safety` and `@theokit/sdk/mcp-auth` symbols now arrive typed** (#280). Thirteen re-exports across those sub-entries resolved to no declaration, because the symbols carried `@internal` and `stripInternal` deleted it. They were usable and untyped — `atomicWriteText` in particular hid that it is `async`, so a caller could skip the `await` and see a write report success before the bytes landed.
+**Thirteen `@theokit/sdk/persistence`, `@theokit/sdk/path-safety` and `@theokit/sdk/mcp-auth` symbols now arrive typed** (#280). Those re-exports resolved to no declaration at all, because each symbol carried `@internal` and `stripInternal` deletes it — while the public barrel went on naming it. They imported and ran, untyped: `atomicWriteText` in particular hid that it is `async`, so a caller could skip the `await` and watch a write report success before the bytes landed.
 
 **`OTelSpan` and `TelemetryHandle` are exported** from the root entry. Types only; nothing is added to the bundle.
