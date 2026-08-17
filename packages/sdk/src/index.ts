@@ -198,6 +198,16 @@ export type {
   EvictReason,
   LiveAgentRegistry,
 } from "./internal/runtime/registry/live-agent-registry.js";
+// Telemetry contract (#295). `internal/telemetry/` was not public, so
+// @theokit/sdk-memory inlined structural mirrors of these two types with a note
+// that they "MUST be replaced with the canonical imports" once sdk exposed them.
+// The mirrors had already drifted: theirs narrowed `setAttributes` to reject
+// `undefined` values the canonical type accepts, and declared `end()` without the
+// `endTime` parameter. Two copies of a contract, diverging quietly — which is the
+// whole reason a mirror is a stopgap and not a design.
+//
+// Types only: erased at build time, so the bundle is unchanged.
+export type { OTelSpan, TelemetryHandle } from "./internal/telemetry/tracer.js";
 export { JobQueue, type JobQueueOptions } from "./job-queue.js";
 export {
   type DeclaredLayer,
