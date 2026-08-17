@@ -139,7 +139,7 @@ loop guard stops it, and compare the cost with the guard off (`doomLoop: false`)
 `Agent.resume` and prove recall. Inspect the `.jsonl` and describe its structure. →
 [state, sessions and memory](/sdk/state-sessions-memory.md)
 
-**8.2 — Claude Code interop** (30 min). Run with `baseDir: "~/.claude"` and continue the
+**8.2 — Claude Code interop** (30 min). Run with `sessionDir: "~/.claude"` and continue the
 conversation in the Claude Code CLI. Without the CLI, inspect the file and explain why the
 format permits the continuation.
 

@@ -175,7 +175,6 @@ export interface FileLockOptions {
  *
  * The lock is released even when `fn` throws.
  *
- * @internal
  */
 export async function withFileLock<T>(
   path: string,

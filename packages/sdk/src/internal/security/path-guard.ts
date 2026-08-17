@@ -29,7 +29,6 @@ import { atOrInsideRoot } from "../runtime/context/path-containment.js";
  * Thrown when a path operation would escape its allowed base directory.
  * Extends `ConfigurationError` (no new error hierarchy per ADR D65).
  *
- * @internal
  */
 export class PathTraversalError extends ConfigurationError {
   override readonly name: string = "PathTraversalError";
@@ -96,7 +95,6 @@ function isInside(target: string, base: string): boolean {
  *
  * Returns the safe absolute path. Throws `PathTraversalError` if escape.
  *
- * @internal
  */
 export function safePathJoin(base: string, ...parts: string[]): string {
   if (base === "") {
@@ -155,7 +153,6 @@ function rejectNulAndControlChars(input: string, role: string): void {
  *      existing ancestor and `realpath` THAT, then re-attach the suffix and
  *      check the result against the canonical base.
  *
- * @internal
  */
 export function assertNoSymlinkEscape(path: string, base: string): void {
   // T5.5 — reject NUL / control chars before any FS call (a NUL byte
@@ -453,7 +450,6 @@ export function sanitizeIdentifier(input: string, options?: { maxLen?: number })
  *   safeFilenameForId("550e8400-e29b-41d4-a716-446655440000") // passthrough
  *   safeFilenameForId("user@example.com")                      // "h-<16hex>"
  *
- * @internal — public via `@theokit/sdk/path-safety`
  */
 export function safeFilenameForId(id: string, options?: { maxLen?: number }): string {
   if (id.length === 0) {

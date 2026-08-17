@@ -11,7 +11,13 @@ if [ -s "$HOME/.nvm/nvm.sh" ]; then
   nvm use --silent >/dev/null 2>&1 || true
 fi
 
-echo "→ pre-commit: Biome check + typecheck"
+echo "→ pre-commit: secret scan + Biome check + typecheck"
+
+# G0 — secret scanning. First because it is the only gate whose failure cannot be
+# repaired after the fact: Biome and type errors are fixed by another commit, but a
+# credential written to the history has to be rotated at the provider. It also runs in
+# CI (.github/workflows/secret-scan.yml), which --no-verify cannot skip.
+"$(git rev-parse --show-toplevel)/.githooks/secret-scan.sh"
 
 if ! pnpm exec biome check --no-errors-on-unmatched --staged 2>&1; then
   echo ""

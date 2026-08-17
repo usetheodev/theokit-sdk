@@ -16,7 +16,7 @@ describe("LocalSandbox env scrub (#54-c, e2e)", () => {
 
   it("does not leak secret-like host env vars to the child, but keeps non-secret + PATH", async () => {
     process.env.THEOKIT_TEST_SECRET_KEY = "s3cr3t"; // *KEY* → dropped
-    process.env.THEOKIT_TEST_DATABASE_URL = "postgres://u:pw@h/db"; // connection string → dropped
+    process.env.THEOKIT_TEST_DATABASE_URL = "postgres://u:pw@h/db"; // connection string → dropped; trufflehog:ignore (fixture, not a live credential)
     process.env.THEOKIT_TEST_PLAIN = "keepme"; // non-secret → kept
 
     const sandbox = new LocalSandbox({ workDir: "/tmp" });
@@ -24,7 +24,7 @@ describe("LocalSandbox env scrub (#54-c, e2e)", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).not.toContain("s3cr3t");
-    expect(result.stdout).not.toContain("postgres://u:pw@h/db");
+    expect(result.stdout).not.toContain("postgres://u:pw@h/db"); // trufflehog:ignore — fixture, not a live credential
     expect(result.stdout).not.toContain("THEOKIT_TEST_SECRET_KEY");
     expect(result.stdout).not.toContain("THEOKIT_TEST_DATABASE_URL");
     // Non-secret var and PATH survive.
