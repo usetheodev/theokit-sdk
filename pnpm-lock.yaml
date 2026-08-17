@@ -38,9 +38,6 @@ importers:
       '@ls-lint/ls-lint':
         specifier: 2.3.1
         version: 2.3.1
-      '@types/jscodeshift':
-        specifier: ^17.3.0
-        version: 17.3.0
       '@types/node':
         specifier: ^22.10.0
         version: 22.19.19
@@ -50,9 +47,6 @@ importers:
       dependency-cruiser:
         specifier: ^16.10.0
         version: 16.10.4
-      jscodeshift:
-        specifier: ^17.3.0
-        version: 17.3.0
       jscpd:
         specifier: ^4.0.5
         version: 4.2.0
@@ -2594,9 +2588,6 @@ packages:
 
   '@types/jest@29.5.14':
     resolution: {integrity: sha512-ZN+4sdnLUbo8EVvVc2ao0GFW6oVrQRPn4K2lglySj7APvSrgzxHiNNK99us4WDMi57xxA2yggblIAMNhXOotLQ==}
-
-  '@types/jscodeshift@17.3.0':
-    resolution: {integrity: sha512-ogvGG8VQQqAQQ096uRh+d6tBHrYuZjsumHirKtvBa5qEyTMN3IQJ7apo+sw9lxaB/iKWIhbbLlF3zmAWk9XQIg==}
 
   '@types/node-fetch@2.6.13':
     resolution: {integrity: sha512-QGpRVpzSaUs30JBSGPjOg4Uveu384erbHBoT1zeONvyCfwQxIkUshLAOqN/k9EjGviPRmWTTe6aH2qySWKTVSw==}
@@ -7415,11 +7406,6 @@ snapshots:
     dependencies:
       expect: 29.7.0
       pretty-format: 29.7.0
-
-  '@types/jscodeshift@17.3.0':
-    dependencies:
-      ast-types: 0.16.1
-      recast: 0.23.11
 
   '@types/node-fetch@2.6.13':
     dependencies:

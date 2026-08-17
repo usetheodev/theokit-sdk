@@ -135,18 +135,10 @@ key + provider env credential.
 
 ## Maintenance
 
-Two scripts under `tools/` keep this inventory in sync with reality.
+Every example in `manifest.json` runs against a real LLM on each push that touches
+`examples/`, on every pull request, and nightly — see `.github/workflows/examples.yml`.
+That workflow is the inventory's source of truth: an example that breaks fails CI.
 
-```bash
-# Categorize every example by the SDK helpers it uses (manual ground truth).
-bash tools/triage-examples.sh
-#   → .claude/knowledge-base/reviews/examples-triage-<date>.md
-
-# Sweep `npx tsc --noEmit` across every example to catch regressions
-# after any change to the SDK public surface.
-bash tools/typecheck-examples.sh
-#   → .claude/knowledge-base/reviews/examples-typecheck-<date>.md
-```
-
-When you add a new example, add a `README.md` to it and append a row to the **Index** above.
+When you add a new example, add a `README.md` to it, append a row to the **Index**
+above, and register its slug in `manifest.json` so the workflow picks it up.
 

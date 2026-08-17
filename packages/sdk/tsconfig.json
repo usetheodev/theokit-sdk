@@ -5,6 +5,5 @@
     "outDir": "dist",
     "noEmit": true
   },
-  "include": ["src/**/*", "tests/**/*", "tsup.config.ts", "vitest.config.ts"],
-  "exclude": ["tests/fixtures/codemod-1x/**/*"]
+  "include": ["src/**/*", "tests/**/*", "tsup.config.ts", "vitest.config.ts"]
 }

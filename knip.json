@@ -1,34 +1,14 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignore": [
-    "scripts/**",
-    "examples/**",
-    "tools/check-node.mjs",
-    "tools/preflight-native-bindings.d.mts",
-    "tools/benchmark-memory-backends.mjs",
-    "tools/audit-memory-scale.mjs",
-    "tools/audit-safety-adversarial.mjs",
-    "tools/chaos-persistence-victim.mjs",
-    "tools/validate-generateobject-real-llm.mjs",
-    "tools/validate-streamobject-real-llm.mjs",
-    "tools/validate-streaming-telegram-real-llm.mjs",
-    "tools/validate-acp-real-llm.mjs",
-    "tools/validate-tasks-real-llm.mjs",
-    "tools/validate-budget-real-llm.mjs"
-  ],
-  "ignoreDependencies": ["@arethetypeswrong/cli", "publint", "jscodeshift", "madge"],
+  "ignore": ["examples/**", "tools/preflight-native-bindings.d.mts"],
+  "ignoreDependencies": ["@arethetypeswrong/cli", "publint", "madge"],
   "ignoreBinaries": ["turbo"],
   "tags": ["-knipignore"],
   "workspaces": {
     "packages/sdk": {
       "entry": ["src/agent.ts", "tests/**/*.test.ts", "tests/helpers/**/*.ts", "bin/*.mjs"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignore": [
-        "src/internal/**",
-        "src/**/internal/**",
-        "tests/fixtures/codemod-1x/**",
-        "src/stream-object.ts"
-      ],
+      "ignore": ["src/internal/**", "src/**/internal/**", "src/stream-object.ts"],
       "ignoreDependencies": ["jsonrepair"]
     },
     "packages/cli": {
