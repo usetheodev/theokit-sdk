@@ -7,6 +7,7 @@
 //
 // Usage: theokit-migrate-config [--cwd <path>] [--apply] [--no-backup] [--help]
 
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -53,10 +54,18 @@ manual edits). Atomic write per file (crash mid-write is safe).
   );
 }
 
-/** Atomic write: tmpfile + rename. Mirrors atomicWriteText in the SDK. */
+/**
+ * Atomic write: tmpfile + rename. Mirrors atomicWriteText in the SDK.
+ *
+ * The suffix comes from `randomBytes`, matching `atomicWriteTempPath` in
+ * src/internal/persistence/atomic-write.ts — `<file>.<pid>.<16 hex>.tmp`. It used
+ * `Math.random()`, which this comment already claimed it did not: a temp name in a
+ * directory an attacker can also write to is guessable, and the window between
+ * choosing the name and `rename` is where a symlink gets planted.
+ */
 async function atomicWriteText(filePath, content) {
   await mkdir(join(filePath, ".."), { recursive: true });
-  const tmp = `${filePath}.${process.pid}.${Math.random().toString(36).slice(2, 10)}.tmp`;
+  const tmp = `${filePath}.${process.pid}.${randomBytes(8).toString("hex")}.tmp`;
   await writeFile(tmp, content, "utf8");
   await rename(tmp, filePath);
 }

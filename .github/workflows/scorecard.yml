@@ -21,7 +21,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions: read-all
+# The Scorecard docs show `read-all` here. Named explicitly instead: the job below
+# grants itself exactly what it needs, so a blanket read at the top only widens the
+# default for anything added later without anyone re-reading this line.
+permissions:
+  contents: read
 
 concurrency:
   group: scorecard-${{ github.ref }}
