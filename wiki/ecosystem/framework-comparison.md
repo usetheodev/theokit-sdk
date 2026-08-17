@@ -77,7 +77,7 @@ Four items, all verifiable in the repository — not slogans:
 
 1. **The local harness is Apache-2.0.** Many SDKs are open; fewer agent *runtimes* are.
    Abandonment cost ≈ zero: you fork and continue with your own keys.
-2. **Open, interoperable session format.** Point `baseDir` at `~/.claude` and the Claude Code
+2. **Open, interoperable session format.** Point `local.sessionDir` at `~/.claude` and the Claude Code
    CLI can `--continue` a session **your** agent wrote. State is not hostage. See
    [state, sessions and memory](/sdk/state-sessions-memory.md).
 3. **Parts, not an assembled application.** Roughly 30 sub-entries (`/compaction`,
