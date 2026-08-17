@@ -23,7 +23,7 @@
     "quality:cycles": "node tools/check-cycles.mjs",
     "quality:depcruise": "depcruise --config .dependency-cruiser.cjs packages/sdk/src",
     "quality:loc": "node tools/check-loc.mjs",
-    "quality:duplication": "jscpd packages/sdk/src",
+    "quality:duplication": "node tools/check-duplication.mjs",
     "quality:coverage": "pnpm --filter=@theokit/sdk exec vitest run --coverage",
     "quality:audit": "pnpm audit --prod --audit-level=low && pnpm audit --audit-level=high",
     "quality:cross-cluster": "node tools/check-cross-cluster.mjs",
