@@ -182,6 +182,74 @@ describe("every publishable package conveys its licence", () => {
   });
 });
 
+/**
+ * The rest of the published-metadata contract, over the same derived list.
+ *
+ * Each field earns its place by what its absence costs a consumer, not by tidiness:
+ *
+ * - `homepage` / `bugs` — the npm page renders them; without them a consumer who hits a
+ *   defect has no route back to the project and files it nowhere, or in the wrong repo.
+ * - `engines` — npm warns on an unsupported runtime only if the range is declared.
+ *   `@theokit/sdk-pty` declared none, so a Node 18 install failed later, somewhere else.
+ * - `sideEffects` — a bundler keeps every module of a package that does not declare it.
+ *   Asserted here only because each entry was checked: a clean scan of every built ESM
+ *   entry found zero top-level statements, the residual hits being closing tokens of
+ *   declarations. A false `false` makes a bundler drop code the consumer needs, so this
+ *   is the one field that must never be added to satisfy a gate.
+ * - `publishConfig.access` — a scoped package defaults to `restricted`. Three declared
+ *   none and reached npm public only because the release flow supplied the flag; the
+ *   manifest now says it rather than depending on how it is invoked.
+ * - `CHANGELOG.md` in `files` — the tarball is where a consumer reads what changed.
+ */
+describe("every publishable package carries its published metadata", () => {
+  const packages = publishablePackages();
+
+  it("test_the_sweep_is_not_vacuous", () => {
+    expect(packages.length, "no publishable package was discovered").toBeGreaterThan(0);
+  });
+
+  it.each(packages)("@theokit/%s declares the full contract", (pkg) => {
+    const manifest = readPackageJson(pkg) as PackageJson & {
+      homepage?: string;
+      bugs?: string;
+      engines?: Record<string, string>;
+      publishConfig?: { access?: string };
+    };
+
+    expect(manifest.homepage, `${pkg}: no homepage — the npm page has no route back`).toBeTruthy();
+    expect(manifest.bugs, `${pkg}: no bugs URL — a consumer files a defect nowhere`).toBeTruthy();
+    expect(
+      manifest.engines?.node,
+      `${pkg}: no engines.node — npm cannot warn on an unsupported runtime, so the failure lands later and elsewhere`,
+    ).toBeTruthy();
+    // `false` (nothing has effects) and a path array (these files do, nothing else) are
+    // both valid and both actionable by a bundler. What is not actionable is silence.
+    // @theokit/sdk uses the array form because its agent entry registers on import; a
+    // blanket `false` there would be the wrong claim, not a stricter one.
+    const sideEffects = manifest.sideEffects;
+    const declared =
+      sideEffects === false || (Array.isArray(sideEffects) && sideEffects.length > 0);
+    expect(
+      declared,
+      `${pkg}: sideEffects is ${JSON.stringify(sideEffects)} — declare \`false\`, or the paths that DO have effects. Verify the built entry before claiming false: a wrong \`false\` makes a bundler drop code the consumer needs`,
+    ).toBe(true);
+    expect(
+      manifest.publishConfig?.access,
+      `${pkg}: no publishConfig.access — a scoped package defaults to restricted`,
+    ).toBe("public");
+
+    if (
+      (manifest.files ?? []).length > 0 &&
+      existsSync(join(repoRoot, "packages", pkg, "CHANGELOG.md"))
+    ) {
+      expect(
+        manifest.files,
+        `${pkg}: a CHANGELOG exists and \`files\` omits it, so the tarball ships no record of what changed`,
+      ).toContain("CHANGELOG.md");
+    }
+  });
+});
+
 // Vitest globals — beforeAll lives at top-level when using auto-globals,
 // but we import explicitly to keep the file lint-clean.
 import { beforeAll } from "vitest";
