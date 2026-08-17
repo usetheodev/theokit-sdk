@@ -35,7 +35,6 @@ const warnedLabels = new Set<string>();
  * @param db   any `pragma()`-capable SQLite handle (e.g., `better-sqlite3`)
  * @param label short identifier used in the warning (e.g., "memory-index")
  *
- * @internal
  */
 export function applyWalWithFallback(db: PragmaCapable, label: string): WalApplyResult {
   try {

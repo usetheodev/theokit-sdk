@@ -367,6 +367,13 @@ export {
 // session needs to name these types; without them the method's return would only be reachable
 // through an inline `import(...)` in the emitted .d.ts.
 export type { SessionMessage, SessionMessagePart } from "./types/session-message.js";
+// The bundled root `.d.ts` has always declared these two as VALUES, because the
+// DTS rollup hoists them out of `types/task.ts` along with the task types. The
+// runtime bundle emitted neither, so `import { isValidTaskId } from "@theokit/sdk"`
+// typechecked and was `undefined` at the call site (#279). Exported here so the
+// implementation keeps the promise the types were already making — validating a
+// task id before submitting one is a reasonable thing for a consumer to want.
+export { isValidTaskId, TASK_RESERVED_PREFIXES } from "./types/task.js";
 export {
   recordWiring,
   UngatedCapabilityError,
