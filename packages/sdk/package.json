@@ -364,7 +364,7 @@
     "test:watch": "vitest",
     "eval": "vitest run --no-file-parallelism tests/eval/suites",
     "test:contract": "vitest run --no-file-parallelism tests/theokit-consumer-contract.test.ts",
-    "prepublishOnly": "pnpm build && pnpm test:contract && node ../../scripts/check-publish-no-workspace.mjs .",
+    "prepublishOnly": "pnpm build && pnpm test:contract && node ../../tools/check-publish-no-workspace.mjs .",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "docs:json": "typedoc --options typedoc.json"

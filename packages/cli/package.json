@@ -1,7 +1,7 @@
 {
   "name": "@theokit/cli",
   "version": "3.0.2",
-  "description": "Developer CLI for @theokit/sdk \u2014 init, dev, inspect, eval. Adoption Roadmap #1.",
+  "description": "Developer CLI for @theokit/sdk — init, dev, inspect, eval. Adoption Roadmap #1.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheodev/theokit-sdk#readme",
   "bugs": "https://github.com/usetheodev/theokit-sdk/issues",
@@ -41,7 +41,7 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
+    "prepublishOnly": "node ../../tools/check-publish-no-workspace.mjs ."
   },
   "publishConfig": {
     "access": "public"

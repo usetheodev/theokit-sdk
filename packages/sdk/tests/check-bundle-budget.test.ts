@@ -1,5 +1,5 @@
 /**
- * Tests for scripts/check-bundle-budget.mjs (SDK 2.0 Phase 10 / T10.1).
+ * Tests for tools/check-bundle-budget.mjs (SDK 2.0 Phase 10 / T10.1).
  *
  * Verifies:
  *   - PASS when all packages within budget
@@ -23,7 +23,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..", "..");
-const script = resolve(repoRoot, "scripts", "check-bundle-budget.mjs");
+const script = resolve(repoRoot, "tools", "check-bundle-budget.mjs");
 
 function run(
   args: ReadonlyArray<string>,
@@ -76,10 +76,10 @@ describe("check-bundle-budget — SDK 2.0 Phase 10 / T10.1", () => {
     beforeAll(() => {
       fixtureRoot = mkdtempSync(join(tmpdir(), "bundle-budget-test-"));
       mkdirSync(join(fixtureRoot, "packages"));
-      mkdirSync(join(fixtureRoot, "scripts"));
+      mkdirSync(join(fixtureRoot, "tools"));
       // Copy script to fixture (so it computes packages dir relative to its own location)
       // Easier: just place a copy alongside a packages/ folder.
-      fixtureScript = join(fixtureRoot, "scripts", "check-bundle-budget.mjs");
+      fixtureScript = join(fixtureRoot, "tools", "check-bundle-budget.mjs");
       const scriptSrc = require("node:fs").readFileSync(script, "utf-8");
       writeFileSync(fixtureScript, scriptSrc);
     });

@@ -1,7 +1,7 @@
 {
   "name": "@theokit/sdk-pty",
   "version": "0.3.3",
-  "description": "Local interactive-shell backend for @theokit/sdk \u2014 a node-pty implementation of InteractiveBackend. Opt-in, terminal-surface only; node-pty is optional so install never fails on a native build.",
+  "description": "Local interactive-shell backend for @theokit/sdk — a node-pty implementation of InteractiveBackend. Opt-in, terminal-surface only; node-pty is optional so install never fails on a native build.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheodev/theokit-sdk#readme",
   "bugs": "https://github.com/usetheodev/theokit-sdk/issues",
@@ -41,7 +41,7 @@
     "build": "tsup",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
+    "prepublishOnly": "node ../../tools/check-publish-no-workspace.mjs ."
   },
   "publishConfig": {
     "access": "public"

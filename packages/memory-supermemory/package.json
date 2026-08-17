@@ -1,7 +1,7 @@
 {
   "name": "@theokit/memory-supermemory",
   "version": "3.0.2",
-  "description": "Supermemory memory adapter for @theokit/sdk \u2014 wraps supermemory@^4 with the MemoryAdapter contract (ADR D141).",
+  "description": "Supermemory memory adapter for @theokit/sdk — wraps supermemory@^4 with the MemoryAdapter contract (ADR D141).",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheodev/theokit-sdk#readme",
   "bugs": "https://github.com/usetheodev/theokit-sdk/issues",
@@ -40,7 +40,7 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
+    "prepublishOnly": "node ../../tools/check-publish-no-workspace.mjs ."
   },
   "publishConfig": {
     "access": "public"

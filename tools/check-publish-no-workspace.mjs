@@ -34,7 +34,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,7 +61,7 @@ function workspaceRanges(manifest) {
 /**
  * The package manager running this publish, per npm's own env var.
  *
- * Absent when the script is invoked directly (a test, or `node scripts/...`), which is why the
+ * Absent when the script is invoked directly (a test, or `node tools/...`), which is why the
  * caller decides what an unknown agent means rather than this function guessing.
  */
 function publishingAgent() {
@@ -90,14 +90,16 @@ function packedManifest(packageDir) {
   const dest = mkdtempSync(join(tmpdir(), "wsguard-"));
   try {
     // Reviewed above: pnpm is the tool under test and cannot be pinned even in principle.
-    execFileSync("pnpm", ["pack", "--pack-destination", dest], { // NOSONAR
+    execFileSync("pnpm", ["pack", "--pack-destination", dest], {
+      // NOSONAR
       cwd: packageDir,
       stdio: ["ignore", "ignore", "pipe"],
     });
     const tarball = readdirSync(dest).find((f) => f.endsWith(".tgz"));
     if (!tarball) throw new Error(`pnpm pack produced no tarball in ${dest}`);
     // Same review; `tar` reads a tarball this process just created in a temp dir it owns.
-    const raw = execFileSync("tar", ["-xzOf", join(dest, tarball), "package/package.json"], { // NOSONAR
+    const raw = execFileSync("tar", ["-xzOf", join(dest, tarball), "package/package.json"], {
+      // NOSONAR
       encoding: "utf8",
     });
     return JSON.parse(raw);
@@ -173,7 +175,7 @@ function main() {
     for (const p of problems) console.error(`  ${p}\n`);
     console.error(
       `A published version cannot be fixed, only deprecated — which is why this runs before\n` +
-        `the publish and not after. See scripts/check-publish-no-workspace.mjs.\n`,
+        `the publish and not after. See tools/check-publish-no-workspace.mjs.\n`,
     );
     process.exit(1);
   }

@@ -164,4 +164,4 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          node scripts/check-no-reconsumed-changesets.mjs "origin/${BASE_REF}" "${HEAD_SHA}"
+          node tools/check-no-reconsumed-changesets.mjs "origin/${BASE_REF}" "${HEAD_SHA}"

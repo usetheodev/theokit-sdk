@@ -30,15 +30,15 @@
     "quality:dts-exports": "node tools/check-dts-exports.mjs",
     "quality": "pnpm run quality:dead && pnpm run quality:dead-internal && pnpm run quality:cycles && pnpm run quality:depcruise && pnpm run quality:cross-cluster && pnpm run quality:loc && pnpm run quality:duplication && pnpm run quality:dts-exports && pnpm run quality:audit",
     "quality:report": "pnpm run quality && pnpm run quality:coverage && pnpm run quality:audit",
-    "check:bundle": "node scripts/check-bundle-budget.mjs",
+    "check:bundle": "node tools/check-bundle-budget.mjs",
     "validate": "pnpm run check && npx turbo run build typecheck test --filter='./packages/*' && pnpm run validate:naming && pnpm run validate:publint && pnpm run validate:attw && pnpm run quality && pnpm run check:bundle",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "start": "pnpm run build",
-    "release": "pnpm run build && node scripts/check-publish-no-workspace.mjs && changeset publish",
+    "release": "pnpm run build && node tools/check-publish-no-workspace.mjs && changeset publish",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "quality:dead-internal": "node tools/check-internal-deadcode.mjs",
-    "verify:refs": "node scripts/verify-release-refs.mjs"
+    "verify:refs": "node tools/verify-release-refs.mjs"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
