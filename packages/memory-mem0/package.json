@@ -1,9 +1,17 @@
 {
   "name": "@theokit/memory-mem0",
   "version": "3.0.2",
-  "description": "Mem0 cloud memory adapter for @theokit/sdk — wraps mem0ai MemoryClient with the MemoryAdapter contract (ADR D141).",
+  "description": "Mem0 cloud memory adapter for @theokit/sdk \u2014 wraps mem0ai MemoryClient with the MemoryAdapter contract (ADR D141).",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/usetheodev/theokit-sdk#readme",
+  "bugs": "https://github.com/usetheodev/theokit-sdk/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usetheodev/theokit-sdk.git",
+    "directory": "packages/memory-mem0"
+  },
   "type": "module",
+  "sideEffects": false,
   "engines": {
     "node": ">=22.12.0"
   },
@@ -34,6 +42,9 @@
     "test": "vitest run",
     "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "@theokit/sdk": "workspace:^",
     "mem0ai": "^3.0.0"
@@ -44,10 +55,5 @@
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
     "vitest": "^4.1.8"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/usetheodev/theokit-sdk.git",
-    "directory": "packages/memory-mem0"
   }
 }

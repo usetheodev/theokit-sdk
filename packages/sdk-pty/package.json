@@ -3,7 +3,18 @@
   "version": "0.3.3",
   "description": "Local interactive-shell backend for @theokit/sdk \u2014 a node-pty implementation of InteractiveBackend. Opt-in, terminal-surface only; node-pty is optional so install never fails on a native build.",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/usetheodev/theokit-sdk#readme",
+  "bugs": "https://github.com/usetheodev/theokit-sdk/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usetheodev/theokit-sdk.git",
+    "directory": "packages/sdk-pty"
+  },
   "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,17 +31,23 @@
     },
     "./package.json": "./package.json"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "@theokit/sdk": ">=4.4.1"
-  },
-  "optionalDependencies": {
-    "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "@theokit/sdk": "workspace:*",
@@ -38,17 +55,7 @@
     "typescript": "^5.7.2",
     "vitest": "^4.1.8"
   },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "publishConfig": {
-    "access": "public"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/usetheodev/theokit-sdk.git",
-    "directory": "packages/sdk-pty"
+  "optionalDependencies": {
+    "node-pty": "^1.1.0"
   }
 }
