@@ -1,5 +1,45 @@
 # Changelog
 
+## 4.53.0
+
+### Minor Changes
+
+- 5cc5a81: Adds the `@theokit/sdk/mcp-auth` subpath: the OAuth PKCE flow for remote MCP servers
+  (`runPkceFlow`, `refreshAccessToken`) plus the token storage the two of them need
+  (`getTokens`, `setTokens`, `lockedRefresh`).
+
+  The implementation already existed and was tested; nothing exported it. A consumer
+  connecting to an MCP server that requires OAuth had to write RFC 7636 PKCE by hand — not
+  because the package lacked the code, but because there was no way in.
+
+  `lockedRefresh` ships alongside deliberately: two callers noticing an expired token at the
+  same moment will both refresh, and under a rotating refresh token the second one loses.
+
+- 5112ac3: Two fixes on the transcript persistence path.
+
+  `readJsonlTail`'s `sinceMarker` matched the marker as a substring of the raw line, so a
+  transcript entry whose own text contained the marker word truncated the read there. The
+  caller asks for everything after the last compaction and silently got less. The marker is
+  now matched as a record FIELD (`subtype`, then `type`), which is what it always meant.
+
+  `appendJsonl` created the transcript directory with the umask, so under `umask 002` it was
+  born `0775` — group-writable — while the file inside it was carefully pinned to `0600`. A
+  private file in a directory others can write can be replaced wholesale. The directory is now
+  created `0700`, matching the file, and matching what `assertSecureModes` demands of the
+  shared `~/.theokit` tree.
+
+### Patch Changes
+
+- cbb70c5: Security: the MCP OAuth token store now locks down its directory, and the shared permission gate stops refusing every store on Windows.
+
+  `setTokens` wrote through `atomicWriteJson`, whose parent-directory `mkdir` carries no mode, so `~/.theokit` was born 0775 under the common umask 002. The `chmod 600` on `mcp-tokens.json` then protects the wrong thing: write permission on a DIRECTORY is permission to unlink and recreate its contents, so another local user could replace the file wholesale — and the secret is a refresh token, so replacing it changes which account the agent authenticates as. The read path had no permission check at all, so the swap would be picked up silently.
+
+  The directory is created 0700 and `chmod`-ed unconditionally, because `mkdir`'s mode applies only at creation and the machines that need this fix already have the loose directory. Reads go through `assertSecureModes` — the same gate the credential file uses, deliberately the same implementation rather than a second dialect of the same rule.
+
+  Separately, `assertSecureModes` was unconditional and Windows has no POSIX mode bits: `statSync().mode` is synthetic there, so the gate refused every valid store and the credential path was unreadable on that platform. It now returns early on `win32`.
+
+  Behaviour change worth knowing: `getTokens` now THROWS `CredentialError` on a group- or world-writable store directory where it previously returned the tokens. That is intentional — returning them would hand back what may be an attacker's refresh token as if it were the user's — but a consumer catching nothing around `getTokens` will see the error surface. The fix on the operator side is `chmod 700 ~/.theokit`.
+
 ## 4.52.1
 
 ### Patch Changes
