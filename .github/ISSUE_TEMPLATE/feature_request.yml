@@ -64,6 +64,6 @@ body:
         - label: I searched existing issues, including closed ones, for this idea.
           required: true
         - label: >
-            I checked the [Harness Capability Map](https://github.com/usetheodev/theokit-sdk/blob/main/wiki/reference/harness-capability-map.md)
+            I checked the exported TypeScript types
             and this is not already exported under a name I missed.
           required: true

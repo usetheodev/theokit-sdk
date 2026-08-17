@@ -344,7 +344,6 @@
     "dist",
     "bin",
     "claude-template",
-    "docs",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -360,7 +359,7 @@
     "**/agent.cjs"
   ],
   "scripts": {
-    "build": "tsup && cp src/internal/providers/provider-catalog.json dist/provider-catalog.json && node scripts/copy-docs.mjs",
+    "build": "tsup && cp src/internal/providers/provider-catalog.json dist/provider-catalog.json",
     "test": "vitest run --no-file-parallelism",
     "test:watch": "vitest",
     "eval": "vitest run --no-file-parallelism tests/eval/suites",

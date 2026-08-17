@@ -1,6 +1,6 @@
 # Contributing to `@theokit/sdk`
 
-Thanks for helping build the Theo **Harness**. The essentials are inline below; the exported TypeScript types are the canonical API contract (start from the [Harness Capability Map](./wiki/reference/harness-capability-map.md)). The code is the documentation.
+Thanks for helping build the Theo **Harness**. The essentials are inline below; the exported TypeScript types are the canonical API contract. The code is the documentation.
 
 By taking part you agree to the [Code of Conduct](./CODE_OF_CONDUCT.md). Security problems do **not** go in an issue — see [SECURITY.md](./SECURITY.md).
 
@@ -40,7 +40,7 @@ The flow is `workspace → develop → main`.
 
 - [ ] `pnpm validate` is green locally (or the specific package's `build` + `typecheck` + `test`).
 - [ ] **TDD** — the failing test came first; a bug fix ships with its regression test.
-- [ ] **Public API changed?** Update the exported types **and** [`wiki/reference/harness-capability-map.md`](./wiki/reference/harness-capability-map.md) in the same PR. The `quality:capability-map` gate verifies every import documented there still resolves.
+- [ ] **Public API changed?** Update the exported types in the same PR — they are the contract.
 - [ ] A **changeset** (`pnpm changeset`) if the change is user-visible. Changelogs are generated per package by Changesets under `packages/*/CHANGELOG.md`; there is no root changelog to edit.
 - [ ] Lint + format clean (`pnpm check` — Biome).
 

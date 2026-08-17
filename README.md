@@ -114,7 +114,7 @@ The `proper-lockfile` row is the one that fails quietly: the SDK degrades and ke
 
 ## AI coding assistant setup (optional)
 
-Scaffold a TheoKit-aware config so your AI coding tool writes correct SDK code out of the box. Works with Claude Code, Cursor, Copilot, Windsurf, Codex, and any tool that reads `AGENTS.md`.
+Scaffold a TheoKit-aware config so your AI coding tool writes correct SDK code out of the box. Works with any tool that reads `AGENTS.md`.
 
 ```bash
 npx theokit-init-claude          # add --force to overwrite an existing setup
@@ -404,7 +404,7 @@ Result data (final text, model, duration, git metadata) lives on the `Run` objec
 
 > **Tool call schema is not stable.** The `args` and `result` payloads on `tool_call` events reflect each tool's internal shape and can change as tools evolve. Tool names can also be renamed or replaced. Treat `args` and `result` as `unknown` and parse defensively. The event envelope (`type`, `call_id`, `name`, `status`) is stable.
 
-For the full type reference (`SDKMessage`, `InteractionUpdate`, `ConversationTurn`), read the exported types — they are the canonical contract — or the [capability map](./wiki/reference/harness-capability-map.md).
+For the full type reference (`SDKMessage`, `InteractionUpdate`, `ConversationTurn`), read the exported types — they are the canonical contract.
 
 ## Resuming agents
 
@@ -745,12 +745,10 @@ The SDK is a standalone TypeScript implementation with no runtime dependency on 
 
 The code is the documentation: the exported TypeScript types are the canonical contract, and your editor's autocomplete is the fastest reference. Start with:
 
-- [`wiki/sdk/`](./wiki/index.md) — the SDK in practice, surface by surface, with runnable snippets
-- [Capability map](./wiki/reference/harness-capability-map.md) — every public primitive + its import path
-- [Error codes](./wiki/reference/error-codes.md) — the `AgentRunError.code` reference table
-- [`wiki/`](./wiki/index.md) — the knowledge bundle: agent fundamentals, the SDK in practice, operations, and a 12-module Agent AI course
+- The exported TypeScript types — every public primitive, its import path and its contract
+- The JSDoc on each export — signatures and examples, surfaced by your editor
 
-Both reference docs **ship inside the package**: read them offline, pinned to the exact version you installed, at `node_modules/@theokit/sdk/docs/`. The scaffolded agent context (`npx theokit-init-claude`) ships there too, under `claude-template/`.
+The scaffolded agent context (`npx theokit-init-claude`) ships inside the package, under `claude-template/`.
 
 **Building an agent that reads documentation?** The docs site publishes machine-readable corpora following the [llmstxt.org](https://llmstxt.org) convention — [`llms.txt`](https://docs.usetheo.dev/llms.txt) (curated index) and [`llms-full.txt`](https://docs.usetheo.dev/llms-full.txt) (every page inlined, code samples verbatim). Point your agent at those instead of crawling the site.
 

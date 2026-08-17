@@ -24,11 +24,11 @@
 
 > **Public beta.** APIs may change before general availability.
 
-For the full reference, see the [root README](https://github.com/usetheodev/theokit-sdk#readme) and the [**Harness Capability Map**](https://github.com/usetheodev/theokit-sdk/blob/main/wiki/reference/harness-capability-map.md). The exported TypeScript types are the canonical contract.
+For the full reference, see the [root README](https://github.com/usetheodev/theokit-sdk#readme). The exported TypeScript types are the canonical contract.
 
 ## Capability map
 
-New here? The [**Theo Harness Capability Map**](https://github.com/usetheodev/theokit-sdk/blob/main/wiki/reference/harness-capability-map.md) is the discovery front-door — every harness primitive with its import path, signature, and a one-line example (find `compactTranscript`, `buildRepoMap`, `isTransientError`, `@theokit/sdk/persistence`, ... without reading source). The exported TypeScript types are the canonical contract.
+New here? The exported TypeScript types are the discovery front-door and the canonical contract — every harness primitive with its import path, signature and JSDoc example (`compactTranscript`, `buildRepoMap`, `isTransientError`, `@theokit/sdk/persistence`, ...), surfaced by your editor.
 
 It also **ships inside this package** — no network needed, and pinned to the version you installed:
 
