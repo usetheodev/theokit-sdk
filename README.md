@@ -41,7 +41,7 @@ Local-first. Opt-in cloud. Zero walk-away cost.
 
 - **Apache-2.0 local runtime** — run agents end-to-end, no vendor in the loop.
 - **43 built-in LLM providers** — Anthropic, OpenAI, Google, and 40 more, on your own keys.
-- **Native Claude Code `.jsonl`** — point `baseDir` at `~/.claude` and `--continue` a session your agent wrote, right in the Claude Code CLI.
+- **Native Claude Code `.jsonl`** — point `local.sessionDir` at `~/.claude` and `--continue` a session your agent wrote, right in the Claude Code CLI.
 - **Opt-in cloud, walk-away cost zero** — fork the local runtime and keep running.
 
 Most agent SDKs ship open; most agent *runtimes* don't. This one does — end to end.
@@ -65,7 +65,7 @@ The SDK shape — `Agent` / `Run` / streaming events — is converging across th
 | SDK source | Apache-2.0, this repo | Often OSS — table stakes |
 | Local agent harness | **Apache-2.0** — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
 | LLM provider | Multi-provider — Anthropic, OpenAI, Google, and more, through your own keys | Usually single-vendor |
-| Session format | **Native Claude Code `.jsonl`** — point `baseDir` at `~/.claude` and the Claude Code CLI can `--continue` a session your agent wrote | Proprietary session store you can't open anywhere else |
+| Session format | **Native Claude Code `.jsonl`** — point `local.sessionDir` at `~/.claude` and the Claude Code CLI can `--continue` a session your agent wrote | Proprietary session store you can't open anywhere else |
 | Cloud runtime | Opt-in Theo PaaS or self-host the pool | Vendor cloud only |
 | Walk-away cost | Zero — fork the local runtime, keep running with your own provider keys | High — runtime is the vendor's |
 
@@ -421,7 +421,7 @@ await run.wait();
 
 `agent.model` is `undefined` on resume unless you pass `model` again. Inline `mcpServers` are not persisted across resume — they often carry secrets and live in memory only. Pass them again on resume, or commit them to `.theokit/mcp.json`.
 
-The conversation is persisted as a native Claude Code `.jsonl` transcript at `<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl` — resume reconstructs it from disk. `baseDir` defaults to `~/.theokit`; set `local.baseDir: "~/.claude"` and the Claude Code CLI can `--continue` the exact session your agent wrote (the SDK emits the format Claude Code reads). Extended-thinking `--continue` is out of scope for now — thinking signatures are written but dropped on read (see issue #122).
+The conversation is persisted as a native Claude Code `.jsonl` transcript at `<sessionDir>/projects/<encoded-cwd>/<agentId>.jsonl` — resume reconstructs it from disk. `local.sessionDir` defaults to `~/.theokit`; set `local.sessionDir: "~/.claude"` and the Claude Code CLI can `--continue` the exact session your agent wrote (the SDK emits the format Claude Code reads). Extended-thinking `--continue` is out of scope for now — thinking signatures are written but dropped on read (see issue #122).
 
 ## Inspecting agents and runs
 

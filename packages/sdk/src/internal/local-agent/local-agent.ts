@@ -17,7 +17,7 @@ import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
 import { generateLocalAgentId } from "../ids.js";
 import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import { FsSessionStore } from "../persistence/fs-session-store.js";
-import { defaultBaseDir, expandTilde } from "../persistence/session-transcript.js";
+import { resolveSessionDir } from "../persistence/session-dir.js";
 import type { PersonalityRegistry } from "../personality/registry.js";
 import { PersonalityStore } from "../personality/store.js";
 import type { PersonalityPreset } from "../personality/types.js";
@@ -94,8 +94,9 @@ export class LocalAgent implements SDKAgent {
   readonly options: AgentOptions;
   readonly workspaceCwd: string;
   /**
-   * SE40 — base dir for the native Claude-shaped session transcript. Default
-   * `~/.theokit`; set `local.baseDir: "~/.claude"` for Claude Code CLI interop.
+   * Directory for the native Claude-shaped session transcript. Default
+   * `~/.theokit`; set `local.sessionDir: "~/.claude"` for Claude Code CLI interop.
+   * (`local.baseDir` is the deprecated name for the same option — #301.)
    */
   private readonly transcriptBaseDir: string;
   /**
@@ -146,7 +147,7 @@ export class LocalAgent implements SDKAgent {
     this.model = normalizeModel(options.model);
     this.options = options;
     this.workspaceCwd = resolveCwd(options.local?.cwd);
-    this.transcriptBaseDir = resolveBaseDir(options.local?.baseDir);
+    this.transcriptBaseDir = resolveSessionDir(options.local);
     // SE41 — external store if injected, else the FS default (byte-identical to SE40).
     this.sessionStore =
       options.local?.sessionStore ??
@@ -540,11 +541,6 @@ export class LocalAgent implements SDKAgent {
 
 function resolveCwd(cwd: string | string[] | undefined): string {
   return (Array.isArray(cwd) ? cwd[0] : cwd) ?? process.cwd();
-}
-
-/** SE40 — the transcript base dir (`local.baseDir` or `~/.theokit` default), with `~` expanded. */
-function resolveBaseDir(baseDir: string | undefined): string {
-  return baseDir === undefined ? defaultBaseDir() : expandTilde(baseDir);
 }
 
 function includesSetting(options: AgentOptions, source: string): boolean {
