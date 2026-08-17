@@ -81,10 +81,10 @@ describe("resolveChildEnv env policy (#54)", () => {
         BASE_URL: "https://api.example.com", // non-secret — kept
         API_URL: "https://api.example.com", // non-secret — kept
         PGHOST: "db.internal", // non-secret DB host — kept
-        DATABASE_URL: "postgres://u:pw@h/db", // embeds a password — dropped
+        DATABASE_URL: "postgres://u:pw@h/db", // embeds a password → dropped; trufflehog:ignore (fixture, not a live credential)
         REDIS_URL: "redis://u:pw@h:6379", // dropped
         MONGODB_URI: "mongodb://u:pw@h/db", // dropped
-        DB_URL: "postgres://u:pw@h/db", // dropped
+        DB_URL: "postgres://u:pw@h/db", // dropped; trufflehog:ignore (fixture, not a live credential)
         SENTRY_DSN: "https://key@sentry.io/1", // dropped
         SLACK_WEBHOOK_URL: "https://hooks.slack.com/xxx", // dropped
         SESSION_COOKIE: "sid=abc", // dropped
