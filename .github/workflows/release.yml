@@ -106,6 +106,31 @@ jobs:
       - name: Full quality gate (nothing publishes untested)
         run: pnpm validate
 
+      # `changesets/action` COMMITS inside this job — the "Version Packages" bump —
+      # which fires the repository's pre-commit hook, and that hook's secret gate is
+      # fail-closed: no `trufflehog` on PATH means it aborts rather than waving the
+      # commit through. Measured on run 32038684001, where the release died here with
+      # "Secret scanning gate cannot run: `trufflehog` is not on PATH" after the whole
+      # quality gate had already passed.
+      #
+      # Installing the binary rather than teaching the hook to skip in CI: a gate that
+      # disables itself where it is inconvenient is how a gate stops being one, and the
+      # release job is the last place to start making exceptions.
+      #
+      # Pinned to the same version .github/workflows/secret-scan.yml runs, so the local
+      # hook and the push-side workflow cannot drift into disagreeing about a finding.
+      - name: Install TruffleHog (the pre-commit hook's secret gate needs it on PATH)
+        env:
+          TRUFFLEHOG_VERSION: v3.97.0
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -sSfL "https://github.com/trufflesecurity/trufflehog/releases/download/${TRUFFLEHOG_VERSION}/trufflehog_${TRUFFLEHOG_VERSION#v}_linux_amd64.tar.gz" \
+            | tar xz -C /tmp trufflehog
+          install -m 0755 /tmp/trufflehog "$HOME/.local/bin/trufflehog"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/trufflehog" --version
+
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
