@@ -71,7 +71,6 @@ interface OTelTracer {
  * start spans, add events, etc. When telemetry is disabled OR OTel is not
  * installed, every method is a safe no-op.
  *
- * @internal
  */
 export interface TelemetryHandle {
   readonly enabled: boolean;
