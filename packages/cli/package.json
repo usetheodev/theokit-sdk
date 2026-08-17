@@ -39,7 +39,7 @@
     "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
   },
   "dependencies": {
-    "@clack/prompts": "^0.7.0",
+    "@clack/prompts": "^1.7.0",
     "@theokit/sdk": "workspace:^",
     "commander": "^12.1.0",
     "picocolors": "^1.0.0",
