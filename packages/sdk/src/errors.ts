@@ -1,3 +1,4 @@
+import { readEnv } from "./internal/env.js";
 import { defaultRetriableForCode } from "./internal/runtime/retry/default-retriable.js";
 import { redactSecrets } from "./internal/security/redact.js";
 import type { RunOperation } from "./types/run.js";
@@ -402,7 +403,7 @@ function addOptionalFields(json: Record<string, unknown>, err: AgentRunError): v
 function sanitizeMetadata(meta: ErrorMetadata | undefined): ErrorMetadata | undefined {
   if (meta === undefined) return undefined;
   const { raw, ...rest } = meta;
-  const debugRaw = process.env.THEOKIT_DEBUG_RAW_ERRORS === "1";
+  const debugRaw = readEnv("THEOKIT_DEBUG_RAW_ERRORS") === "1";
   if (debugRaw && raw !== undefined) {
     const redactedRaw =
       typeof raw === "string" ? redactSecrets(raw) : redactSecrets(safeStringify(raw));
