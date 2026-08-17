@@ -9,8 +9,8 @@ Local-first. Opt-in cloud. Zero walk-away cost.
 
 [![npm version](https://img.shields.io/npm/v/@theokit/sdk?style=flat-square&color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/@theokit/sdk)
 [![npm downloads](https://img.shields.io/npm/dm/@theokit/sdk?style=flat-square&color=CB3837)](https://www.npmjs.com/package/@theokit/sdk)
-[![CI](https://img.shields.io/github/actions/workflow/status/usetheodev/theokit-sdk/ci.yml?branch=main&style=flat-square&label=CI&logo=githubactions&logoColor=white)](https://github.com/usetheodev/theokit-sdk/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/usetheodev/theokit-sdk?style=flat-square&label=scorecard)](https://scorecard.dev/viewer/?uri=github.com/usetheodev/theokit-sdk)
+[![CI](https://img.shields.io/github/actions/workflow/status/usetheodev/theokit-sdk/ci.yml?branch=main&style=flat-square&label=CI&logo=githubactions&logoColor=white)](https://github.com/usetheokit/theokit-sdk/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/usetheokit/theokit-sdk?style=flat-square&label=scorecard)](https://scorecard.dev/viewer/?uri=github.com/usetheokit/theokit-sdk)
 [![License](https://img.shields.io/badge/license-Apache--2.0-DE2329?style=flat-square)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8%2B-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522.12-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
@@ -33,7 +33,7 @@ Local-first. Opt-in cloud. Zero walk-away cost.
 
 **Decide** — [The open stack](#the-open-stack-layer-by-layer) · [Known limitations](#known-limitations) · [Status](#status) · [Where this fits](#where-this-fits) · [License](#license)
 
-**Project** — [`CONTRIBUTING.md`](./CONTRIBUTING.md) · [`SECURITY.md`](./SECURITY.md) · [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) · [Report a bug](https://github.com/usetheodev/theokit-sdk/issues/new/choose)
+**Project** — [`CONTRIBUTING.md`](./CONTRIBUTING.md) · [`SECURITY.md`](./SECURITY.md) · [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) · [Report a bug](https://github.com/usetheokit/theokit-sdk/issues/new/choose)
 
 ---
 

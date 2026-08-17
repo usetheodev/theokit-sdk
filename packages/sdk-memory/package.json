@@ -3,11 +3,11 @@
   "version": "0.3.1",
   "description": "Memory subsystem for @theokit/sdk — MemoryProvider impls (markdown file store today; LanceDB + embeddings + circuit breaker next iters). Consumes the kernel-facing port from sdk-core.",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/usetheodev/theokit-sdk#readme",
-  "bugs": "https://github.com/usetheodev/theokit-sdk/issues",
+  "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
+  "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/usetheodev/theokit-sdk.git",
+    "url": "git+https://github.com/usetheokit/theokit-sdk.git",
     "directory": "packages/sdk-memory"
   },
   "type": "module",

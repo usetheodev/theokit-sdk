@@ -71,4 +71,4 @@ CI adds a Node `22.12` / `22` matrix, CodeQL, dependency review on pull requests
 
 ## Getting help
 
-Open an issue — the [templates](https://github.com/usetheodev/theokit-sdk/issues/new/choose) ask for the details that make a report actionable. A heads-up before a large change is welcome and usually saves you a rewrite.
+Open an issue — the [templates](https://github.com/usetheokit/theokit-sdk/issues/new/choose) ask for the details that make a report actionable. A heads-up before a large change is welcome and usually saves you a rewrite.

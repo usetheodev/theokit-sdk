@@ -8,7 +8,7 @@ body:
         Thanks for taking the time to report this.
 
         One request before you start: **if this is a security problem, close this
-        form.** Use [private vulnerability reporting](https://github.com/usetheodev/theokit-sdk/security/advisories/new)
+        form.** Use [private vulnerability reporting](https://github.com/usetheokit/theokit-sdk/security/advisories/new)
         instead, so a fix can ship before the details are public.
 
   - type: dropdown

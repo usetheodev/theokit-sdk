@@ -3,11 +3,11 @@
   "version": "0.3.2",
   "description": "Semantic LLM response cache for @theokit/sdk — vector + FTS hybrid lookup, in-memory + JSON file stores, plugin integration.",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/usetheodev/theokit-sdk#readme",
-  "bugs": "https://github.com/usetheodev/theokit-sdk/issues",
+  "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
+  "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/usetheodev/theokit-sdk.git",
+    "url": "git+https://github.com/usetheokit/theokit-sdk.git",
     "directory": "packages/sdk-cache"
   },
   "type": "module",

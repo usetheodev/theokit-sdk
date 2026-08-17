@@ -5,13 +5,13 @@ blank_issues_enabled: false
 
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/usetheodev/theokit-sdk/security/advisories/new
+    url: https://github.com/usetheokit/theokit-sdk/security/advisories/new
     about: >
       Do NOT open a public issue. Report privately here so a fix can ship before
       the details are public. See SECURITY.md for scope and what to include.
 
   - name: Usage question — how do I do X?
-    url: https://github.com/usetheodev/theokit-sdk#readme
+    url: https://github.com/usetheokit/theokit-sdk#readme
     about: >
       The README and the exported TypeScript types cover the public API. If the
       answer is not there, open a Bug report and say what you expected the docs
