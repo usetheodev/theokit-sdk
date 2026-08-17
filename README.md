@@ -168,21 +168,33 @@ The fastest way in: a local agent against your current working tree, streaming e
 
 ```typescript
 import { Agent } from "@theokit/sdk";
+import { assistantText } from "@theokit/sdk/messages";
 
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
+  // "<provider>/<model>". There is no separate `provider` option — the provider
+  // is the prefix. A bare "gemini-2.0-flash-001" will not resolve.
   model: { id: "google/gemini-2.0-flash-001" },
+  // The PRESENCE of this key selects the local runtime. There is no `runtime`
+  // option — pass `cloud` instead to run hosted. See Overview above.
   local: { cwd: process.cwd() },
 });
 
 const run = await agent.send("Summarize what this repository does");
 
 for await (const event of run.stream()) {
-  console.log(event);
+  // Returns "" for every non-assistant event, so no `if` is needed.
+  process.stdout.write(assistantText(event));
 }
 ```
 
-Each event is a discriminated `SDKMessage`. For a one-shot prompt (create, run, dispose), use `Agent.prompt()`:
+Three things that trip up almost everyone on the first edit:
+
+- **The provider lives in the model id.** `"openai/gpt-4o"`, not `provider: "openai"` plus `model: "gpt-4o"`. `AgentOptions` has no `provider`.
+- **The runtime is chosen by which key you pass**, `local` or `cloud`. There is no `runtime: "local"` field.
+- **`assistantText(event)` is the shortcut for "just give me the text."** Every event is a discriminated `SDKMessage`; the helper pulls the `TextBlock`s out of an assistant message and returns `""` for anything else. Walking `event.message.content` by hand — shown under [Stream events](#stream-events) — is the escape hatch for when you need the tool-use blocks too.
+
+For a one-shot prompt (create, run, dispose), use the static `Agent.prompt()`. Note it is **static**: `agent.prompt()` does not exist, because sending to an agent you already hold is `agent.send()` and does not dispose it.
 
 ```typescript
 const result = await Agent.prompt("What does the auth middleware do?", {
@@ -236,12 +248,25 @@ Each `agent.send()` returns a `Run`. The agent retains conversation context acro
 
 ### Streaming
 
+If all you want is the model's text, `assistantText` from `@theokit/sdk/messages` is the whole loop — it returns `""` for every event that is not an assistant message:
+
+```typescript
+import { assistantText } from "@theokit/sdk/messages";
+
+for await (const event of run.stream()) {
+  process.stdout.write(assistantText(event));
+}
+```
+
+Switch on `event.type` when you need the other channels — reasoning, tool lifecycle, status:
+
 ```typescript
 const run = await agent.send("Find the bug in src/auth.ts");
 
 for await (const event of run.stream()) {
   switch (event.type) {
     case "assistant":
+      // Equivalent to assistantText(event); written out here to show the shape.
       for (const block of event.message.content) {
         if (block.type === "text") process.stdout.write(block.text);
       }
@@ -349,6 +374,8 @@ The callbacks are awaited before the next update is processed, so you can apply 
 ## Stream events
 
 Events from `run.stream()`. Discriminate on `type`. All events include `agent_id` and `run_id`.
+
+For the common case — you only want the model's text — skip the discrimination entirely: `assistantText(event)` from [`@theokit/sdk/messages`](#streaming) returns the concatenated `TextBlock`s of an assistant message and `""` for everything else.
 
 ```typescript
 type SDKMessage =

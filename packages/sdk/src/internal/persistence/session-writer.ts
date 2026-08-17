@@ -239,7 +239,6 @@ function reclaimable(owner: LockOwner | undefined): boolean {
  * the session. Callers needing the guarantee use {@link acquireSessionWriter}; callers needing to
  * **decide an id before opening anything** use this, and handle the race where it shows up.
  *
- * @internal
  */
 export function sessionHasWriter(sessionPath: string): boolean {
   const lockPath = `${sessionPath}.writer.lock`;

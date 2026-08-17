@@ -31,7 +31,6 @@ function challengeFor(verifier: string): string {
 /**
  * Refresh an access token using `refresh_token`. Throws on failure.
  *
- * @internal
  */
 export async function refreshAccessToken(
   serverName: string,
@@ -78,7 +77,6 @@ export async function refreshAccessToken(
  * authorization URL (browser or manual print), waits for the callback
  * (localhost or stdin), exchanges code for tokens.
  *
- * @internal
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: PKCE flow is a linear protocol step (verifier → challenge → state → URL → wait → exchange); refactoring fragments the RFC 7636 narrative.
 export async function runPkceFlow(

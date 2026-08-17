@@ -30,7 +30,6 @@ const PHRASE_CLOSE = "";
  * Returns empty string when the input contains only specials (caller MUST
  * short-circuit to avoid runtime SQL error — EC-3).
  *
- * @internal
  */
 export function sanitizeFts5Query(query: string): string {
   if (query.length === 0) return query;
