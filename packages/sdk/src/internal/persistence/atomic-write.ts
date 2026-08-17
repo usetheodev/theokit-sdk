@@ -85,7 +85,6 @@ export function __TESTING__resetNfsWarnings(): void {
  * before M107. See `replaceFileAtomic` for why the mode reassertion
  * is conditional.
  *
- * @internal
  */
 export interface AtomicWriteFileOptions {
   /**
@@ -165,7 +164,6 @@ export function atomicWriteTempTarget(name: string): string | undefined {
  * from `upstream/packages/core/src/fs-util.ts:110-114`. The chosen shape (mode as
  * `open` argument) is that of `upstream/network-proxy/src/certs.rs:687,783-791`.
  *
- * @internal
  */
 export async function replaceFileAtomic(
   filePath: string,
@@ -210,7 +208,6 @@ export async function replaceFileAtomic(
 /**
  * Options for `atomicWriteJson`.
  *
- * @internal
  */
 export interface AtomicWriteJsonOptions extends AtomicWriteFileOptions {
   /** Indent passed to `JSON.stringify`. Default: 2. */
@@ -230,7 +227,6 @@ export interface AtomicWriteJsonOptions extends AtomicWriteFileOptions {
  * Throws `TypeError` on circular refs or `undefined` data (propagates from
  * `JSON.stringify`).
  *
- * @internal
  */
 export async function atomicWriteJson<T>(
   filePath: string,
@@ -254,7 +250,6 @@ export async function atomicWriteJson<T>(
  * (T4.1, EC-2 MUST FIX) so a crash mid-migration leaves previous MD files
  * intact rather than corrupting them.
  *
- * @internal
  */
 export async function atomicWriteText(filePath: string, content: string): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });

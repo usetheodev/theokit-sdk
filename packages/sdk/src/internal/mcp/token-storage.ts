@@ -80,7 +80,6 @@ const inflightRefresh = new Map<string, Promise<OAuthTokens>>();
  * Persist tokens for `serverName`. Tries keychain first, falls back to file
  * with chmod 600 (POSIX). Idempotent.
  *
- * @internal
  */
 export async function setTokens(serverName: string, tokens: OAuthTokens): Promise<void> {
   const kt = tryRequireKeytar();
@@ -112,7 +111,6 @@ export async function setTokens(serverName: string, tokens: OAuthTokens): Promis
 /**
  * Retrieve tokens for `serverName`. Returns undefined if absent.
  *
- * @internal
  */
 export async function getTokens(serverName: string): Promise<OAuthTokens | undefined> {
   const kt = tryRequireKeytar();
@@ -145,7 +143,6 @@ export async function getTokens(serverName: string): Promise<OAuthTokens | undef
  * already in flight for the same `serverName`, the second caller awaits
  * the same Promise.
  *
- * @internal
  */
 export function lockedRefresh(
   serverName: string,

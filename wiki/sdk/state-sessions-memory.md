@@ -42,7 +42,7 @@ conversation survives, and nothing in between resumes an execution.
 Every local agent writes a transcript in Claude Code's native format:
 
 ```
-<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl     # default baseDir: ~/.theokit
+<sessionDir>/projects/<encoded-cwd>/<agentId>.jsonl  # default sessionDir: ~/.theokit
 ```
 
 ```typescript
@@ -51,7 +51,7 @@ const agent = await Agent.create({
   model: { id: "openai/gpt-4o-mini" },
   local: {
     cwd: process.cwd(),
-    baseDir: "~/.claude", // writes where the Claude Code CLI can --continue it
+    sessionDir: "~/.claude", // writes where the Claude Code CLI can --continue it
   },
 });
 ```

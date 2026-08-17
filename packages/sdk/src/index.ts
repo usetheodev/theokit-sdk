@@ -198,6 +198,16 @@ export type {
   EvictReason,
   LiveAgentRegistry,
 } from "./internal/runtime/registry/live-agent-registry.js";
+// Telemetry contract (#295). `internal/telemetry/` was not public, so
+// @theokit/sdk-memory inlined structural mirrors of these two types with a note
+// that they "MUST be replaced with the canonical imports" once sdk exposed them.
+// The mirrors had already drifted: theirs narrowed `setAttributes` to reject
+// `undefined` values the canonical type accepts, and declared `end()` without the
+// `endTime` parameter. Two copies of a contract, diverging quietly — which is the
+// whole reason a mirror is a stopgap and not a design.
+//
+// Types only: erased at build time, so the bundle is unchanged.
+export type { OTelSpan, TelemetryHandle } from "./internal/telemetry/tracer.js";
 export { JobQueue, type JobQueueOptions } from "./job-queue.js";
 export {
   type DeclaredLayer,
@@ -367,6 +377,13 @@ export {
 // session needs to name these types; without them the method's return would only be reachable
 // through an inline `import(...)` in the emitted .d.ts.
 export type { SessionMessage, SessionMessagePart } from "./types/session-message.js";
+// The bundled root `.d.ts` has always declared these two as VALUES, because the
+// DTS rollup hoists them out of `types/task.ts` along with the task types. The
+// runtime bundle emitted neither, so `import { isValidTaskId } from "@theokit/sdk"`
+// typechecked and was `undefined` at the call site (#279). Exported here so the
+// implementation keeps the promise the types were already making — validating a
+// task id before submitting one is a reasonable thing for a consumer to want.
+export { isValidTaskId, TASK_RESERVED_PREFIXES } from "./types/task.js";
 export {
   recordWiring,
   UngatedCapabilityError,

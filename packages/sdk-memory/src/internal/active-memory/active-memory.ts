@@ -21,18 +21,25 @@
  * iter 44-75; 2 inlined adapters added: adapter-http-error iter 73
  * + adapter-catalog renamed iter 74).
  *
- * **Cross-package telemetry contract:** sdk-core's `internal/telemetry/`
- * is not part of the public surface. sdk-memory inlines minimal
- * structural mirrors of `OTelSpan` + `TelemetryHandle` here AND the
- * 2 constant strings the file uses (`memory.recall` span name +
- * `theokit_memory_recall_duration_ms` histogram name). The runtime
- * still receives + emits the canonical types via consumer call sites
- * — the structural mirrors only satisfy this file's local type
- * checking. When sdk-core exposes telemetry types publicly, these
- * mirrors MUST be replaced with the canonical imports.
+ * **Cross-package telemetry contract:** `OTelSpan` and `TelemetryHandle`
+ * are now imported from `@theokit/sdk`, which exports them since #295.
+ * This file previously inlined structural mirrors of both, with a note
+ * that they MUST be replaced once sdk-core made them public — and by
+ * the time anyone looked, the mirrors had drifted: they narrowed
+ * `setAttributes` to reject the `undefined` values the canonical type
+ * accepts, and declared `end()` without its `endTime` parameter. That
+ * is how a structural mirror fails: quietly, with both sides compiling.
+ *
+ * The 2 constant strings (`memory.recall` span name +
+ * `theokit_memory_recall_duration_ms` histogram name) are still inlined
+ * below, because sdk-core's `span-names.ts` remains private. They are
+ * values rather than types, so exporting them is a separate decision
+ * with a real bundle cost — unlike these two, which erase at build time.
  *
  * @internal
  */
+
+import type { OTelSpan, TelemetryHandle } from "@theokit/sdk";
 
 import type { CircuitBreaker } from "../circuit-breaker.js";
 import type { MemorySearchHit } from "../index/index-manager-contract.js";
@@ -55,28 +62,17 @@ export type { ActiveMemoryQueryMode, ActiveMemoryResult, ActiveMemoryStatus };
 const SPAN_MEMORY_RECALL = "memory.recall";
 const HISTOGRAM_MEMORY_RECALL_DURATION_MS = "theokit_memory_recall_duration_ms";
 
-// Iter 75 inlined telemetry mirrors — sdk-core's telemetry/tracer.ts
-// `OTelSpan` + `TelemetryHandle` types are not public. Structural
-// mirrors below capture the surface this file actually uses.
-interface OTelSpan {
-  setAttribute(key: string, value: string | number | boolean): void;
-  setAttributes(attrs: Record<string, string | number | boolean>): void;
-  addEvent(name: string, attrs?: Record<string, string | number | boolean>): void;
-  setStatus(status: { code: number; message?: string }): void;
-  recordException(exception: unknown): void;
-  end(): void;
-  spanContext(): { traceId: string; spanId: string };
-  isRecording(): boolean;
-}
-
-interface TelemetryHandle {
-  startSpan(name: string, attrs?: Record<string, string | number | boolean>): OTelSpan;
-  recordHistogram(
-    name: string,
-    value: number,
-    attrs?: Record<string, string | number | boolean>,
-  ): void;
-}
+// #295 — the canonical types, not a copy of them.
+//
+// Iter 75 inlined structural mirrors here because sdk-core's telemetry/tracer.ts
+// was not public, with a note that they MUST be replaced once it was. They had
+// already drifted by the time anyone checked: the mirror narrowed `setAttributes`
+// to reject the `undefined` values the canonical type accepts, and declared
+// `end()` without the `endTime` parameter. Neither broke a build — a structural
+// mirror fails by being quietly wrong, not by being loudly missing.
+//
+// `@theokit/sdk` is already a peerDependency of this package, and both types are
+// erased at build time, so this costs nothing at runtime.
 
 export interface ActiveMemoryOptions {
   /** Whether active recall is enabled. Default `false`. */

@@ -58,9 +58,26 @@ export interface LocalOptions {
   settingSources?: SettingSource[];
   sandboxOptions?: { enabled: boolean };
   /**
-   * SE40 — base directory for the native Claude-shaped session transcript
-   * (`<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl`). Default `~/.theokit`.
+   * Directory for the native Claude-shaped session transcript
+   * (`<sessionDir>/projects/<encoded-cwd>/<agentId>.jsonl`). Default `~/.theokit`.
    * Set to `~/.claude` to write sessions the Claude Code CLI can `--continue`.
+   *
+   * **This is not the working directory** — that is {@link LocalOptions.cwd},
+   * four lines above. Only transcripts are written here.
+   *
+   * Introduced in #301 as the unambiguous name for what `baseDir` always meant.
+   */
+  sessionDir?: string;
+
+  /**
+   * @deprecated Renamed to {@link LocalOptions.sessionDir} (#301). Still honoured,
+   * and `sessionDir` wins when both are set.
+   *
+   * "Base directory" reads as the directory the agent works in, sitting in an
+   * interface whose `cwd` is the one that actually means that. Setting it to
+   * `"./"` — which is what the name invites — runs without error and writes
+   * `./projects/<encoded-cwd>/<agentId>.jsonl` into the caller's repository root.
+   * Nothing warns, because nothing is wrong from the code's point of view.
    */
   baseDir?: string;
   /**

@@ -41,7 +41,7 @@ Local-first. Opt-in cloud. Zero walk-away cost.
 
 - **Apache-2.0 local runtime** — run agents end-to-end, no vendor in the loop.
 - **43 built-in LLM providers** — Anthropic, OpenAI, Google, and 40 more, on your own keys.
-- **Native Claude Code `.jsonl`** — point `baseDir` at `~/.claude` and `--continue` a session your agent wrote, right in the Claude Code CLI.
+- **Native Claude Code `.jsonl`** — point `local.sessionDir` at `~/.claude` and `--continue` a session your agent wrote, right in the Claude Code CLI.
 - **Opt-in cloud, walk-away cost zero** — fork the local runtime and keep running.
 
 Most agent SDKs ship open; most agent *runtimes* don't. This one does — end to end.
@@ -65,7 +65,7 @@ The SDK shape — `Agent` / `Run` / streaming events — is converging across th
 | SDK source | Apache-2.0, this repo | Often OSS — table stakes |
 | Local agent harness | **Apache-2.0** — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
 | LLM provider | Multi-provider — Anthropic, OpenAI, Google, and more, through your own keys | Usually single-vendor |
-| Session format | **Native Claude Code `.jsonl`** — point `baseDir` at `~/.claude` and the Claude Code CLI can `--continue` a session your agent wrote | Proprietary session store you can't open anywhere else |
+| Session format | **Native Claude Code `.jsonl`** — point `local.sessionDir` at `~/.claude` and the Claude Code CLI can `--continue` a session your agent wrote | Proprietary session store you can't open anywhere else |
 | Cloud runtime | Opt-in Theo PaaS or self-host the pool | Vendor cloud only |
 | Walk-away cost | Zero — fork the local runtime, keep running with your own provider keys | High — runtime is the vendor's |
 
@@ -168,21 +168,33 @@ The fastest way in: a local agent against your current working tree, streaming e
 
 ```typescript
 import { Agent } from "@theokit/sdk";
+import { assistantText } from "@theokit/sdk/messages";
 
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
+  // "<provider>/<model>". There is no separate `provider` option — the provider
+  // is the prefix. A bare "gemini-2.0-flash-001" will not resolve.
   model: { id: "google/gemini-2.0-flash-001" },
+  // The PRESENCE of this key selects the local runtime. There is no `runtime`
+  // option — pass `cloud` instead to run hosted. See Overview above.
   local: { cwd: process.cwd() },
 });
 
 const run = await agent.send("Summarize what this repository does");
 
 for await (const event of run.stream()) {
-  console.log(event);
+  // Returns "" for every non-assistant event, so no `if` is needed.
+  process.stdout.write(assistantText(event));
 }
 ```
 
-Each event is a discriminated `SDKMessage`. For a one-shot prompt (create, run, dispose), use `Agent.prompt()`:
+Three things that trip up almost everyone on the first edit:
+
+- **The provider lives in the model id.** `"openai/gpt-4o"`, not `provider: "openai"` plus `model: "gpt-4o"`. `AgentOptions` has no `provider`.
+- **The runtime is chosen by which key you pass**, `local` or `cloud`. There is no `runtime: "local"` field.
+- **`assistantText(event)` is the shortcut for "just give me the text."** Every event is a discriminated `SDKMessage`; the helper pulls the `TextBlock`s out of an assistant message and returns `""` for anything else. Walking `event.message.content` by hand — shown under [Stream events](#stream-events) — is the escape hatch for when you need the tool-use blocks too.
+
+For a one-shot prompt (create, run, dispose), use the static `Agent.prompt()`. Note it is **static**: `agent.prompt()` does not exist, because sending to an agent you already hold is `agent.send()` and does not dispose it.
 
 ```typescript
 const result = await Agent.prompt("What does the auth middleware do?", {
@@ -236,12 +248,25 @@ Each `agent.send()` returns a `Run`. The agent retains conversation context acro
 
 ### Streaming
 
+If all you want is the model's text, `assistantText` from `@theokit/sdk/messages` is the whole loop — it returns `""` for every event that is not an assistant message:
+
+```typescript
+import { assistantText } from "@theokit/sdk/messages";
+
+for await (const event of run.stream()) {
+  process.stdout.write(assistantText(event));
+}
+```
+
+Switch on `event.type` when you need the other channels — reasoning, tool lifecycle, status:
+
 ```typescript
 const run = await agent.send("Find the bug in src/auth.ts");
 
 for await (const event of run.stream()) {
   switch (event.type) {
     case "assistant":
+      // Equivalent to assistantText(event); written out here to show the shape.
       for (const block of event.message.content) {
         if (block.type === "text") process.stdout.write(block.text);
       }
@@ -350,6 +375,8 @@ The callbacks are awaited before the next update is processed, so you can apply 
 
 Events from `run.stream()`. Discriminate on `type`. All events include `agent_id` and `run_id`.
 
+For the common case — you only want the model's text — skip the discrimination entirely: `assistantText(event)` from [`@theokit/sdk/messages`](#streaming) returns the concatenated `TextBlock`s of an assistant message and `""` for everything else.
+
 ```typescript
 type SDKMessage =
   | SDKSystemMessage
@@ -394,7 +421,7 @@ await run.wait();
 
 `agent.model` is `undefined` on resume unless you pass `model` again. Inline `mcpServers` are not persisted across resume — they often carry secrets and live in memory only. Pass them again on resume, or commit them to `.theokit/mcp.json`.
 
-The conversation is persisted as a native Claude Code `.jsonl` transcript at `<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl` — resume reconstructs it from disk. `baseDir` defaults to `~/.theokit`; set `local.baseDir: "~/.claude"` and the Claude Code CLI can `--continue` the exact session your agent wrote (the SDK emits the format Claude Code reads). Extended-thinking `--continue` is out of scope for now — thinking signatures are written but dropped on read (see issue #122).
+The conversation is persisted as a native Claude Code `.jsonl` transcript at `<sessionDir>/projects/<encoded-cwd>/<agentId>.jsonl` — resume reconstructs it from disk. `local.sessionDir` defaults to `~/.theokit`; set `local.sessionDir: "~/.claude"` and the Claude Code CLI can `--continue` the exact session your agent wrote (the SDK emits the format Claude Code reads). Extended-thinking `--continue` is out of scope for now — thinking signatures are written but dropped on read (see issue #122).
 
 ## Inspecting agents and runs
 

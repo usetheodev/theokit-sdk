@@ -126,7 +126,22 @@ export class Agent {
   }
 
   /**
-   * One-shot prompt: create an agent, send a single message, wait, dispose.
+   * One-shot prompt: create an agent, send a single message, wait, **dispose**.
+   *
+   * `Agent.prompt` is STATIC and owns the agent's whole lifecycle. To send to an
+   * agent you already hold, use the instance method — `agent.send(message)` —
+   * which keeps the conversation and does not dispose anything:
+   *
+   * ```ts
+   * const agent = await Agent.create({ ... });
+   * const run = await agent.send("first");     // NOT agent.prompt(...)
+   * const run2 = await agent.send("follow-up"); // full context retained
+   * ```
+   *
+   * There is no `agent.prompt()` (#302). The natural sentence for the second
+   * operation is "prompt the agent", so it is the method people reach for; the
+   * two differ in whether the agent survives the call, which is why they do not
+   * share a name.
    *
    * When `options.throwOnError === true`, rejects with `AgentRunError` if
    * the run terminates with `status: 'error'` (instead of resolving with the
@@ -649,7 +664,9 @@ setAgentFacade({
 async function openLocalStore(reg: {
   cwd?: string;
   model?: { id: string };
-  options: { model?: string | { id: string }; local?: { baseDir?: string } };
+  // #301 — `sessionDir` is the option; `baseDir` is its deprecated alias, and a
+  // registered agent may carry either depending on when it was created.
+  options: { model?: string | { id: string }; local?: { sessionDir?: string; baseDir?: string } };
 }): Promise<{
   cwd: string;
   model: string;
@@ -663,9 +680,10 @@ async function openLocalStore(reg: {
   const { defaultBaseDir, expandTilde } = await import(
     "./internal/persistence/session-transcript.js"
   );
+  // #301 — `sessionDir` is the current name; `baseDir` is honoured as the
+  // deprecated alias so a resume never fails on a rename.
+  const configuredSessionDir = reg.options.local?.sessionDir ?? reg.options.local?.baseDir;
   const baseDir =
-    reg.options.local?.baseDir !== undefined
-      ? expandTilde(reg.options.local.baseDir)
-      : defaultBaseDir();
+    configuredSessionDir !== undefined ? expandTilde(configuredSessionDir) : defaultBaseDir();
   return { cwd, model, store: new FsSessionStore({ baseDir, cwd }) };
 }
