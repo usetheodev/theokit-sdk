@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignore": ["tools/preflight-native-bindings.d.mts"],
-  "ignoreDependencies": ["@arethetypeswrong/cli", "publint", "madge", "tsx"],
+  "ignoreDependencies": ["@arethetypeswrong/cli", "publint", "madge", "tsx", "jscpd"],
   "ignoreBinaries": ["turbo"],
   "tags": ["-knipignore"],
   "workspaces": {
