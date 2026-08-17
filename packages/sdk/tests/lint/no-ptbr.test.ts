@@ -65,11 +65,8 @@ const WORD_ALLOWLIST = new Set(["façade", "façades", "naïve", "café", "résu
 const FILE_ALLOWLIST = new Set<string>([
   // This file names Portuguese words in order to ban them.
   "packages/sdk/tests/lint/no-ptbr.test.ts",
-  // A recall probe whose assertion is what a model ANSWERS. It matches both spellings of a Brazilian
-  // city because a model replying in Portuguese uses the accented one; dropping that alternative to
-  // satisfy this gate would narrow what the probe accepts and weaken the audit it exists to run.
-  // Same category as the skipped session transcripts: linting the user's own words, not our prose.
-  "tools/audit-memory-scale.mjs",
+  // The `tools/audit-memory-scale.mjs` exemption was removed on 2026-08-17 together with the
+  // one-off audit script it covered, so no exempt recall probe remains.
   // The `docs/course/theokit-agent-ai-course.md` exemption was removed on 2026-08-06, on the
   // condition its own comment set: "delete this entry the day the course becomes English". The
   // course was decomposed into the `wiki/` bundle in English, so the gate now covers every word
