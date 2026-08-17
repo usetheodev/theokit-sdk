@@ -24,7 +24,7 @@
  * sufficient pre-publish gate.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -120,6 +120,65 @@ describe("SDK 2.0 extracted packages — npm publish readiness gate", () => {
       const range = peers["@theokit/sdk"] ?? "";
       expect(range).toMatch(/^[\^~>]?=?\d+\.\d+\.\d+/);
     });
+  });
+});
+
+/**
+ * The licence contract, over EVERY publishable package rather than a list.
+ *
+ * The gate above asserts `license === "Apache-2.0"` — and covered three packages while
+ * the repository published twelve. `@theokit/sdk-pty@0.3.0` went to npm with no `license`
+ * field at all and nothing reported it, because a hand-kept list stops covering a package
+ * the moment someone adds one and forgets the list.
+ *
+ * Two halves, and both are needed. A manifest field with no file leaves a tarball
+ * asserting Apache-2.0 while carrying none of its terms, and §4(a) requires a copy to
+ * travel with every distribution. A file with no field leaves the tarball
+ * all-rights-reserved to whoever installs it, because npm reads the field, not the
+ * directory. Four packages listed `LICENSE` in `files` and shipped no such file — npm
+ * omits a declared-but-absent path in silence, so neither `pnpm pack` nor publish said
+ * a word.
+ */
+const publishablePackages = (): string[] =>
+  readdirSync(join(repoRoot, "packages"), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .filter((entry) => existsSync(join(repoRoot, "packages", entry.name, "package.json")))
+    .filter((entry) => {
+      const manifest = readPackageJson(entry.name);
+      return (manifest as { private?: boolean }).private !== true;
+    })
+    .map((entry) => entry.name)
+    .sort((a, b) => a.localeCompare(b));
+
+describe("every publishable package conveys its licence", () => {
+  const packages = publishablePackages();
+
+  it("test_the_sweep_is_not_vacuous", () => {
+    // A derived list that resolves to nothing passes every assertion below by having
+    // none to make. That is the defect this block exists to remove, one level up.
+    expect(packages.length, "no publishable package was discovered").toBeGreaterThan(0);
+  });
+
+  it.each(packages)("@theokit/%s declares and ships Apache-2.0", (pkg) => {
+    const manifest = readPackageJson(pkg);
+
+    expect(
+      manifest.license,
+      `${pkg}: no license field — the published tarball is all-rights-reserved to whoever installs it`,
+    ).toBe("Apache-2.0");
+
+    const licenseOnDisk = existsSync(join(repoRoot, "packages", pkg, "LICENSE"));
+    expect(
+      licenseOnDisk,
+      `${pkg}: declares Apache-2.0 and ships no LICENSE file — §4(a) requires the terms to travel with the distribution`,
+    ).toBe(true);
+
+    if ((manifest.files ?? []).length > 0) {
+      expect(
+        manifest.files,
+        `${pkg}: LICENSE exists but \`files\` does not list it, so npm leaves it out of the tarball`,
+      ).toContain("LICENSE");
+    }
   });
 });
 
