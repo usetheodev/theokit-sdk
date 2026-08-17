@@ -1,7 +1,7 @@
 {
   "name": "@theokit/example-theocode-e2e",
   "private": true,
-  "version": "0.0.110",
+  "version": "0.0.111",
   "type": "module",
   "scripts": {
     "start": "tsx run.ts"
