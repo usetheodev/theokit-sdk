@@ -43,13 +43,23 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
-          # changesets/action v2 pushes through the GitHub API and takes its
-          # credential from the `github-token` input, so the checkout token does
-          # not need to survive in .git/config for anything here.
-          persist-credentials: false
+          # This is the ONE checkout in the repository that keeps its credential,
+          # and it is not an oversight. changesets/action v1 pushes the version
+          # commit and the release tags with the git CLI, taking its authentication
+          # from exactly this persisted credential — `persist-credentials: false`
+          # here makes the push fail AFTER the packages are already on npm, which
+          # is the worst possible place for this job to break.
+          #
+          # zizmor reports this as `artipacked` (low confidence). Accepted, with the
+          # scope kept small: the job holds `contents: write` because releasing
+          # requires it, and every other checkout in this repository sets
+          # `persist-credentials: false`.
+          #
+          # It stops being necessary when the CLI moves to 3.x and the action to v2,
+          # which pushes through the GitHub API instead. See the pin note below.
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
@@ -98,7 +108,7 @@ jobs:
 
       - name: Create Release Pull Request or Publish
         id: changesets
-        uses: changesets/action@198f833dd7d863100ea6e28967bc9a9fdefadb0a # v2.1.0
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           # `pnpm release` rather than `changeset publish` directly, so the workspace-protocol
           # guard (B-111) runs BEFORE the publish. Calling `changeset publish` here skipped it,
@@ -106,19 +116,25 @@ jobs:
           #
           # The ref verification (B-114) is NOT here. `changeset publish` creates the tags; this
           # ACTION pushes them, in a step of its own after the publish returns. Verifying inside
-          # `publish-script:` therefore checked before the pusher ran and failed every release —
-          # measured on 4.45.0, where the tag it reported missing was on the remote moments later.
-          # A gate that fails every time is a gate people learn to ignore, so it moved to its own
-          # step below.
+          # `publish:` therefore checked before the pusher ran and failed every release — measured
+          # on 4.45.0, where the tag it reported missing was on the remote moments later. A gate
+          # that fails every time is a gate people learn to ignore, so it moved to its own step
+          # below.
           #
-          # v2 renamed these inputs (`publish` -> `publish-script`, `version` -> `version-script`)
-          # and stopped reading a custom token from the GITHUB_TOKEN environment variable: it must
-          # arrive through `github-token`. Passing it the old way fails at push time, after the
-          # packages are already on npm — the worst point in this job to discover a config error.
-          publish-script: pnpm release
-          version-script: pnpm changeset version
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # PINNED TO v1.9.0, deliberately not v2. The action is now version-locked to the
+          # Changesets CLI: v2 aborts on startup with "designed to work with Changesets CLI v3.
+          # Changesets CLI v2 is not supported" — measured here on 2026-08-17, run 32019128529,
+          # after the quality gate had already passed. This repository is on
+          # `@changesets/cli@^2.31.0`, so v1 is the correct major, and the SHA pin is what the
+          # supply-chain finding actually asked for.
+          #
+          # Moving to action v2 means first migrating the CLI to 3.x across twelve published
+          # packages. That is a release-tooling migration with its own blast radius and belongs in
+          # its own change, not bundled into a pipeline hardening commit.
+          publish: pnpm release
+          version: pnpm changeset version
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Auth via granular npm automation token (NODE_AUTH_TOKEN; setup-node wired
           # the registry .npmrc to read it).
           #
@@ -149,9 +165,9 @@ jobs:
       # A missing release tag is not noticed that day; it is noticed weeks later by whoever is
       # bisecting. Runs only when something was actually published.
       #
-      # v2 pushes refs through the GitHub API rather than the git CLI by default, which removes
-      # that specific SIGPIPE path. The check stays: it verifies the OUTCOME (the ref is on the
-      # remote), not the mechanism, so it keeps working whichever way the push happened.
+      # It checks the OUTCOME — the ref is on the remote — rather than the mechanism, so it keeps
+      # working whichever way the push happened, including after the eventual move to action v2,
+      # which pushes through the GitHub API and does not have this SIGPIPE path at all.
       - name: verify release refs reached the remote
         if: steps.changesets.outputs.published == 'true'
         run: node scripts/verify-release-refs.mjs
