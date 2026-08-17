@@ -1,27 +1,39 @@
-<p align="center">
-  <a href="https://usetheo.dev">
-    <img src="https://usetheo.dev/logo-128.png" alt="Theo" height="80" />
-  </a>
-</p>
+<div align="center">
 
-<p align="center">
-  <p align="center"><code>@theokit/sdk</code> · the <strong>Harness</strong> pillar of the <a href="https://usetheo.dev">Theo ecosystem</a></p>
-  <h1 align="center">The open-source agent runtime for TypeScript.</h1>
-  <p align="center">
-    <strong><code>@theokit/sdk</code> is the modern TypeScript SDK for AI-powered apps and agents — on an open, Apache-2.0 runtime you own end to end.</strong>
-  </p>
-  <p align="center">
-    <sub>43 built-in LLM providers&nbsp;·&nbsp;27 modular entry points&nbsp;·&nbsp;native Claude Code <code>.jsonl</code>&nbsp;·&nbsp;zero walk-away cost</sub>
-  </p>
-  <p align="center">
-    <a href="https://www.npmjs.com/package/@theokit/sdk"><img alt="npm version" src="https://img.shields.io/npm/v/@theokit/sdk?style=flat-square&color=CB3837&logo=npm&logoColor=white"></a>
-    <a href="https://www.npmjs.com/package/@theokit/sdk"><img alt="npm downloads" src="https://img.shields.io/npm/dm/@theokit/sdk?style=flat-square&color=CB3837"></a>
-    <a href="https://github.com/usetheodev/theokit-sdk"><img alt="GitHub stars" src="https://img.shields.io/github/stars/usetheodev/theokit-sdk?style=flat-square&logo=github"></a>
-    <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square"></a>
-    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.8%2B-3178C6?style=flat-square&logo=typescript&logoColor=white">
-    <a href="https://discord.usetheo.dev/"><img alt="Discord" src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white"></a>
-  </p>
-</p>
+<img src="./assets/banner.svg" alt="TheoKit SDK — the open-source agent runtime for TypeScript" width="840" />
+
+**`@theokit/sdk` is the modern TypeScript SDK for AI-powered apps and agents — on an open, Apache-2.0 runtime you own end to end.**
+
+`Agent.create` · `prompt` · `stream` · `resume` — one TypeScript SDK, 43 LLM providers, your keys.
+Local-first. Opt-in cloud. Zero walk-away cost.
+
+[![npm version](https://img.shields.io/npm/v/@theokit/sdk?style=flat-square&color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/@theokit/sdk)
+[![npm downloads](https://img.shields.io/npm/dm/@theokit/sdk?style=flat-square&color=CB3837)](https://www.npmjs.com/package/@theokit/sdk)
+[![CI](https://img.shields.io/github/actions/workflow/status/usetheodev/theokit-sdk/ci.yml?branch=main&style=flat-square&label=CI&logo=githubactions&logoColor=white)](https://github.com/usetheodev/theokit-sdk/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/usetheodev/theokit-sdk?style=flat-square&label=scorecard)](https://scorecard.dev/viewer/?uri=github.com/usetheodev/theokit-sdk)
+[![License](https://img.shields.io/badge/license-Apache--2.0-DE2329?style=flat-square)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8%2B-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522.12-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
+[![Providers](https://img.shields.io/badge/LLM%20providers-43-DE2329?style=flat-square)](#configuration-reference)
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.usetheo.dev/)
+
+**Part of [Theo](https://usetheo.dev) — the open platform for AI agents.** `@theokit/sdk` is its **Harness** pillar. [Learn more →](https://usetheo.dev)
+
+</div>
+
+---
+
+## Contents
+
+**Start here** — [Why](#why-theokitsdk) · [Overview](#overview) · [Installation](#installation) · [Quick start](#quick-start) · [Core concepts](#core-concepts)
+
+**Build with it** — [Creating an agent](#creating-a-local-agent) · [Sending messages](#sending-messages) · [Stream events](#stream-events) · [Resuming](#resuming-agents) · [MCP servers](#mcp-servers) · [Subagents](#subagents) · [Memory & skills](#memory-context-and-skills) · [Hooks](#hooks) · [Cron](#cron-jobs) · [Artifacts](#artifacts)
+
+**Operate it** — [Authentication](#authentication) · [Resource management](#resource-management) · [Errors](#errors) · [Cloud runtime](#cloud-runtime--pre-release) · [Configuration](#configuration-reference)
+
+**Decide** — [The open stack](#the-open-stack-layer-by-layer) · [Known limitations](#known-limitations) · [Status](#status) · [Where this fits](#where-this-fits) · [License](#license)
+
+**Project** — [`CONTRIBUTING.md`](./CONTRIBUTING.md) · [`SECURITY.md`](./SECURITY.md) · [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) · [Report a bug](https://github.com/usetheodev/theokit-sdk/issues/new/choose)
 
 ---
 
@@ -706,7 +718,7 @@ The SDK is a standalone TypeScript implementation with no runtime dependency on 
 
 The code is the documentation: the exported TypeScript types are the canonical contract, and your editor's autocomplete is the fastest reference. Start with:
 
-- [`examples/`](./examples/) — runnable end-to-end examples for every surface
+- [`wiki/sdk/`](./wiki/index.md) — the SDK in practice, surface by surface, with runnable snippets
 - [Capability map](./wiki/reference/harness-capability-map.md) — every public primitive + its import path
 - [Error codes](./wiki/reference/error-codes.md) — the `AgentRunError.code` reference table
 - [`wiki/`](./wiki/index.md) — the knowledge bundle: agent fundamentals, the SDK in practice, operations, and a 12-module Agent AI course
@@ -719,7 +731,7 @@ Both reference docs **ship inside the package**: read them offline, pinned to th
 
 New contributor? Start with [`CONTRIBUTING.md`](./CONTRIBUTING.md) — branch model, commit rules, and the PR checklist.
 
-This monorepo uses **pnpm workspaces**, **Biome 2.4**, **tsup 8**, **Vitest 3**, **TypeScript 5.8+**, and **Changesets**. Node 22.12+ required (use `nvm use` to pick it up from `.nvmrc`).
+This monorepo uses **pnpm workspaces**, **Biome 2.4**, **tsup 8**, **Vitest 4**, **TypeScript 5.8+**, and **Changesets**. Node 22.12+ required (use `nvm use` to pick it up from `.nvmrc`).
 
 ```bash
 nvm use                       # Node 22+ per .nvmrc
