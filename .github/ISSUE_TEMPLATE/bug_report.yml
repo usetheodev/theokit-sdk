@@ -1,0 +1,111 @@
+name: Bug report
+description: Something behaves differently from what the types or the docs promise.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        One request before you start: **if this is a security problem, close this
+        form.** Use [private vulnerability reporting](https://github.com/usetheodev/theokit-sdk/security/advisories/new)
+        instead, so a fix can ship before the details are public.
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      description: Which one misbehaves? Pick the package the failing call belongs to.
+      options:
+        - "@theokit/sdk"
+        - "@theokit/sdk-tools"
+        - "@theokit/sdk-memory"
+        - "@theokit/sdk-cache"
+        - "@theokit/sdk-budget"
+        - "@theokit/sdk-handoff"
+        - "@theokit/sdk-pty"
+        - "@theokit/acp"
+        - "@theokit/cli"
+        - "@theokit/memory-honcho"
+        - "@theokit/memory-mem0"
+        - "@theokit/memory-supermemory"
+        - "Not sure / more than one"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: "`npm ls @theokit/sdk` or the version in your package.json. Not `latest` — the resolved number."
+      placeholder: "4.53.0"
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node version and OS
+      description: "`node -v` plus your platform. The SDK spawns processes and touches the filesystem, so both matter."
+      placeholder: "v22.12.0, macOS 15.2 (arm64)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: >
+        What you expected, and what you got instead. Lead with the impact — a run
+        that hangs, a tool that returns the wrong file, a type that does not
+        compile. If you already know which of the two is wrong, the docs or the
+        code, say which.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: >
+        The smallest code that shows it. A failing test is ideal. If it only
+        reproduces with a specific provider, model, tool or sandbox mode, say so
+        here — "works on defaults" and "needs this exact setup" are very
+        different bugs.
+      render: typescript
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error output
+      description: >
+        Stack traces, stderr, whatever the run printed. **Redact your keys** — the
+        SDK forwards credentials to providers and they show up in some traces.
+        If a key of yours already appeared in output you were about to paste,
+        rotate it first.
+      render: shell
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Does it depend on a specific model provider?
+      options:
+        - "No — reproduces without calling a model"
+        - "Yes — a specific provider or model (name it above)"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues, including closed ones.
+          required: true
+        - label: This is not a security vulnerability (those go through private reporting).
+          required: true
+        - label: I am on a supported version — see the table in SECURITY.md.
+          required: false

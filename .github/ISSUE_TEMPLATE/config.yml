@@ -1,0 +1,18 @@
+# Blank issues are disabled: every path below asks for the things that decide
+# whether a report is actionable. An issue with no version and no reproduction
+# costs more round-trips than it saves the reporter.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/usetheodev/theokit-sdk/security/advisories/new
+    about: >
+      Do NOT open a public issue. Report privately here so a fix can ship before
+      the details are public. See SECURITY.md for scope and what to include.
+
+  - name: Usage question — how do I do X?
+    url: https://github.com/usetheodev/theokit-sdk/wiki
+    about: >
+      The wiki covers the public API, the capability map and the guides. If the
+      answer is not there, open a Bug report and say what you expected the docs
+      to tell you — a question the docs cannot answer is a documentation defect.
