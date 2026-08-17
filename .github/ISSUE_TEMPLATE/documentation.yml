@@ -1,0 +1,42 @@
+name: Documentation problem
+description: The docs are wrong, missing, or describe something the code no longer does.
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Documentation that disagrees with the code is worse than no documentation:
+        it costs a reader the time to trust it *and* the time to find out it lied.
+        This form is for that, not only for gaps.
+
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The page, file or symbol. A URL or a repo path both work.
+      placeholder: "wiki/reference/harness-capability-map.md, or the JSDoc on Agent.prompt"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem
+      options:
+        - "It says something that is no longer true"
+        - "It is missing entirely"
+        - "It is correct but I could not find it from where I started"
+        - "The example does not run"
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: What it says, and what is actually true
+      description: >
+        Quote the line if you can, and say what the code does instead. If you
+        arrived here from a failed run, paste what you tried — the gap between
+        what a reader assumes and what happens is the thing worth fixing.
+    validations:
+      required: true

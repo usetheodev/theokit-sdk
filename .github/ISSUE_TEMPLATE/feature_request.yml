@@ -1,0 +1,69 @@
+name: Feature request
+description: Propose something the SDK should be able to do and currently cannot.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The most useful feature requests describe a **problem you hit**, not a
+        solution you already designed. The problem survives review; the design
+        often changes on the way in.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: >
+        The concrete thing you were building when you ran out of SDK. Include what
+        you tried and where it stopped — "I wanted X, so I reached for Y, and Y
+        cannot express Z."
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How are you working around it today?
+      description: >
+        If you have a workaround, it tells us how much this costs you and often
+        shows the shape the real API should have. If there is none and you are
+        blocked, say that instead — it is equally useful and a stronger signal.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would the API look like?
+      description: >
+        Optional, and a sketch is fine. The exported TypeScript types are the
+        contract here, so writing the call you wish existed is usually the fastest
+        way to communicate the idea.
+      render: typescript
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Where does this belong?
+      description: >
+        A guess is fine — this is about size, not precision. The core carries a
+        bundle budget, so things that can live in an extension usually should.
+      options:
+        - "Core — @theokit/sdk"
+        - "An extension package (@theokit/sdk-*, @theokit/memory-*)"
+        - "A new package"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues, including closed ones, for this idea.
+          required: true
+        - label: >
+            I checked the [Harness Capability Map](https://github.com/usetheodev/theokit-sdk/blob/main/wiki/reference/harness-capability-map.md)
+            and this is not already exported under a name I missed.
+          required: true
