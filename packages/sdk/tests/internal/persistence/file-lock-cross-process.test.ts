@@ -15,6 +15,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fileLockSrc = resolve(here, "../../../src/internal/persistence/file-lock.ts");
+// This is the ONLY consumer of the root `tsx` devDependency, and it reaches it by resolved path
+// rather than by import — which no static analyser can see. knip therefore reports `tsx` as an
+// unused dependency; it is listed under `ignoreDependencies` in knip.json for exactly this reason.
+// Dropping `tsx` from the root package.json makes this spawn fail with ENOENT, and because turbo
+// serves a cached test result when no source file changed, `pnpm validate` can still report green
+// while this test is broken. Removed once on 2026-08-17; CI caught it, the local gate did not.
 const tsxBin = resolve(here, "../../../../../node_modules/.bin/tsx");
 
 function childScript(target: string, marker: string): string {
