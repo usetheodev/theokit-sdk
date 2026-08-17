@@ -1,8 +1,8 @@
 import { openAiCompatibleProfile } from "./openai-compatible.js";
 
 /**
- * M45 — Cerebras. Integration header adapted from Upstream's `cerebras.ts` (MIT — value changed to
- * `theokit`, never `upstream`: the header attributes TRAFFIC). Models per models.dev (2026-07 snapshot).
+ * M45 — Cerebras. The integration header value is theokit's own: the header attributes TRAFFIC.
+ * Models per models.dev (2026-07 snapshot).
  */
 export const CEREBRAS = openAiCompatibleProfile({
   name: "cerebras",

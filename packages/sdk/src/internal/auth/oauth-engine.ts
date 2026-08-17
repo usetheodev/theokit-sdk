@@ -7,12 +7,8 @@
  * Reuses the SDK's typed error taxonomy (`AuthCallbackError` from `server/auth`) for exchange/refresh
  * failures. All network I/O + clock + sleep are INJECTED so the flow is deterministic.
  *
- * ─── ADAPTED FROM Upstream (MIT License, Copyright (c) 2025 upstream — an upstream project) ───
- *   - the device-grant poll loop (device_code → authorization_pending / slow_down) is adapted from
- *     `packages/upstream/src/plugin/github-copilot/copilot.ts`;
- *   - the JWT-claim / account-id extraction + the OpenAI two-step headless flow are adapted from
- *     `packages/upstream/src/plugin/openai/codex.ts`.
- * The MIT license permits this reuse with attribution; this notice + the NOTICE file are that attribution.
+ * The device flows follow their published specs: the RFC 8628 device grant (device_code →
+ * authorization_pending / slow_down) and OpenAI's two-step headless flow with JWT-claim account attribution.
  *
  * @internal
  */

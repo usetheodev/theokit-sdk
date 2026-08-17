@@ -1,8 +1,8 @@
 import type { ProviderProfile } from "../types.js";
 
 /**
- * M45 — the data-only base for OpenAI-compatible chat_completions providers. Upstream's
- * `openai-compatible-profile` pattern (MIT © 2025 upstream — `packages/llm/src/providers/`) flattened to
+ * M45 — the data-only base for OpenAI-compatible chat_completions providers. A profile-map pattern
+ * flattened to
  * theokit's data model: leaves declare name/baseUrl/envVars (+ overrides) in ~10 lines; the router's
  * URL-join rule (version-segment detection + `chatCompletionsPath` escape) derives the endpoint.
  *

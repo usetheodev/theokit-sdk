@@ -1,7 +1,7 @@
 /**
- * M50 (agent-builder) — session-transcript compaction, Codex-faithful.
+ * M50 (agent-builder) — session-transcript compaction.
  *
- * Mirrors the vendored Codex mechanism (`upstream/core/src/compact.rs`):
+ * The mechanism:
  *   - the replacement history = recent USER messages verbatim (newest→oldest under a token budget;
  *     prior summaries filtered by marker) + ONE summary message with a textual marker prefix,
  *     injected as `role:"user"` (`build_compacted_history`, compact.rs:589-663);

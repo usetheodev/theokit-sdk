@@ -329,11 +329,11 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     return construct(opts);
   };
 
-  // M42 review MEDIUM-1 — mirror Upstream's auth model (packages/llm/src/route/auth.ts): a provider's auth
+  // M42 review MEDIUM-1 — the auth model: a provider's auth
   // resolves to real headers at request time or FAILS with `MissingCredentialError` — it NEVER puts a
   // placeholder on the wire. theokit builds an oauth provider's client with the `__oauth_lazy_token__`
-  // placeholder (so the sync router can construct it), then the provider's `transform` (the theokit analog of
-  // Upstream's `Auth.apply`) supplies the real bearer via fetch or an authorization header. If it supplies
+  // placeholder (so the sync router can construct it), then the provider's `transform`
+  // supplies the real bearer via fetch or an authorization header. If it supplies
   // neither, fail fast here with the MissingCredentialError analog instead of POSTing the placeholder upstream.
   const assertOAuthResolved = (t: {
     fetch?: typeof fetch;

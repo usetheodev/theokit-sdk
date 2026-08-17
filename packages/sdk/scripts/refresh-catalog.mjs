@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // M44 — regenerate the per-model `models` blocks in provider-catalog.json from models.dev (maintenance-time
-// ONLY; the runtime never fetches here). Sibling of refresh-pricing.mjs. Mechanism adapted from Upstream's
-// models.dev consumption (MIT © 2025 upstream — core/src/models-dev.ts); shape kept snake_case VERBATIM
+// ONLY; the runtime never fetches here). Sibling of refresh-pricing.mjs. Shape kept snake_case VERBATIM
 // (ADR D1) so this script needs zero field renaming.
 //
 // Curated subset (ADR D5): each entry's fallbackModels + the SDK builtins' fallbackModels + every former

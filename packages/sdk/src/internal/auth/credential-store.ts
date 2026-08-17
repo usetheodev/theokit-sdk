@@ -23,7 +23,7 @@ import { AuthenticationError } from "../../errors.js";
  * driven by a caller-supplied {@link CredentialStoreConfig} (no hardcoded `.agent-builder`/`auth.json` /
  * `AGENT_BUILDER_HOME`). The security-critical file mechanics are ported VERBATIM (ADR D3 of the M42 plan):
  * atomic O_EXCL + rename + fsync write, 0700/0600 mode gates, `env` is always a PARAMETER (never an ambient
- * `process.env` read). Contract SHAPE adapted from Upstream's provider `auth.loader` (MIT © 2025 upstream).
+ * `process.env` read).
  *
  * The env-precedence + key-prefix-inference + declared-provider rungs of the agent-builder resolver are
  * APP POLICY and deliberately stay UP in the consumer; this module owns only the on-disk store + the
@@ -81,7 +81,7 @@ export class CredentialError extends AuthenticationError {
 }
 
 /**
- * The on-disk store — a discriminated union on `type` (Upstream `Info` shape). A legacy file with NO
+ * The on-disk store — a discriminated union on `type`. A legacy file with NO
  * `type` (or `type: 'api'`) is the API-key variant — read unchanged, no migration. The `oauth` variant
  * carries the token pair + expiry.
  */

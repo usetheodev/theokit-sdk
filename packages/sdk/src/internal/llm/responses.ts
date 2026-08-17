@@ -7,11 +7,9 @@
  * SSE event stream into `LlmEvent`/`LlmFinish`. It powers the ChatGPT Codex backend
  * (`https://chatgpt.com/backend-api/codex/responses`) and any responses-API provider.
  *
- * The request-body shape and the SSE event names/fields are ADAPTED FROM Upstream (MIT © 2025 upstream —
- * an upstream project: `packages/llm/src/protocols/openai-responses.ts`). Upstream's engine is
- * Effect-based with an elaborate lifecycle/tool-stream state machine; this is a faithful port of the PROTOCOL
- * shape (event names, field access, terminal/usage handling) retargeted to theokit's much smaller
- * `LlmClient` contract (`name` + `stream → AsyncGenerator<LlmEvent, LlmFinish>`). MIT permits this with attribution.
+ * The request-body shape and the SSE event names/fields follow the OpenAI Responses API wire protocol
+ * (event names, field access, terminal/usage handling), implemented against theokit's
+ * `LlmClient` contract (`name` + `stream → AsyncGenerator<LlmEvent, LlmFinish>`).
  *
  * `extraHeaders` (unused by the chat-completions transport until now) + `baseUrl` are consumed here; a `fetch`
  * override lets a host inject a refresh-aware fetch (dynamic `ChatGPT-Account-Id` / `session-id`, mid-turn

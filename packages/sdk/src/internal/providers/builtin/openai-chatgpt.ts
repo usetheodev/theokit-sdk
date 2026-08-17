@@ -10,11 +10,10 @@ import type { ProviderProfile } from "../types.js";
  * agent-builder M40 workaround; the SDK now owns the provider, so a consumer only selects
  * `openai-chatgpt/<model>` and logs in — ZERO provider logic in the consumer.
  *
- * Grounded 100% in Upstream's provider-auth model (see the codex-provider-in-sdk blueprint):
+ * The provider-auth model (see the codex-provider-in-sdk blueprint):
  * - static profile + a `transform.fetch` that resolves the LIVE credential per HTTP request (fresh Bearer +
  *   dynamic `ChatGPT-Account-Id`), so a mid-turn expiry refreshes transparently with NO agent rebuild;
- * - the protocol values (endpoint, models, oauth config, `originator` header) are SDK-owned constants,
- *   adapted from Upstream's `openai.ts` (MIT © 2025 upstream — see NOTICE).
+ * - the protocol values (endpoint, models, oauth config, `originator` header) are SDK-owned constants.
  *
  * @internal
  */
@@ -23,7 +22,7 @@ import type { ProviderProfile } from "../types.js";
  * The SDK-owned ambient credential store the transform reads. Defaults to `~/.theokit/auth.json`. A consumer
  * points it at its existing store dir via the DEDICATED `THEOKIT_AUTH_HOME` env var (NOT `THEOKIT_HOME` — that
  * is the SDK's whole home directory for personality/credential-pool/profiles; overloading it would redirect
- * the entire runtime). The Upstream "ambient credential Service" analog.
+ * the entire runtime). The SDK's ambient credential service.
  */
 const DEFAULT_STORE: CredentialStoreConfig = {
   home: homedir(),
@@ -35,8 +34,8 @@ const DEFAULT_STORE: CredentialStoreConfig = {
 /**
  * The OpenAI OAuth config the transform resolves + refreshes against. `provider: "openai"` is the STORE
  * provider (what `/login` persists), deliberately distinct from this profile's routing name `openai-chatgpt`
- * — the two-namespace split (integration id vs routed provider) mirrors Upstream. Endpoints/clientId/scopes
- * adapted from Upstream `openai.ts`.
+ * — the two-namespace split separates the integration id from the routed provider. Endpoints/clientId/scopes
+ * are OpenAI's published OAuth values.
  */
 const OPENAI_OAUTH_CONFIG: OAuthProviderConfig = {
   provider: "openai",
@@ -52,7 +51,7 @@ const OPENAI_OAUTH_CONFIG: OAuthProviderConfig = {
  * store, and inject them as headers. Re-resolves on EVERY call → mid-turn refresh with no rebuild. A
  * `Headers` object is used so `authorization` is set case-insensitively (never doubled). If no credential is
  * logged in, throw a clear error rather than putting the router's `__oauth_lazy_token__` placeholder on the
- * wire (fail-closed — the Upstream `MissingCredentialError` semantics).
+ * wire (fail-closed — missing-credential semantics).
  */
 function codexFetch(): typeof fetch {
   return (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
@@ -87,11 +86,9 @@ export const OPENAI_CHATGPT: ProviderProfile = {
     "openai-chatgpt/gpt-5.4-mini",
     "openai-chatgpt/gpt-5.5",
   ],
-  // #165 — this shipped as `codex_cli_rs`, which is the OFFICIAL Codex CLI's own value
-  // (`upstream/login/src/auth/default_client.rs`, `DEFAULT_ORIGINATOR`). Claiming to be a different
-  // vendor's client is a false statement of identity, and it diverged from the very prior art this
-  // file is adapted from: Upstream sends `originator: "upstream"` — its own name — against this same
-  // endpoint, which also shows the route is not restricted to the official client.
+  // #165 — this shipped as `codex_cli_rs`, another vendor's client identifier. Claiming to be a different
+  // vendor's client is a false statement of identity. Third-party clients send their OWN name against
+  // this same endpoint, which also shows the route is not restricted to the official client.
   extraHeaders: { originator: "theokit" },
   transform: {
     // Only `fetch` (async) can await the credential refresh; `headers` is sync and cannot.

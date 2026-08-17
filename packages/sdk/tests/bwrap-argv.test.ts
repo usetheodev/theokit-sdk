@@ -21,9 +21,9 @@ import {
 } from "../src/sandbox/bwrap.js";
 
 /**
- * M53 T0.1 — pure bwrap argv per policy + honest detection (3 Codex-faithful probes:
+ * M53 T0.1 — pure bwrap argv per policy + honest detection (3 probes:
  * which fora do cwd, `--help` ⊃ `--perms`, probe de user-namespace com timeout).
- * Flags mirror `upstream/linux-sandbox/src/bwrap.rs` (subset without the 2-stage seccomp).
+ * Subset without the 2-stage seccomp.
  */
 
 const CWD = "/home/u/proj";

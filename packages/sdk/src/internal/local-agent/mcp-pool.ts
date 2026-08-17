@@ -2,10 +2,8 @@
  * M77 — session-scoped MCP client pool.
  *
  * `buildMcpMap` (`real-local-run.ts`) builds a fresh `McpClient` on every run, so each `send` pays
- * spawn + handshake again: 193 / 138 / 134 ms per turn, measured. The reference anchors this at the
- * session — Codex keeps its `mcp_runtime: Arc<McpRuntime>` in `SessionServices`
- * (`upstream/core/src/state/service.rs:51-58`), next to a field commented *"Session-scoped model
- * client shared across turns"*, and REPLACES the runtime rather than rebuilding it.
+ * spawn + handshake again: 193 / 138 / 134 ms per turn, measured. The runtime is therefore anchored at
+ * the session and REPLACED rather than rebuilt.
  *
  * theokit#155: pooling the client OBJECT was never enough — the turn also has to stop closing what
  * it does not own. See `runOwnsMcpClients` (`real-local-run.ts`) and the idempotent

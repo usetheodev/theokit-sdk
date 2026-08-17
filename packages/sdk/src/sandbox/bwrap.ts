@@ -7,8 +7,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 /**
- * M53 — bubblewrap argv + honest detection, faithful to Codex's Linux sandbox
- * (`upstream/linux-sandbox/src/bwrap.rs` + `upstream/sandboxing/src/bwrap.rs`).
+ * M53 — bubblewrap argv + honest detection.
  *
  * HONEST SCOPE: filesystem confinement + network isolation via bwrap, PLUS the second stage —
  * a cBPF seccomp syscall filter (`agents/sandbox/seccomp.ts`), wired in `agents/sandbox/backend.ts`
@@ -227,9 +226,8 @@ export const realProbes: BwrapProbes = {
  * assumption — that the event fires **once per TURN**, not per session. Invalidating there would
  * re-probe every turn, exactly the behavior memoization exists to eliminate.
  *
- * The reference does not invalidate either: Codex's only real cache is a write-once `OnceLock`
- * (`upstream/linux-sandbox/src/launcher.rs:52`), and its expensive probe runs once per process,
- * only to print a UI warning (`sandboxing/src/bwrap.rs:40-72`).
+ * A write-once cache is sufficient here: the expensive probe runs once per process,
+ * only to print a UI warning.
  *
  * **The price, stated plainly — in BOTH directions.** The original m71-cost-per-turn#ADR-1 declared
  * only one of them; the M71 review (F-perf-9) showed the omitted one was precisely the one with a

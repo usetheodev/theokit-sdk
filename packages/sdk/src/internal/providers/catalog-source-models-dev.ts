@@ -15,7 +15,7 @@ import { getProviderProfile } from "./registry.js";
  * NEVER fetches at startup or per-request — the vendored catalog + any existing disk cache are the offline
  * base, and every failure mode fails CLOSED back to them (ROADMAP constraint: no runtime hard network dep).
  *
- * Mechanism adapted from Upstream's models.dev consumption (MIT © 2025 upstream — `core/src/models-dev.ts`):
+ * The models.dev consumption mechanism:
  * disk cache with mtime TTL, atomic tempfile+rename write, corrupt-cache delete-and-fall-through, kill-switch
  * env. Library adaptations: NO background refresh loop (a consumer composes refresh with the SDK's cron);
  * TTL 1h (not 5min — no background refresher to keep it warm); no cross-process flock v1 (atomic rename +
@@ -44,7 +44,7 @@ export interface RefreshModelCatalogResult {
   models: number;
 }
 
-/** The cache file for a source URL (custom URLs get a hash-suffixed name, mirroring Upstream). */
+/** The cache file for a source URL (custom URLs get a hash-suffixed name). */
 export function cachePathFor(url: string): string {
   // M44 L8 fix — honor the SDK home override so tests and multi-home setups never touch the real ~/.theokit.
   const base = process.env.THEOKIT_HOME?.trim() || join(homedir(), ".theokit");
@@ -164,7 +164,7 @@ export function loadCacheIntoIndex(url: string = DEFAULT_URL): number {
   try {
     parsed = JSON.parse(body);
   } catch {
-    // corrupt cache: delete and fall through to the vendored catalog (Upstream's delete-and-fall-through).
+    // corrupt cache: delete and fall through to the vendored catalog.
     // M44 L9 fix — only a PARSE failure is cache corruption; a patch error must never delete a valid cache.
     try {
       unlinkSync(path);
@@ -207,7 +207,7 @@ export async function refreshModelCatalog(
   const path = cachePathFor(url);
   const now = opts.deps?.now ?? (() => Date.now());
 
-  // TTL gate: a fresh cache serves without network (mtime freshness, Upstream's gate).
+  // TTL gate: a fresh cache serves without network (mtime freshness).
   if (opts.force !== true) {
     try {
       const age = now() - statSync(path).mtimeMs;
@@ -228,7 +228,7 @@ export async function refreshModelCatalog(
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r;
       },
-      // 2 transient retries with backoff (Upstream does the same); every error here is worth one more try —
+      // 2 transient retries with backoff; every error here is worth one more try —
       // the whole call is already fail-closed at the caller.
       { retries: 2, isRetryable: () => true, initialDelayMs: 200 },
     );

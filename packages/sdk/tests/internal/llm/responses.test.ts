@@ -7,8 +7,8 @@ import { buildResponsesBody, ResponsesApiClient } from "../../../src/internal/ll
 import type { LlmEvent, LlmRequest, LlmToolCallPart } from "../../../src/internal/llm/types.js";
 
 /**
- * M40 — the Responses-API transport. GOLDEN tests against Upstream's recorded SSE fixtures (MIT © 2025
- * upstream), so the theokit port stays faithful to the real ChatGPT/OpenAI responses stream shape. A fixture
+ * M40 — the Responses-API transport. GOLDEN tests against recorded SSE fixtures,
+ * so the transport stays faithful to the real ChatGPT/OpenAI responses stream shape. A fixture
  * is a recorded HTTP interaction `{ request: { body }, response: { status, body: <SSE text> } }`.
  */
 const fixtureDir = join(__dirname, "responses-fixtures");
@@ -52,7 +52,7 @@ async function drain(
   return { events, finish: res.value as never };
 }
 
-describe("M40 — ResponsesApiClient (golden, Upstream fixtures)", () => {
+describe("M40 — ResponsesApiClient (golden SSE fixtures)", () => {
   it("builds the Responses body from an LlmRequest (matches the recorded request shape)", () => {
     const body = buildResponsesBody({
       model: "gpt-5.5",

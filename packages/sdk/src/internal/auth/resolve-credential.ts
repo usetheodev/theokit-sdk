@@ -78,7 +78,7 @@ export async function resolveCredential(
   // The generic SDK cannot infer a provider from a key prefix (that was agent-builder app policy), so a
   // provider-less or mismatched stored key is NOT attributed to the requested provider — otherwise a legacy
   // `{api_key:"sk-ant-…"}` file could be POSTed to the wrong vendor's endpoint (cross-vendor key exposure).
-  // Fail-closed, mirroring Upstream, whose credential resolution never attributes a key across providers.
+  // Fail-closed: credential resolution never attributes a key across providers.
   if (stored.api_key.length === 0) return undefined;
   if (stored.provider !== opts.provider) return undefined;
   return {
