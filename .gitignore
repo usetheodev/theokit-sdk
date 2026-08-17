@@ -72,6 +72,7 @@ docs/evalscope/
 *.bak
 *.bak/
 
+.claude/
 # Architecture review output (loop-architecture-review plugin output dir)
 # DB + figures + ADR drafts; reproducible by re-running /loop-architecture-review
 architecture-output/
