@@ -10,6 +10,11 @@ name: eval
 
 on:
   push:
+    # Without a branches filter this fired on a push to ANY branch touching these
+    # paths, spending real LLM budget on work-in-progress that no one was reading
+    # the result of. The integration branches are where an eval regression has to
+    # be caught; a workspace push can still request one with workflow_dispatch.
+    branches: [main, develop]
     paths:
       - "packages/sdk/src/eval.ts"
       - "packages/sdk/src/scorers.ts"
@@ -24,19 +29,30 @@ on:
 permissions:
   contents: read
 
+# Every run costs tokens against a real provider, so two runs of the same ref are
+# never both worth paying for.
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   run-evals:
     name: run eval suites (real LLM)
     runs-on: ubuntu-latest
+    # A hung provider call must not hold a runner — and must not keep billing —
+    # for GitHub's 6-hour default.
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Enable Corepack + pin pnpm
         run: |
           corepack enable
           corepack prepare pnpm@9.15.0 --activate
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22.12"
           cache: pnpm

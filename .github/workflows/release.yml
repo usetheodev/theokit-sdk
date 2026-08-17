@@ -8,8 +8,7 @@ name: Release
 # extracted to sibling repos — plan monorepo-cohesion-split, 2026-06-18.)
 # Auth is NPM_TOKEN (granular automation token) via NODE_AUTH_TOKEN — see the
 # publish step below for the full rationale. OIDC trusted-publisher binding is
-# NOT configured for @theokit/*, and provenance is disabled because npm refuses
-# attestation for private source repositories.
+# NOT configured for @theokit/*.
 #
 # This comment used to claim the opposite ("NPM_TOKEN intentionally NOT used —
 # token env disables OIDC silently"), contradicting the step it describes. The
@@ -31,31 +30,75 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+permissions:
+  contents: read
+
 jobs:
   release:
     name: Release via Changesets (Harness)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: write
       pull-requests: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
+          # changesets/action v2 pushes through the GitHub API and takes its
+          # credential from the `github-token` input, so the checkout token does
+          # not need to survive in .git/config for anything here.
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 9.15.0
-      - uses: actions/setup-node@v4
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
+
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+
+      # ── The publish gate ───────────────────────────────────────────────────
+      #
+      # Until 2026-08-17 this workflow went straight from install to publish. It
+      # ran no tests, and it did not wait for CI: both fire on the same push to
+      # `main` and race. Measured on this repository — Release finishes in 77-79s,
+      # CI in 346-378s — so the publish completed roughly five minutes before CI
+      # had a verdict. On 2026-08-17 a push produced `CI failure 372s` alongside
+      # `Release success 79s`; that release only did no damage because no changeset
+      # was pending. With one queued, a red build would have shipped to npm, where
+      # a version cannot be unpublished after 72 hours.
+      #
+      # Branch protection on `main` is the primary gate and keeps a red commit from
+      # landing at all. This is the second one, and the stronger of the two: it
+      # validates the exact tree being published, in the same job that publishes it,
+      # rather than trusting a verdict from a separate run on a separate checkout.
+      #
+      # Releases are rare (23 to date), so paying CI's ~6 minutes again here costs
+      # far less than one bad publish.
+      - name: Rebuild native bindings (better-sqlite3 ABI guard)
+        run: pnpm rebuild better-sqlite3 || echo "::warning::native rebuild failed — preflight will surface details at test time"
+
+      # Without bwrap the kernel-confinement tests SKIP, and a skipped test reports
+      # green. Omitting this step would make the release gate quietly weaker than
+      # CI on exactly the tests that prove sandbox isolation is real.
+      - name: Install bubblewrap + enable unprivileged userns (kernel-confinement tests)
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK: userns liberado"
+
+      - name: Full quality gate (nothing publishes untested)
+        run: pnpm validate
+
       - name: Create Release Pull Request or Publish
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@198f833dd7d863100ea6e28967bc9a9fdefadb0a # v2.1.0
         with:
           # `pnpm release` rather than `changeset publish` directly, so the workspace-protocol
           # guard (B-111) runs BEFORE the publish. Calling `changeset publish` here skipped it,
@@ -63,14 +106,19 @@ jobs:
           #
           # The ref verification (B-114) is NOT here. `changeset publish` creates the tags; this
           # ACTION pushes them, in a step of its own after the publish returns. Verifying inside
-          # `publish:` therefore checked before the pusher ran and failed every release — measured
-          # on 4.45.0, where the tag it reported missing was on the remote moments later. A gate
-          # that fails every time is a gate people learn to ignore, so it moved to its own step
-          # below.
-          publish: pnpm release
-          version: pnpm changeset version
+          # `publish-script:` therefore checked before the pusher ran and failed every release —
+          # measured on 4.45.0, where the tag it reported missing was on the remote moments later.
+          # A gate that fails every time is a gate people learn to ignore, so it moved to its own
+          # step below.
+          #
+          # v2 renamed these inputs (`publish` -> `publish-script`, `version` -> `version-script`)
+          # and stopped reading a custom token from the GITHUB_TOKEN environment variable: it must
+          # arrive through `github-token`. Passing it the old way fails at push time, after the
+          # packages are already on npm — the worst point in this job to discover a config error.
+          publish-script: pnpm release
+          version-script: pnpm changeset version
+          github-token: ${{ secrets.GITHUB_TOKEN }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Auth via granular npm automation token (NODE_AUTH_TOKEN; setup-node wired
           # the registry .npmrc to read it).
           #
@@ -100,6 +148,10 @@ jobs:
       # transfer: git then dies of SIGPIPE (141) silently, with output ending in a green gate line.
       # A missing release tag is not noticed that day; it is noticed weeks later by whoever is
       # bisecting. Runs only when something was actually published.
+      #
+      # v2 pushes refs through the GitHub API rather than the git CLI by default, which removes
+      # that specific SIGPIPE path. The check stays: it verifies the OUTCOME (the ref is on the
+      # remote), not the mechanism, so it keeps working whichever way the push happened.
       - name: verify release refs reached the remote
         if: steps.changesets.outputs.published == 'true'
         run: node scripts/verify-release-refs.mjs

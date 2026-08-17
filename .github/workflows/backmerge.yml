@@ -32,10 +32,18 @@ jobs:
   open-backmerge-pr:
     name: Open main → develop PR when develop is behind
     runs-on: ubuntu-latest
+    # The job is two git counts and at most one `gh pr create`; it has finished in
+    # 8-11s on every run so far. A ceiling this tight turns a hang into a fast,
+    # obvious failure instead of a runner held for GitHub's 6-hour default.
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # The PR is opened through `gh`, which authenticates from GH_TOKEN in the
+          # step below. Nothing here uses the git credential, so it does not need to
+          # stay behind in .git/config.
+          persist-credentials: false
 
       - name: Open or report the back-merge PR
         env:
