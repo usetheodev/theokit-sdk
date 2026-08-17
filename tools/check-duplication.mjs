@@ -14,19 +14,28 @@
 //     233  sdk-memory/internal/index/migrate-…         ↔  sdk/internal/memory/migrate-…
 //     135  sdk-budget/internal/enforcement.ts          ↔  sdk/internal/budget/enforcement.ts
 //
-// This is not accidental copy-paste. The SDK 2.0 split moved whole subsystems into
-// extracted satellites while sdk-core kept its copies as the v1.x runtime, behind
-// `THEOKIT_PORT_MEMORY_PATH`, which still defaults OFF. Collapsing them is that
-// migration, not a cleanup — see the header of
-// `packages/sdk-memory/src/internal/active-memory/active-memory.ts`.
+// This is not copy-paste, and it is not debt awaiting a cleanup. It is what the
+// optional-peer architecture costs, decided deliberately (#306).
 //
-// So this gate does not demand zero. It PINS the debt: the current figure is the
-// ceiling, and anything above it fails. A new copy-paste cannot land, and the
-// number only moves down — deliberately, in a commit that says why.
+// `@theokit/sdk-budget` and `@theokit/sdk-memory` are OPTIONAL peers. sdk-core has
+// to run budgets and memory with neither installed, so it needs its own working
+// implementation — that is the fallback which makes the peer optional in the first
+// place. The satellite needs its own to be independently richer and replaceable
+// through the `BudgetTracker` / `MemoryProvider` ports.
 //
-// Lower BUDGET whenever a consolidation lands. Raising it needs a reason in the
-// commit message; a budget that drifts upward is not a ratchet, it is a record of
-// giving up.
+// They are not collapsible by re-export, and this was tried rather than assumed:
+// deleting sdk-budget's copies and re-exporting the same symbols from `@theokit/sdk`
+// failed two tests immediately. The copies read identically and bind to DIFFERENT
+// module-level state — each imports its own package's `./ledger.js` and
+// `./registry.js`. Two ledgers, not one implementation written twice.
+//
+// So the number here is a CEILING, not a target. It stops a genuinely accidental
+// copy from landing, which is the failure this gate exists to catch, while the
+// structural overlap sits below it untouched.
+//
+// Raising BUDGET needs a reason in the commit message: the architecture explains
+// the figure that is here, not any figure. Lower it if a real consolidation ever
+// lands — the gate prints the new number when it drops.
 
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -87,8 +96,11 @@ try {
       console.error(`  ${String(lines).padStart(4)}  ${pair}`);
     }
     console.error(
-      "\nExtract the shared logic, or — if this is a staged migration like the SDK 2.0\n" +
-        "split — land the consolidation and LOWER the budget in the same commit.\n",
+      "\nExtract the shared logic into one module both sides import.\n\n" +
+        "If you believe the overlap is structural rather than accidental — the way\n" +
+        "sdk-core and its optional peers each need a working implementation (#306) —\n" +
+        "say so in the commit message and raise BUDGET deliberately. The current\n" +
+        "figure is explained by that architecture; a larger one needs its own reason.\n",
     );
     process.exit(1);
   }
