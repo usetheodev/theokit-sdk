@@ -3,8 +3,14 @@ name: CI
 on:
   push:
     branches: [main, develop, feat/**]
+  # Both promotion legs of the flow are PRs — workspace -> develop and
+  # develop -> main — so both bases must be listed here. Until 2026-08-17 only
+  # `main` was, which left the workspace -> develop PR with no CI at all: the
+  # leg every change passes through was gated solely by the local pre-push hook,
+  # which proves the author ran the gates on their machine, not that the merge
+  # result is green, and which `--no-verify` skips.
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 permissions:
   contents: read
