@@ -56,10 +56,29 @@ const REPO_ROOT = join(__dirname, "..", "..", "..", "..");
 const SCAN_ROOTS = ["."];
 
 /**
- * Loanwords English legitimately borrows with their diacritics. `façade` is a
- * locked term in `CLAUDE.md` ("Agent façade"), so it is not a violation.
+ * Words that carry a diacritic without being Portuguese prose. Two categories, both narrow:
+ *
+ * - Loanwords English legitimately borrows with their accents. `façade` is a locked term in
+ *   `CLAUDE.md` ("Agent façade"), so it is not a violation.
+ * - PROPER NOUNS. A person or a place keeps its spelling in any language, and an English sentence
+ *   naming one is still an English sentence. Both entries below are real lines this gate flagged
+ *   the moment it could see accents at all: a quoted reviewer name in
+ *   `wiki/concepts/human-in-the-loop.md`, and a city in `wiki/sdk/tools-and-aci.md` sitting in a
+ *   list beside `Tokyo`. Spelling either one without its accent to satisfy a linter would be
+ *   misspelling somebody's name to make a tool quiet.
+ *
+ * This is the same trade already made for {@link NOT_PROSE} and the `America/Sao_Paulo` timezone
+ * id: name the specific non-prose token, rather than weakening the detector for every word.
  */
-const WORD_ALLOWLIST = new Set(["façade", "façades", "naïve", "café", "résumé"]);
+const WORD_ALLOWLIST = new Set([
+  "façade",
+  "façades",
+  "naïve",
+  "café",
+  "résumé",
+  "joão",
+  "brasília",
+]);
 
 /** Files exempt from the scan, relative to the repository root. */
 const FILE_ALLOWLIST = new Set<string>([
@@ -313,9 +332,24 @@ async function walk(dir: string, out: string[] = []): Promise<string[]> {
   return out;
 }
 
-/** Split an identifier into its camelCase / PascalCase / snake_case parts. */
+/**
+ * Split an identifier into its camelCase / PascalCase / snake_case parts.
+ *
+ * The letter classes are `\p{Lu}` / `\p{Ll}` rather than `A-Z` / `a-z`, and that is the point
+ * rather than a tidy-up. With the ASCII classes this function silently DROPPED every accented
+ * character: `Correção` came back as `['Corre', 'o']` and `não` as `['n', 'o']`. The line
+ * classifier tests those parts for a diacritic — but the parts had none left by the time it
+ * looked, so the diacritic tier could never fire on an accented letter inside a word, which is
+ * where Portuguese accents actually live.
+ *
+ * Measured, not reasoned: `// Correção de um problema que já estava lá.` in a scanned file passed
+ * this gate clean, while the same sentence spelled without accents failed it. The tier stayed
+ * useful-looking because unaccented lexicon words fire the OTHER tier, so every violation that
+ * ever failed here hid the fact that half the gate was dead — correct Portuguese orthography
+ * walked straight through.
+ */
 function identifierParts(word: string): string[] {
-  return word.split(/[_$]/).flatMap((p) => p.match(/[A-Z]?[a-z]+|[A-Z]+(?![a-z])/g) ?? []);
+  return word.split(/[_$]/).flatMap((p) => p.match(/\p{Lu}?\p{Ll}+|\p{Lu}+(?!\p{Ll})/gu) ?? []);
 }
 
 function stripDiacritics(word: string): string {
