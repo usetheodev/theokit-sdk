@@ -1,0 +1,66 @@
+version: 2
+
+# Pinning every action to a commit SHA removes the risk that a tag is moved under
+# us, and replaces it with the risk that a pinned SHA quietly rots — including
+# past a security fix. This file is the other half of that trade: the SHAs move
+# on a schedule, through a reviewed pull request, instead of silently or never.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - dependencies
+      - github-actions
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 10
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    labels:
+      - dependencies
+    groups:
+      # One PR per ecosystem-shaped cluster rather than per package. Fifteen
+      # separate lockfile bumps in a week are not reviewed, they are rubber-stamped.
+      dev-tooling:
+        dependency-type: development
+        patterns:
+          - "@biomejs/*"
+          - "knip"
+          - "jscpd"
+          - "madge"
+          - "dependency-cruiser"
+          - "publint"
+          - "@arethetypeswrong/*"
+          - "@ls-lint/*"
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "vite"
+      typescript:
+        patterns:
+          - "typescript"
+          - "tsup"
+          - "tsx"
+          - "@types/*"
+    ignore:
+      # The package manager is pinned in three places that must agree: the
+      # `packageManager` field, the corepack line in every workflow, and
+      # pnpm/action-setup in release.yml. A bot bumping one of them produces a
+      # confusing failure, so this one moves by hand.
+      - dependency-name: pnpm

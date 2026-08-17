@@ -1,0 +1,66 @@
+name: CodeQL
+
+# Static security analysis over the TypeScript sources.
+#
+# This complements rather than duplicates the existing gates: `pnpm quality` looks
+# for dead code, cycles, duplication and size, and Biome looks for lint defects.
+# Neither reasons about taint — whether a value that entered from outside reaches
+# a sink that executes, reads a path, or builds a query. For an SDK that spawns
+# processes, resolves user-supplied paths and forwards credentials to providers,
+# that is the analysis worth adding.
+#
+# Results land in the repository's Security tab and, on a pull request, as
+# annotations on the diff.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Weekly, so a newly published query pattern finds existing code rather than
+    # waiting for that file to be touched again.
+    - cron: "0 8 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+        # GitHub Actions workflows are themselves an attack surface here — this
+        # repository holds an npm publish token — so they get analysed too.
+        include:
+          - language: actions
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@c16c0f3f2812ec4bb3750a5ed64873fe2ce0fbef # codeql-bundle-v2.26.3
+        with:
+          languages: ${{ matrix.language }}
+          # `security-extended` adds lower-severity and experimental queries on top
+          # of the default set. The extra findings are worth triaging on a library
+          # that other people's agents import.
+          queries: security-extended
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@c16c0f3f2812ec4bb3750a5ed64873fe2ce0fbef # codeql-bundle-v2.26.3
+        with:
+          category: /language:${{ matrix.language }}

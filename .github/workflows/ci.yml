@@ -1,5 +1,11 @@
 name: CI
 
+# Every action below is pinned to a commit SHA, not a tag. A tag is a mutable
+# pointer: whoever controls the action repository can move `v4` to new code, and
+# every workflow that trusts the tag runs it on the next push, with whatever
+# permissions and secrets the job holds. `.github/dependabot.yml` raises PRs to
+# advance these SHAs, so pinning costs review time rather than staleness.
+
 on:
   push:
     branches: [main, develop, feat/**]
@@ -15,16 +21,31 @@ on:
 permissions:
   contents: read
 
+# A branch that receives three pushes in a minute ran three full matrices, each
+# ~6 minutes across two Node legs, and only the last one could still matter.
+# Superseded runs are cancelled; `main` and `develop` are excluded because a
+# cancelled run there would leave a release commit with no verdict at all.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+
 jobs:
   validate:
     name: validate (node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    # The suite takes ~6 minutes. Without a ceiling a wedged process holds the
+    # runner for GitHub's 6-hour default — per leg, so 12 hours for this matrix.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         node-version: ['22.12', '22']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing in this job pushes. Leaving the token in .git/config lets any
+          # later step, or any tool that reads the config, act as this repository.
+          persist-credentials: false
 
       - name: Enable Corepack + pin pnpm
         run: |
@@ -32,7 +53,7 @@ jobs:
           corepack prepare pnpm@9.15.0 --activate
 
       - name: Setup Node ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: pnpm
@@ -94,6 +115,22 @@ jobs:
       - name: Bundle budget gate
         run: pnpm check:bundle
 
+  # A dependency added in a pull request is reviewed for known vulnerabilities and
+  # licence before it can merge, rather than after it is already in the lockfile.
+  dependency-review:
+    name: dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
+
   no-reconsumed-changesets:
     # B-109 — refuse a release PR that would re-release work already shipped.
     #
@@ -108,15 +145,23 @@ jobs:
     name: no re-consumed changesets
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The check asks git whether the BASE has ever deleted a path. A shallow clone has no
           # such history and would answer "no" for everything — a silent pass, which for a guard is
           # worse than an error.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Check that no changeset on this branch was already consumed by the base
+        # Both refs arrive through the environment rather than through `${{ }}` interpolation.
+        # Interpolated directly into the script, a ref name is pasted into the shell before bash
+        # parses it, so a branch whose name carries shell syntax executes as code in a job that can
+        # read this repository. Through env they are byte strings bash never re-parses.
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          node scripts/check-no-reconsumed-changesets.mjs \
-            "origin/${{ github.base_ref }}" "${{ github.event.pull_request.head.sha }}"
+          node scripts/check-no-reconsumed-changesets.mjs "origin/${BASE_REF}" "${HEAD_SHA}"
