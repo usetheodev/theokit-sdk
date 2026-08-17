@@ -46,7 +46,7 @@
     "@biomejs/biome": "^2.4.0",
     "@changesets/cli": "^2.31.0",
     "@ls-lint/ls-lint": "2.3.1",
-    "@types/node": "^22.10.0",
+    "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "^4.1.8",
     "dependency-cruiser": "^16.10.0",
     "jscpd": "^4.0.5",
@@ -55,7 +55,7 @@
     "publint": "^0.3.20",
     "tsup": "^8.5.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.8.0",
+    "typescript": "^7.0.2",
     "vite": "^7.3.6",
     "vitest": "^4.1.8"
   },
