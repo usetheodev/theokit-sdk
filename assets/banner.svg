@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="TheoKit SDK — the open-source agent runtime for TypeScript" font-family="'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B0D12"/>
+      <stop offset="1" stop-color="#141826"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F04148"/>
+      <stop offset="1" stop-color="#DE2329"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.14" cy="0.5" r="0.42">
+      <stop offset="0" stop-color="#DE2329" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#DE2329" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="300" rx="16" fill="url(#bg)"/>
+  <rect width="1200" height="300" rx="16" fill="url(#glow)"/>
+  <rect x="0.5" y="0.5" width="1199" height="299" rx="16" fill="none" stroke="#2A2F45" stroke-width="1"/>
+
+  <image x="74" y="66" width="168" height="168" href="data:image/png;base64,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"/>
+
+  <rect x="286" y="96" width="6" height="108" rx="3" fill="url(#accent)"/>
+
+  <text x="316" y="140" font-size="58" font-weight="800" fill="#FFFFFF">TheoKit <tspan fill="#F8A0A4">SDK</tspan></text>
+  <text x="318" y="182" font-size="24" font-weight="500" fill="#AAB2C5">The open-source agent runtime for TypeScript.</text>
+  <text x="318" y="228" font-size="16" font-weight="600" letter-spacing="1" fill="#7C8398" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">Agent.create  ·  prompt  ·  stream  ·  resume</text>
+  <text x="318" y="262" font-size="13" font-weight="500" fill="#8B93A7">43 LLM providers · MCP · subagents · cron · local-first · Apache-2.0</text>
+
+  <g transform="translate(1030,150)">
+    <circle r="70" fill="none" stroke="#DE2329" stroke-opacity="0.42" stroke-width="1.6" stroke-dasharray="318 22" transform="rotate(-104)"/>
+    <polygon points="-9,-78 7,-70 -9,-62" fill="url(#accent)"/>
+    <circle cx="70" cy="0" r="8" fill="url(#accent)"/>
+    <circle cx="0" cy="70" r="8" fill="url(#accent)"/>
+    <circle cx="-70" cy="0" r="8" fill="url(#accent)"/>
+  </g>
+</svg>

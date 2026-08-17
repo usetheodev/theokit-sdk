@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="TheoKit SDK — the open-source agent runtime for TypeScript" font-family="'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B0D12"/>
+      <stop offset="1" stop-color="#141826"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F04148"/>
+      <stop offset="1" stop-color="#DE2329"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.2" cy="0.34" r="0.5">
+      <stop offset="0" stop-color="#DE2329" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#DE2329" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+
+  <image x="118" y="96" width="216" height="216" href="data:image/png;base64,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"/>
+
+  <text x="118" y="400" font-size="80" font-weight="800" fill="#FFFFFF">TheoKit <tspan fill="#F8A0A4">SDK</tspan></text>
+  <rect x="118" y="428" width="96" height="7" rx="3.5" fill="url(#accent)"/>
+  <text x="118" y="486" font-size="34" font-weight="500" fill="#AAB2C5">The open-source agent runtime for TypeScript.</text>
+  <text x="118" y="536" font-size="22" font-weight="600" letter-spacing="1" fill="#7C8398" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">Agent.create  ·  prompt  ·  stream  ·  resume</text>
+  <text x="118" y="578" font-size="19" font-weight="500" fill="#8B93A7">43 LLM providers · MCP · subagents · cron · local-first · Apache-2.0</text>
+
+  <g transform="translate(1010,240)">
+    <circle r="128" fill="none" stroke="#DE2329" stroke-opacity="0.38" stroke-width="2.4" stroke-dasharray="580 44" transform="rotate(-102)"/>
+    <polygon points="-15,-142 12,-128 -15,-114" fill="url(#accent)"/>
+    <circle cx="128" cy="0" r="13" fill="url(#accent)"/>
+    <circle cx="0" cy="128" r="13" fill="url(#accent)"/>
+    <circle cx="-128" cy="0" r="13" fill="url(#accent)"/>
+  </g>
+</svg>
