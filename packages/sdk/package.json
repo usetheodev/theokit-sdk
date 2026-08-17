@@ -421,7 +421,7 @@
     "Theo"
   ],
   "dependencies": {
-    "croner": "^9.0.0",
+    "croner": "^10.0.1",
     "jsonrepair": "^3.13.2"
   },
   "devDependencies": {
