@@ -20,7 +20,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 
 import { loadProjectEnv, SOVEREIGN_ENV_KEYS } from "../src/project-env.js";
 
@@ -103,6 +103,33 @@ describe("loadProjectEnv — a project .env cannot set a sovereign key", () => {
   });
 });
 
+describe("loadProjectEnv — the DEFAULT loader argument is ours, and it is built", () => {
+  // B-091, review finding HIGH-2. Passing an explicit `load` everywhere left
+  // `project-env.ts`'s default-parameter expression — the `typeof process.loadEnvFile === "function"`
+  // feature-detect and the closure that calls it — evaluated by nothing. Proven by mutation, because
+  // line coverage cannot see it: replacing that default with `undefined` left the file 13/13 green.
+  //
+  // That expression is the SDK's, not Node's. The cwd RESOLUTION inside `loadEnvFile` is Node's, and
+  // giving that up was the deliberate trade recorded in the plan — but the default argument is a
+  // decision this module makes, on a `@public` API that guards credential-bearing env vars, and it
+  // has to have a caller.
+  it("test_the_default_load_argument_calls_the_real_loadEnvFile_once", () => {
+    const spy = vi.spyOn(process, "loadEnvFile").mockImplementation(() => {});
+    const env: Record<string, string | undefined> = {};
+
+    try {
+      loadProjectEnv(env); // ONE argument on purpose — this is what exercises the default
+
+      expect(
+        spy,
+        "the default argument must build a loader that calls process.loadEnvFile",
+      ).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
 describe("loadProjectEnv — against a real .env on disk", () => {
   it("test_the_real_node_loader_is_guarded_too", () => {
     // The unit cases above inject the loader. This one exercises the default path — the one a
@@ -120,7 +147,8 @@ describe("loadProjectEnv — against a real .env on disk", () => {
 
       // B-091. This used to `process.chdir(dir)` so that the no-argument `loadEnvFile()` would find
       // the fixture, and `process.chdir` does not exist in worker threads — cwd is process-wide and
-      // threads share one process — so the file could not run under vitest's `threads` pool at all.
+      // threads share one process — so ONE test here failed under vitest's `threads` pool. The file
+      // itself ran, 12 of 13 passing; a single failure is enough to abort a mutation dry run.
       //
       // The loader stays Node's REAL one, which is the whole point of this case against the twelve
       // stubbed ones above; only its argument changes. `process.loadEnvFile(path)` was verified to
