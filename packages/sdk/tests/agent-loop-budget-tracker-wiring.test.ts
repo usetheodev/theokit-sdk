@@ -39,9 +39,14 @@ function emitBudgetTrackEvents(
 
 describe("BudgetTracker.track() wiring (Phase 2 / T2.1 runtime hook)", () => {
   it("test_no_tracker_means_noop", () => {
-    // Should not throw, no observable effect.
-    emitBudgetTrackEvents(undefined, "x", 100, 50);
-    expect(true).toBe(true);
+    // B-065. The body used to end in `expect(true).toBe(true)`, so "should not throw" was a comment
+    // rather than an oracle: the wrapper's `catch {}` swallows everything, and this test would have
+    // stayed green even if the undefined-tracker path had started throwing inside it and being
+    // silently eaten. Asserting `.not.toThrow()` around the call is the claim the comment already
+    // made, and it fails if the guard is removed and the throw escapes.
+    expect(() => {
+      emitBudgetTrackEvents(undefined, "x", 100, 50);
+    }, "an absent tracker must be a silent no-op, not a swallowed error").not.toThrow();
   });
 
   it("test_both_token_counts_fire_separate_events", () => {

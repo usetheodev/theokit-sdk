@@ -68,12 +68,20 @@ describe("MessageBus", () => {
 
   it("fire-and-forget does not wait for handler", async () => {
     const bus = new MessageBus();
+    let handled = false;
     bus.register("lazy", async () => {
       await new Promise((r) => setTimeout(r, 100));
+      handled = true;
     });
+    // B-063. This used to end in `expect(true).toBe(true)`, so the test named a timing property and
+    // measured no time: making `send` await the 100ms handler left it green. The assertion is the
+    // elapsed bound, and the bound is generous on purpose — it is here to catch `send` becoming
+    // blocking, not to police scheduler jitter.
+    const started = Date.now();
     await bus.send("a", "lazy", { type: "ping", payload: null });
-    // send is fire-and-forget — handler may not have finished
-    // but the send itself resolved without waiting
-    expect(true).toBe(true);
+    const elapsed = Date.now() - started;
+
+    expect(elapsed, "send must resolve without waiting for the 100ms handler").toBeLessThan(50);
+    expect(handled, "and the handler must not have completed yet").toBe(false);
   });
 });
