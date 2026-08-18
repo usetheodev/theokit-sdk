@@ -79,18 +79,20 @@ describe("createTelemetry", () => {
 
   it("endAll on no-op handle is safe (no spans to end)", () => {
     // B-006. Two bare calls, the idempotence claimed in a trailing comment. Same shape as above: a
-    // throwing `endAll` does fail this today, so the oracle was implicit. Named now, and the handle
-    // is checked to still work afterwards rather than merely to have survived.
+    // throwing `endAll` does fail this today, so the oracle was implicit rather than absent. Naming
+    // it is what makes the claim survive a refactor that wraps the body in a try.
+    //
+    // A second assertion stood here — `handle.startSpan("after").isRecording()` is false — under
+    // "the handle must still be usable afterwards". Review showed no mutation of `endAll` can fail
+    // it: the no-op handle has no state for `endAll` to corrupt, so it dies only to
+    // `isRecording -> true`, which the dedicated sibling above already pins. It was guarding a
+    // different behaviour than the one in this test's title, so it is gone rather than kept for
+    // looking thorough.
     const handle = createTelemetry({ enabled: false });
     expect(() => {
       handle.endAll();
       handle.endAll();
     }, "endAll must be safe with no spans, and idempotent").not.toThrow();
-
-    expect(
-      handle.startSpan("after").isRecording(),
-      "and the handle must still be usable after repeated endAll",
-    ).toBe(false);
   });
 
   it("startChildSpan on no-op handle returns no-op span", () => {

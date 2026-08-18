@@ -107,9 +107,15 @@ describe("T1.3 — Agent.create boundary validation", () => {
     // Writing the obvious `.resolves` assertion exposed something sharper, and it is why this test
     // needs the spy: acceptance of this key does NOT depend on the fixture path. Measured — with
     // BOTH fixture guards disabled (`isFixtureApiKey` returning false AND the validator's
-    // `theo_test_` branch removed), `Agent.create` still resolves, because an 18-character key with
-    // no embedded whitespace is simply not malformed. So `.resolves` alone would pin "a well-formed
-    // key is accepted", not "the fixture path is taken" — which is what the test is named for.
+    // `theo_test_` branch removed), `Agent.create` still resolves. Not because the key is
+    // well-formed — under `{ strict: true, provider: "openai" }` it is rejected with
+    // `missing_known_prefix` — but because strictness is never switched on: `shouldUseRealLocalRuntime`
+    // consults `isLocalNoAuthProviderAvailable()`, which returns `true` unconditionally
+    // (`fixture-mode.ts:158`, "the SDK ships Ollama as a builtin"), so `willFlowToProvider` is false
+    // at `agent-helpers.ts:129`, so `validateApiKeyShape` takes its `strict === false` early return.
+    //
+    // So `.resolves` alone would pin "a key is accepted while no provider-strict check runs", not
+    // "the fixture path is taken" — which is what the test is named for.
     const fixtureCheck = vi.spyOn(fixtureMode, "isFixtureApiKey");
     try {
       const created = Agent.create({
