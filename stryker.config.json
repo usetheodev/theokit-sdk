@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/vitest-runner"],
+  "vitest": {
+    "configFile": "vitest.config.ts",
+    "related": false
+  },
+  "reporters": ["json", "clear-text", "progress-append-only"],
+  "jsonReporter": {
+    "fileName": "../../reports/mutation/slice.json"
+  },
+  "mutate": ["src/internal/llm/**/*.ts"],
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "timeoutFactor": 2,
+  "incremental": false,
+  "ignoreStatic": false,
+  "coverageAnalysis": "perTest",
+  "disableTypeChecks": true,
+  "tempDirName": ".stryker-tmp",
+  "inPlace": true,
+  "_comment": "Run from packages/sdk (pnpm --filter exec). inPlace:true because packages/sdk is NOT relocatable: vitest.setup.ts imports ../../tools/preflight-native-bindings.mjs, which escapes the package to the monorepo root, so any sandbox copy breaks before a single test is collected. related:false because tests live in a mirror tree (tests/**) and vitest --related cannot map a source file back to them."
+}

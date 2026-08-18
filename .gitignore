@@ -122,3 +122,12 @@ deadcode-output/
 refactor/
 
 BACKLOG.md
+
+# Stryker mutation testing — transient sandbox (a full copy of src/) + tool reports.
+# Both are machine-generated per run. Left untracked they make the working tree dirty,
+# which breaks the clean-tree pre-condition of cycle-release and cycle-code-quality;
+# biome reads this file (biome.json vcs.useIgnoreFile) so this also stops the formatter
+# from linting a generated copy of the source.
+.stryker-tmp/
+packages/*/reports/
+reports/

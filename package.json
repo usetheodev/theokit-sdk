@@ -46,6 +46,8 @@
     "@biomejs/biome": "^2.4.0",
     "@changesets/cli": "^2.31.0",
     "@ls-lint/ls-lint": "2.3.1",
+    "@stryker-mutator/core": "10",
+    "@stryker-mutator/vitest-runner": "10",
     "@types/node": "^22.10.0",
     "@vitest/coverage-v8": "^4.1.8",
     "dependency-cruiser": "^16.10.0",
