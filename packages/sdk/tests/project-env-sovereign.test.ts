@@ -122,8 +122,12 @@ describe("loadProjectEnv — the DEFAULT loader argument is ours, and it is buil
 
       expect(
         spy,
-        "the default argument must build a loader that calls process.loadEnvFile",
-      ).toHaveBeenCalledTimes(1);
+        // `toHaveBeenCalledWith()` and not `toHaveBeenCalledTimes(1)`: review mutated the default to
+        // `process.loadEnvFile("/nonexistent/.env")` and a count-only assertion stayed green. The
+        // no-argument-ness is the SDK's decision — it is what produces the cwd resolution the ADR
+        // discusses — so it is the thing to pin.
+        "the default must call process.loadEnvFile with NO argument",
+      ).toHaveBeenCalledWith();
     } finally {
       spy.mockRestore();
     }
