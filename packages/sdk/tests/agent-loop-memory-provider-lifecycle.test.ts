@@ -64,7 +64,7 @@ function buildSpyProvider(opts?: { initThrows?: boolean; disposeThrows?: boolean
 }
 
 /**
- * Mirror of the wiring at `loop.ts` ~ lines 200-220 (`initLoopContext`).
+ * Mirror of the wiring in `initLoopContext` (`internal/agent-loop/loop-context-init.ts:91`).
  * Calls `provider.init(...)` once with `process.cwd()`; swallows init
  * errors (handle stays undefined when init throws).
  */
