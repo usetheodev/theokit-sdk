@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * M44 — the per-model catalog sub-schema. Field names mirror models.dev VERBATIM (snake_case) so
  * `scripts/refresh-catalog.mjs` regenerates the vendored data mechanically from `api.json` with zero
- * renaming (ADR D1; Upstream keeps the raw shape on disk and maps at load — `core/src/models-dev.ts`).
+ * renaming (ADR D1).
  * TOLERANT by design: every field optional, unknown keys ignored — models.dev adds fields over time and
  * additive drift must never break the loader (Blueprint §6.4).
  *

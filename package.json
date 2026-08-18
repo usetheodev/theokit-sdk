@@ -1,6 +1,7 @@
 {
   "name": "theokit-sdk-monorepo",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22.12.0",
@@ -27,25 +28,26 @@
     "quality:coverage": "pnpm --filter=@theokit/sdk exec vitest run --coverage",
     "quality:audit": "pnpm audit --prod --audit-level=low && pnpm audit --audit-level=high",
     "quality:cross-cluster": "node tools/check-cross-cluster.mjs",
-    "quality:capability-map": "node scripts/check-capability-map.mjs",
     "quality:dts-exports": "node tools/check-dts-exports.mjs",
-    "quality": "pnpm run quality:dead && pnpm run quality:dead-internal && pnpm run quality:cycles && pnpm run quality:depcruise && pnpm run quality:cross-cluster && pnpm run quality:loc && pnpm run quality:duplication && pnpm run quality:capability-map && pnpm run quality:dts-exports && pnpm run quality:audit",
+    "quality": "pnpm run quality:dead && pnpm run quality:dead-internal && pnpm run quality:cycles && pnpm run quality:depcruise && pnpm run quality:cross-cluster && pnpm run quality:loc && pnpm run quality:duplication && pnpm run quality:dts-exports && pnpm run quality:audit",
     "quality:report": "pnpm run quality && pnpm run quality:coverage && pnpm run quality:audit",
-    "check:bundle": "node scripts/check-bundle-budget.mjs",
+    "check:bundle": "node tools/check-bundle-budget.mjs",
     "validate": "pnpm run check && npx turbo run build typecheck test --filter='./packages/*' && pnpm run validate:naming && pnpm run validate:publint && pnpm run validate:attw && pnpm run quality && pnpm run check:bundle",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "start": "pnpm run build",
-    "release": "pnpm run build && node scripts/check-publish-no-workspace.mjs && changeset publish",
+    "release": "pnpm run build && node tools/check-publish-no-workspace.mjs && changeset publish",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "quality:dead-internal": "node tools/check-internal-deadcode.mjs",
-    "verify:refs": "node scripts/verify-release-refs.mjs"
+    "verify:refs": "node tools/verify-release-refs.mjs"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
     "@biomejs/biome": "^2.4.0",
     "@changesets/cli": "^2.31.0",
     "@ls-lint/ls-lint": "2.3.1",
+    "@stryker-mutator/core": "10",
+    "@stryker-mutator/vitest-runner": "10",
     "@types/node": "^22.10.0",
     "@vitest/coverage-v8": "^4.1.8",
     "dependency-cruiser": "^16.10.0",
@@ -76,7 +78,8 @@
       "@hono/node-server": "^2.0.5",
       "js-yaml@3": "^3.15.1",
       "js-yaml@4": "^4.3.1",
-      "nanoid@<3.3.18": ">=3.3.18"
+      "nanoid@<3.3.18": ">=3.3.18",
+      "qs@>=6.11.1 <=6.15.1": ">=6.15.2"
     }
   }
 }

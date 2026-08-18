@@ -20,7 +20,76 @@ export interface OAuthTokens {
 }
 
 const KEYTAR_SERVICE = "theokit-mcp";
-const FILE_PATH = join(homedir(), ".theokit", "mcp-tokens.json");
+/**
+ * Resolve the store path on every call instead of binding it once at module load.
+ *
+ * This used to be `const FILE_PATH = join(homedir(), ...)`. A module-level constant captures
+ * ambient global state at IMPORT, so the store kept writing to whichever HOME was set when the
+ * module first loaded and never noticed a later change. In production that is invisible, because
+ * HOME does not move mid-process — but it made the module's correctness a property of *when* it was
+ * imported, which is not a property a credential store should have.
+ *
+ * The environment variable is read FIRST and `homedir()` is the fallback, and the variable READ IS
+ * PER PLATFORM because `os.homedir()` itself is: on POSIX it prefers `$HOME`, on Windows it reads
+ * `USERPROFILE` and never consults `HOME`. Mirroring that split is what keeps this a pure
+ * binding-time fix instead of a behaviour change.
+ *
+ * A previous revision read `process.env.HOME` on every platform. Review caught it: under Git Bash,
+ * MSYS2 or Cygwin `HOME` IS set, to a POSIX-shaped path, and `path.win32.join("/c/Users/N", ...)`
+ * yields `\c\Users\N\.theokit\...` where `USERPROFILE` would have given
+ * `C:\Users\N\.theokit\...`. That would have hidden every existing token on those setups and
+ * written a new credential file to a drive-relative path. It was published as "on Windows HOME is
+ * typically unset" — an untested platform claim, and the same defect class it was written to fix.
+ *
+ * Why read the env at all: inside a worker thread `process.env` is a JS-level copy while
+ * `os.homedir()` is a native call reading the real process environment, so code that moves the home
+ * inside a worker is invisible to `homedir()`. Reading the env first makes this module independent
+ * of the execution model, not just of the import moment.
+ *
+ * The empty/whitespace guard falls through to `homedir()`, and it buys LESS than two earlier
+ * revisions of this comment claimed. Measured on POSIX: `homedir()` with `HOME=""` returns `""` and
+ * with `HOME="   "` returns `"   "` untrimmed, so the fallback hands back the same value the guard
+ * rejected — close to a no-op. `path.join("", ".theokit", ...)` yields a CWD-RELATIVE
+ * `.theokit/mcp-tokens.json`, never `/.theokit`; an earlier revision named that as the hazard and it
+ * does not exist.
+ *
+ * On Windows it is UNKNOWN rather than load-bearing: the fallback reads the same `USERPROFILE`, so
+ * whether the guard changes anything depends on whether an empty variable is reported as absent
+ * there, which is untested and not asserted here. The one case where the guard is genuinely
+ * load-bearing is a worker thread whose environment copy was blanked.
+ *
+ * The OS is UNTESTED here: every POSIX-mode test in `mcp-token-store-modes.test.ts` is
+ * `it.skipIf(!POSIX)` and CI runs ubuntu only, so nothing exercises real Windows chmod semantics or
+ * libuv's `USERPROFILE` lookup. The BRANCH SELECTION is tested — `process.platform` is spy-able, and
+ * `test_the_store_reads_USERPROFILE_and_not_HOME_on_win32` pins all three legs.
+ *
+ * The split is reasoned from `os.homedir()`'s documented per-platform source. A previous revision
+ * also cited `internal/runtime/fixtures/fixture-mode.ts:119` as support; that citation was WRONG and
+ * is removed rather than quietly dropped. That line reads `process.env.HOME ?? process.env.USERPROFILE`
+ * — HOME-first on every platform, which is the exact shape this split exists to avoid. It supports
+ * the rejected alternative, not this one. (That the two modules now resolve different homes under
+ * Git Bash is real and is filed separately; `fixture-mode` only probes for `~/.aws/credentials`.)
+ *
+ * Measured cost, not asserted: `homedir()` is 151 ns/op against 13 382 for the read this path
+ * performs and 97 079 for the write (89x and 645x). The resolution is free relative to the I/O it
+ * precedes.
+ *
+ * B-089. `packages/sdk/tests/mcp-token-store-modes.test.ts` pins it: import once, move HOME, write,
+ * assert the write followed — and it must hold under `--pool=threads`, not only under the repo's
+ * configured `forks`.
+ *
+ * `THEOKIT_HOME` is deliberately NOT honoured here; see B-090. `transcriptRoot()` does honour it and
+ * M94 ADR-2 accepted that migration for the sibling module, but doing the same for a credential
+ * store changes what existing token holders see, and that is a product decision rather than a
+ * prerequisite for execution-model independence.
+ */
+function storeFilePath(): string {
+  // Mirrors `os.homedir()`'s own per-platform source: USERPROFILE on Windows, HOME elsewhere.
+  const fromEnv =
+    process.platform === "win32" ? process.env.USERPROFILE?.trim() : process.env.HOME?.trim();
+  const home = fromEnv !== undefined && fromEnv.length > 0 ? fromEnv : homedir();
+  return join(home, ".theokit", "mcp-tokens.json");
+}
 
 /**
  * Make the directory private BEFORE anything is written into it.
@@ -36,8 +105,8 @@ const FILE_PATH = join(homedir(), ".theokit", "mcp-tokens.json");
  * there, and a fix that only covers fresh installs does not reach the population that has the
  * problem.
  */
-function ensurePrivateStoreDir(): void {
-  const dir = dirname(FILE_PATH);
+function ensurePrivateStoreDir(filePath: string): void {
+  const dir = dirname(filePath);
   try {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     chmodSync(dir, 0o700);
@@ -89,20 +158,26 @@ export async function setTokens(serverName: string, tokens: OAuthTokens): Promis
     return;
   }
   // File fallback. The directory is locked down first — see `ensurePrivateStoreDir`.
-  ensurePrivateStoreDir();
+  // Resolved once for the whole operation and PASSED DOWN. Resolving per use would let a read and
+  // the write that follows it disagree if HOME moved in between — and `ensurePrivateStoreDir`
+  // resolving its own copy would let the directory be locked down under one home while the token
+  // lands under another. Today those two statements are adjacent and synchronous so they cannot
+  // diverge, but that is incidental; passing the path makes the invariant structural.
+  const filePath = storeFilePath();
+  ensurePrivateStoreDir(filePath);
   let allTokens: Record<string, OAuthTokens> = {};
-  if (existsSync(FILE_PATH)) {
+  if (existsSync(filePath)) {
     try {
-      allTokens = JSON.parse(readFileSync(FILE_PATH, "utf8")) as Record<string, OAuthTokens>;
+      allTokens = JSON.parse(readFileSync(filePath, "utf8")) as Record<string, OAuthTokens>;
     } catch {
       // corrupt file — start fresh
       allTokens = {};
     }
   }
   allTokens[serverName] = tokens;
-  await atomicWriteJson(FILE_PATH, allTokens);
+  await atomicWriteJson(filePath, allTokens);
   try {
-    chmodSync(FILE_PATH, 0o600);
+    chmodSync(filePath, 0o600);
   } catch {
     // Windows: chmod is a no-op. Documented in ADR D41 / EC-14.
   }
@@ -123,15 +198,16 @@ export async function getTokens(serverName: string): Promise<OAuthTokens | undef
       return undefined;
     }
   }
-  if (!existsSync(FILE_PATH)) return undefined;
+  const filePath = storeFilePath();
+  if (!existsSync(filePath)) return undefined;
   // The same gate the credential file gets, and deliberately the same implementation rather than a
   // second one: a refresh token is a credential, and `assertSecureModes` already carries the attack
   // it defends against in its docstring. It is called OUTSIDE the try/catch on purpose — the catch
   // below exists to treat a corrupt file as absent, and letting it swallow this would turn "someone
   // else can replace your token" into a silent `undefined`, which reads as "not logged in".
-  assertSecureModes(dirname(FILE_PATH), FILE_PATH);
+  assertSecureModes(dirname(filePath), filePath);
   try {
-    const all = JSON.parse(readFileSync(FILE_PATH, "utf8")) as Record<string, OAuthTokens>;
+    const all = JSON.parse(readFileSync(filePath, "utf8")) as Record<string, OAuthTokens>;
     return all[serverName];
   } catch {
     return undefined;

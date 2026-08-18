@@ -9,17 +9,104 @@ Local-first. Opt-in cloud. Zero walk-away cost.
 
 [![npm version](https://img.shields.io/npm/v/@theokit/sdk?style=flat-square&color=CB3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/@theokit/sdk)
 [![npm downloads](https://img.shields.io/npm/dm/@theokit/sdk?style=flat-square&color=CB3837)](https://www.npmjs.com/package/@theokit/sdk)
-[![CI](https://img.shields.io/github/actions/workflow/status/usetheodev/theokit-sdk/ci.yml?branch=main&style=flat-square&label=CI&logo=githubactions&logoColor=white)](https://github.com/usetheodev/theokit-sdk/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/usetheodev/theokit-sdk?style=flat-square&label=scorecard)](https://scorecard.dev/viewer/?uri=github.com/usetheodev/theokit-sdk)
+[![CI](https://img.shields.io/github/actions/workflow/status/usetheokit/theokit-sdk/ci.yml?branch=main&style=flat-square&label=CI&logo=githubactions&logoColor=white)](https://github.com/usetheokit/theokit-sdk/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/usetheokit/theokit-sdk?style=flat-square&label=scorecard)](https://scorecard.dev/viewer/?uri=github.com/usetheokit/theokit-sdk)
 [![License](https://img.shields.io/badge/license-Apache--2.0-DE2329?style=flat-square)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8%2B-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522.12-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Providers](https://img.shields.io/badge/LLM%20providers-43-DE2329?style=flat-square)](#configuration-reference)
 [![Discord](https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.usetheo.dev/)
 
-**Part of [Theo](https://usetheo.dev) — the open platform for AI agents.** `@theokit/sdk` is its **Harness** pillar. [Learn more →](https://usetheo.dev)
+[**theokit.dev**](https://theokit.dev) · [Discord](https://discord.usetheo.dev/) · [npm](https://www.npmjs.com/package/@theokit/sdk)
+
+**Part of [Theo](https://usetheo.dev) — the open platform for AI agents.** `@theokit/sdk` is its **Harness** pillar.
 
 </div>
+
+---
+
+## Quick start
+
+```bash
+npm install @theokit/sdk
+```
+
+A local agent against your current working tree, streaming events as they arrive. Set
+`THEOKIT_API_KEY` first (see [Authentication](#authentication)):
+
+```typescript
+import { Agent } from "@theokit/sdk";
+import { assistantText } from "@theokit/sdk/messages";
+
+const agent = await Agent.create({
+  apiKey: process.env.THEOKIT_API_KEY!,
+  // "<provider>/<model>". There is no separate `provider` option — the provider
+  // is the prefix. A bare "gemini-2.0-flash-001" will not resolve.
+  model: { id: "google/gemini-2.0-flash-001" },
+  // The PRESENCE of this key selects the local runtime. There is no `runtime`
+  // option — pass `cloud` instead to run hosted. See Overview above.
+  local: { cwd: process.cwd() },
+});
+
+const run = await agent.send("Summarize what this repository does");
+
+for await (const event of run.stream()) {
+  // Returns "" for every non-assistant event, so no `if` is needed.
+  process.stdout.write(assistantText(event));
+}
+```
+
+Three things that trip up almost everyone on the first edit:
+
+- **The provider lives in the model id.** `"openai/gpt-4o"`, not `provider: "openai"` plus `model: "gpt-4o"`. `AgentOptions` has no `provider`.
+- **The runtime is chosen by which key you pass**, `local` or `cloud`. There is no `runtime: "local"` field.
+- **`assistantText(event)` is the shortcut for "just give me the text."** Every event is a discriminated `SDKMessage`; the helper pulls the `TextBlock`s out of an assistant message and returns `""` for anything else. Walking `event.message.content` by hand — shown under [Stream events](#stream-events) — is the escape hatch for when you need the tool-use blocks too.
+
+For a one-shot prompt (create, run, dispose), use the static `Agent.prompt()`. Note it is **static**: `agent.prompt()` does not exist, because sending to an agent you already hold is `agent.send()` and does not dispose it.
+
+```typescript
+const result = await Agent.prompt("What does the auth middleware do?", {
+  apiKey: process.env.THEOKIT_API_KEY!,
+  model: { id: "google/gemini-2.0-flash-001" },
+  local: { cwd: process.cwd() },
+});
+```
+
+## What you get
+
+An agent runtime, not a wrapper around a chat completion. Everything below is in the package or a
+sibling package in this repository — none of it is a roadmap item.
+
+| | |
+| --- | --- |
+| **43 LLM providers** | Counted in `packages/sdk/src/internal/providers/provider-catalog.json`. The provider is the model id's prefix, so `openai/…` → `anthropic/…` → a local `ollama/…` is a string change |
+| **A coding agent's toolkit** | `@theokit/sdk-tools`: read · edit · apply-patch · glob · search · git status/diff · shell · interactive PTY · run-vitest · plan · todolist · think · web fetch and search · images |
+| **A kernel sandbox** | bubblewrap + a seccomp filter around every shell command — see below |
+| **Orchestration** | `Workflow` with branch, parallel and foreach · `createSquad` · subagents · `@theokit/sdk-handoff` · `defineCron` · job queue · `runUntil` with a judge and a token budget |
+| **Evaluation** | `Eval` + `Scorers` over a dataset, with `meanScore` per run |
+| **Memory and context** | Local markdown, or Mem0, Honcho and Supermemory adapters · transcript compaction · skills discovered from `SKILL.md` |
+| **Cost control** | `@theokit/sdk-budget` tracks spend in USD · `@theokit/sdk-cache` is a semantic response cache (vector + full-text hybrid) |
+| **Interop** | MCP with OAuth 2.1 + PKCE · [ACP](https://agentclientprotocol.com) so your agent runs inside an editor · A2A mailbox and message bus |
+| **Two runtime dependencies** | `croner` and `jsonrepair`. That is the whole tree |
+
+### Four gates before any tool runs
+
+<div align="center">
+
+<img src="./assets/security-gates.png" alt="Four gates before a tool runs: trust posture, permission engine, approval policy, kernel sandbox." width="900" />
+
+</div>
+
+The kernel gate is the one that is hard to fake, so here is the evidence rather than the adjective:
+`packages/sdk/tests/linux-sandbox-integration.test.ts` holds 10 `itLive` cases that run against a
+real kernel in CI — `execute_blocks_write_outside_workspace`,
+`execute_blocks_network_and_signals_child`, `seccomp_blocks_ptrace`,
+`seccomp_blocks_socket_af_inet_but_allows_af_unix`, and six more. A mutation run proved the tests
+themselves: swap the seccomp filter for one that denies nothing and they go red.
+
+Permissions are fail-closed — a tool with no matching rule resolves to `ask`, never a silent
+`allow` — and an untrusted project directory switches off every declared capability at once, hooks
+and MCP servers included.
 
 ---
 
@@ -33,7 +120,7 @@ Local-first. Opt-in cloud. Zero walk-away cost.
 
 **Decide** — [The open stack](#the-open-stack-layer-by-layer) · [Known limitations](#known-limitations) · [Status](#status) · [Where this fits](#where-this-fits) · [License](#license)
 
-**Project** — [`CONTRIBUTING.md`](./CONTRIBUTING.md) · [`SECURITY.md`](./SECURITY.md) · [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) · [Report a bug](https://github.com/usetheodev/theokit-sdk/issues/new/choose)
+**Project** — [`CONTRIBUTING.md`](./CONTRIBUTING.md) · [`SECURITY.md`](./SECURITY.md) · [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) · [Report a bug](https://github.com/usetheokit/theokit-sdk/issues/new/choose)
 
 ---
 
@@ -114,7 +201,7 @@ The `proper-lockfile` row is the one that fails quietly: the SDK degrades and ke
 
 ## AI coding assistant setup (optional)
 
-Scaffold a TheoKit-aware config so your AI coding tool writes correct SDK code out of the box. Works with Claude Code, Cursor, Copilot, Windsurf, Codex, and any tool that reads `AGENTS.md`.
+Scaffold a TheoKit-aware config so your AI coding tool writes correct SDK code out of the box. Works with any tool that reads `AGENTS.md`.
 
 ```bash
 npx theokit-init-claude          # add --force to overwrite an existing setup
@@ -161,48 +248,6 @@ export THEOKIT_API_KEY="your-key"
 ```
 
 User API keys and service account API keys are both supported. Team Admin API keys are not yet supported.
-
-## Quick start
-
-The fastest way in: a local agent against your current working tree, streaming events as they come in.
-
-```typescript
-import { Agent } from "@theokit/sdk";
-import { assistantText } from "@theokit/sdk/messages";
-
-const agent = await Agent.create({
-  apiKey: process.env.THEOKIT_API_KEY!,
-  // "<provider>/<model>". There is no separate `provider` option — the provider
-  // is the prefix. A bare "gemini-2.0-flash-001" will not resolve.
-  model: { id: "google/gemini-2.0-flash-001" },
-  // The PRESENCE of this key selects the local runtime. There is no `runtime`
-  // option — pass `cloud` instead to run hosted. See Overview above.
-  local: { cwd: process.cwd() },
-});
-
-const run = await agent.send("Summarize what this repository does");
-
-for await (const event of run.stream()) {
-  // Returns "" for every non-assistant event, so no `if` is needed.
-  process.stdout.write(assistantText(event));
-}
-```
-
-Three things that trip up almost everyone on the first edit:
-
-- **The provider lives in the model id.** `"openai/gpt-4o"`, not `provider: "openai"` plus `model: "gpt-4o"`. `AgentOptions` has no `provider`.
-- **The runtime is chosen by which key you pass**, `local` or `cloud`. There is no `runtime: "local"` field.
-- **`assistantText(event)` is the shortcut for "just give me the text."** Every event is a discriminated `SDKMessage`; the helper pulls the `TextBlock`s out of an assistant message and returns `""` for anything else. Walking `event.message.content` by hand — shown under [Stream events](#stream-events) — is the escape hatch for when you need the tool-use blocks too.
-
-For a one-shot prompt (create, run, dispose), use the static `Agent.prompt()`. Note it is **static**: `agent.prompt()` does not exist, because sending to an agent you already hold is `agent.send()` and does not dispose it.
-
-```typescript
-const result = await Agent.prompt("What does the auth middleware do?", {
-  apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "google/gemini-2.0-flash-001" },
-  local: { cwd: process.cwd() },
-});
-```
 
 ## Core concepts
 
@@ -404,7 +449,7 @@ Result data (final text, model, duration, git metadata) lives on the `Run` objec
 
 > **Tool call schema is not stable.** The `args` and `result` payloads on `tool_call` events reflect each tool's internal shape and can change as tools evolve. Tool names can also be renamed or replaced. Treat `args` and `result` as `unknown` and parse defensively. The event envelope (`type`, `call_id`, `name`, `status`) is stable.
 
-For the full type reference (`SDKMessage`, `InteractionUpdate`, `ConversationTurn`), read the exported types — they are the canonical contract — or the [capability map](./wiki/reference/harness-capability-map.md).
+For the full type reference (`SDKMessage`, `InteractionUpdate`, `ConversationTurn`), read the exported types — they are the canonical contract.
 
 ## Resuming agents
 
@@ -745,12 +790,10 @@ The SDK is a standalone TypeScript implementation with no runtime dependency on 
 
 The code is the documentation: the exported TypeScript types are the canonical contract, and your editor's autocomplete is the fastest reference. Start with:
 
-- [`wiki/sdk/`](./wiki/index.md) — the SDK in practice, surface by surface, with runnable snippets
-- [Capability map](./wiki/reference/harness-capability-map.md) — every public primitive + its import path
-- [Error codes](./wiki/reference/error-codes.md) — the `AgentRunError.code` reference table
-- [`wiki/`](./wiki/index.md) — the knowledge bundle: agent fundamentals, the SDK in practice, operations, and a 12-module Agent AI course
+- The exported TypeScript types — every public primitive, its import path and its contract
+- The JSDoc on each export — signatures and examples, surfaced by your editor
 
-Both reference docs **ship inside the package**: read them offline, pinned to the exact version you installed, at `node_modules/@theokit/sdk/docs/`. The scaffolded agent context (`npx theokit-init-claude`) ships there too, under `claude-template/`.
+The scaffolded agent context (`npx theokit-init-claude`) ships inside the package, under `claude-template/`.
 
 **Building an agent that reads documentation?** The docs site publishes machine-readable corpora following the [llmstxt.org](https://llmstxt.org) convention — [`llms.txt`](https://docs.usetheo.dev/llms.txt) (curated index) and [`llms-full.txt`](https://docs.usetheo.dev/llms-full.txt) (every page inlined, code samples verbatim). Point your agent at those instead of crawling the site.
 

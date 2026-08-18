@@ -1,13 +1,13 @@
 {
   "name": "@theokit/acp",
   "version": "3.0.2",
-  "description": "Agent Client Protocol (ACP) server adapter for @theokit/sdk. Exposes an SDKAgent over stdio JSON-RPC so Zed/Cursor/Claude Desktop can drive it. ADRs D349-D360.",
+  "description": "Agent Client Protocol (ACP) server adapter for @theokit/sdk. Exposes an SDKAgent over stdio JSON-RPC so any ACP-compatible host can drive it. ADRs D349-D360.",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/usetheodev/theokit-sdk#readme",
-  "bugs": "https://github.com/usetheodev/theokit-sdk/issues",
+  "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
+  "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/usetheodev/theokit-sdk.git",
+    "url": "git+https://github.com/usetheokit/theokit-sdk.git",
     "directory": "packages/acp"
   },
   "type": "module",
@@ -42,7 +42,7 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
+    "prepublishOnly": "node ../../tools/check-publish-no-workspace.mjs ."
   },
   "publishConfig": {
     "access": "public"

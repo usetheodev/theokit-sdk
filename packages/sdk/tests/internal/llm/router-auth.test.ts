@@ -126,7 +126,7 @@ describe("M42 — router obtains the oauth bearer at stream time (plain profiles
   });
 
   it("an oauth provider WITHOUT a transform fails fast — never sends the __oauth_lazy_token__ placeholder (MEDIUM-1)", () => {
-    // Upstream's auth model never puts a placeholder on the wire; a missing credential is MissingCredentialError.
+    // The auth model never puts a placeholder on the wire; a missing credential is MissingCredentialError.
     // theokit's analog: an oauth provider that supplies neither transform.fetch nor an authorization header
     // must throw a ConfigurationError, not POST "Bearer __oauth_lazy_token__" to the real upstream.
     registerProvider({

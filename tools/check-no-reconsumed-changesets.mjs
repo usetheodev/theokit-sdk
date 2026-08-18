@@ -49,8 +49,8 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  * `git` is resolved through PATH, and SonarCloud raises its "fixed, unwriteable directories"
  * hotspot on that. Reviewed and accepted, for a reason specific to where this runs: it is a
  * maintainer/CI release script in a repository whose ENTIRE toolchain arrives through PATH —
- * `pnpm`, `node`, `turbo`, `git` — and the pre-existing scripts beside it (`check-capability-map`,
- * `preflight-native-bindings`, `check-cycles`) do the same. An attacker able to write to this
+ * `pnpm`, `node`, `turbo`, `git` — and the pre-existing tools beside it (`preflight-native-bindings`,
+ * `check-cycles`, `check-bundle-budget`) do the same. An attacker able to write to this
  * PATH already controls the build, so pinning an absolute `git` here moves nothing, while breaking
  * every nvm and macOS checkout where git does not live at a fixed location.
  *
@@ -127,15 +127,8 @@ export function wasDeletedOn(baseRef, path) {
   assertPlainRef(baseRef);
   try {
     return (
-      git([
-        "log",
-        "--diff-filter=D",
-        "--format=%H",
-        "--end-of-options",
-        baseRef,
-        "--",
-        path,
-      ]).length > 0
+      git(["log", "--diff-filter=D", "--format=%H", "--end-of-options", baseRef, "--", path])
+        .length > 0
     );
   } catch {
     return false;

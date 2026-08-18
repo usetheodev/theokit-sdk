@@ -1,4 +1,5 @@
 import { diag } from "../diagnostics.js";
+import { readEnv } from "../env.js";
 
 /**
  * Canonical secret redaction module (ADRs D68-D73).
@@ -25,7 +26,9 @@ import { diag } from "../diagnostics.js";
 let REDACT_ENABLED: boolean = readEnvOnce();
 
 function readEnvOnce(): boolean {
-  const raw = process.env.THEOKIT_REDACT_SECRETS;
+  // `readEnv` rather than `process.env`: this module reaches the browser through `errors.ts`, and
+  // a bare `process` there is a ReferenceError at module scope — a blank page, not a warning.
+  const raw = readEnv("THEOKIT_REDACT_SECRETS");
   if (raw === undefined) return true; // D70: default ON
   return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
 }

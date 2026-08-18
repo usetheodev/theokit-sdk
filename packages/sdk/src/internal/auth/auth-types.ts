@@ -59,7 +59,7 @@ export interface StoredOAuthCredential {
 
 export type StoredCredential = StoredApiCredential | StoredOAuthCredential;
 
-/** A provider's OAuth endpoints + client identity. Passed in (provider-agnostic, like Upstream). */
+/** A provider's OAuth endpoints + client identity. Passed in (provider-agnostic). */
 export interface OAuthProviderConfig {
   provider: string;
   authorizeEndpoint: string;

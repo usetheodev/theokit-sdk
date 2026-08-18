@@ -8,7 +8,7 @@
 
 - [ ] `pnpm validate` green locally (or the touched package's `build` + `typecheck` + `test`)
 - [ ] Test added **first** (TDD); a bug fix ships with its regression test
-- [ ] Public API changed? Exported types + [`docs/harness-capability-map.md`](../docs/harness-capability-map.md) updated in this PR (gate G11)
+- [ ] Public API changed? Exported types updated in this PR
 - [ ] `CHANGELOG.md` `[Unreleased]` entry added; changeset added if user-visible (`pnpm changeset`)
 - [ ] Lint + format clean (`pnpm check` — Biome)
 - [ ] No `Co-Authored-By` trailer; commits follow the conventional-commit prefixes

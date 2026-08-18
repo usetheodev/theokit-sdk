@@ -22,7 +22,7 @@ import { afterAll, describe, expect, it } from "vitest";
  */
 const REPO = resolve(__dirname, "..", "..", "..");
 
-const guard = await import(join(REPO, "scripts", "check-publish-no-workspace.mjs"));
+const guard = await import(join(REPO, "tools", "check-publish-no-workspace.mjs"));
 
 const sandbox = mkdtempSync(join(tmpdir(), "wsguard-test-"));
 afterAll(() => rmSync(sandbox, { recursive: true, force: true }));
@@ -70,7 +70,7 @@ describe("workspace: publish guard — rule 1, the publishing tool", () => {
 
   it("test_an_unknown_publishing_tool_does_not_trip_rule_one", () => {
     // `npm_config_user_agent` is absent when the script is run directly. Refusing then would make
-    // the guard unusable from a test or a manual `node scripts/...` run, and rule 2 still applies.
+    // the guard unusable from a test or a manual `node tools/...` run, and rule 2 still applies.
     expect(guard.checkPackage(fixture(WITH_WORKSPACE), null, { pack: false })).toEqual([]);
   });
 

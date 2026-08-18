@@ -14,7 +14,7 @@ body:
     attributes:
       label: Where
       description: The page, file or symbol. A URL or a repo path both work.
-      placeholder: "wiki/reference/harness-capability-map.md, or the JSDoc on Agent.prompt"
+      placeholder: "the JSDoc on Agent.prompt, or the exported types"
     validations:
       required: true
 

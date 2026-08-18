@@ -3,9 +3,8 @@
 // no dependencies — only node:child_process, node:fs and node:path. The cBPF filter is a Buffer in pure JS.
 
 /**
- * M63 — cBPF seccomp filter generator, byte-faithful to Codex's Linux sandbox
- * (`upstream/linux-sandbox/src/landlock.rs:179-216`). Produces a raw `sock_filter[]` program (the exact
- * shape `bwrap --seccomp <fd>` consumes) so agent-builder ports Codex's syscall confinement WITHOUT a
+ * M63 — cBPF seccomp filter generator. Produces a raw `sock_filter[]` program (the exact
+ * shape `bwrap --seccomp <fd>` consumes) so syscall confinement needs no
  * native helper — bwrap applies `PR_SET_NO_NEW_PRIVS` + the filter before `execve`.
  *
  * Semantics (landlock.rs:252-253): default action = ALLOW; per-syscall match = ERRNO(EPERM). KILL is

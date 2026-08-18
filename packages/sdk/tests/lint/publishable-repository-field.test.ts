@@ -24,7 +24,7 @@ const REPO = join(__dirname, "..", "..", "..", "..");
 const PACKAGES = join(REPO, "packages");
 
 /** The URL npm compares against. Taken from the root manifest so the two cannot drift. */
-const EXPECTED_URL = "git+https://github.com/usetheodev/theokit-sdk.git";
+const EXPECTED_URL = "git+https://github.com/usetheokit/theokit-sdk.git";
 
 interface Manifest {
   name?: string;

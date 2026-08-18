@@ -195,4 +195,4 @@ jobs:
       # which pushes through the GitHub API and does not have this SIGPIPE path at all.
       - name: verify release refs reached the remote
         if: steps.changesets.outputs.published == 'true'
-        run: node scripts/verify-release-refs.mjs
+        run: node tools/verify-release-refs.mjs

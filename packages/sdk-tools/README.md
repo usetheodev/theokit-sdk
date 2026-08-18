@@ -4,7 +4,7 @@ Built-in tools for `@theokit/sdk` agents. File system, git, subprocess, search-t
 
 Extracted from `@theokit/sdk@1.7.0` as part of the SDK 2.0 package split.
 
-See the [**Theo Harness Capability Map**](../../wiki/reference/harness-capability-map.md) for every tool + guard primitive (`buildRepoMap`, `isBlockedIp`, `screenedFetch`, `catastrophicShellReason`, ...) with import paths and examples.
+The exported TypeScript types cover every tool + guard primitive (`buildRepoMap`, `isBlockedIp`, `screenedFetch`, `catastrophicShellReason`, ...) with import paths and examples.
 
 ## Install
 

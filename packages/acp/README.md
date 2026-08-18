@@ -2,7 +2,7 @@
 
 Agent Client Protocol (ACP) server adapter for [`@theokit/sdk`](https://www.npmjs.com/package/@theokit/sdk).
 
-Exposes a `SDKAgent` over stdio JSON-RPC so [Zed](https://zed.dev), Cursor, Claude Desktop, and any [ACP-compatible host](https://agentclientprotocol.com) can drive it as a coding agent — without writing any glue code.
+Exposes a `SDKAgent` over stdio JSON-RPC so any [ACP-compatible host](https://agentclientprotocol.com) can drive it as a coding agent — without writing any glue code.
 
 ```bash
 npm i @theokit/acp @theokit/sdk @agentclientprotocol/sdk
@@ -25,7 +25,7 @@ export default async (sessionId: string) => {
 ```
 
 ```bash
-# Launch the server (Zed/Cursor will do this for you)
+# Launch the server (an ACP host will do this for you)
 npx theokit-acp --entry ./my-agent.ts
 ```
 

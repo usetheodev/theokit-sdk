@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
  * guard nobody can trust.
  */
 const REPO = resolve(__dirname, "..", "..", "..");
-const guard = await import(join(REPO, "scripts", "check-no-reconsumed-changesets.mjs"));
+const guard = await import(join(REPO, "tools", "check-no-reconsumed-changesets.mjs"));
 
 /** The merge that back-merged `main` into `develop` by hand — PR #193, the fix applied that day. */
 const BACKMERGE = "337b57b96";
@@ -158,7 +158,7 @@ describe("re-release guard — an unreadable ref is a refusal, not a pass", () =
     try {
       execFileSync(
         process.execPath,
-        [join(REPO, "scripts", "check-no-reconsumed-changesets.mjs"), "origin/main", ABSENT],
+        [join(REPO, "tools", "check-no-reconsumed-changesets.mjs"), "origin/main", ABSENT],
         { cwd: REPO, stdio: "pipe" },
       );
     } catch (err) {

@@ -9,9 +9,9 @@
  * notices until the next release.
  *
  * Usage:
- *   node scripts/check-bundle-budget.mjs                # check all packages
- *   node scripts/check-bundle-budget.mjs --json         # JSON output (CI machine-readable)
- *   node scripts/check-bundle-budget.mjs --package=X    # check single package
+ *   node tools/check-bundle-budget.mjs                # check all packages
+ *   node tools/check-bundle-budget.mjs --json         # JSON output (CI machine-readable)
+ *   node tools/check-bundle-budget.mjs --package=X    # check single package
  *
  * Exit codes:
  *   0 — all packages within budget
@@ -31,7 +31,7 @@
  * - Zero or negative budget value → exit 2 (programmer error).
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -49,6 +49,7 @@ const packageFilter = args.find((a) => a.startsWith("--package="))?.slice("--pac
  */
 
 /** @returns {Result[]} */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one cohesive pass that walks every package, reads its budget file and classifies the result (PASS / FAIL / WARN_MISSING_DIST). Splitting it would scatter the budget rules across helpers that only ever run in this order. Surfaced when the file moved from the unlinted `scripts/` into `tools/`; pre-existing shape, not new debt.
 function collectResults() {
   /** @type {Result[]} */
   const results = [];
@@ -76,7 +77,9 @@ function collectResults() {
 
     for (const [distRel, maxRaw] of Object.entries(config)) {
       if (typeof maxRaw !== "number" || maxRaw <= 0 || !Number.isFinite(maxRaw)) {
-        console.error(`[bundle-budget] FATAL: ${budgetFile} key "${distRel}" must be positive integer (got ${JSON.stringify(maxRaw)})`);
+        console.error(
+          `[bundle-budget] FATAL: ${budgetFile} key "${distRel}" must be positive integer (got ${JSON.stringify(maxRaw)})`,
+        );
         process.exit(2);
       }
       const max = Math.floor(maxRaw);
@@ -134,13 +137,17 @@ if (results.length === 0) {
 
 if (anyFail) {
   console.error("\n[bundle-budget] FAIL — at least one package exceeded its budget.");
-  console.error("[bundle-budget] Either reduce the bundle size or bump the budget with justification in the PR description.");
+  console.error(
+    "[bundle-budget] Either reduce the bundle size or bump the budget with justification in the PR description.",
+  );
   process.exit(1);
 }
 
 const missing = results.filter((r) => r.status === "WARN_MISSING_DIST").length;
 if (missing > 0) {
-  console.warn(`\n[bundle-budget] ${missing} dist file(s) missing — did you forget to run 'pnpm -r build'?`);
+  console.warn(
+    `\n[bundle-budget] ${missing} dist file(s) missing — did you forget to run 'pnpm -r build'?`,
+  );
 }
 console.log(`\n[bundle-budget] PASS — ${results.length} budget entries checked.`);
 process.exit(0);

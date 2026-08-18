@@ -3,14 +3,11 @@
  * oauth-engine.ts to respect the 500-line file budget; a sibling of the core engine. Promoted DOWN from
  * agent-builder's hardened `agents/lib/oauth-device.ts` (M37).
  *
- * ─── ADAPTED FROM Upstream (MIT License, Copyright (c) 2025 upstream — an upstream project) ───
- *   - the device-grant poll loop (device_code → authorization_pending / slow_down) is adapted from
- *     `packages/upstream/src/plugin/github-copilot/copilot.ts`;
- *   - the JWT-claim / account-id extraction + the OpenAI two-step headless flow are adapted from
- *     `packages/upstream/src/plugin/openai/codex.ts`.
- * The MIT license permits this reuse with attribution; this notice + the NOTICE file are that attribution.
- * Adaptations: network I/O + clock + sleep are INJECTED (deterministic tests), failures raise the SDK's
- * typed `AuthCallbackError`, and a device-code expiry DEADLINE guards each poll loop (upstream loops unbounded).
+ * Implements two device flows against their published specs: the RFC 8628 device-grant poll loop
+ * (device_code → authorization_pending / slow_down) and OpenAI's two-step headless flow, including the
+ * JWT-claim / account-id extraction used to attribute an account.
+ * Design choices: network I/O + clock + sleep are INJECTED (deterministic tests), failures raise the SDK's
+ * typed `AuthCallbackError`, and a device-code expiry DEADLINE guards each poll loop.
  *
  * @internal
  */
@@ -27,7 +24,7 @@ import { exchangeCode } from "./oauth-engine.js";
 
 // ─── OAuth 2.0 Device Authorization Grant (RFC 8628) — terminal-first / headless login ───
 
-/** Buffer added to every poll interval to avoid hitting the server a hair early (from Upstream). */
+/** Buffer added to every poll interval to avoid hitting the server a hair early. */
 const POLLING_SAFETY_MARGIN_MS = 3000;
 
 /** Step 1 — request a device code. POSTs `{client_id, scope}` to the device endpoint. */
@@ -148,7 +145,7 @@ export async function pollDeviceToken(
       return {
         access: data.access_token,
         // Some device-grant providers (e.g. GitHub) issue no separate refresh token — reuse the access
-        // token as the refresh handle, mirroring Upstream's copilot flow.
+        // token as the refresh handle.
         refresh: data.refresh_token ?? data.access_token,
         expires: deps.now() + expiresIn * 1000,
         ...(accountId !== undefined ? { accountId } : {}),
@@ -202,7 +199,7 @@ export async function deviceLogin(
   return pollDeviceToken(config, grant, deps);
 }
 
-// ─── OpenAI / ChatGPT "headless" device flow (two-step; ADAPTED FROM Upstream codex.ts, MIT © 2025) ───
+// ─── OpenAI / ChatGPT "headless" device flow (two-step) ───
 
 /** The OpenAI two-step device config: usercode + poll endpoints return an authorization_code (not tokens). */
 /** Step 1 (OpenAI) — request the user code. */
@@ -316,7 +313,7 @@ export async function openaiDeviceLogin(
   );
 }
 
-/** JWT id/access-token claims we read to attribute an account. Adapted from Upstream's codex plugin. */
+/** JWT id/access-token claims we read to attribute an account. */
 interface IdTokenClaims {
   chatgpt_account_id?: string;
   organizations?: Array<{ id: string }>;
@@ -334,7 +331,7 @@ export function parseJwtClaims(token: string): IdTokenClaims | undefined {
   }
 }
 
-/** Best-effort account id from an id/access token's claims (OpenAI/ChatGPT shape). Adapted from Upstream. */
+/** Best-effort account id from an id/access token's claims (OpenAI/ChatGPT shape). */
 export function extractAccountId(tokens: {
   id_token?: string;
   access_token?: string;

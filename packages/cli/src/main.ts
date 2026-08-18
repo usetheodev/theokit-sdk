@@ -82,7 +82,7 @@ function registerSubcommands(program: Command, setExit: (n: number) => void): vo
   program
     .command("acp")
     .description(
-      "Launch a stdio Agent Client Protocol (ACP) server pointing at the entry file's default-exported agent. Used by Zed/Cursor/Claude Desktop. ADRs D349-D360.",
+      "Launch a stdio Agent Client Protocol (ACP) server pointing at the entry file's default-exported agent. Used by ACP-compatible hosts. ADRs D349-D360.",
     )
     .option("--entry <path>", "Entry file (default: src/index.ts or package.main)")
     .option("--permission <mode>", "Tool permission mode: ask | auto | deny (default: ask)")

@@ -10,7 +10,7 @@ export const ANTHROPIC: ProviderProfile = {
   hostname: "api.anthropic.com",
   fallbackModels: ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
   // M45 — the Anthropic beta-features header (interleaved thinking + fine-grained tool streaming). An
-  // Anthropic API constant, adapted verbatim from Upstream's anthropic plugin (MIT © 2025 upstream). The
+  // Anthropic API constant. The
   // SANCTIONED behavior delta of M45 (ADR D4) — consumed by the anthropic transport's extraHeaders wiring.
   extraHeaders: {
     "anthropic-beta": "interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",

@@ -43,8 +43,8 @@ export interface ProviderTransformContext {
  * M41 — the one OPTIONAL behavior seam on a provider profile. It lets a provider own its per-request auth:
  * `fetch` is the universal seam (a provider that returns its own fetch fully controls headers + refresh, for
  * every transport that accepts a fetch); `headers` is a convenience merged over `extraHeaders` on transports
- * that carry them (responses_api). This is the CONTRACT-shape adaptation of Upstream's provider `auth.loader`
- * (MIT © 2025 upstream — `packages/core/src/plugin/provider/*.ts`), retargeted to theokit's transport model.
+ * that carry them (responses_api). A provider owns its per-request auth material plus transparent token
+ * refresh, expressed against theokit's transport model.
  * Closes the gap where a `ProviderProfile` could only declare STATIC headers.
  *
  * @public
