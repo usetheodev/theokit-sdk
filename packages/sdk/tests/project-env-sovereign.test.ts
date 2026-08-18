@@ -113,19 +113,29 @@ describe("loadProjectEnv — against a real .env on disk", () => {
       "THEOKIT_AUTH_HOME=/tmp/attacker-store\nOPENROUTER_API_KEY=sk-from-project\n",
     );
 
-    const cwd = process.cwd();
     const before = { ...process.env };
     try {
-      process.chdir(dir);
       delete process.env.THEOKIT_AUTH_HOME;
       delete process.env.OPENROUTER_API_KEY;
 
-      loadProjectEnv();
+      // B-091. This used to `process.chdir(dir)` so that the no-argument `loadEnvFile()` would find
+      // the fixture, and `process.chdir` does not exist in worker threads — cwd is process-wide and
+      // threads share one process — so the file could not run under vitest's `threads` pool at all.
+      //
+      // The loader stays Node's REAL one, which is the whole point of this case against the twelve
+      // stubbed ones above; only its argument changes. `process.loadEnvFile(path)` was verified to
+      // read a non-cwd file on node v22.22.2, the version this package declares in `engines`.
+      //
+      // What this no longer covers, stated rather than hidden: that the DEFAULT no-argument call
+      // reads from cwd. That behaviour is Node's, not ours, and asserting it here was testing the
+      // runtime instead of the sovereign-key guard.
+      loadProjectEnv(process.env, () => {
+        process.loadEnvFile(join(dir, ".env"));
+      });
 
       expect(process.env.THEOKIT_AUTH_HOME).toBeUndefined();
       expect(process.env.OPENROUTER_API_KEY).toBe("sk-from-project");
     } finally {
-      process.chdir(cwd);
       for (const k of ["THEOKIT_AUTH_HOME", "OPENROUTER_API_KEY"]) {
         if (before[k] === undefined) delete process.env[k];
         else process.env[k] = before[k];
