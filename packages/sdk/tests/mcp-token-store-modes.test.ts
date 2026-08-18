@@ -19,6 +19,15 @@
  * a writable entry), so `mode & 0o022` is non-zero for every valid store and the gate refused all of
  * them. That is a pre-existing defect in the credential path — this suite pins the fix rather than
  * letting the new caller inherit it.
+ *
+ * B-089 added a fourth concern to this file, and it is about WHERE the store looks rather than about
+ * permissions. `token-storage.ts` used to bind its path into a module-level constant at import, so
+ * the three permission cases above passed only because `vitest.config.ts` forces `fileParallelism:
+ * false` and hands every file a fresh module registry. The path is now resolved per operation, from
+ * the environment (`USERPROFILE` on win32, `HOME` elsewhere) with `homedir()` as fallback, and two
+ * tests pin that: one proves the environment beats `homedir()`, the other proves the platform branch
+ * reads the right variable. Both would pass vacuously if the resolver reverted, so both were
+ * verified to FAIL against a reverted source rather than merely to pass against the current one.
  */
 import { chmodSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -199,15 +208,18 @@ describe("MCP OAuth token store — the environment variable read is per platfor
     mkdirSync(profile, { recursive: true, mode: 0o700 });
     mkdirSync(decoy, { recursive: true, mode: 0o700 });
     const originalProfile = process.env.USERPROFILE;
-    process.env.USERPROFILE = profile;
-
-    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
-    vi.doMock("node:os", async () => {
-      const actual = await vi.importActual<typeof import("node:os")>("node:os");
-      return { ...actual, homedir: () => decoy };
-    });
 
     try {
+      // Inside the try on purpose: if the spy or the mock threw, a setup done above it would leave
+      // USERPROFILE pointing at a deleted tmpdir for every later test in this worker. `afterEach`
+      // restores HOME, not this.
+      process.env.USERPROFILE = profile;
+      vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+      vi.doMock("node:os", async () => {
+        const actual = await vi.importActual<typeof import("node:os")>("node:os");
+        return { ...actual, homedir: () => decoy };
+      });
+
       vi.resetModules();
       const store = await loadStore();
       await store.setTokens("srv", TOKENS);
