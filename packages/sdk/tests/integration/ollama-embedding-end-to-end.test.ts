@@ -10,26 +10,13 @@
  */
 
 import { describe, expect, it } from "vitest";
-
 import { ollamaMemoryEmbeddingProviderAdapter } from "../../src/internal/memory/adapters/ollama-embedding.js";
+import { OLLAMA_HOST, probeOllamaModel } from "./ollama-probe.js";
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST ?? "http://localhost:11434";
 const TEST_MODEL = process.env.OLLAMA_TEST_EMBED_MODEL ?? "nomic-embed-text";
 
-async function probeEmbeddingModelAvailable(): Promise<boolean> {
-  try {
-    const r = await fetch(`${OLLAMA_HOST}/api/tags`, {
-      signal: AbortSignal.timeout(1000),
-    });
-    if (!r.ok) return false;
-    const body = (await r.json()) as { models?: Array<{ name?: string }> };
-    return (body.models ?? []).some((m) => (m.name ?? "").startsWith(TEST_MODEL));
-  } catch {
-    return false;
-  }
-}
-
-const available = process.env.SKIP_OLLAMA_E2E !== "1" && (await probeEmbeddingModelAvailable());
+const available =
+  process.env.SKIP_OLLAMA_E2E !== "1" && (await probeOllamaModel(TEST_MODEL, OLLAMA_HOST));
 if (!available) {
   process.stderr.write(
     `[ollama-embedding] Skipping — model "${TEST_MODEL}" not pulled. ` +

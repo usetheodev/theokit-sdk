@@ -56,21 +56,43 @@ describe("createTelemetry", () => {
   });
 
   it("no-op span swallows all attribute/event/status/recordException calls", () => {
+    // B-006. The body was five bare calls under "None of these should throw or emit anything". It
+    // does fail if one of them is removed from the no-op span (the TypeError escapes — nothing here
+    // swallows it), so this was an implicit oracle rather than none at all. Stating it makes the
+    // claim survive a refactor that adds a try/catch, and the second assertion is new: swallowing
+    // must not have quietly turned recording on.
     const handle = createTelemetry({ enabled: false });
     const span = handle.startSpan("test");
-    // None of these should throw or emit anything.
-    span.setAttribute("a", "b");
-    span.setAttributes({ x: 1, y: true });
-    span.addEvent("evt", { z: "w" });
-    span.setStatus({ code: 0 });
-    span.recordException(new Error("test"));
-    span.end();
+    expect(() => {
+      span.setAttribute("a", "b");
+      span.setAttributes({ x: 1, y: true });
+      span.addEvent("evt", { z: "w" });
+      span.setStatus({ code: 0 });
+      span.recordException(new Error("test"));
+      span.end();
+    }, "every no-op span method must exist and absorb its call").not.toThrow();
+
+    expect(span.isRecording(), "and absorbing the calls must not have switched recording on").toBe(
+      false,
+    );
   });
 
   it("endAll on no-op handle is safe (no spans to end)", () => {
+    // B-006. Two bare calls, the idempotence claimed in a trailing comment. Same shape as above: a
+    // throwing `endAll` does fail this today, so the oracle was implicit rather than absent. Naming
+    // it is what makes the claim survive a refactor that wraps the body in a try.
+    //
+    // A second assertion stood here — `handle.startSpan("after").isRecording()` is false — under
+    // "the handle must still be usable afterwards". Review showed no mutation of `endAll` can fail
+    // it: the no-op handle has no state for `endAll` to corrupt, so it dies only to
+    // `isRecording -> true`, which the dedicated sibling above already pins. It was guarding a
+    // different behaviour than the one in this test's title, so it is gone rather than kept for
+    // looking thorough.
     const handle = createTelemetry({ enabled: false });
-    handle.endAll();
-    handle.endAll(); // idempotent
+    expect(() => {
+      handle.endAll();
+      handle.endAll();
+    }, "endAll must be safe with no spans, and idempotent").not.toThrow();
   });
 
   it("startChildSpan on no-op handle returns no-op span", () => {

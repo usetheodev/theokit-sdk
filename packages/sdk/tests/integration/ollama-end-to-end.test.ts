@@ -17,31 +17,27 @@
 import { describe, expect, it } from "vitest";
 
 import { Agent } from "../../src/index.js";
+import { OLLAMA_HOST, probeOllamaModel, serverModelName } from "./ollama-probe.js";
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST ?? "http://localhost:11434";
 const TEST_MODEL = process.env.OLLAMA_TEST_MODEL ?? "ollama/llama3.2:3b";
-
-async function probeOllama(): Promise<boolean> {
-  try {
-    const r = await fetch(`${OLLAMA_HOST}/api/tags`, {
-      signal: AbortSignal.timeout(500),
-    });
-    return r.ok;
-  } catch {
-    return false;
-  }
-}
+const RAW_MODEL = serverModelName(TEST_MODEL);
 
 // Top-level await: evaluated BEFORE `describe.skipIf` so the condition is
 // known at describe-time. Without this, vitest skips the suite even when
 // Ollama is up (because beforeAll runs AFTER describe registration).
 // `SKIP_OLLAMA_E2E=1` lets CI/loaded-machine runs skip the suite even
 // when ollama is up but too slow to respond within the test timeout.
-const ollamaAvailable = process.env.SKIP_OLLAMA_E2E !== "1" && (await probeOllama());
+const ollamaAvailable =
+  process.env.SKIP_OLLAMA_E2E !== "1" && (await probeOllamaModel(RAW_MODEL, OLLAMA_HOST));
 if (!ollamaAvailable) {
+  // B-096 — this used to probe only that the server ANSWERED. With Ollama up and a different
+  // model pulled, the suite ran against a model the server does not have and both tests failed
+  // on empty content instead of skipping. The two sibling suites already probed for the model;
+  // this one now shares their probe, so the three agree.
   process.stderr.write(
-    `[ollama-end-to-end] Skipping — Ollama not reachable at ${OLLAMA_HOST}. ` +
-      "Run `ollama serve` to enable this test.\n",
+    `[ollama-end-to-end] Skipping — Ollama not reachable at ${OLLAMA_HOST}, ` +
+      `or model "${RAW_MODEL}" not pulled. ` +
+      `Run \`ollama serve\` and \`ollama pull ${RAW_MODEL}\` to enable this test.\n`,
   );
 }
 
