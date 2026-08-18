@@ -10,7 +10,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { probeOllamaModel, serverModelName } from "./_ollama-probe.js";
+import { probeOllamaModel, serverModelName } from "./ollama-probe.js";
 
 function stubFetch(impl: () => Promise<unknown>): void {
   vi.stubGlobal("fetch", impl as unknown as typeof fetch);

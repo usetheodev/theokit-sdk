@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { Agent, Tool } from "../../src/index.js";
-import { OLLAMA_HOST, probeOllamaModel, serverModelName } from "./_ollama-probe.js";
+import { OLLAMA_HOST, probeOllamaModel, serverModelName } from "./ollama-probe.js";
 
 const TEST_MODEL = process.env.OLLAMA_TEST_TOOL_MODEL ?? "ollama/qwen2.5-coder:7b";
 

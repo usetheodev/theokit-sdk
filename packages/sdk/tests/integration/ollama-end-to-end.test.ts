@@ -17,7 +17,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Agent } from "../../src/index.js";
-import { OLLAMA_HOST, probeOllamaModel, serverModelName } from "./_ollama-probe.js";
+import { OLLAMA_HOST, probeOllamaModel, serverModelName } from "./ollama-probe.js";
 
 const TEST_MODEL = process.env.OLLAMA_TEST_MODEL ?? "ollama/llama3.2:3b";
 const RAW_MODEL = serverModelName(TEST_MODEL);

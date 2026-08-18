@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 import { ollamaMemoryEmbeddingProviderAdapter } from "../../src/internal/memory/adapters/ollama-embedding.js";
-import { OLLAMA_HOST, probeOllamaModel } from "./_ollama-probe.js";
+import { OLLAMA_HOST, probeOllamaModel } from "./ollama-probe.js";
 
 const TEST_MODEL = process.env.OLLAMA_TEST_EMBED_MODEL ?? "nomic-embed-text";
 
