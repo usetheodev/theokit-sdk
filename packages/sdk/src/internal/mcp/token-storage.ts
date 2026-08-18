@@ -46,17 +46,29 @@ const KEYTAR_SERVICE = "theokit-mcp";
  * inside a worker is invisible to `homedir()`. Reading the env first makes this module independent
  * of the execution model, not just of the import moment.
  *
- * The empty/whitespace guard falls through to `homedir()`. Being precise about what it buys, since
- * the previous revision overstated it: on POSIX it is close to a no-op, because `homedir()` returns
- * the same empty value the guard just rejected — `path.join("", ".theokit", ...)` yields a
- * CWD-RELATIVE `.theokit/mcp-tokens.json`, not `/.theokit`, and that is the pre-existing behaviour
- * for an empty home either way. It does earn its place on Windows (falls through to `USERPROFILE`'s
- * own emptiness check) and for a worker whose env copy was blanked.
+ * The empty/whitespace guard falls through to `homedir()`, and it buys LESS than two earlier
+ * revisions of this comment claimed. Measured on POSIX: `homedir()` with `HOME=""` returns `""` and
+ * with `HOME="   "` returns `"   "` untrimmed, so the fallback hands back the same value the guard
+ * rejected — close to a no-op. `path.join("", ".theokit", ...)` yields a CWD-RELATIVE
+ * `.theokit/mcp-tokens.json`, never `/.theokit`; an earlier revision named that as the hazard and it
+ * does not exist.
  *
- * Windows is UNTESTED here: every test in `mcp-token-store-modes.test.ts` is `it.skipIf(!POSIX)` and
- * CI runs ubuntu only. The platform split above is reasoned from `os.homedir()`'s documented
- * behaviour and from the sibling idiom at `internal/runtime/fixtures/fixture-mode.ts:119`, not from
- * a run.
+ * On Windows it is UNKNOWN rather than load-bearing: the fallback reads the same `USERPROFILE`, so
+ * whether the guard changes anything depends on whether an empty variable is reported as absent
+ * there, which is untested and not asserted here. The one case where the guard is genuinely
+ * load-bearing is a worker thread whose environment copy was blanked.
+ *
+ * The OS is UNTESTED here: every POSIX-mode test in `mcp-token-store-modes.test.ts` is
+ * `it.skipIf(!POSIX)` and CI runs ubuntu only, so nothing exercises real Windows chmod semantics or
+ * libuv's `USERPROFILE` lookup. The BRANCH SELECTION is tested — `process.platform` is spy-able, and
+ * `test_the_store_reads_USERPROFILE_and_not_HOME_on_win32` pins all three legs.
+ *
+ * The split is reasoned from `os.homedir()`'s documented per-platform source. A previous revision
+ * also cited `internal/runtime/fixtures/fixture-mode.ts:119` as support; that citation was WRONG and
+ * is removed rather than quietly dropped. That line reads `process.env.HOME ?? process.env.USERPROFILE`
+ * — HOME-first on every platform, which is the exact shape this split exists to avoid. It supports
+ * the rejected alternative, not this one. (That the two modules now resolve different homes under
+ * Git Bash is real and is filed separately; `fixture-mode` only probes for `~/.aws/credentials`.)
  *
  * Measured cost, not asserted: `homedir()` is 151 ns/op against 13 382 for the read this path
  * performs and 97 079 for the write (89x and 645x). The resolution is free relative to the I/O it

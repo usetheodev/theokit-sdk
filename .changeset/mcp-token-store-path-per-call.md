@@ -2,7 +2,7 @@
 "@theokit/sdk": patch
 ---
 
-The MCP OAuth token store now resolves its path when an operation runs, reading `process.env.HOME` with `os.homedir()` as the fallback, instead of binding a path once when the module is first imported.
+The MCP OAuth token store now resolves its path when an operation runs — reading the same environment variable `os.homedir()` reads on that platform (`USERPROFILE` on Windows, `HOME` elsewhere), with `os.homedir()` itself as the fallback — instead of binding a path once when the module is first imported.
 
 `internal/mcp/token-storage.ts` held `const FILE_PATH = join(homedir(), ".theokit", "mcp-tokens.json")` at module scope. A constant at module scope captures ambient global state at import, so the store kept reading and writing under whichever `HOME` was set at that moment and never noticed a later change. It made the module's correctness a property of *when* it was imported, which is not a property a credential store should have.
 
@@ -12,7 +12,7 @@ They diverge in exactly one place — inside a worker thread, `process.env` is a
 
 An empty or whitespace-only value falls through to `homedir()`. Being precise about what that buys, because an earlier draft of this note overstated it: on POSIX it is close to a no-op, since `homedir()` returns the same empty value, and an empty home resolves the store to a CWD-relative `.theokit/mcp-tokens.json` either way. It earns its place on Windows and for a worker whose environment copy was blanked.
 
-**Windows is untested.** Every test covering this file is skipped off POSIX and CI runs ubuntu only. The platform split is reasoned from `os.homedir()`'s documented behaviour and from the sibling idiom already in the codebase, not from a run.
+**Windows is untested.** Every test covering this file is skipped off POSIX and CI runs ubuntu only. The platform split is reasoned from `os.homedir()`'s documented per-platform source, not from a run on Windows. The branch selection itself IS tested, by spying `process.platform`.
 
 The path is resolved once per operation and passed down, including into the directory-permission step. Resolving it per use would let a read and the write that follows it disagree if `HOME` moved in between, or lock down one directory while the token lands in another.
 

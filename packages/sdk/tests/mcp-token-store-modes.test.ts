@@ -48,7 +48,7 @@ afterEach(() => {
 
 /**
  * Re-imported per test. It no longer has to be: since B-089 the store resolves its path on every
- * call, from `process.env.HOME` with `homedir()` as fallback, so a fresh module registry is not what
+ * call, from the environment (`USERPROFILE` on win32, `HOME` elsewhere) with `homedir()` as fallback, so a fresh module registry is not what
  * makes these tests correct. The dynamic import is kept because these tests also exercise the
  * module's first-load path, not because the path is bound there.
  */
@@ -178,6 +178,58 @@ describe("MCP OAuth token store — the environment wins over os.homedir()", () 
     } finally {
       vi.doUnmock("node:os");
       vi.resetModules();
+      rmSync(decoy, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("MCP OAuth token store — the environment variable read is per platform", () => {
+  // B-089, third review (HIGH-1). The test above pins that the ENVIRONMENT beats `homedir()`, but it
+  // runs on POSIX and therefore only exercises the HOME leg of the ternary. Flipping `"win32"` to
+  // `"darwin"` in the resolver, or swapping the two branches, left the whole suite green — which is
+  // the same "shipped behaviour with no gate able to fail on its removal" defect the test above was
+  // written to close, one commit later.
+  //
+  // The OS genuinely cannot be tested here (chmod semantics, libuv's USERPROFILE lookup) and the
+  // source says so. The BRANCH SELECTION can: `process.platform` is spy-able, and this file already
+  // uses that technique for the win32 mode gate below.
+  it("test_the_store_reads_USERPROFILE_and_not_HOME_on_win32", async () => {
+    const profile = join(tmpdir(), `theokit-mcp-profile-${String(process.hrtime.bigint())}`);
+    const decoy = join(tmpdir(), `theokit-mcp-decoy-${String(process.hrtime.bigint())}`);
+    mkdirSync(profile, { recursive: true, mode: 0o700 });
+    mkdirSync(decoy, { recursive: true, mode: 0o700 });
+    const originalProfile = process.env.USERPROFILE;
+    process.env.USERPROFILE = profile;
+
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    vi.doMock("node:os", async () => {
+      const actual = await vi.importActual<typeof import("node:os")>("node:os");
+      return { ...actual, homedir: () => decoy };
+    });
+
+    try {
+      vi.resetModules();
+      const store = await loadStore();
+      await store.setTokens("srv", TOKENS);
+
+      expect(
+        existsSync(join(profile, ".theokit", "mcp-tokens.json")),
+        "on win32 the store must follow USERPROFILE, which is what os.homedir() reads there",
+      ).toBe(true);
+      expect(
+        existsSync(join(home, ".theokit", "mcp-tokens.json")),
+        "on win32 the store must NOT follow HOME — Git Bash sets it to a POSIX-shaped path",
+      ).toBe(false);
+      expect(
+        existsSync(join(decoy, ".theokit", "mcp-tokens.json")),
+        "the environment must still beat os.homedir() on win32",
+      ).toBe(false);
+    } finally {
+      vi.doUnmock("node:os");
+      vi.resetModules();
+      if (originalProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = originalProfile;
+      rmSync(profile, { recursive: true, force: true });
       rmSync(decoy, { recursive: true, force: true });
     }
   });
