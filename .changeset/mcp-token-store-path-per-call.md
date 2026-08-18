@@ -6,7 +6,13 @@ The MCP OAuth token store now resolves its path when an operation runs, reading 
 
 `internal/mcp/token-storage.ts` held `const FILE_PATH = join(homedir(), ".theokit", "mcp-tokens.json")` at module scope. A constant at module scope captures ambient global state at import, so the store kept reading and writing under whichever `HOME` was set at that moment and never noticed a later change. It made the module's correctness a property of *when* it was imported, which is not a property a credential store should have.
 
-Reading `process.env.HOME` first is not a stylistic preference. On POSIX `os.homedir()` already prefers `$HOME`, so in a normal process the two are byte-identical; on Windows `HOME` is typically unset and the fallback runs, which is also what shipped before. They diverge in exactly one place — inside a worker thread, `process.env` is a JS-level copy while `os.homedir()` is a native call reading the real process environment. An empty `HOME` falls through to `homedir()` rather than resolving the store to `/.theokit`, the same guard `internal/persistence/paths.ts` and `session-transcript.ts` already use.
+Reading the environment first is not a stylistic preference, and **the variable read is per platform because `os.homedir()` itself is**: on POSIX it prefers `$HOME`, on Windows it reads `USERPROFILE` and never consults `HOME`. Mirroring that split keeps this a binding-time fix rather than a behaviour change. In a normal process on either platform the resolved path is identical to what shipped before.
+
+They diverge in exactly one place — inside a worker thread, `process.env` is a JS-level copy while `os.homedir()` is a native call reading the real process environment, so a home moved inside a worker is invisible to `homedir()`.
+
+An empty or whitespace-only value falls through to `homedir()`. Being precise about what that buys, because an earlier draft of this note overstated it: on POSIX it is close to a no-op, since `homedir()` returns the same empty value, and an empty home resolves the store to a CWD-relative `.theokit/mcp-tokens.json` either way. It earns its place on Windows and for a worker whose environment copy was blanked.
+
+**Windows is untested.** Every test covering this file is skipped off POSIX and CI runs ubuntu only. The platform split is reasoned from `os.homedir()`'s documented behaviour and from the sibling idiom already in the codebase, not from a run.
 
 The path is resolved once per operation and passed down, including into the directory-permission step. Resolving it per use would let a read and the write that follows it disagree if `HOME` moved in between, or lock down one directory while the token lands in another.
 

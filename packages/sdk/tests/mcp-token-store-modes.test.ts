@@ -143,6 +143,46 @@ describe("MCP OAuth token store — the store path follows the CURRENT home, not
   });
 });
 
+describe("MCP OAuth token store — the environment wins over os.homedir()", () => {
+  // B-089, second review (HIGH-A). The test above pins that the path is not frozen at import, but it
+  // passes with a `homedir()`-only resolver too — so it does not protect the decision D1 actually
+  // made, which is that the ENVIRONMENT is the source of truth. That distinction is invisible on
+  // POSIX in a normal process, because `os.homedir()` already prefers `$HOME`, and it is exactly
+  // what breaks inside a worker thread where `process.env` is a JS copy and `homedir()` is a native
+  // read.
+  //
+  // Forcing `homedir()` to a DECOY makes the precedence observable under the repo's own pool, which
+  // is the only pool CI runs. Without this, the entire env-first change ships with no gate able to
+  // fail on its removal.
+  it.skipIf(!POSIX)("test_the_store_follows_the_env_even_when_homedir_disagrees", async () => {
+    const decoy = join(tmpdir(), `theokit-mcp-decoy-${String(process.hrtime.bigint())}`);
+    mkdirSync(decoy, { recursive: true, mode: 0o700 });
+    vi.doMock("node:os", async () => {
+      const actual = await vi.importActual<typeof import("node:os")>("node:os");
+      return { ...actual, homedir: () => decoy };
+    });
+
+    try {
+      vi.resetModules();
+      const store = await loadStore();
+      await store.setTokens("srv", TOKENS);
+
+      expect(
+        existsSync(join(home, ".theokit", "mcp-tokens.json")),
+        "the write must follow process.env.HOME",
+      ).toBe(true);
+      expect(
+        existsSync(join(decoy, ".theokit", "mcp-tokens.json")),
+        "the write must NOT follow os.homedir() when the environment says otherwise",
+      ).toBe(false);
+    } finally {
+      vi.doUnmock("node:os");
+      vi.resetModules();
+      rmSync(decoy, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("assertSecureModes — a platform without POSIX modes is not an insecure platform", () => {
   it("test_the_gate_does_not_refuse_every_store_on_win32", async () => {
     // On Windows `statSync().mode` is synthetic: 0666 for a writable entry regardless of ACLs. The

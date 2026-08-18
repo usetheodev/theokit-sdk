@@ -29,18 +29,34 @@ const KEYTAR_SERVICE = "theokit-mcp";
  * HOME does not move mid-process — but it made the module's correctness a property of *when* it was
  * imported, which is not a property a credential store should have.
  *
- * `process.env.HOME` is read FIRST and `homedir()` is the fallback, which is not a stylistic
- * preference. On POSIX `os.homedir()` already prefers `$HOME`, so in a normal process the two are
- * byte-identical; on Windows `HOME` is typically unset and the fallback runs, which is also the
- * behaviour that shipped before. They diverge in exactly one place: inside a worker thread,
- * `process.env` is a JS-level copy while `os.homedir()` is a native call reading the real process
- * environment — so code that moves `HOME` in a worker is invisible to `homedir()`. Reading the env
- * first is what makes this module independent of the execution model rather than of the import
- * moment alone.
+ * The environment variable is read FIRST and `homedir()` is the fallback, and the variable READ IS
+ * PER PLATFORM because `os.homedir()` itself is: on POSIX it prefers `$HOME`, on Windows it reads
+ * `USERPROFILE` and never consults `HOME`. Mirroring that split is what keeps this a pure
+ * binding-time fix instead of a behaviour change.
  *
- * The empty-string guard is load-bearing: `HOME=""` must fall through rather than resolve the store
- * to `/.theokit`. Same idiom as `internal/persistence/paths.ts` and `session-transcript.ts`, reused
- * rather than re-invented.
+ * A previous revision read `process.env.HOME` on every platform. Review caught it: under Git Bash,
+ * MSYS2 or Cygwin `HOME` IS set, to a POSIX-shaped path, and `path.win32.join("/c/Users/N", ...)`
+ * yields `\c\Users\N\.theokit\...` where `USERPROFILE` would have given
+ * `C:\Users\N\.theokit\...`. That would have hidden every existing token on those setups and
+ * written a new credential file to a drive-relative path. It was published as "on Windows HOME is
+ * typically unset" — an untested platform claim, and the same defect class it was written to fix.
+ *
+ * Why read the env at all: inside a worker thread `process.env` is a JS-level copy while
+ * `os.homedir()` is a native call reading the real process environment, so code that moves the home
+ * inside a worker is invisible to `homedir()`. Reading the env first makes this module independent
+ * of the execution model, not just of the import moment.
+ *
+ * The empty/whitespace guard falls through to `homedir()`. Being precise about what it buys, since
+ * the previous revision overstated it: on POSIX it is close to a no-op, because `homedir()` returns
+ * the same empty value the guard just rejected — `path.join("", ".theokit", ...)` yields a
+ * CWD-RELATIVE `.theokit/mcp-tokens.json`, not `/.theokit`, and that is the pre-existing behaviour
+ * for an empty home either way. It does earn its place on Windows (falls through to `USERPROFILE`'s
+ * own emptiness check) and for a worker whose env copy was blanked.
+ *
+ * Windows is UNTESTED here: every test in `mcp-token-store-modes.test.ts` is `it.skipIf(!POSIX)` and
+ * CI runs ubuntu only. The platform split above is reasoned from `os.homedir()`'s documented
+ * behaviour and from the sibling idiom at `internal/runtime/fixtures/fixture-mode.ts:119`, not from
+ * a run.
  *
  * Measured cost, not asserted: `homedir()` is 151 ns/op against 13 382 for the read this path
  * performs and 97 079 for the write (89x and 645x). The resolution is free relative to the I/O it
@@ -56,7 +72,9 @@ const KEYTAR_SERVICE = "theokit-mcp";
  * prerequisite for execution-model independence.
  */
 function storeFilePath(): string {
-  const fromEnv = process.env.HOME?.trim();
+  // Mirrors `os.homedir()`'s own per-platform source: USERPROFILE on Windows, HOME elsewhere.
+  const fromEnv =
+    process.platform === "win32" ? process.env.USERPROFILE?.trim() : process.env.HOME?.trim();
   const home = fromEnv !== undefined && fromEnv.length > 0 ? fromEnv : homedir();
   return join(home, ".theokit", "mcp-tokens.json");
 }
