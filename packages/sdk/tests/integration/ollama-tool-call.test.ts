@@ -18,27 +18,15 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { Agent, Tool } from "../../src/index.js";
+import { OLLAMA_HOST, probeOllamaModel, serverModelName } from "./_ollama-probe.js";
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST ?? "http://localhost:11434";
 const TEST_MODEL = process.env.OLLAMA_TEST_TOOL_MODEL ?? "ollama/qwen2.5-coder:7b";
 
-async function probeModelAvailable(modelTag: string): Promise<boolean> {
-  try {
-    const r = await fetch(`${OLLAMA_HOST}/api/tags`, {
-      signal: AbortSignal.timeout(1000),
-    });
-    if (!r.ok) return false;
-    const body = (await r.json()) as { models?: Array<{ name?: string }> };
-    return (body.models ?? []).some((m) => (m.name ?? "").startsWith(modelTag));
-  } catch {
-    return false;
-  }
-}
-
 // `ollama/qwen2.5-coder:7b` → server-side name is `qwen2.5-coder:7b`.
-const rawModel = TEST_MODEL.replace(/^ollama\//, "");
+const rawModel = serverModelName(TEST_MODEL);
 const available =
-  process.env.SKIP_OLLAMA_E2E !== "1" && (await probeModelAvailable(rawModel.split(":")[0] ?? ""));
+  process.env.SKIP_OLLAMA_E2E !== "1" &&
+  (await probeOllamaModel(rawModel.split(":")[0] ?? "", OLLAMA_HOST));
 if (!available) {
   process.stderr.write(
     `[ollama-tool-call] Skipping — model "${rawModel}" not pulled. ` +
