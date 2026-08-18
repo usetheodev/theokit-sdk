@@ -105,6 +105,39 @@ describe("MCP OAuth token store — the directory is part of the secret", () => 
   });
 });
 
+describe("MCP OAuth token store — the store path follows the CURRENT home, not the one at import", () => {
+  // B-089. The three tests above pass only because `vitest.config.ts` forces `fileParallelism:
+  // false` + `maxConcurrency: 1`, so every file gets a fresh module registry and `loadStore()`
+  // re-resolves the path. Under a shared registry (`--no-isolate`) they fail, because
+  // `token-storage.ts` bound `join(homedir(), ...)` into a module constant AT IMPORT.
+  //
+  // This test pins the property directly and under the DEFAULT configuration: it imports the
+  // module ONCE, then moves HOME, with NO `vi.resetModules()` in between. If the path is captured
+  // at import, the write lands under the old home and the assertion fails. That is the whole
+  // defect, expressed without depending on how the runner is configured — which is what makes the
+  // fix observable to a gate that always runs serially.
+  it.skipIf(!POSIX)("test_the_store_path_follows_a_later_HOME_change", async () => {
+    const store = await loadStore();
+    await store.setTokens("srv", TOKENS);
+
+    const laterHome = join(tmpdir(), `theokit-mcp-tokens-later-${String(process.hrtime.bigint())}`);
+    mkdirSync(laterHome, { recursive: true, mode: 0o700 });
+    process.env.HOME = laterHome;
+
+    try {
+      await store.setTokens("srv2", TOKENS);
+
+      expect(
+        existsSync(join(laterHome, ".theokit", "mcp-tokens.json")),
+        "a write after HOME moved must land under the CURRENT home",
+      ).toBe(true);
+    } finally {
+      process.env.HOME = home;
+      rmSync(laterHome, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("assertSecureModes — a platform without POSIX modes is not an insecure platform", () => {
   it("test_the_gate_does_not_refuse_every_store_on_win32", async () => {
     // On Windows `statSync().mode` is synthetic: 0666 for a writable entry regardless of ACLs. The
