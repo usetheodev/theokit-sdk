@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="470" viewBox="0 0 1200 470" role="img" aria-label="Every tool call passes four gates: trust posture, permission engine, approval policy, and a kernel sandbox." font-family="Inter, 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&amp;display=swap');</style>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0B0D12"/><stop offset="1" stop-color="#141826"/></linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#F04148"/><stop offset="1" stop-color="#DE2329"/></linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0" r="0.8"><stop offset="0" stop-color="#DE2329" stop-opacity="0.15"/><stop offset="1" stop-color="#DE2329" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1200" height="470" rx="16" fill="url(#bg)"/>
+  <rect width="1200" height="470" rx="16" fill="url(#glow)"/>
+  <rect x="0.5" y="0.5" width="1199" height="469" rx="16" fill="none" stroke="#2A2F45"/>
+  <rect x="48" y="46" width="5" height="44" rx="2.5" fill="url(#accent)"/>
+  <text x="68" y="70" font-size="27" font-weight="800" fill="#FFFFFF">A tool call passes four gates before it runs</text>
+  <text x="69" y="94" font-size="14" font-weight="500" fill="#8B93A7">Refuse at any one of them and nothing downstream executes. All four ship in the package.</text>
+  <text x="69" y="123" font-size="12" font-weight="600" letter-spacing="1.6" fill="#7C8398">AGENT ASKS TO RUN A TOOL  →</text>
+  <g transform="translate(48.0,150)">
+    <rect width="262.5" height="196" rx="12" fill="#161B2B" stroke="#2A2F45"/>
+    <rect x="0" y="0" width="262.5" height="3" rx="1.5" fill="url(#accent)"/>
+    <text x="20" y="34" font-size="11.5" font-weight="700" letter-spacing="1.6" fill="#DE2329">01</text>
+    <text x="20" y="62" font-size="18.5" font-weight="700" fill="#FFFFFF">Trust posture</text>
+    <text x="20" y="85" font-size="12.5" font-weight="500" fill="#8B93A7">Is this directory trusted?</text>
+    <line x1="20" y1="99" x2="242.5" y2="99" stroke="#2A2F45"/>
+    <text x="20" y="120" font-size="12.5" font-weight="500" fill="#C3CAD9">Untrusted ⇒ every declared</text><text x="20" y="138" font-size="12.5" font-weight="500" fill="#C3CAD9">capability is off at once —</text><text x="20" y="156" font-size="12.5" font-weight="500" fill="#C3CAD9">hooks, MCP servers, the</text><text x="20" y="174" font-size="12.5" font-weight="500" fill="#C3CAD9">project's own instructions.</text>
+  </g>
+<path d="M312.5,248.0 h12.0" stroke="#3A4160" stroke-width="1.6"/><polygon points="324.5,244.0 330.5,248.0 324.5,252.0" fill="#3A4160"/>
+<path d="M179.2,346 v20" stroke="#DE2329" stroke-opacity="0.5" stroke-width="1.4" stroke-dasharray="3 3"/><text x="179.2" y="382" font-size="11" font-weight="700" letter-spacing="1.2" fill="#F8A0A4" text-anchor="middle">DENIED</text>
+<g transform="translate(328.5,150)">
+    <rect width="262.5" height="196" rx="12" fill="#161B2B" stroke="#2A2F45"/>
+    <rect x="0" y="0" width="262.5" height="3" rx="1.5" fill="url(#accent)"/>
+    <text x="20" y="34" font-size="11.5" font-weight="700" letter-spacing="1.6" fill="#DE2329">02</text>
+    <text x="20" y="62" font-size="18.5" font-weight="700" fill="#FFFFFF">Permission engine</text>
+    <text x="20" y="85" font-size="12.5" font-weight="500" fill="#8B93A7">Does a rule allow this tool?</text>
+    <line x1="20" y1="99" x2="242.5" y2="99" stroke="#2A2F45"/>
+    <text x="20" y="120" font-size="12.5" font-weight="500" fill="#C3CAD9">First matching rule wins.</text><text x="20" y="138" font-size="12.5" font-weight="500" fill="#C3CAD9">No match ⇒ ask, never a</text><text x="20" y="156" font-size="12.5" font-weight="500" fill="#C3CAD9">silent allow. Fail-closed</text><text x="20" y="174" font-size="12.5" font-weight="500" fill="#C3CAD9">is the default posture.</text>
+  </g>
+<path d="M593.0,248.0 h12.0" stroke="#3A4160" stroke-width="1.6"/><polygon points="605.0,244.0 611.0,248.0 605.0,252.0" fill="#3A4160"/>
+<path d="M459.8,346 v20" stroke="#DE2329" stroke-opacity="0.5" stroke-width="1.4" stroke-dasharray="3 3"/><text x="459.8" y="382" font-size="11" font-weight="700" letter-spacing="1.2" fill="#F8A0A4" text-anchor="middle">DENIED</text>
+<g transform="translate(609.0,150)">
+    <rect width="262.5" height="196" rx="12" fill="#161B2B" stroke="#2A2F45"/>
+    <rect x="0" y="0" width="262.5" height="3" rx="1.5" fill="url(#accent)"/>
+    <text x="20" y="34" font-size="11.5" font-weight="700" letter-spacing="1.6" fill="#DE2329">03</text>
+    <text x="20" y="62" font-size="18.5" font-weight="700" fill="#FFFFFF">Approval policy</text>
+    <text x="20" y="85" font-size="12.5" font-weight="500" fill="#8B93A7">Who said yes, and how?</text>
+    <line x1="20" y1="99" x2="242.5" y2="99" stroke="#2A2F45"/>
+    <text x="20" y="120" font-size="12.5" font-weight="500" fill="#C3CAD9">An explicit per-tool refusal</text><text x="20" y="138" font-size="12.5" font-weight="500" fill="#C3CAD9">outranks any convenience</text><text x="20" y="156" font-size="12.5" font-weight="500" fill="#C3CAD9">mode. The veto is a typed</text><text x="20" y="174" font-size="12.5" font-weight="500" fill="#C3CAD9">signal, not a string.</text>
+  </g>
+<path d="M873.5,248.0 h12.0" stroke="#3A4160" stroke-width="1.6"/><polygon points="885.5,244.0 891.5,248.0 885.5,252.0" fill="#3A4160"/>
+<path d="M740.2,346 v20" stroke="#DE2329" stroke-opacity="0.5" stroke-width="1.4" stroke-dasharray="3 3"/><text x="740.2" y="382" font-size="11" font-weight="700" letter-spacing="1.2" fill="#F8A0A4" text-anchor="middle">DENIED</text>
+<g transform="translate(889.5,150)">
+    <rect width="262.5" height="196" rx="12" fill="#161B2B" stroke="#2A2F45"/>
+    <rect x="0" y="0" width="262.5" height="3" rx="1.5" fill="url(#accent)"/>
+    <text x="20" y="34" font-size="11.5" font-weight="700" letter-spacing="1.6" fill="#DE2329">04</text>
+    <text x="20" y="62" font-size="18.5" font-weight="700" fill="#FFFFFF">Kernel sandbox</text>
+    <text x="20" y="85" font-size="12.5" font-weight="500" fill="#8B93A7">What can the command touch?</text>
+    <line x1="20" y1="99" x2="242.5" y2="99" stroke="#2A2F45"/>
+    <text x="20" y="120" font-size="12.5" font-weight="500" fill="#C3CAD9">bubblewrap + seccomp: no</text><text x="20" y="138" font-size="12.5" font-weight="500" fill="#C3CAD9">writes outside the workspace,</text><text x="20" y="156" font-size="12.5" font-weight="500" fill="#C3CAD9">no network, ptrace denied,</text><text x="20" y="174" font-size="12.5" font-weight="500" fill="#C3CAD9">secrets scrubbed from env.</text>
+  </g>
+<path d="M1020.8,346 v20" stroke="#DE2329" stroke-opacity="0.5" stroke-width="1.4" stroke-dasharray="3 3"/><text x="1020.8" y="382" font-size="11" font-weight="700" letter-spacing="1.2" fill="#F8A0A4" text-anchor="middle">DENIED</text>
+  <text x="48" y="444" font-size="12.5" font-weight="500" fill="#7C8398">Per-run as well: blast-radius policy for what an action reaches · session guard · path-safety scoping · secrets redacted from logs and errors.</text>
+</svg>
