@@ -10,7 +10,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Cron } from "../../src/cron.js";
+import { fireCronJobAsTask } from "../../src/internal/cron/fire-handler.js";
 import { isAgentRun } from "../../src/internal/cron/run-job.js";
+import {
+  getInstalledFireHandlerForTests,
+  setCronFireHandler,
+} from "../../src/internal/cron/scheduler.js";
 import { __resetTaskRegistryForTests } from "../../src/internal/task/registry.js";
 import { Task } from "../../src/task.js";
 
@@ -63,13 +68,22 @@ describe("Cron task — fire handler reentry-friendly", () => {
   });
 
   it("calling Cron.start installs the task-wrapping default fire handler without error", async () => {
-    // Smoke test: Cron.start should succeed even if no jobs exist;
-    // the default fire handler is set unconditionally. This validates
-    // that the wiring (setCronFireHandler closure) doesn't throw at
-    // install time — only at fire time, which is exercised in the
-    // telegram-pro dogfood.
+    // B-062. The body used to be `expect(true).toBe(true)`, so the test named an INSTALL and only
+    // proved that `start` did not throw — a `Cron.start` that quietly stopped calling
+    // `setCronFireHandler` would have passed. `cron.ts:146` installs `fireCronJobAsTask`
+    // unconditionally, and `scheduler.ts:88` is what reads it back at tick time, so clearing the
+    // handler first and asserting it is restored pins the wiring the name claims.
+    setCronFireHandler(undefined);
+
     await Cron.start({});
-    expect(true).toBe(true);
-    await Cron.stop();
+
+    try {
+      expect(
+        getInstalledFireHandlerForTests(),
+        "Cron.start must install the task-wrapping default fire handler",
+      ).toBe(fireCronJobAsTask);
+    } finally {
+      await Cron.stop();
+    }
   });
 });

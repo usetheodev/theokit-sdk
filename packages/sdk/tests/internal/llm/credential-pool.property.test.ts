@@ -5,7 +5,7 @@
  */
 
 import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 import { CredentialPool, newPooledCredential } from "../../../src/internal/llm/credential-pool.js";
 import type { CredentialPoolStrategy } from "../../../src/internal/llm/credential-pool-types.js";
@@ -122,7 +122,14 @@ describe("CredentialPool — property invariants (T5.1)", () => {
   });
 });
 
-// Sanity check: 1000+ assertion executions (5 × 200) ✓
-it("property suite ran 1000 randomized scenarios", () => {
-  expect(true).toBe(true);
-});
+// B-033 — a test named "property suite ran 1000 randomized scenarios", whose entire body was
+// `expect(true).toBe(true)`, was deleted here rather than repaired.
+//
+// It FABRICATED a verification: nothing inside it could observe the five `fc.asyncProperty` blocks
+// above, so deleting every one of them would have left it reporting that 1000 scenarios ran. The
+// claim is also redundant — fast-check fails the run when a property fails, and `numRuns: 200` is
+// declared at each call site where a reader can check it.
+//
+// Repairing it was not an option: the fact it asserts is about OTHER tests, and a test cannot
+// honestly witness its siblings. Deleting it lowers the file's test count by one and its oracle
+// strength not at all.

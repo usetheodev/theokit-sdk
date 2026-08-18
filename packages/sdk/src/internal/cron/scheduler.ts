@@ -34,6 +34,24 @@ export function setCronFireHandler(handler: CronFireHandler | undefined): void {
   state.fireHandler = handler;
 }
 
+/**
+ * Read back the installed fire handler.
+ *
+ * B-062 — `Cron.start` installs `fireCronJobAsTask` at `cron.ts:146` and nothing could observe that
+ * it had, so the test named for the install asserted only that `start` did not throw. `fireJob`
+ * reads `state.fireHandler` at tick time; this exposes the same field so a test can pin the wiring
+ * without waiting for a timer.
+ *
+ * Test-only, and named as such — same shape as the 29 other `*ForTests` accessors in this package
+ * (`__setVertexAuthClientForTests`, `_resetModelInfoIndexForTests`, …). Not re-exported from any
+ * public barrel.
+ *
+ * @internal
+ */
+export function getInstalledFireHandlerForTests(): CronFireHandler | undefined {
+  return state.fireHandler;
+}
+
 /** Activate the scheduler and install timers for every enabled local job. @internal */
 export function startScheduler(cwd?: string): void {
   state.running = true;

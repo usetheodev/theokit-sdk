@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RateLimitError } from "../src/errors.js";
 import { setDiagnosticsSink } from "../src/internal/diagnostics.js";
@@ -76,11 +76,34 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
   });
 
   it("test_with_no_sink_installed_nothing_reaches_the_terminal", async () => {
-    // The library does not own the host's stdout (theokit#147). With no sink, silence.
-    const client = new RetryingLlmClient(alwaysFails(rate429()), { rng: () => 0 });
-    await expect(drain(client)).rejects.toThrow();
-    // Reaching here without throwing already proves emission does not depend on an installed sink.
-    expect(true).toBe(true);
+    // B-066. The test is named for silence ON THE TERMINAL and used to end in
+    // `expect(true).toBe(true)` — it never observed the channel it claims stays quiet. Its comment
+    // said "reaching here without throwing already proves emission does not depend on an installed
+    // sink", which proves the retry path runs, not that nothing was written. Spying the real stream
+    // is what makes a regression to `console.error` fail this test instead of passing it.
+    setDiagnosticsSink(undefined);
+    const writes: string[] = [];
+    const err = vi.spyOn(process.stderr, "write").mockImplementation(((c: string) => {
+      writes.push(String(c));
+      return true;
+    }) as never);
+    const out = vi.spyOn(process.stdout, "write").mockImplementation(((c: string) => {
+      writes.push(String(c));
+      return true;
+    }) as never);
+
+    try {
+      const client = new RetryingLlmClient(alwaysFails(rate429()), { rng: () => 0 });
+      await expect(drain(client)).rejects.toThrow();
+
+      expect(
+        writes.filter((w) => w.includes("retry")),
+        "with no sink installed the library must not write to the host's terminal",
+      ).toEqual([]);
+    } finally {
+      err.mockRestore();
+      out.mockRestore();
+    }
   });
 
   it("test_first_attempt_success_emits_no_noise", async () => {

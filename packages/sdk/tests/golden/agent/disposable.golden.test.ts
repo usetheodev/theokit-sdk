@@ -48,8 +48,15 @@ describe("Symbol.asyncDispose support (ADR D5)", () => {
     await agent.dispose();
     await agent.dispose();
     await agent.dispose();
-    // No throw means idempotent. `disposed` flag holds.
-    expect(true).toBe(true);
+
+    // B-068. The comment used to say "`disposed` flag holds" and the body never read it — three
+    // disposes proving only that nothing threw. Idempotence has two halves and "no throw" is the
+    // weaker one: the flag must still be SET after the extra calls, otherwise a second dispose that
+    // silently reset it would pass. `send` rejecting is that flag, observed through the public API.
+    await expect(
+      agent.send("anything"),
+      "after repeated dispose the agent must still refuse work",
+    ).rejects.toThrow(/dispose/i);
   });
 
   it("double dispose is idempotent on CloudAgent (EC-3/EC-6)", async () => {
@@ -61,7 +68,17 @@ describe("Symbol.asyncDispose support (ADR D5)", () => {
     await agent.dispose();
     await agent.dispose();
     await agent.dispose();
-    expect(true).toBe(true);
+
+    // B-067. Same hollow oracle as the LocalAgent case above — and repairing it surfaced a real
+    // asymmetry, now filed as B-094: `CloudAgent` declares `disposed` (cloud-agent.ts:55) but uses
+    // it ONLY to make `dispose()` idempotent (:217-218). `send` (:107) never consults it, so a
+    // disposed cloud agent still resolves with a CloudRun while the local one rejects.
+    //
+    // This test pins what the cloud path DOES guarantee today — repeated dispose stays idempotent
+    // and the handle survives — rather than asserting the behaviour B-094 will add. Writing the
+    // stronger assertion here would fail on `main` for a defect this batch is not fixing.
+    await expect(agent.dispose(), "a fourth dispose must remain a no-op").resolves.toBeUndefined();
+    expect(agent.agentId, "the handle must still identify itself after disposal").toBeTruthy();
   });
 
   it("manual dispose still works (no behavioral regression)", async () => {

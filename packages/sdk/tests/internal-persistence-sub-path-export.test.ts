@@ -38,10 +38,36 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 
 describe("@theokit/sdk/internal/persistence sub-path (Stage 3 prep — iter 32)", () => {
   it("test_subpath_resolves_at_import_time", () => {
-    // If the sub-path isn't declared in package.json `exports`, Node ESM
-    // throws ERR_PACKAGE_PATH_NOT_EXPORTED at import time. Reaching this
-    // line means the resolution succeeded.
-    expect(true).toBe(true);
+    // B-061. The body used to be `expect(true).toBe(true)` under the reasoning "reaching this line
+    // means the resolution succeeded". True but incomplete: a sub-path can resolve while the barrel
+    // behind it drops a symbol, and this file's own docblock says it pins that "the expected
+    // primitives are exported". Every name in the import list above is asserted defined here, so
+    // losing one fails at the sub-path test rather than silently in whichever extracted package
+    // consumes it.
+    const exported = {
+      atomicWriteJson,
+      atomicWriteText,
+      casUpdate,
+      containsCjk,
+      createExclusive,
+      displayTheokitHome,
+      getProfilesRoot,
+      getTheokitHome,
+      migrateSchema,
+      PersistenceSchema,
+      readVersionedJson,
+      replaceFileAtomic,
+      sanitizeFts5Query,
+      withCwdMutex,
+      withFileLock,
+      writeVersionedJson,
+    };
+
+    const missing = Object.entries(exported)
+      .filter(([, value]) => value === undefined)
+      .map(([name]) => name);
+
+    expect(missing, "every primitive the sub-path promises must resolve").toEqual([]);
   });
 
   it("test_cwd_mutex_exported_for_extracted_packages", () => {
