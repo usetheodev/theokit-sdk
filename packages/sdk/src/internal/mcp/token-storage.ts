@@ -20,7 +20,25 @@ export interface OAuthTokens {
 }
 
 const KEYTAR_SERVICE = "theokit-mcp";
-const FILE_PATH = join(homedir(), ".theokit", "mcp-tokens.json");
+/**
+ * Resolve the store path on every call instead of binding it once at module load.
+ *
+ * This used to be `const FILE_PATH = join(homedir(), ...)`. A module-level constant captures
+ * ambient global state at IMPORT, so the store kept writing to whichever HOME was set when the
+ * module first loaded and never noticed a later change. In production that is invisible, because
+ * HOME does not move mid-process — but it made the module's correctness a property of *when* it was
+ * imported, which is not a property a credential store should have.
+ *
+ * The cost is one `homedir()` per operation. On POSIX that reads `process.env.HOME` with a passwd
+ * fallback, and every caller below already performs file I/O on the path it returns, so the lookup
+ * is far below the measurement floor.
+ *
+ * B-089. `packages/sdk/tests/mcp-token-store-modes.test.ts` pins it: import once, move HOME, write,
+ * assert the write followed.
+ */
+function storeFilePath(): string {
+  return join(homedir(), ".theokit", "mcp-tokens.json");
+}
 
 /**
  * Make the directory private BEFORE anything is written into it.
@@ -37,7 +55,7 @@ const FILE_PATH = join(homedir(), ".theokit", "mcp-tokens.json");
  * problem.
  */
 function ensurePrivateStoreDir(): void {
-  const dir = dirname(FILE_PATH);
+  const dir = dirname(storeFilePath());
   try {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     chmodSync(dir, 0o700);
@@ -90,19 +108,23 @@ export async function setTokens(serverName: string, tokens: OAuthTokens): Promis
   }
   // File fallback. The directory is locked down first — see `ensurePrivateStoreDir`.
   ensurePrivateStoreDir();
+  // Resolved once for the whole operation. Calling `storeFilePath()` per use would let a read and
+  // the write that follows it disagree if HOME moved in between, which is the one way this change
+  // could be worse than the module constant it replaces.
+  const filePath = storeFilePath();
   let allTokens: Record<string, OAuthTokens> = {};
-  if (existsSync(FILE_PATH)) {
+  if (existsSync(filePath)) {
     try {
-      allTokens = JSON.parse(readFileSync(FILE_PATH, "utf8")) as Record<string, OAuthTokens>;
+      allTokens = JSON.parse(readFileSync(filePath, "utf8")) as Record<string, OAuthTokens>;
     } catch {
       // corrupt file — start fresh
       allTokens = {};
     }
   }
   allTokens[serverName] = tokens;
-  await atomicWriteJson(FILE_PATH, allTokens);
+  await atomicWriteJson(filePath, allTokens);
   try {
-    chmodSync(FILE_PATH, 0o600);
+    chmodSync(filePath, 0o600);
   } catch {
     // Windows: chmod is a no-op. Documented in ADR D41 / EC-14.
   }
@@ -123,15 +145,16 @@ export async function getTokens(serverName: string): Promise<OAuthTokens | undef
       return undefined;
     }
   }
-  if (!existsSync(FILE_PATH)) return undefined;
+  const filePath = storeFilePath();
+  if (!existsSync(filePath)) return undefined;
   // The same gate the credential file gets, and deliberately the same implementation rather than a
   // second one: a refresh token is a credential, and `assertSecureModes` already carries the attack
   // it defends against in its docstring. It is called OUTSIDE the try/catch on purpose — the catch
   // below exists to treat a corrupt file as absent, and letting it swallow this would turn "someone
   // else can replace your token" into a silent `undefined`, which reads as "not logged in".
-  assertSecureModes(dirname(FILE_PATH), FILE_PATH);
+  assertSecureModes(dirname(filePath), filePath);
   try {
-    const all = JSON.parse(readFileSync(FILE_PATH, "utf8")) as Record<string, OAuthTokens>;
+    const all = JSON.parse(readFileSync(filePath, "utf8")) as Record<string, OAuthTokens>;
     return all[serverName];
   } catch {
     return undefined;
