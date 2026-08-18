@@ -46,7 +46,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Imported fresh per test: `FILE_PATH` is resolved from `homedir()` at module load. */
+/**
+ * Re-imported per test. It no longer has to be: since B-089 the store resolves its path on every
+ * call, from `process.env.HOME` with `homedir()` as fallback, so a fresh module registry is not what
+ * makes these tests correct. The dynamic import is kept because these tests also exercise the
+ * module's first-load path, not because the path is bound there.
+ */
 async function loadStore() {
   return import("../src/internal/mcp/token-storage.js");
 }

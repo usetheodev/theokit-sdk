@@ -29,15 +29,36 @@ const KEYTAR_SERVICE = "theokit-mcp";
  * HOME does not move mid-process — but it made the module's correctness a property of *when* it was
  * imported, which is not a property a credential store should have.
  *
- * The cost is one `homedir()` per operation. On POSIX that reads `process.env.HOME` with a passwd
- * fallback, and every caller below already performs file I/O on the path it returns, so the lookup
- * is far below the measurement floor.
+ * `process.env.HOME` is read FIRST and `homedir()` is the fallback, which is not a stylistic
+ * preference. On POSIX `os.homedir()` already prefers `$HOME`, so in a normal process the two are
+ * byte-identical; on Windows `HOME` is typically unset and the fallback runs, which is also the
+ * behaviour that shipped before. They diverge in exactly one place: inside a worker thread,
+ * `process.env` is a JS-level copy while `os.homedir()` is a native call reading the real process
+ * environment — so code that moves `HOME` in a worker is invisible to `homedir()`. Reading the env
+ * first is what makes this module independent of the execution model rather than of the import
+ * moment alone.
+ *
+ * The empty-string guard is load-bearing: `HOME=""` must fall through rather than resolve the store
+ * to `/.theokit`. Same idiom as `internal/persistence/paths.ts` and `session-transcript.ts`, reused
+ * rather than re-invented.
+ *
+ * Measured cost, not asserted: `homedir()` is 151 ns/op against 13 382 for the read this path
+ * performs and 97 079 for the write (89x and 645x). The resolution is free relative to the I/O it
+ * precedes.
  *
  * B-089. `packages/sdk/tests/mcp-token-store-modes.test.ts` pins it: import once, move HOME, write,
- * assert the write followed.
+ * assert the write followed — and it must hold under `--pool=threads`, not only under the repo's
+ * configured `forks`.
+ *
+ * `THEOKIT_HOME` is deliberately NOT honoured here; see B-090. `transcriptRoot()` does honour it and
+ * M94 ADR-2 accepted that migration for the sibling module, but doing the same for a credential
+ * store changes what existing token holders see, and that is a product decision rather than a
+ * prerequisite for execution-model independence.
  */
 function storeFilePath(): string {
-  return join(homedir(), ".theokit", "mcp-tokens.json");
+  const fromEnv = process.env.HOME?.trim();
+  const home = fromEnv !== undefined && fromEnv.length > 0 ? fromEnv : homedir();
+  return join(home, ".theokit", "mcp-tokens.json");
 }
 
 /**
@@ -54,8 +75,8 @@ function storeFilePath(): string {
  * there, and a fix that only covers fresh installs does not reach the population that has the
  * problem.
  */
-function ensurePrivateStoreDir(): void {
-  const dir = dirname(storeFilePath());
+function ensurePrivateStoreDir(filePath: string): void {
+  const dir = dirname(filePath);
   try {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     chmodSync(dir, 0o700);
@@ -107,11 +128,13 @@ export async function setTokens(serverName: string, tokens: OAuthTokens): Promis
     return;
   }
   // File fallback. The directory is locked down first — see `ensurePrivateStoreDir`.
-  ensurePrivateStoreDir();
-  // Resolved once for the whole operation. Calling `storeFilePath()` per use would let a read and
-  // the write that follows it disagree if HOME moved in between, which is the one way this change
-  // could be worse than the module constant it replaces.
+  // Resolved once for the whole operation and PASSED DOWN. Resolving per use would let a read and
+  // the write that follows it disagree if HOME moved in between — and `ensurePrivateStoreDir`
+  // resolving its own copy would let the directory be locked down under one home while the token
+  // lands under another. Today those two statements are adjacent and synchronous so they cannot
+  // diverge, but that is incidental; passing the path makes the invariant structural.
   const filePath = storeFilePath();
+  ensurePrivateStoreDir(filePath);
   let allTokens: Record<string, OAuthTokens> = {};
   if (existsSync(filePath)) {
     try {
