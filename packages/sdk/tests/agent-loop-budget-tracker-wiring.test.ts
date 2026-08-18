@@ -14,7 +14,7 @@ import { type BudgetTracker, createCounterBudgetTracker } from "@theokit/sdk";
 import { describe, expect, it, vi } from "vitest";
 
 /**
- * Mirror of the wiring inside `runIteration` (loop.ts ~ line 230).
+ * Mirror of the wiring inside `runIteration` (loop.ts:365-386).
  * Kept in lockstep with the runtime call. If the runtime code changes,
  * this helper changes too — they MUST be byte-identical in semantics.
  */
@@ -38,11 +38,23 @@ function emitBudgetTrackEvents(
 }
 
 describe("BudgetTracker.track() wiring (Phase 2 / T2.1 runtime hook)", () => {
-  it("test_no_tracker_means_noop", () => {
-    // Should not throw, no observable effect.
-    emitBudgetTrackEvents(undefined, "x", 100, 50);
-    expect(true).toBe(true);
-  });
+  // B-065. `test_no_tracker_means_noop` stood here with `expect(true).toBe(true)`. The repair made
+  // it `.not.toThrow()` around the call — which is unfalsifiable for the same reason the tautology
+  // was: `emitBudgetTrackEvents` wraps the body in `catch {}`, so removing the undefined-guard makes
+  // the resulting TypeError vanish and the test stays green. Review confirmed it by mutation.
+  //
+  // There is no third assertion to reach for. With `tracker === undefined` the function has no
+  // return value and no side effect, and `emitBudgetTrackEvents` is a test-local MIRROR of
+  // `loop.ts:365-386`, so no mutation of the WIRING can fail anything here.
+  //
+  // That is narrower than "no `src/` mutation can fail this file", which is what an earlier version
+  // of this comment claimed and which is false: `createCounterBudgetTracker` is a real production
+  // symbol imported from the built barrel, and doubling its accumulator fails
+  // `test_both_token_counts_fire_separate_events` with `expected 320 to be 160` once the gate
+  // rebuilds (`turbo.json` `test` dependsOn `build`). The tracker is covered; the wiring is not.
+  // The case is removed rather than dressed up.
+  // Registered as B-095: the wiring needs a test against the production `runIteration`, which needs
+  // a loop harness this batch does not build.
 
   it("test_both_token_counts_fire_separate_events", () => {
     const tracker: BudgetTracker = createCounterBudgetTracker();

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { Agent } from "../../../src/index.js";
+import * as registry from "../../../src/internal/runtime/registry/agent-registry.js";
 
 /**
  * ADR D5 + EC-3 + EC-6 — `await using` works on both runtimes and double
@@ -48,8 +49,15 @@ describe("Symbol.asyncDispose support (ADR D5)", () => {
     await agent.dispose();
     await agent.dispose();
     await agent.dispose();
-    // No throw means idempotent. `disposed` flag holds.
-    expect(true).toBe(true);
+
+    // B-068. The comment used to say "`disposed` flag holds" and the body never read it — three
+    // disposes proving only that nothing threw. Idempotence has two halves and "no throw" is the
+    // weaker one: the flag must still be SET after the extra calls, otherwise a second dispose that
+    // silently reset it would pass. `send` rejecting is that flag, observed through the public API.
+    await expect(
+      agent.send("anything"),
+      "after repeated dispose the agent must still refuse work",
+    ).rejects.toThrow(/dispose/i);
   });
 
   it("double dispose is idempotent on CloudAgent (EC-3/EC-6)", async () => {
@@ -58,10 +66,29 @@ describe("Symbol.asyncDispose support (ADR D5)", () => {
       model: { id: "google/gemini-2.0-flash-001" },
       cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
     });
-    await agent.dispose();
-    await agent.dispose();
-    await agent.dispose();
-    expect(true).toBe(true);
+
+    // B-067. Same hollow oracle as the LocalAgent case above, but the cloud path cannot use the
+    // same fix: repairing it surfaced a real asymmetry, filed as B-094. `CloudAgent` declares
+    // `disposed` (cloud-agent.ts:55) but uses it ONLY to short-circuit `dispose()` (:217-218);
+    // `send` (:107) never consults it, so a disposed cloud agent still resolves with a CloudRun
+    // while the local one rejects. Asserting the LocalAgent behaviour here would fail on `main`
+    // for a defect this batch is not fixing.
+    //
+    // What the guard DOES buy today is that the work behind dispose happens once. Counting the
+    // flush is that claim stated as an oracle: it is 1 on the current code and 3 with the
+    // `if (this.disposed) return;` line removed.
+    const flush = vi.spyOn(registry, "flushRegistrySaves");
+    try {
+      await agent.dispose();
+      await agent.dispose();
+      await agent.dispose();
+      expect(
+        flush,
+        "repeated dispose must do the teardown work exactly once",
+      ).toHaveBeenCalledTimes(1);
+    } finally {
+      flush.mockRestore();
+    }
   });
 
   it("manual dispose still works (no behavioral regression)", async () => {

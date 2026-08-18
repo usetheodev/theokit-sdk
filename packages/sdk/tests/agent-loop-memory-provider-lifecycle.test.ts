@@ -64,7 +64,7 @@ function buildSpyProvider(opts?: { initThrows?: boolean; disposeThrows?: boolean
 }
 
 /**
- * Mirror of the wiring at `loop.ts` ~ lines 200-220 (`initLoopContext`).
+ * Mirror of the wiring in `initLoopContext` (`internal/agent-loop/loop-context-init.ts:91`).
  * Calls `provider.init(...)` once with `process.cwd()`; swallows init
  * errors (handle stays undefined when init throws).
  */
@@ -97,13 +97,18 @@ async function performDispose(
 }
 
 describe("MemoryProvider init + dispose wiring (Phase 1 / T1.5.1)", () => {
-  it("test_no_provider_means_no_init_or_dispose", async () => {
-    // Should not throw, no observable effect.
-    const handle = await performInit(undefined);
-    expect(handle).toBeUndefined();
-    await performDispose(undefined, undefined);
-    expect(true).toBe(true);
-  });
+  // B-095. `test_no_provider_means_no_init_or_dispose` stood here. Its body ended in
+  // `expect(true).toBe(true)`; the first fix removed that and kept `expect(handle).toBeUndefined()`
+  // under a comment claiming it covered the "no init" half. Re-review killed that claim by
+  // mutation: `performInit` ends in `catch { return undefined; }`, so deleting the
+  // `if (provider === undefined) return undefined;` guard the comment credits still leaves the file
+  // 7/7 green. Neither half was observable, and the second version was a decorated version of the
+  // first.
+  //
+  // Removed rather than decorated again — the same treatment B-065 received in this batch, which is
+  // what the implementation log had already claimed for this occurrence. The wiring itself is
+  // untested from here because `performInit`/`performDispose` are test-local mirrors; B-095 owns
+  // replacing them with the production path.
 
   it("test_provider_init_called_once_returns_handle", async () => {
     const { provider, initSpy } = buildSpyProvider();
