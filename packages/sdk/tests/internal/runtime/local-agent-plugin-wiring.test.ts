@@ -2,9 +2,10 @@
  * Tests for Plugin wiring in LocalAgent (T4.1 + T4.2, ADRs D97-D101).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { Agent } from "../../../src/index.js";
+import * as guards from "../../../src/internal/plugins/plugin-guards.js";
 import { extractCodePlugins, isCodePlugin } from "../../../src/internal/plugins/plugin-guards.js";
 import { Plugin } from "../../../src/internal/plugins/types.js";
 
@@ -79,8 +80,23 @@ describe("Agent.create plugin wiring (T4.1)", () => {
   });
 
   it("zero plugins works", async () => {
-    const agent = await Agent.create({ apiKey: FIXTURE_KEY, agentId: uid() });
-    await agent.dispose();
+    // B-007. The body constructed an agent and disposed it, asserting nothing — and measured, it is
+    // genuinely unprotected: making `extractCodePlugins` return a plugin for `undefined` leaves this
+    // test green while the agent silently loads one. `local-agent.ts:210` is where construction
+    // decides the code-plugin set, and it decides it by calling this function, so spying it observes
+    // the decision at the point it is made — no production change needed.
+    const extract = vi.spyOn(guards, "extractCodePlugins");
+    try {
+      const agent = await Agent.create({ apiKey: FIXTURE_KEY, agentId: uid() });
+      expect(extract, "construction must consult the plugin extractor").toHaveBeenCalled();
+      expect(
+        extract.mock.results[0]?.value,
+        "an agent created with no plugins option must load zero code plugins",
+      ).toEqual([]);
+      await agent.dispose();
+    } finally {
+      extract.mockRestore();
+    }
   });
 
   it("general plugin register() is called once", async () => {

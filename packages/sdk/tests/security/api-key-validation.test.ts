@@ -8,13 +8,14 @@
  * `fetch` against the provider URL) still happens later.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AuthenticationError } from "../../src/errors.js";
 import { Agent } from "../../src/index.js";
 import {
   type ApiKeyValidationResult,
   validateApiKeyShape,
 } from "../../src/internal/auth/api-key-validator.js";
+import * as fixtureMode from "../../src/internal/runtime/fixtures/fixture-mode.js";
 
 describe("T1.3 — validateApiKeyShape unit", () => {
   function assertMalformed(
@@ -100,10 +101,32 @@ describe("T1.3 — Agent.create boundary validation", () => {
   });
 
   it("accepts theo_test_fixture (existing fixture path)", async () => {
-    const agent = await Agent.create({
-      apiKey: "theo_test_fixture",
-      model: { id: "openai/gpt-4o-mini" },
-    });
-    await agent.dispose();
+    // B-009. The one positive case in a file of rejections, and it asserted nothing — a rejected
+    // `Agent.create` throws, so an unhandled throw was standing in for "accepts".
+    //
+    // Writing the obvious `.resolves` assertion exposed something sharper, and it is why this test
+    // needs the spy: acceptance of this key does NOT depend on the fixture path. Measured — with
+    // BOTH fixture guards disabled (`isFixtureApiKey` returning false AND the validator's
+    // `theo_test_` branch removed), `Agent.create` still resolves, because an 18-character key with
+    // no embedded whitespace is simply not malformed. So `.resolves` alone would pin "a well-formed
+    // key is accepted", not "the fixture path is taken" — which is what the test is named for.
+    const fixtureCheck = vi.spyOn(fixtureMode, "isFixtureApiKey");
+    try {
+      const created = Agent.create({
+        apiKey: "theo_test_fixture",
+        model: { id: "openai/gpt-4o-mini" },
+      });
+      await expect(created, "a theo_test_ fixture key must be accepted").resolves.toBeDefined();
+
+      const agent = await created;
+      expect(agent.agentId, "and must yield a usable, identified agent").toBeTruthy();
+      expect(
+        fixtureCheck.mock.results.some((r) => r.type === "return" && r.value === true),
+        "and it must be accepted AS a fixture key — not merely as a well-formed one",
+      ).toBe(true);
+      await agent.dispose();
+    } finally {
+      fixtureCheck.mockRestore();
+    }
   });
 });

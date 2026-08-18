@@ -16,10 +16,25 @@ afterEach(() => __resetSingleFlightForTests());
 
 describe("single-flight (D213)", () => {
   it("acquire / release cycle is idempotent on release", () => {
+    // B-004. The body was five bare calls with the claims in trailing comments. It was not
+    // unprotected — a no-op `releaseSingleFlight` makes the re-acquire throw, so this test does
+    // fail today — but the oracle was the accident of a later line throwing, not something the test
+    // states. Reorder the calls and the protection disappears silently. Both claims are now
+    // assertions, and the second one is new: that re-acquire actually TOOK the slot rather than
+    // being ignored.
     acquireSingleFlight("a");
     releaseSingleFlight("a");
-    releaseSingleFlight("a"); // double release is fine
-    acquireSingleFlight("a"); // can acquire again
+
+    expect(() => releaseSingleFlight("a"), "a second release must be a no-op").not.toThrow();
+    expect(
+      () => acquireSingleFlight("a"),
+      "after release the slot must be free again",
+    ).not.toThrow();
+    expect(
+      () => acquireSingleFlight("a"),
+      "and the re-acquire must have taken the slot, not been ignored",
+    ).toThrow(EvalAlreadyRunningError);
+
     releaseSingleFlight("a");
   });
 

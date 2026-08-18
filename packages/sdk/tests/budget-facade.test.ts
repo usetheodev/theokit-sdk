@@ -241,17 +241,32 @@ describe("Budget — EC-7/8/9/18/19/20 edge cases", () => {
   });
 
   it("EC-8: onExceed callback throws — does not break run", async () => {
+    // B-005. The body ended at the bare `await` with `// No throw` as its only claim. Measured: a
+    // regression that stops calling `onExceed` altogether leaves this test green, so the throw it is
+    // named for was never exercised. The sibling above already uses the `invoked` flag; this one
+    // needed it too, plus proof the charge survived the throwing callback.
+    let invoked = false;
     Budget.create({
       name: "broken-exceed",
       scope: "process",
       mode: "warn",
       limits: [{ window: "1d", limitUsd: 1 }],
       onExceed: () => {
+        invoked = true;
         throw new Error("sentry call failed");
       },
     });
-    // No throw
-    await chargeAndCheckThresholds("broken-exceed", 1.5);
+
+    await expect(
+      chargeAndCheckThresholds("broken-exceed", 1.5),
+      "a throwing onExceed must not propagate into the caller",
+    ).resolves.toBeUndefined();
+
+    expect(invoked, "the throwing callback must actually have fired").toBe(true);
+    expect(
+      Budget.snapshot().find((e) => e.name === "broken-exceed")?.spentUsd,
+      "and the charge must still have been applied — that is what 'does not break run' means",
+    ).toBeCloseTo(1.5, 5);
   });
 
   it("Stacked limits: ANY exceeded triggers block (D384)", () => {
