@@ -81,6 +81,10 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
     // said "reaching here without throwing already proves emission does not depend on an installed
     // sink", which proves the retry path runs, not that nothing was written. Spying the real stream
     // is what makes a regression to `console.error` fail this test instead of passing it.
+    //
+    // The assertion demands TOTAL silence rather than the absence of writes matching /retry/. The
+    // narrower form was the first fix and it weakens exactly when it matters: a regression that
+    // wrote "rate limited, backing off" would satisfy it while violating the test's name.
     setDiagnosticsSink(undefined);
     const writes: string[] = [];
     const err = vi.spyOn(process.stderr, "write").mockImplementation(((c: string) => {
@@ -97,7 +101,7 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
       await expect(drain(client)).rejects.toThrow();
 
       expect(
-        writes.filter((w) => w.includes("retry")),
+        writes,
         "with no sink installed the library must not write to the host's terminal",
       ).toEqual([]);
     } finally {

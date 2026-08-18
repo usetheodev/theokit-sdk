@@ -7,15 +7,12 @@
  * through the same default fire handler (D5).
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Cron } from "../../src/cron.js";
 import { fireCronJobAsTask } from "../../src/internal/cron/fire-handler.js";
 import { isAgentRun } from "../../src/internal/cron/run-job.js";
-import {
-  getInstalledFireHandlerForTests,
-  setCronFireHandler,
-} from "../../src/internal/cron/scheduler.js";
+import * as scheduler from "../../src/internal/cron/scheduler.js";
 import { __resetTaskRegistryForTests } from "../../src/internal/task/registry.js";
 import { Task } from "../../src/task.js";
 
@@ -71,18 +68,18 @@ describe("Cron task — fire handler reentry-friendly", () => {
     // B-062. The body used to be `expect(true).toBe(true)`, so the test named an INSTALL and only
     // proved that `start` did not throw — a `Cron.start` that quietly stopped calling
     // `setCronFireHandler` would have passed. `cron.ts:146` installs `fireCronJobAsTask`
-    // unconditionally, and `scheduler.ts:88` is what reads it back at tick time, so clearing the
-    // handler first and asserting it is restored pins the wiring the name claims.
-    setCronFireHandler(undefined);
-
-    await Cron.start({});
+    // unconditionally; spying on the installer is what pins the wiring the name claims, and it
+    // needs nothing added to `src/` to observe it.
+    const install = vi.spyOn(scheduler, "setCronFireHandler");
 
     try {
+      await Cron.start({});
       expect(
-        getInstalledFireHandlerForTests(),
+        install,
         "Cron.start must install the task-wrapping default fire handler",
-      ).toBe(fireCronJobAsTask);
+      ).toHaveBeenCalledWith(fireCronJobAsTask);
     } finally {
+      install.mockRestore();
       await Cron.stop();
     }
   });

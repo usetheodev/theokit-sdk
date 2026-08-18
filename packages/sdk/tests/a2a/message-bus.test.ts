@@ -74,14 +74,14 @@ describe("MessageBus", () => {
       handled = true;
     });
     // B-063. This used to end in `expect(true).toBe(true)`, so the test named a timing property and
-    // measured no time: making `send` await the 100ms handler left it green. The assertion is the
-    // elapsed bound, and the bound is generous on purpose — it is here to catch `send` becoming
-    // blocking, not to police scheduler jitter.
-    const started = Date.now();
+    // observed nothing: making `send` await the 100ms handler left it green. `handled` is the
+    // oracle — it is still false only because `send` returned before the handler did.
+    //
+    // An earlier version of this fix also bounded `Date.now()` elapsed under 50ms. That was
+    // dropped: it kills no mutant this assertion does not already kill, and it puts a wall clock
+    // in a unit test, which `.claude/rules/testing.md` § 6 names as an anti-pattern.
     await bus.send("a", "lazy", { type: "ping", payload: null });
-    const elapsed = Date.now() - started;
 
-    expect(elapsed, "send must resolve without waiting for the 100ms handler").toBeLessThan(50);
-    expect(handled, "and the handler must not have completed yet").toBe(false);
+    expect(handled, "send must resolve without waiting for the 100ms handler").toBe(false);
   });
 });

@@ -38,16 +38,16 @@ function emitBudgetTrackEvents(
 }
 
 describe("BudgetTracker.track() wiring (Phase 2 / T2.1 runtime hook)", () => {
-  it("test_no_tracker_means_noop", () => {
-    // B-065. The body used to end in `expect(true).toBe(true)`, so "should not throw" was a comment
-    // rather than an oracle: the wrapper's `catch {}` swallows everything, and this test would have
-    // stayed green even if the undefined-tracker path had started throwing inside it and being
-    // silently eaten. Asserting `.not.toThrow()` around the call is the claim the comment already
-    // made, and it fails if the guard is removed and the throw escapes.
-    expect(() => {
-      emitBudgetTrackEvents(undefined, "x", 100, 50);
-    }, "an absent tracker must be a silent no-op, not a swallowed error").not.toThrow();
-  });
+  // B-065. `test_no_tracker_means_noop` stood here with `expect(true).toBe(true)`. The repair made
+  // it `.not.toThrow()` around the call — which is unfalsifiable for the same reason the tautology
+  // was: `emitBudgetTrackEvents` wraps the body in `catch {}`, so removing the undefined-guard makes
+  // the resulting TypeError vanish and the test stays green. Review confirmed it by mutation.
+  //
+  // There is no third assertion to reach for. With `tracker === undefined` the function has no
+  // return value and no side effect, and the helper is a test-local MIRROR of `loop.ts:365-386`, so
+  // no `src/` mutation can fail any test in this file. The case is removed rather than dressed up.
+  // Registered as B-095: the wiring needs a test against the production `runIteration`, which needs
+  // a loop harness this batch does not build.
 
   it("test_both_token_counts_fire_separate_events", () => {
     const tracker: BudgetTracker = createCounterBudgetTracker();
