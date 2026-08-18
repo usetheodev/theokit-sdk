@@ -97,17 +97,18 @@ async function performDispose(
 }
 
 describe("MemoryProvider init + dispose wiring (Phase 1 / T1.5.1)", () => {
-  it("test_no_provider_means_no_init_or_dispose", async () => {
-    // The "no init" half is asserted below. The "no dispose" half is NOT, and cannot be from here:
-    // `performDispose` is a test-local mirror whose `catch {}` swallows anything the absent-provider
-    // path could do, so nothing about the call is observable. It used to end in
-    // `expect(true).toBe(true)`, which dressed that gap as coverage. The call stays (it documents
-    // the shape and executes the guard); the fake oracle does not. Registered as B-095 — the mirror
-    // has to be replaced by the production path before this half can be tested at all.
-    const handle = await performInit(undefined);
-    expect(handle).toBeUndefined();
-    await performDispose(undefined, undefined);
-  });
+  // B-095. `test_no_provider_means_no_init_or_dispose` stood here. Its body ended in
+  // `expect(true).toBe(true)`; the first fix removed that and kept `expect(handle).toBeUndefined()`
+  // under a comment claiming it covered the "no init" half. Re-review killed that claim by
+  // mutation: `performInit` ends in `catch { return undefined; }`, so deleting the
+  // `if (provider === undefined) return undefined;` guard the comment credits still leaves the file
+  // 7/7 green. Neither half was observable, and the second version was a decorated version of the
+  // first.
+  //
+  // Removed rather than decorated again — the same treatment B-065 received in this batch, which is
+  // what the implementation log had already claimed for this occurrence. The wiring itself is
+  // untested from here because `performInit`/`performDispose` are test-local mirrors; B-095 owns
+  // replacing them with the production path.
 
   it("test_provider_init_called_once_returns_handle", async () => {
     const { provider, initSpy } = buildSpyProvider();
