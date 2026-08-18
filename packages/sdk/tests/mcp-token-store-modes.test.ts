@@ -26,7 +26,7 @@
  * false` and hands every file a fresh module registry. The path is now resolved per operation, from
  * the environment (`USERPROFILE` on win32, `HOME` elsewhere) with `homedir()` as fallback, and two
  * tests pin that: one proves the environment beats `homedir()`, the other proves the platform branch
- * reads the right variable. Both would pass vacuously if the resolver reverted, so both were
+ * reads the right variable. Both could have been written to pass vacuously, so both were
  * verified to FAIL against a reverted source rather than merely to pass against the current one.
  */
 import { chmodSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
