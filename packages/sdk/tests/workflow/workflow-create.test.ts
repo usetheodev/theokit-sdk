@@ -6,6 +6,8 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { ConfigurationError } from "../../src/errors.js";
+
 import {
   __resetSnapshotStoresForTests,
   agentStep,
@@ -16,14 +18,19 @@ import {
 
 describe("Workflow.create", () => {
   it("validates options via Zod (name required)", () => {
-    expect(() => Workflow.create({ name: "" } as never)).toThrow();
+    // B-079. Bare `toThrow()` passes on any failure. Measured which error actually arrives —
+    // `ZodError` for schema rejections, `ConfigurationError` for identifier validation — and the two
+    // live on adjacent lines in this file, so one matcher per file would have been wrong on half of
+    // it. The type is asserted, not the message: `ZodError`'s message is serialised JSON and would
+    // couple these tests to Zod's formatting.
+    expect(() => Workflow.create({ name: "" } as never)).toThrow(z.ZodError);
     expect(() => Workflow.create({ name: "demo" })).not.toThrow();
   });
 
   it("EC-3 — retry maxAttempts must be int in [1, 20]", () => {
-    expect(() => fn("step1", async () => 1, { retry: { maxAttempts: 0 } })).toThrow();
-    expect(() => fn("step1", async () => 1, { retry: { maxAttempts: 21 } })).toThrow();
-    expect(() => fn("step1", async () => 1, { retry: { maxAttempts: 3.5 } })).toThrow();
+    expect(() => fn("step1", async () => 1, { retry: { maxAttempts: 0 } })).toThrow(z.ZodError);
+    expect(() => fn("step1", async () => 1, { retry: { maxAttempts: 21 } })).toThrow(z.ZodError);
+    expect(() => fn("step1", async () => 1, { retry: { maxAttempts: 3.5 } })).toThrow(z.ZodError);
     expect(() => fn("step1", async () => 1, { retry: { maxAttempts: 3 } })).not.toThrow();
   });
 
@@ -56,9 +63,11 @@ describe("Workflow.create", () => {
   });
 
   it("rejects invalid step id grammar (special chars, empty)", () => {
-    expect(() => fn("step.1", async () => 1)).toThrow();
-    expect(() => fn("step 1", async () => 1)).toThrow();
-    expect(() => fn("", async () => 1)).toThrow();
+    // B-079. These three reject an IDENTIFIER, not a schema — `ConfigurationError`, not `ZodError`.
+    // Three lines above assert the other type; that split is why this batch measured per site.
+    expect(() => fn("step.1", async () => 1)).toThrow(ConfigurationError);
+    expect(() => fn("step 1", async () => 1)).toThrow(ConfigurationError);
+    expect(() => fn("", async () => 1)).toThrow(ConfigurationError);
     expect(() => fn("step-ok_123", async () => 1)).not.toThrow();
     // Note: sanitizeIdentifier lowercases uppercase input, so "Step1" → "step1" is accepted.
   });
