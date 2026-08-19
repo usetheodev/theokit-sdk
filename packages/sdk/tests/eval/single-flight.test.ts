@@ -59,20 +59,23 @@ describe("single-flight (D213)", () => {
   it("different names race freely", () => {
     // B-004, second location. The body was six bare calls and no assertion: if `acquireSingleFlight`
     // silently stopped registering names, this test agreed with it. The title claims names do not
-    // interfere, so the oracle has to show BOTH halves — that a held name blocks itself, and that it
-    // does not block anyone else. The first is what proves the acquires did anything at all.
+    // interfere, so the oracle has to show that releasing one frees exactly that one.
+    //
+    // Review measured an earlier assertion here (re-acquiring `a` before releasing it) as carrying
+    // zero killing power: deleting it left both mutants dying exactly as before, because `b` and `c`
+    // still throwing below already proves the acquires registered. Removed for the same reason a
+    // redundant router test was removed in the batch before this — consistency about what earns a
+    // line. `c` used to be acquired and released without ever being observed; it carries an oracle now.
     acquireSingleFlight("a");
     acquireSingleFlight("b");
     acquireSingleFlight("c");
 
-    expect(
-      () => acquireSingleFlight("a"),
-      "holding `a` must block `a` — otherwise the acquires above did nothing",
-    ).toThrow(EvalAlreadyRunningError);
-
     releaseSingleFlight("a");
     expect(() => acquireSingleFlight("a"), "releasing `a` frees `a`").not.toThrow();
     expect(() => acquireSingleFlight("b"), "and frees nobody else — `b` is still held").toThrow(
+      EvalAlreadyRunningError,
+    );
+    expect(() => acquireSingleFlight("c"), "including `c`, which release never touched").toThrow(
       EvalAlreadyRunningError,
     );
 

@@ -177,26 +177,45 @@ describe("_resetForTests", () => {
 });
 
 describe("vitest.setup.ts wire (EC-3 fix)", () => {
-  // B-011. This was a pair: test A added a pattern, test B asserted the pattern was gone. B's only
-  // assertion — that the input is NOT redacted — is true by default whenever the pattern was never
-  // added, so B passed in isolation, passed with A deleted, and would have passed if the reset it
-  // exists to prove were removed entirely. It tested that vitest happened to schedule two `it` blocks
-  // in source order, which `rules/testing.md` § 3 forbids relying on.
+  // B-011, second attempt. The original pair was genuinely order-dependent: test B asserted the
+  // pattern was gone, which is true by default whenever A never ran, so B passed alone and passed
+  // with A deleted. That part of the criticism stands.
   //
-  // One self-contained test instead, invoking the same reset the setup file invokes. That makes the
-  // clearing observable inside a single test, which is what the pair was reaching for.
-  it("test_the_reset_clears_a_runtime_pattern", () => {
+  // My first replacement then threw the baby out. Review measured it: with `_resetForTests` deleted
+  // from vitest.setup.ts:78, the whole 4465-test suite stayed green — the EC-3 wire could be removed
+  // and nothing would notice. Worse, my replacement was a near-verbatim duplicate of
+  // "clearExtras removes patterns added via addPattern" thirteen lines above, so it had zero unique
+  // killing power while its comment claimed it covered the setup file. And the justification I wrote
+  // for deleting old B — that it "would have passed if the reset were removed entirely" — was simply
+  // false: old B killed that mutant. The ordering defect was real; discarding the coverage was not
+  // the fix for it.
+  //
+  // Two SYMMETRIC halves instead. Each asserts the probe is NOT redacted on entry, then adds the
+  // pattern. Whichever runs second, its entry assertion is load-bearing — the only thing that can
+  // have removed the pattern the other half added is the setup file's beforeEach. Neither half
+  // depends on a SPECIFIC order: any order covers the wire, which is what separates this from the
+  // pair it replaces.
+  const PROBE = "EC3-ABCDEFGH";
+
+  /** Assert nothing leaked into this test, then deliberately leave a pattern behind for the sibling. */
+  function assertCleanEntryThenDirty(): void {
+    expect(
+      redactSecrets(PROBE),
+      "a runtime pattern leaked past the setup file's beforeEach",
+    ).toContain(PROBE);
+
     addPattern(/EC3-[A-Z]{8}/g);
     expect(
-      redactSecrets("EC3-ABCDEFGH"),
-      "the added pattern must take effect — otherwise the reset below proves nothing",
-    ).not.toContain("EC3-ABCDEFGH");
+      redactSecrets(PROBE),
+      "the pattern must take effect, or the sibling's entry check proves nothing",
+    ).not.toContain(PROBE);
+  }
 
-    _resetForTests({ enabled: true, clearExtras: true });
+  it("test_no_runtime_pattern_survives_into_this_test_first_half", () => {
+    assertCleanEntryThenDirty();
+  });
 
-    expect(
-      redactSecrets("EC3-ABCDEFGH"),
-      "and the reset must clear it — this is the setup file's contract",
-    ).toContain("EC3-ABCDEFGH");
+  it("test_no_runtime_pattern_survives_into_this_test_second_half", () => {
+    assertCleanEntryThenDirty();
   });
 });
