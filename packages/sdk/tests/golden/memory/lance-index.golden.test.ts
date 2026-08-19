@@ -25,28 +25,30 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 
 describe("LanceIndex (ADR D43)", () => {
-  it("throws ConfigurationError(lance_backend_unavailable) when module absent", async () => {
-    if (isLanceAvailable()) {
-      // Module is present (rare in CI). Skip this assertion.
-      return;
-    }
-    const tmp = lanceStoragePath("/tmp/lance-unavailable-test");
-    expect(tmp.endsWith(".theokit/memory/lance")).toBe(true);
-    // Mock embedding runtime — never invoked because open() fails fast.
-    const fakeEmbedding = {
-      id: "test",
-      model: "x",
-      dimension: 1536,
-      embed: async () => [[0]],
-      stats: () => ({ cacheHits: 0, cacheMisses: 0, httpCalls: 0, retries: 0 }),
-    };
-    await expect(
-      LanceIndex.open({
-        cwd: "/tmp/lance-test-stub",
-        embedding: fakeEmbedding,
-      }),
-    ).rejects.toMatchObject({ code: "lance_backend_unavailable" });
-  });
+  // The assertion only exists when the module is genuinely absent. When it is
+  // installed, report SKIPPED rather than PASS — a bare `return` here claimed
+  // to cover the unavailable-backend error path while asserting nothing.
+  it.skipIf(isLanceAvailable())(
+    "throws ConfigurationError(lance_backend_unavailable) when module absent",
+    async () => {
+      const tmp = lanceStoragePath("/tmp/lance-unavailable-test");
+      expect(tmp.endsWith(".theokit/memory/lance")).toBe(true);
+      // Mock embedding runtime — never invoked because open() fails fast.
+      const fakeEmbedding = {
+        id: "test",
+        model: "x",
+        dimension: 1536,
+        embed: async () => [[0]],
+        stats: () => ({ cacheHits: 0, cacheMisses: 0, httpCalls: 0, retries: 0 }),
+      };
+      await expect(
+        LanceIndex.open({
+          cwd: "/tmp/lance-test-stub",
+          embedding: fakeEmbedding,
+        }),
+      ).rejects.toMatchObject({ code: "lance_backend_unavailable" });
+    },
+  );
 
   it("isLanceAvailable() returns boolean without throwing", () => {
     expect(typeof isLanceAvailable()).toBe("boolean");

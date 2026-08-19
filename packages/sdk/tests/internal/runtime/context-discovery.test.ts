@@ -60,15 +60,16 @@ describe("context-discovery (T1.1)", () => {
     expect(found[1]).toContain(`${tmp}/AGENTS.md`);
   });
 
-  it("walkUpForFile stops at git root", async () => {
+  it("walkUpForFile stops at git root", async (ctx) => {
     await mkdir(join(tmp, ".git"), { recursive: true });
     // File ABOVE the git root should NOT be discovered.
     const parentFile = join(tmp, "..", `outside-${Date.now()}.md`);
     try {
       writeFileSync(parentFile, "should-not-see");
     } catch {
-      // permissions — skip if filesystem rejects
-      return;
+      // Filesystem refused the write above the git root: report SKIPPED, never
+      // PASS — the assertion below would otherwise be silently unexercised.
+      ctx.skip("filesystem refused writing a probe file above the git root");
     }
     const found = walkUpForFile(tmp, "AGENTS.md", tmp);
     expect(found).toEqual([]);

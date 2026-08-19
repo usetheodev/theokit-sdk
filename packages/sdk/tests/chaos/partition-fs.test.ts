@@ -18,6 +18,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const SKIP_CHAOS = process.env.SKIP_T0_3_CHAOS === "1";
 
+/**
+ * Root bypasses directory-mode permission bits, so `mkdir` under a 0o000
+ * parent succeeds and there is no EACCES to observe. Gate the test at
+ * collection time so such a runner reports it SKIPPED — a silent `return`
+ * here would report PASS for an assertion that never ran.
+ */
+const RUNNING_AS_ROOT = process.getuid?.() === 0;
+
 let dir = "";
 
 beforeEach(async () => {
@@ -34,11 +42,7 @@ afterEach(async () => {
 });
 
 describe.skipIf(SKIP_CHAOS)("T0.3 partition-fs chaos scaffold", () => {
-  it("mkdir surfaces EACCES when parent dir is 0o000", async () => {
-    if (process.getuid?.() === 0) {
-      // Root bypasses dir-mode protection; skip the assertion.
-      return;
-    }
+  it.skipIf(RUNNING_AS_ROOT)("mkdir surfaces EACCES when parent dir is 0o000", async () => {
     await chmod(dir, 0o000);
     let caught: NodeJS.ErrnoException | undefined;
     try {

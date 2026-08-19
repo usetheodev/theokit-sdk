@@ -55,20 +55,23 @@ describe("sdk-memory lance-index (iter 68)", () => {
       expect(typeof isLanceAvailable()).toBe("boolean");
     });
 
-    it("test_LanceIndex_open_throws_typed_error_when_lancedb_missing", async () => {
-      // Only meaningful when @lancedb/lancedb is NOT installed. When it
-      // IS installed (next iter env), the live path test below kicks in
-      // and this test is a no-op.
-      if (isLanceAvailable()) return;
-      const cwd = await mkdtemp(join(tmpdir(), "sdk-memory-lance-missing-"));
-      try {
-        await expect(LanceIndex.open({ cwd, embedding: stubEmbedding({}) })).rejects.toMatchObject({
-          message: expect.stringContaining("`@lancedb/lancedb` is not installed"),
-        });
-      } finally {
-        await rm(cwd, { recursive: true, force: true });
-      }
-    });
+    // Only meaningful when @lancedb/lancedb is NOT installed. When it IS installed the runner must
+    // report SKIPPED: the bare `return` made this a no-op that still counted as a passing test.
+    it.skipIf(isLanceAvailable())(
+      "test_LanceIndex_open_throws_typed_error_when_lancedb_missing",
+      async () => {
+        const cwd = await mkdtemp(join(tmpdir(), "sdk-memory-lance-missing-"));
+        try {
+          await expect(
+            LanceIndex.open({ cwd, embedding: stubEmbedding({}) }),
+          ).rejects.toMatchObject({
+            message: expect.stringContaining("`@lancedb/lancedb` is not installed"),
+          });
+        } finally {
+          await rm(cwd, { recursive: true, force: true });
+        }
+      },
+    );
   });
 
   describe("LanceDB live roundtrip (skipped when @lancedb/lancedb missing)", () => {
@@ -81,8 +84,7 @@ describe("sdk-memory lance-index (iter 68)", () => {
       await rm(cwd, { recursive: true, force: true });
     });
 
-    it("test_add_search_count_remove_roundtrip", async () => {
-      if (!isLanceAvailable()) return;
+    it.skipIf(!isLanceAvailable())("test_add_search_count_remove_roundtrip", async () => {
       const embedding = stubEmbedding(
         {
           alpha: [1, 0, 0],

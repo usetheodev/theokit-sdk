@@ -53,24 +53,32 @@ describe("sdk-memory sqlite-vec-loader (iter 66)", () => {
     await rm(cwd, { recursive: true, force: true });
   });
 
-  it("test_isSqliteVecLoaded_returns_false_before_load", async () => {
-    if (!(await hasNativeStack())) return;
+  it("test_isSqliteVecLoaded_returns_false_before_load", async (ctx) => {
+    if (!(await hasNativeStack())) {
+      ctx.skip("better-sqlite3 native stack unavailable on this runner");
+    }
     const db = await openMemoryDb({ filePath: join(cwd, "test.sqlite") });
     expect(isSqliteVecLoaded(db)).toBe(false);
     db.close();
   });
 
-  it("test_load_then_isSqliteVecLoaded_true_when_native_stack_available", async () => {
-    if (!(await hasNativeStack())) return;
-    if (!(await hasSqliteVec())) return;
+  it("test_load_then_isSqliteVecLoaded_true_when_native_stack_available", async (ctx) => {
+    if (!(await hasNativeStack())) {
+      ctx.skip("better-sqlite3 native stack unavailable on this runner");
+    }
+    if (!(await hasSqliteVec())) {
+      ctx.skip("sqlite-vec not installed on this runner");
+    }
     const db = await openMemoryDb({ filePath: join(cwd, "vec.sqlite") });
     await loadSqliteVecExtension(db);
     expect(isSqliteVecLoaded(db)).toBe(true);
     db.close();
   });
 
-  it("test_load_throws_typed_ConfigurationError_when_sqlite_vec_missing_EC8", async () => {
-    if (!(await hasNativeStack())) return;
+  it("test_load_throws_typed_ConfigurationError_when_sqlite_vec_missing_EC8", async (ctx) => {
+    if (!(await hasNativeStack())) {
+      ctx.skip("better-sqlite3 native stack unavailable on this runner");
+    }
     // Always exercise the EC-8 error path: even when sqlite-vec is
     // installed, passing an *invalid* db (no `loadExtension` capable
     // surface) causes the underlying `load` call to throw. The wrapper
