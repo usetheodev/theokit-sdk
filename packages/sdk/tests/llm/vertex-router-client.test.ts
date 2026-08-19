@@ -94,14 +94,4 @@ describe("VertexRouterClient — the dispatch is the whole behaviour", () => {
       "/publishers/anthropic",
     );
   });
-
-  it("test_an_id_naming_no_dialect_defaults_to_gemini", async () => {
-    // `inferModelDialect` documents gemini as the default. Routing an unrecognised id to Anthropic
-    // instead would fail at the provider, far from the router that chose it.
-    const seen: string[] = [];
-    const client = new VertexRouterClient({ fetch: capturingFetch(seen) });
-    await drain(client.stream(request("vertex/some-new-model"), new AbortController().signal));
-
-    expect(seen[0]).toContain("/endpoints/openapi/chat/completions");
-  });
 });

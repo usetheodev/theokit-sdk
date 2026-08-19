@@ -9,8 +9,13 @@
  * The third is the URL rewrite. `OpenAIClient` builds `{baseUrl}/v1/chat/completions`; Vertex's
  * OpenAI-compat path is `.../endpoints/openapi/chat/completions`, with no `/v1`. The source carries
  * four paragraphs working through why the obvious composition cannot express that, and settles on
- * rewriting the URL inside an injected `fetch`. String surgery reached by nothing is correct only by
- * accident.
+ * rewriting the URL inside an injected `fetch`.
+ *
+ * What the rewrite test pins is the URL the provider RECEIVES — scoped deliberately. Review showed the
+ * rewrite's defensive branches cannot be reached from here: `OpenAIClient` calls `fetch` exactly once,
+ * with a template-literal string (openai.ts:169), so the `URL`/`Request` input forms never occur and
+ * the `endsWith` guard is never false. Mutants inside those branches survive, and they survive because
+ * nothing calls them — a test reaching them would exercise a path no caller takes. Filed as B-103.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -38,6 +43,19 @@ afterEach(() => {
   __resetVertexAuth();
 });
 
+/**
+ * A `fetch` that fails the test if it is ever called.
+ *
+ * The two guard tests assert the client refuses BEFORE reaching the network. Left unstubbed, a guard
+ * that stops firing turns the test into a live HTTPS call whose failure looks like a flaky API rather
+ * than the regression it is.
+ */
+function refusingFetch(): typeof fetch {
+  return (async (input: unknown) => {
+    throw new Error(`the guard should have refused before any request; got ${String(input)}`);
+  }) as unknown as typeof fetch;
+}
+
 /** Drives the generator far enough for the guards / the first request to happen. */
 async function run(client: VertexGeminiClient): Promise<unknown> {
   const gen = client.stream(REQ, new AbortController().signal);
@@ -51,10 +69,20 @@ describe("VertexGeminiClient — the guards a user meets first", () => {
   it("test_a_missing_project_id_names_the_env_var_and_the_gcloud_command", async () => {
     // The guard reads ABSENCE. Assigning `undefined` to a `process.env` key stores the string
     // "undefined", which is present and non-empty — the opposite of the state under test.
-    delete process.env.GOOGLE_CLOUD_PROJECT;
+    //
+    // Review found this deleting only ONE of the three keys `resolveVertexProjectId` reads
+    // (vertex-auth.ts:84 falls through GOOGLE_CLOUD_PROJECT → GOOGLE_CLOUD_PROJECT_ID →
+    // GCLOUD_PROJECT). With `GCLOUD_PROJECT` exported the guard did not fire — and since the client
+    // was built with no `fetch`, the test then made a REAL request to googleapis.com and failed on a
+    // live API error 1.2s later. A developer with `gcloud` configured is exactly the population that
+    // has that variable set, so it failed for the people most likely to touch Vertex.
+    for (const key of ["GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT_ID", "GCLOUD_PROJECT"]) {
+      delete process.env[key];
+    }
     __setVertexAuthClientForTests({ getAccessToken: async () => ({ token: "vt" }) });
 
-    const err = await run(new VertexGeminiClient({}));
+    // A guard that fails to fire must surface as a loud test failure, never as network traffic.
+    const err = await run(new VertexGeminiClient({ fetch: refusingFetch() }));
     expect(err).toBeInstanceOf(ConfigurationError);
     // The message IS the feature — a user who cannot act on it is a user who files a bug instead.
     expect((err as Error).message, "must name the env var to set").toContain(
@@ -70,7 +98,7 @@ describe("VertexGeminiClient — the guards a user meets first", () => {
     // shape the library never produces — and tsc rejects it, correctly.
     __setVertexAuthClientForTests({ getAccessToken: async () => ({ token: null }) });
 
-    const err = await run(new VertexGeminiClient({}));
+    const err = await run(new VertexGeminiClient({ fetch: refusingFetch() }));
     expect(err).toBeInstanceOf(ConfigurationError);
     expect((err as Error).message, "must name the ADC login").toContain(
       "application-default login",
@@ -106,9 +134,6 @@ describe("VertexGeminiClient — the URL rewrite the comments argue about", () =
     expect(seen[0], "the documented Vertex path carries no /v1 before chat/completions").toBe(
       "https://us-central1-aiplatform.googleapis.com/v1/projects/proj-1/locations/us-central1/endpoints/openapi/chat/completions",
     );
-    expect(seen[0], "the placeholder base must never reach the network").not.toContain(
-      "_vertex_placeholder",
-    );
   });
 
   it("test_an_explicit_api_key_is_used_instead_of_resolving_credentials", async () => {
@@ -133,18 +158,21 @@ describe("VertexGeminiClient — the URL rewrite the comments argue about", () =
       } as unknown as Response;
     }) as unknown as typeof fetch;
 
-    const err = await run(new VertexGeminiClient({ apiKey: "explicit-key", fetch: fetchImpl }));
+    await run(new VertexGeminiClient({ apiKey: "explicit-key", fetch: fetchImpl }));
 
-    // Reaching the transport at all is the proof: had ADC been consulted, the stub above would have
-    // thrown and that message would be here instead. What DOES surface is `OpenAIClient` refusing a
-    // body with no SSE frames — the inner client's own parsing, which its own tests cover, and which
-    // is only reachable once authentication has already succeeded.
+    // Review refuted the reasoning I first wrote here, by mutation rather than by argument. I claimed
+    // that consulting ADC would surface the stub's throw. It does not: `resolveVertexAccessToken`
+    // swallows it (vertex-auth.ts:42-48, `catch { return undefined }`). So no implementation could
+    // put that message into the error, and asserting its absence could never fail. Forcing the module
+    // to always consult ADC left that assertion green — the header is what killed the mutant.
+    //
+    // The header is therefore the entire oracle, and it is a real one: the request carries the key
+    // that was handed in, which holds only if ADC was bypassed. The returned error is not inspected
+    // at all — a non-empty `headers` already proves the request was issued, and whatever
+    // `OpenAIClient` makes of a bodyless response is its own tests' subject.
     expect(
-      (err as Error | null)?.message ?? "",
-      "ADC must not be consulted when an explicit key was supplied",
-    ).not.toContain("must not be consulted");
-    expect(JSON.stringify(headers), "the explicit key is what authenticates the call").toContain(
-      "explicit-key",
-    );
+      JSON.stringify(headers),
+      "the explicit key must be what authenticates the call, not a resolved one",
+    ).toContain("explicit-key");
   });
 });
