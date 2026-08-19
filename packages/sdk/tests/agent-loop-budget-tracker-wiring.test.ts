@@ -1,119 +1,198 @@
 /**
- * Smoke test for the BudgetTracker.track() wiring in runIteration
- * (SDK 2.0 Phase 2 / T2.1 — first runtime hook).
+ * The `BudgetTracker.track()` wiring inside `runIteration` (SDK 2.0 Phase 2 / T2.1).
  *
- * Cannot drive the full agent-loop here without a stubbed LLM (would
- * pull a deep mock setup). Instead, tests the BRANCH LOGIC the wiring
- * implements: given an LlmTurnOutput-shaped object + a tracker spy,
- * the same conditional checks that `runIteration` performs MUST also
- * fire here. Pinning this guards against regressions when the wiring
- * is refactored.
+ * ## B-095 — what this file used to be
+ *
+ * It declared, in its own docblock, that it could not drive the loop "without a stubbed LLM (would
+ * pull a deep mock setup)", and tested a local copy of the wiring instead — `emitBudgetTrackEvents`,
+ * annotated "Mirror of the wiring inside `runIteration` (loop.ts:365-386) ... MUST be byte-identical
+ * in semantics". A mirror passes for exactly as long as someone remembers to edit it alongside the
+ * code, which is the property it was supposed to VERIFY rather than assume. No mutation of the real
+ * wiring could fail anything here.
+ *
+ * The premise was also false when it was written. `LlmClient` is a two-member interface
+ * (`name` + `stream`), and eighteen test files in this package already drive the real `runAgentLoop`
+ * with a stub that implements it in ten lines — `agent-loop-memory-provider-integration.test.ts`
+ * among them. The harness the file said did not exist was already in the repo.
+ *
+ * So every case below drives the production `runAgentLoop` and observes the tracker it was handed.
+ * Measured mutants, in `loop.ts` `runIteration`, each killed by the case named next to it.
+ *
+ * Every import resolves to `src/`, deliberately. The first version of this file took
+ * `createCounterBudgetTracker` from the `@theokit/sdk` barrel — the BUILT bundle — while taking
+ * `runAgentLoop` from `src/`, which measured a possibly stale artefact against fresh source inside
+ * one unit, and failed to resolve at all in a tree with no `dist/`. The tracker has a direct source
+ * path, so there is no reason to route it through the build.
  */
 
-import { type BudgetTracker, createCounterBudgetTracker } from "@theokit/sdk";
-import { describe, expect, it, vi } from "vitest";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * Mirror of the wiring inside `runIteration` (loop.ts:365-386).
- * Kept in lockstep with the runtime call. If the runtime code changes,
- * this helper changes too — they MUST be byte-identical in semantics.
- */
-function emitBudgetTrackEvents(
-  tracker: BudgetTracker | undefined,
-  modelId: string,
-  inputTokens: number,
-  outputTokens: number,
-): void {
-  if (tracker === undefined) return;
-  try {
-    if (inputTokens > 0) {
-      tracker.track({ tokens: inputTokens, model: modelId, type: "input" });
-    }
-    if (outputTokens > 0) {
-      tracker.track({ tokens: outputTokens, model: modelId, type: "output" });
-    }
-  } catch {
-    // Swallow per contract.
-  }
+import { runAgentLoop } from "../src/internal/agent-loop/loop.js";
+import { createCounterBudgetTracker } from "../src/internal/budget/tracker/budget-tracker-counter.js";
+import type { LlmClient, LlmEvent, LlmFinish } from "../src/internal/llm/types.js";
+import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
+import type { ModelSelection } from "../src/types/agent.js";
+import type { BudgetTracker } from "../src/types/budget-tracker.js";
+
+/** A one-round LLM that reports the token counts the wiring is supposed to forward. */
+function clientReporting(inputTokens?: number, outputTokens?: number): LlmClient {
+  return {
+    name: "stub",
+    async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
+      yield { type: "text_delta", text: "ok" };
+      return {
+        stopReason: "end_turn",
+        text: "ok",
+        toolCalls: [],
+        ...(inputTokens !== undefined ? { inputTokens } : {}),
+        ...(outputTokens !== undefined ? { outputTokens } : {}),
+      };
+    },
+  };
 }
 
-describe("BudgetTracker.track() wiring (Phase 2 / T2.1 runtime hook)", () => {
-  // B-065. `test_no_tracker_means_noop` stood here with `expect(true).toBe(true)`. The repair made
-  // it `.not.toThrow()` around the call — which is unfalsifiable for the same reason the tautology
-  // was: `emitBudgetTrackEvents` wraps the body in `catch {}`, so removing the undefined-guard makes
-  // the resulting TypeError vanish and the test stays green. Review confirmed it by mutation.
-  //
-  // There is no third assertion to reach for. With `tracker === undefined` the function has no
-  // return value and no side effect, and `emitBudgetTrackEvents` is a test-local MIRROR of
-  // `loop.ts:365-386`, so no mutation of the WIRING can fail anything here.
-  //
-  // That is narrower than "no `src/` mutation can fail this file", which is what an earlier version
-  // of this comment claimed and which is false: `createCounterBudgetTracker` is a real production
-  // symbol imported from the built barrel, and doubling its accumulator fails
-  // `test_both_token_counts_fire_separate_events` with `expected 320 to be 160` once the gate
-  // rebuilds (`turbo.json` `test` dependsOn `build`). The tracker is covered; the wiring is not.
-  // The case is removed rather than dressed up.
-  // Registered as B-095: the wiring needs a test against the production `runIteration`, which needs
-  // a loop harness this batch does not build.
+describe("BudgetTracker.track() wiring, against the production runIteration", () => {
+  let cwd: string;
 
-  it("test_both_token_counts_fire_separate_events", () => {
-    const tracker: BudgetTracker = createCounterBudgetTracker();
-    const spy = vi.spyOn(tracker, "track");
-    emitBudgetTrackEvents(tracker, "openai/gpt-4o-mini", 120, 40);
-    expect(spy).toHaveBeenCalledTimes(2);
-    expect(spy).toHaveBeenNthCalledWith(1, {
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "theokit-budget-wiring-"));
+  });
+
+  /** Runs one turn through the real loop with the given tracker and token report. */
+  async function drive(options: {
+    tracker?: BudgetTracker;
+    inputTokens?: number;
+    outputTokens?: number;
+    model?: ModelSelection;
+  }): Promise<Awaited<ReturnType<typeof runAgentLoop>>> {
+    const hooks = new HooksExecutor(cwd);
+    await hooks.initialize(false);
+    return runAgentLoop({
+      agentId: "budget-wiring",
+      runId: "run-budget-wiring",
+      model: options.model ?? { id: "openai/gpt-4o-mini" },
+      userMessage: "hello",
+      llm: clientReporting(options.inputTokens, options.outputTokens),
+      mcp: new Map(),
+      hooks,
+      shellCwd: cwd,
+      shellSandbox: false,
+      ...(options.tracker !== undefined ? { budgetTracker: options.tracker } : {}),
+    });
+  }
+
+  it("test_both_token_counts_fire_separate_events_in_input_then_output_order", async () => {
+    // Kills: deleting either `track` call; swapping their order; forwarding `outputTokens` as the
+    // input event; hardcoding the type strings.
+    const tracker = createCounterBudgetTracker();
+    const track = vi.spyOn(tracker, "track");
+
+    const result = await drive({ tracker, inputTokens: 120, outputTokens: 40 });
+
+    expect(result.finalStatus).toBe("finished");
+    expect(track).toHaveBeenCalledTimes(2);
+    expect(track).toHaveBeenNthCalledWith(1, {
       tokens: 120,
       model: "openai/gpt-4o-mini",
       type: "input",
     });
-    expect(spy).toHaveBeenNthCalledWith(2, {
+    expect(track).toHaveBeenNthCalledWith(2, {
       tokens: 40,
       model: "openai/gpt-4o-mini",
       type: "output",
     });
+    // The production tracker's own accumulation, reached through the loop rather than by hand.
     expect(tracker.getTotal().tokens).toBe(160);
   });
 
-  it("test_zero_input_skips_input_event", () => {
+  it("test_zero_input_skips_the_input_event", async () => {
+    // Kills: relaxing `if (inputT > 0)` to `>= 0` or dropping the guard — a zero-token event is
+    // noise a tracker would have to filter itself.
     const tracker = createCounterBudgetTracker();
-    const spy = vi.spyOn(tracker, "track");
-    emitBudgetTrackEvents(tracker, "m", 0, 50);
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy.mock.calls[0]?.[0].type).toBe("output");
+    const track = vi.spyOn(tracker, "track");
+
+    await drive({ tracker, inputTokens: 0, outputTokens: 50 });
+
+    expect(track).toHaveBeenCalledTimes(1);
+    expect(track.mock.calls[0]?.[0].type).toBe("output");
   });
 
-  it("test_zero_output_skips_output_event", () => {
+  it("test_zero_output_skips_the_output_event", async () => {
     const tracker = createCounterBudgetTracker();
-    const spy = vi.spyOn(tracker, "track");
-    emitBudgetTrackEvents(tracker, "m", 100, 0);
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy.mock.calls[0]?.[0].type).toBe("input");
+    const track = vi.spyOn(tracker, "track");
+
+    await drive({ tracker, inputTokens: 100, outputTokens: 0 });
+
+    expect(track).toHaveBeenCalledTimes(1);
+    expect(track.mock.calls[0]?.[0].type).toBe("input");
   });
 
-  it("test_both_zero_no_events_fired", () => {
+  it("test_a_provider_that_reports_no_usage_fires_nothing", async () => {
+    // The `?? 0` defaults. A provider omitting usage must not be billed as a zero-token turn, and
+    // must not crash the round either.
     const tracker = createCounterBudgetTracker();
-    const spy = vi.spyOn(tracker, "track");
-    emitBudgetTrackEvents(tracker, "m", 0, 0);
-    expect(spy).not.toHaveBeenCalled();
+    const track = vi.spyOn(tracker, "track");
+
+    const result = await drive({ tracker });
+
+    expect(track).not.toHaveBeenCalled();
+    expect(result.finalStatus).toBe("finished");
   });
 
-  it("test_tracker_throw_is_swallowed", () => {
-    const throwingTracker: BudgetTracker = {
+  it("test_the_run_model_id_is_threaded_into_every_event", async () => {
+    // Kills: stamping the provider name (`inputs.llm.name`, "stub" here) or a constant instead of
+    // the run's model — which is what a cost report is keyed by.
+    const tracker = createCounterBudgetTracker();
+    const track = vi.spyOn(tracker, "track");
+
+    await drive({
+      tracker,
+      inputTokens: 10,
+      outputTokens: 5,
+      model: { id: "anthropic/claude-3-5-sonnet" },
+    });
+
+    expect(track.mock.calls[0]?.[0].model).toBe("anthropic/claude-3-5-sonnet");
+    expect(track.mock.calls[1]?.[0].model).toBe("anthropic/claude-3-5-sonnet");
+  });
+
+  it("test_a_run_with_no_declared_model_reports_auto_rather_than_undefined", async () => {
+    // `inputs.model.id ?? "auto"`. A tracker keyed by model must never receive `undefined` as a key.
+    const tracker = createCounterBudgetTracker();
+    const track = vi.spyOn(tracker, "track");
+
+    await drive({ tracker, inputTokens: 7, outputTokens: 3, model: {} as ModelSelection });
+
+    expect(track.mock.calls[0]?.[0].model).toBe("auto");
+  });
+
+  it("test_a_tracker_that_throws_from_track_does_not_break_the_turn", async () => {
+    // Hot-path protection: `track()` is contracted non-throwing, and a consumer that violates the
+    // contract must not take the run down with it. Driven through the real loop, so this asserts the
+    // `try`/`catch` that actually wraps the calls — the mirror could only assert its own copy.
+    const throwing: BudgetTracker = {
       track: () => {
-        throw new Error("contract violation: should not throw");
+        throw new Error("contract violation: track() threw");
       },
       check: () => ({ allowed: true }),
       getTotal: () => ({ tokens: 0 }),
     };
-    // Must not propagate the throw — hot path protection.
-    expect(() => emitBudgetTrackEvents(throwingTracker, "m", 10, 5)).not.toThrow();
+
+    const result = await drive({ tracker: throwing, inputTokens: 10, outputTokens: 5 });
+
+    expect(result.finalStatus).toBe("finished");
+    expect(result.result).toBe("ok");
   });
 
-  it("test_model_id_threaded_into_event", () => {
-    const tracker = createCounterBudgetTracker();
-    const spy = vi.spyOn(tracker, "track");
-    emitBudgetTrackEvents(tracker, "anthropic/claude-3-5-sonnet", 10, 5);
-    expect(spy.mock.calls[0]?.[0].model).toBe("anthropic/claude-3-5-sonnet");
-    expect(spy.mock.calls[1]?.[0].model).toBe("anthropic/claude-3-5-sonnet");
+  it("test_no_tracker_leaves_the_turn_unchanged", async () => {
+    // § 4.2 — the accepted case. Without it, wiring that threw on every absent tracker would still
+    // pass every case above.
+    const result = await drive({ inputTokens: 120, outputTokens: 40 });
+
+    expect(result.finalStatus).toBe("finished");
+    expect(result.result).toBe("ok");
   });
 });

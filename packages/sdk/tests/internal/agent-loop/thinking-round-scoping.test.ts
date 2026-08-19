@@ -15,32 +15,118 @@
  *
  * These tests pin the shape that makes B1 unrepresentable: the block is a per-ROUND value.
  */
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
 import { buildAssistantTurn } from "../../../src/internal/agent-loop/message-builders.js";
 import { toAnthropicWireMessage } from "../../../src/internal/llm/anthropic-shared.js";
-import type { LlmThinkingPart } from "../../../src/internal/llm/types.js";
+import type {
+  LlmClient,
+  LlmEvent,
+  LlmFinish,
+  LlmThinkingPart,
+} from "../../../src/internal/llm/types.js";
 import {
   reconstructMessages,
   SessionTranscript,
 } from "../../../src/internal/persistence/session-transcript.js";
+import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
 
 const SIGNATURE = "ErUBCkYIBBgCIkAxyz+/opaque==";
 
 describe("theokit#122 — the thinking block is scoped to its own round", () => {
-  it("test_B1_the_loop_context_carries_no_thinking_state_to_leak", async () => {
-    // The structural guarantee. `pendingThinking` was context state consumed on one of two exit
-    // paths; a value that only ever lives on the round's output cannot be attached to a later one.
-    const ctxModule = await import("../../../src/internal/agent-loop/loop-context-init.js");
-    const source = await import("node:fs").then((fs) =>
-      fs.readFileSync(
-        new URL("../../../src/internal/agent-loop/loop-context-init.ts", import.meta.url),
-        "utf8",
-      ),
-    );
+  it("test_B1_a_round_1_block_never_crosses_into_a_round_2_that_produced_none", async () => {
+    // B-077. This test used to read `loop-context-init.ts` as TEXT and assert it does not contain
+    // the string "pendingThinking". Two ways that oracle was wrong in both directions: a rename of
+    // the field keeps the leak and turns the test green, and a mention of the word in a comment
+    // turns it red with no behaviour change at all. Its companion line —
+    // `expect(Object.keys(ctxModule)).not.toContain("pendingThinking")`, which B-077's own DoD
+    // credits as already covering the runtime surface — is no better: `pendingThinking` was a FIELD
+    // on the LoopContext OBJECT, never a module export, so that assertion passes whether or not the
+    // leak exists. Neither line could fail for the reason the test is named after.
+    //
+    // What the defect actually is: round state consumed on one of two exit paths. The shape that
+    // exposes it is a round that never takes the consuming path — thinking + a tool call and NO
+    // preamble text — followed by a round that produces text and NO thinking of its own. If the
+    // block is parked on the context instead of riding the round's output, round 2's turn is the
+    // one that gets round 1's signature, and the provider rejects the replay with the exact
+    // `400 "thinking blocks cannot be modified"` this issue exists to remove.
+    //
+    // The sibling golden (`golden/agent-loop/thinking-two-round.golden.test.ts`) drives a round 2
+    // that HAS its own block, so a leak there is masked by the overwrite. This one leaves round 2
+    // empty, which is the only arrangement where a leaked block has nowhere to hide.
+    const cwd = await mkdtemp(join(tmpdir(), "theokit-thinking-scope-"));
+    const hooks = new HooksExecutor(cwd);
+    await hooks.initialize(false);
 
-    expect(source).not.toContain("pendingThinking");
-    expect(Object.keys(ctxModule)).not.toContain("pendingThinking");
-  });
+    let round = 0;
+    const client: LlmClient = {
+      name: "stub",
+      async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
+        round += 1;
+        if (round === 1) {
+          yield { type: "reasoning_delta", text: "I should call the tool." };
+          return {
+            stopReason: "tool_use",
+            text: "",
+            toolCalls: [{ type: "tool_use", id: "call_1", name: "echo", input: {} }],
+            thinking: {
+              type: "thinking",
+              text: "I should call the tool.",
+              signature: SIGNATURE,
+            },
+          };
+        }
+        yield { type: "text_delta", text: "done" };
+        // Round 2 thinks about nothing. Any block on its turn came from somewhere else.
+        return { stopReason: "end_turn", text: "done", toolCalls: [] };
+      },
+    };
+
+    const result = await runAgentLoop({
+      agentId: "agent-122-scope",
+      runId: "run-122-scope",
+      model: { id: "stub-model" },
+      userMessage: "go",
+      llm: client,
+      mcp: new Map(),
+      hooks,
+      shellCwd: cwd,
+      shellSandbox: false,
+      customTools: [
+        {
+          name: "echo",
+          description: "returns a constant",
+          inputSchema: { type: "object", properties: {} },
+          handler: async () => "ok",
+        },
+      ],
+    });
+
+    expect(result.finalStatus).toBe("finished");
+    expect(round, "the stub must have been asked for two rounds").toBe(2);
+
+    const turns = result.conversation.filter((t) => t.type === "agentConversationTurn");
+    const carryingSignature = turns.filter((t) =>
+      t.turn.steps.some((s) => s.type === "thinkingMessage" && s.message.signature === SIGNATURE),
+    );
+    // Exactly one turn owns the block: the round that produced it.
+    expect(carryingSignature).toHaveLength(1);
+
+    // And it is NOT the turn that carries round 2's text. This is the assertion the source-text
+    // oracle could never make: it fails when the block is parked on the context and replayed,
+    // whatever the field is called.
+    const roundTwoTurn = turns.find((t) =>
+      t.turn.steps.some((s) => s.type === "assistantMessage" && s.message.text === "done"),
+    );
+    expect(roundTwoTurn, "round 2's text turn must exist").toBeDefined();
+    expect(
+      roundTwoTurn?.turn.steps.filter((s) => s.type === "thinkingMessage"),
+      "round 2 produced no thinking, so its turn must carry none",
+    ).toHaveLength(0);
+  }, 20_000);
 
   it("test_B2_the_replayed_assistant_turn_leads_with_the_signed_block", () => {
     const thinking: LlmThinkingPart = {
