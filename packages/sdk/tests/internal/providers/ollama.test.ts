@@ -127,11 +127,16 @@ describe("ollama builtin provider (D182)", () => {
 
   it("OLLAMA_HOST env var overrides baseUrl (advanced users on remote box)", async () => {
     // B-028. The body asserted `toHaveLength(1)` under a comment claiming the deeper assertion
-    // "lives in transport unit tests". No such test exists — measured: deleting
-    // `case "ollama": return process.env.OLLAMA_HOST` from `router.ts` passes 1923 tests in
+    // "lives in transport unit tests". No such test exists — measured: making `router.ts:359` read
+    // `profile.baseUrl` instead of `process.env.OLLAMA_HOST ?? profile.baseUrl` passes 1923 tests in
     // `tests/internal/` + `tests/golden/` with zero failures. The override was not weakly tested,
     // it was untested, and the comment is why that survived: a reader checking for coverage found a
     // sentence saying it was covered elsewhere.
+    //
+    // The first version of THIS comment cited a different mutant — deleting `case "ollama"` from
+    // `resolveBaseUrlEnvOverride` — which yields the same 1923 and proves nothing, because that case
+    // is unreachable for ollama (`router.ts:358` returns the native client first). Both mutants
+    // giving an identical number is exactly what made the misattribution invisible.
     process.env.OLLAMA_HOST = "http://192.168.1.50:11434";
 
     const { url } = await captureRequest("ollama");
