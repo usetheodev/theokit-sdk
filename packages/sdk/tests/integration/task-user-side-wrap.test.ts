@@ -17,14 +17,23 @@ import { __resetTaskRegistryForTests } from "../../src/internal/task/registry.js
 import { Task } from "../../src/task.js";
 
 /**
- * Awaits a task's terminal event on the stream `Task.subscribe` already exposes.
+ * Fails with a message naming what never happened, once `deadlineMs` elapses.
  *
- * B-054. Five call sites in this file used `await new Promise(r => setTimeout(r, N))` and then read
- * `Task.get`, with N picked by guess (50, 100, 20, 30, 10). The runtime announces every transition —
- * waiting on the clock instead was ignoring the signal being waited for. A blind sleep is also
- * silently wrong in both directions: too short and the test flakes under load, too long and it pays
- * the cost on every run forever.
+ * Review found the first version of this batch had it backwards: the pty helper carried a deadline
+ * that could never fire (5000ms against vitest's own 5000ms default), and the three helpers here
+ * carried none at all, leaning on vitest's timeout. Both shapes fail OPAQUELY — `Test timed out in
+ * 20000ms` says nothing about which half of the wait never came. Since the batch's whole argument is
+ * that a wait should state its contract, the waits themselves had to state theirs.
  */
+function deadline(ms: number, description: string): () => void {
+  const expiry = Date.now() + ms;
+  return () => {
+    if (Date.now() > expiry) {
+      throw new Error(`timed out after ${ms}ms waiting for: ${description}`);
+    }
+  };
+}
+
 /**
  * Polls `Task.get` until the task reaches a terminal state.
  *
@@ -35,8 +44,10 @@ import { Task } from "../../src/task.js";
  * using the event name here.
  */
 async function pollUntilTerminal(taskId: string): Promise<void> {
+  const check = deadline(3_000, `task ${taskId} to reach a terminal state`);
   let state = (await Task.get(taskId))?.state;
   while (state !== "finished" && state !== "error" && state !== "cancelled") {
+    check();
     await new Promise((r) => setImmediate(r));
     state = (await Task.get(taskId))?.state;
   }
@@ -44,15 +55,38 @@ async function pollUntilTerminal(taskId: string): Promise<void> {
 
 /** Polls until the task is actually running — i.e. its work callback has registered its listeners. */
 async function pollUntilRunning(taskId: string): Promise<void> {
+  const check = deadline(3_000, `task ${taskId} to start running`);
   while ((await Task.get(taskId))?.state !== "running") {
+    check();
     await new Promise((r) => setImmediate(r));
   }
 }
 
+/**
+ * Awaits a task's terminal event on the stream `Task.subscribe` already exposes.
+ *
+ * B-054. Five call sites in this file used `await new Promise(r => setTimeout(r, N))` and then read
+ * `Task.get`, with N picked by guess (50, 100, 20, 30, 10). The runtime announces every transition —
+ * waiting on the clock instead was ignoring the signal being waited for. A blind sleep is also
+ * silently wrong in both directions: too short and the test flakes under load, too long and it pays
+ * the cost on every run forever.
+ *
+ * The `Promise.race` is the deadline: an event stream that never yields cannot be polled, so the
+ * bound has to come from outside it.
+ */
 async function awaitTerminal(taskId: string): Promise<void> {
-  for await (const ev of Task.subscribe(taskId)) {
-    if (ev.type === "finished" || ev.type === "cancelled" || ev.type === "errored") return;
-  }
+  const timer = new Promise<never>((_, reject) => {
+    setTimeout(
+      () => reject(new Error(`timed out after 3000ms waiting for: task ${taskId} to finish`)),
+      3_000,
+    ).unref?.();
+  });
+  const stream = (async () => {
+    for await (const ev of Task.subscribe(taskId)) {
+      if (ev.type === "finished" || ev.type === "cancelled" || ev.type === "errored") return;
+    }
+  })();
+  await Promise.race([stream, timer]);
 }
 
 describe("Task — user-side wrap patterns", () => {

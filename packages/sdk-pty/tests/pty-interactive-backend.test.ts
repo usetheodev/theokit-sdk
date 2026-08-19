@@ -106,12 +106,18 @@ d("PtyInteractiveBackend (real PTY)", () => {
  * every run forever, and neither number is derivable from anything.
  *
  * Polling states the real contract — "this becomes true, within a deadline" — and reports which half
- * failed. The deadline is generous on purpose: it is a failure bound, not a synchroniser.
+ * failed. The deadline is a failure bound, not a synchroniser.
+ *
+ * The default MUST stay below vitest's own `testTimeout`, or the descriptive error is unreachable:
+ * this package sets no `testTimeout`, so vitest's default is 5000ms. My first version used 5000 here
+ * too — and since the clock starts AFTER setup (`startInteractive` yields 200-600ms), vitest always
+ * won the race. Measured under both mutants: `Test timed out in 5000ms`, and the string this helper
+ * exists to print never appeared once. A deadline that cannot fire is a comment, not a bound.
  */
 async function waitUntil(
   check: () => boolean,
   description: string,
-  { timeoutMs = 5_000, everyMs = 10 } = {},
+  { timeoutMs = 3_000, everyMs = 10 } = {},
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!check()) {
