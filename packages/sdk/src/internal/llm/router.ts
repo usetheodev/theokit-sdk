@@ -194,14 +194,20 @@ function buildPoolOrSingle(args: {
   return new RetryingLlmClient(selectTransport(profile, apiKey, routerOptions.baseUrl));
 }
 
+/**
+ * Base-URL override read from the environment, for the providers that document one.
+ *
+ * `ollama` is deliberately absent. It never reached this switch: `selectTransport` returns
+ * `OllamaNativeClient` for it before the `chat_completions` body runs, so `OLLAMA_HOST` is read at
+ * that earlier branch instead. The arm that used to sit here was unreachable and read like the
+ * mechanism implementing `OLLAMA_HOST` — a decoy that cost a measurement pass (B-097).
+ */
 function resolveBaseUrlEnvOverride(providerName: string): string | undefined {
   switch (providerName) {
     case "openai":
       return process.env.OPENAI_API_BASE_URL;
     case "openrouter":
       return process.env.OPENROUTER_API_BASE_URL;
-    case "ollama":
-      return process.env.OLLAMA_HOST;
     case "lmstudio":
       return process.env.LMSTUDIO_HOST;
     case "llamacpp":
@@ -390,9 +396,10 @@ function selectTransport(
       opts.organization = process.env.OPENAI_ORGANIZATION;
     }
     // Honor explicit base URL overrides for cloud providers + the local
-    // `authType: "none"` family (D182, D188, D189). All four `_HOST` /
+    // `authType: "none"` family (D188, D189). All four `_HOST` /
     // `_API_BASE_URL` vars are intentionally separate so users can mix
-    // remote-box pointing without disturbing the others.
+    // remote-box pointing without disturbing the others. Ollama is NOT one of
+    // them here — it returns above, and reads `OLLAMA_HOST` on that branch.
     const envOverride = resolveBaseUrlEnvOverride(profile.name);
     if (envOverride !== undefined) opts.baseUrl = envOverride;
     // #332 — last, so the model's own endpoint outranks the process-wide env var above.
