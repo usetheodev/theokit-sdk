@@ -24,7 +24,12 @@ import {
 import type { AgentOptions } from "../../../src/types/agent.js";
 import type { CustomTool } from "../../../src/types/agent-prims.js";
 
-/** The smallest option bag that reaches the guards without tripping an earlier one. */
+/**
+ * A minimal option bag. `model` is inert on every path this file exercises — `options.local` is always
+ * undefined, so the model check is never entered — and is kept only because a bag without it reads as
+ * incomplete to the next author. Review flagged the original comment ("the smallest bag that reaches
+ * the guards without tripping an earlier one") as claiming a necessity it does not have.
+ */
 function options(extra: Record<string, unknown>): AgentOptions {
   return { model: "openai/gpt-4o", ...extra } as unknown as AgentOptions;
 }
@@ -56,7 +61,7 @@ describe("memory storePath — the guard that keeps the store inside the workspa
   for (const [label, storePath] of rejected) {
     it(`test_${label.replace(/ /g, "_")}_is_rejected`, () => {
       const err = expectRefusal(
-        () => validateAgentOptions(options({ memory: { storePath } })),
+        () => validateAgentOptions(options({ memory: { enabled: true, storePath } })),
         "memory_path_traversal",
       );
       expect(err.message, "the offending path belongs in the message").toContain(storePath);
@@ -65,12 +70,12 @@ describe("memory storePath — the guard that keeps the store inside the workspa
 
   it("test_a_plain_relative_path_is_accepted", () => {
     expect(() =>
-      validateAgentOptions(options({ memory: { storePath: ".theokit/mem" } })),
+      validateAgentOptions(options({ memory: { enabled: true, storePath: ".theokit/mem" } })),
     ).not.toThrow();
   });
 });
 
-describe("cloud options — configurations that are legal locally and unusable in the sandbox", () => {
+describe("cloud options — refusals on the cloud path", () => {
   it("test_a_reserved_theokit_env_prefix_is_rejected", () => {
     const err = expectRefusal(
       () => validateAgentOptions(options({ cloud: { envVars: { THEOKIT_HOME: "/tmp" } } })),
@@ -95,8 +100,14 @@ describe("cloud options — configurations that are legal locally and unusable i
 
   it("test_local_plugin_paths_are_rejected_for_cloud_agents", () => {
     // The item believed this one was already tested — a grep found the code string in
-    // tests/golden/agent/cloud-tool-parity.golden.test.ts. lcov disagreed: line 76, count 0. The
-    // string appears; the throw never fired.
+    // tests/golden/agent/cloud-tool-parity.golden.test.ts. It is at that file's line 12, inside a DOC
+    // COMMENT listing codes. lcov: line 76, count 0. The string appears in prose; the throw never fired.
+    //
+    // Scoped honestly, per review: `plugins.paths` is NOT part of the public option surface —
+    // `PluginsSettings` (types/providers.ts:78) declares only `enabled?: string[]`, and `paths`
+    // appears nowhere in src outside this validator's own cast. So no supported configuration reaches
+    // this guard, and the `as unknown as AgentOptions` cast is what makes the test possible at all.
+    // It exercises the guard as written; it does not prove a caller can trip it. Filed as B-107.
     expectRefusal(
       () => validateAgentOptions(options({ cloud: {}, plugins: { paths: ["./local-plugin"] } })),
       "cloud_plugin_path_rejected",
@@ -158,16 +169,34 @@ describe("custom tools — the contract, and the order it is checked in", () => 
     );
   });
 
-  it("test_the_first_failure_reported_is_the_name_not_a_later_one", () => {
-    // `validateSingleTool` runs name → description → schema → handler. The order is behaviour: a
-    // caller fixing errors one at a time depends on it being stable, and a tool missing everything
-    // must report the first failure rather than an arbitrary one.
-    expectRefusal(
-      () =>
-        validateToolCatalog([
-          tool({ name: "", description: "", inputSchema: undefined, handler: undefined }),
-        ]),
-      "tool_missing_name",
-    );
-  });
+  // `validateSingleTool` runs name → description → schema → handler, and the order is behaviour: a
+  // caller fixing errors one at a time depends on it being stable.
+  //
+  // Review caught the first version pinning only ONE THIRD of that. It passed a tool missing
+  // EVERYTHING, so it could only ever observe the first check — swapping `validateToolSchema` and
+  // `validateToolDescription` in the source left the entire 4486-test suite green. Nothing anywhere
+  // constructed a tool missing description AND schema, which is precisely the case the rationale
+  // describes.
+  //
+  // Table-driven over ADJACENT pairs instead. Each row omits exactly two fields and names which of
+  // the two must be reported, so every neighbouring swap in the chain breaks a row.
+  const orderPairs: Array<[label: string, omit: Record<string, unknown>, expected: string]> = [
+    ["name before description", { name: "", description: "" }, "tool_missing_name"],
+    [
+      "description before schema",
+      { description: "", inputSchema: undefined },
+      "tool_missing_description",
+    ],
+    [
+      "schema before handler",
+      { inputSchema: undefined, handler: undefined },
+      "tool_missing_schema",
+    ],
+  ];
+
+  for (const [label, omit, expected] of orderPairs) {
+    it(`test_the_check_order_reports_${label.replace(/ /g, "_")}`, () => {
+      expectRefusal(() => validateToolCatalog([tool(omit)]), expected);
+    });
+  }
 });
