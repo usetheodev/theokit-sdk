@@ -217,10 +217,20 @@ describe("Budget — EC-7/8/9/18/19/20 edge cases", () => {
   });
 
   it("EC-20: charge to deleted budget = silent no-op (no throw)", async () => {
+    // B-005, second location. The body ended at the bare `await`, with `// No throw` as its only
+    // claim. Not literally vacuous — a throwing charge would fail it — but it cannot tell "the charge
+    // was a no-op" from "the charge silently landed on a deleted budget", and the second is the bug
+    // the title is named against. The word in the title is *no-op*, so the assertion has to be that
+    // nothing happened, not merely that nothing exploded.
     Budget.create({ name: "deleted", scope: "process", limits: [{ window: "1d", limitUsd: 1 }] });
     Budget.delete("deleted");
-    // No throw
-    await chargeAndCheckThresholds("deleted", 0.5);
+
+    await expect(chargeAndCheckThresholds("deleted", 0.5)).resolves.not.toThrow();
+
+    expect(
+      Budget.get("deleted"),
+      "the charge must not resurrect the budget it was aimed at",
+    ).toBeUndefined();
   });
 
   it("EC-8: onThreshold callback throws — does not break run", async () => {

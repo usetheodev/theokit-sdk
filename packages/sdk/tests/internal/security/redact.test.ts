@@ -177,14 +177,26 @@ describe("_resetForTests", () => {
 });
 
 describe("vitest.setup.ts wire (EC-3 fix)", () => {
-  // Test A: add a pattern, verify it works in this test.
-  it("A: adding pattern works inside test", () => {
+  // B-011. This was a pair: test A added a pattern, test B asserted the pattern was gone. B's only
+  // assertion — that the input is NOT redacted — is true by default whenever the pattern was never
+  // added, so B passed in isolation, passed with A deleted, and would have passed if the reset it
+  // exists to prove were removed entirely. It tested that vitest happened to schedule two `it` blocks
+  // in source order, which `rules/testing.md` § 3 forbids relying on.
+  //
+  // One self-contained test instead, invoking the same reset the setup file invokes. That makes the
+  // clearing observable inside a single test, which is what the pair was reaching for.
+  it("test_the_reset_clears_a_runtime_pattern", () => {
     addPattern(/EC3-[A-Z]{8}/g);
-    expect(redactSecrets("EC3-ABCDEFGH")).not.toContain("EC3-ABCDEFGH");
-  });
+    expect(
+      redactSecrets("EC3-ABCDEFGH"),
+      "the added pattern must take effect — otherwise the reset below proves nothing",
+    ).not.toContain("EC3-ABCDEFGH");
 
-  // Test B: pattern from test A must NOT be present (cleared by beforeEach).
-  it("B: pattern from previous test cleared by vitest.setup.ts beforeEach", () => {
-    expect(redactSecrets("EC3-ABCDEFGH")).toContain("EC3-ABCDEFGH");
+    _resetForTests({ enabled: true, clearExtras: true });
+
+    expect(
+      redactSecrets("EC3-ABCDEFGH"),
+      "and the reset must clear it — this is the setup file's contract",
+    ).toContain("EC3-ABCDEFGH");
   });
 });
