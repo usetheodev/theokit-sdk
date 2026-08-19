@@ -103,19 +103,38 @@ describe("LiveAgentRegistry — LRU eviction (T2.2)", () => {
   });
 
   it("evicts least-recently-used when maxAgents exceeded", async () => {
-    reg.configure({ maxAgents: 3 });
-    const aDispose = vi.fn().mockResolvedValue(undefined);
-    const a = { ...stubAgent("a"), dispose: aDispose } as unknown as SDKAgent;
-    reg.set("a", a);
-    await new Promise((r) => setTimeout(r, 5));
-    reg.set("b", stubAgent("b"));
-    await new Promise((r) => setTimeout(r, 5));
-    reg.set("c", stubAgent("c"));
-    await new Promise((r) => setTimeout(r, 5));
-    reg.set("d", stubAgent("d")); // exceeds — evicts a (oldest)
-    await new Promise((r) => setTimeout(r, 20));
-    expect(reg.ids()).not.toContain("a");
-    expect(aDispose).toHaveBeenCalled();
+    // B-018. Recency here is `lastUsedAt`, written from `Date.now()` (live-agent-registry.ts:95,
+    // :117). The 5ms sleeps existed to make those timestamps differ — which works until two `set`
+    // calls land inside the same millisecond under full-suite load. Then the timestamps tie, the
+    // eviction falls back to Map insertion order, and the test passes or fails for a reason that has
+    // nothing to do with the code.
+    //
+    // The clock IS the input to this behaviour, so it belongs under test control rather than being
+    // waited on. Measured: this test already fails when the LRU comparison is reversed, so what
+    // changes is determinism, not coverage.
+    vi.useFakeTimers();
+    try {
+      reg.configure({ maxAgents: 3 });
+      const aDispose = vi.fn().mockResolvedValue(undefined);
+      const a = { ...stubAgent("a"), dispose: aDispose } as unknown as SDKAgent;
+
+      vi.setSystemTime(1_000);
+      reg.set("a", a);
+      vi.setSystemTime(2_000);
+      reg.set("b", stubAgent("b"));
+      vi.setSystemTime(3_000);
+      reg.set("c", stubAgent("c"));
+      vi.setSystemTime(4_000);
+      reg.set("d", stubAgent("d")); // exceeds — evicts a (oldest)
+
+      // `set` does not await `#evictLRU` (it is off the hot path), so let its promise settle.
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(reg.ids(), "the least-recently-used entry must be the one evicted").not.toContain("a");
+      expect(aDispose, "and the evicted agent must be disposed").toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("refreshing usage saves an agent from LRU eviction", async () => {
@@ -181,25 +200,55 @@ describe("LiveAgentRegistry — idle timeout (T2.3)", () => {
   });
 
   it("idle eviction disabled when idleTimeoutMs is 0", async () => {
-    reg.configure({ maxAgents: 10, idleTimeoutMs: 0, sweepIntervalMs: 1000 });
-    reg.set("a", stubAgent("a"));
-    await new Promise((r) => setTimeout(r, 50));
-    expect(reg.ids()).toContain("a");
+    // B-017, second half. Same file, same defect: a 50ms sleep standing in for "a sweep cycle
+    // happened and did nothing". With a 1000ms interval it never waited for one — the test proved
+    // only that nothing evicted within 50ms, which is also true if the sweep is broken. Advancing
+    // past two full ticks is the claim the name makes.
+    //
+    // Worth recording about the PRODUCT, not this test: `idleTimeoutMs: 0` is guarded twice
+    // independently — `:85` never arms the interval, and `:197` returns early if it somehow runs. No
+    // single mutation of either can fail this test; removing BOTH does (measured). That is defence
+    // in depth working as intended, not a weak oracle, and it is why a mutation score on this file
+    // will report a survivor that is not a gap.
+    vi.useFakeTimers();
+    try {
+      reg.configure({ maxAgents: 10, idleTimeoutMs: 0, sweepIntervalMs: 1000 });
+      reg.set("a", stubAgent("a"));
+
+      await vi.advanceTimersByTimeAsync(2_500);
+
+      expect(reg.ids(), "idleTimeoutMs: 0 must disable idle eviction entirely").toContain("a");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("idle sweep evicts after timeout elapsed", async () => {
-    const onEvict = vi.fn();
-    reg.configure({
-      maxAgents: 10,
-      idleTimeoutMs: 30, // 30ms
-      sweepIntervalMs: 1000, // fast sweep
-      onEvict,
-    });
-    reg.set("a", stubAgent("a"));
-    // Wait > idle + sweep cycle (1000ms minimum).
-    await new Promise((r) => setTimeout(r, 1100));
-    expect(reg.ids()).not.toContain("a");
-    expect(onEvict).toHaveBeenCalledWith("a", "idle");
+    // B-017. The sweep runs on `setInterval` (live-agent-registry.ts:215) and the idle threshold is
+    // `Date.now() - idleTimeoutMs`. Both are inputs to the behaviour, so both belong under test
+    // control — the 1100ms sleep was a 100ms margin over a 1000ms interval, and a 100ms margin is
+    // not a margin on a loaded machine. It also made this the slowest test in the file by an order
+    // of magnitude, for no coverage: measured, the test already fails when the sweep stops evicting.
+    vi.useFakeTimers();
+    try {
+      const onEvict = vi.fn();
+      reg.configure({
+        maxAgents: 10,
+        idleTimeoutMs: 30,
+        sweepIntervalMs: 1000,
+        onEvict,
+      });
+      reg.set("a", stubAgent("a"));
+
+      // Past the idle threshold, then past one sweep tick. `advanceTimersByTimeAsync` also drains
+      // the promise the interval callback returns, which a synchronous advance would not.
+      await vi.advanceTimersByTimeAsync(1_100);
+
+      expect(reg.ids(), "an idle entry must be swept").not.toContain("a");
+      expect(onEvict, "and the eviction must report its reason").toHaveBeenCalledWith("a", "idle");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
