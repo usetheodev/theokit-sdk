@@ -6,7 +6,22 @@
  * the AGENT target — where the `Run` is deferred, so the handler wires an abort listener and awaits a
  * terminal status — and the catch fallback.
  *
- * The fallback is the reason this file exists. Its five-line comment asserts a safety invariant:
+ * SCOPE CORRECTION (independent review). The tests below constrain "the fallback body calls
+ * `runCronJob` exactly once". They do NOT verify the invariant the source comment asserts, and an
+ * earlier version of this docblock claimed they did.
+ *
+ * The invariant is a property of `taskRegistrySubmit`, not of this handler: that a throw from submit
+ * means `work` never started. These tests MOCK submit and make it reject WITHOUT invoking the callback
+ * — i.e. they assume the premise they appeared to verify. Review proved it with the mutant that
+ * matters, in `task/registry.ts`, throwing AFTER the fire-and-forget IIFE: it survives the entire cron
+ * test surface (7 passed here, 11 passed in cron-workflow + run-job-errors against the real registry)
+ * while producing a genuine double execution, instrumented and observed.
+ *
+ * So the sentence "if submit ever began throwing after starting work, every cron fire would run twice
+ * and the suite would stay green" is STILL TRUE after this file. Closing it needs a test against the
+ * real registry, filed as B-118.
+ *
+ * The fallback is still the reason this file exists. Its five-line comment asserts a safety invariant:
  *
  *   "a throw here means the SUBMIT itself failed BEFORE `work` started — the job never ran, and this
  *    is its first + only execution"
@@ -28,12 +43,17 @@ import type { CronJob } from "../../../src/types/cron.js";
 const runCronJob = vi.fn();
 const submit = vi.fn();
 
-vi.mock("../../../src/internal/cron/run-job.js", () => ({
-  runCronJob: (job: unknown) => runCronJob(job),
-  // The real discriminator, not a stub: `isAgentRun` is what decides which branch runs, so replacing
-  // it with a fixed answer would test the test's opinion instead of the handler's.
-  isAgentRun: (outcome: { wait?: unknown }) => typeof outcome.wait === "function",
-}));
+vi.mock("../../../src/internal/cron/run-job.js", async (importOriginal) => {
+  // Review caught this factory hand-COPYING the body of `isAgentRun` while a comment right here
+  // claimed it was "the real discriminator, not a stub". It coincided with the real one, so the tests
+  // passed — and a mutant turning `run-job.ts:40` into `return false` left all 7 green. The test was
+  // blind to the discriminator it claimed to exercise, which is precisely the failure the comment
+  // warned against, committed inside the warning.
+  //
+  // `importOriginal` keeps the real function. Only `runCronJob` is replaced.
+  const actual = await importOriginal<typeof import("../../../src/internal/cron/run-job.js")>();
+  return { ...actual, runCronJob: (job: unknown) => runCronJob(job) };
+});
 
 vi.mock("../../../src/internal/task/registry.js", () => ({
   submit: (internal: unknown) => submit(internal),
@@ -139,16 +159,29 @@ describe("the agent target — a deferred Run the handler must await", () => {
     // only witness would be the process; a `process.on("unhandledRejection")` probe never fired here,
     // so vitest is absorbing it. Reaching a line is not constraining it, and claiming otherwise is the
     // defect this whole campaign exists to find. Filed as B-106 rather than dressed up.
+    const unhandled: unknown[] = [];
+    const probe = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", probe);
+
     let finish: (v: { status: string }) => void = () => {};
     const pending = new Promise<{ status: string }>((r) => {
       finish = r;
     });
+    // `cancel` is a PLAIN async function, not a `vi.fn`, and that is the whole point. Review found why
+    // my earlier `unhandledRejection` probe never fired: vitest's mock wrapper attaches a settlement
+    // handler to the promise a `vi.fn` returns (to feed `mock.settledResults`), which marks the
+    // rejection as HANDLED before Node can emit the event. Measured, with the `.catch` removed:
+    // plain async fn → unhandled=1; vi.fn → unhandled=0. The instrument was absorbing the signal.
+    let cancelCalls = 0;
     const run = agentRun({
       wait: vi.fn(() => pending),
-      cancel: vi.fn(async () => {
+      cancel: async () => {
+        cancelCalls += 1;
         finish({ status: "cancelled" });
         throw new Error("the provider refused the cancel");
-      }),
+      },
     });
     runCronJob.mockResolvedValue(run);
     const ac = new AbortController();
@@ -161,7 +194,17 @@ describe("the agent target — a deferred Run the handler must await", () => {
     ac.abort();
 
     await expect(work, "a refused cancel must not break the fire").resolves.toBeDefined();
-    expect(run.cancel).toHaveBeenCalledTimes(1);
+    expect(cancelCalls).toBe(1);
+
+    // The oracle for the `.catch(() => {})` itself. Nothing awaits that promise, so the only witness
+    // to a rejection escaping it is the process. Filter by message: another test in the same worker
+    // could contribute its own rejection, and colouring this one by someone else's would be a flake.
+    for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+    process.off("unhandledRejection", probe);
+    expect(
+      unhandled.filter((r) => String(r).includes("refused the cancel")),
+      "without the .catch, the refused cancel escapes as an unhandled rejection",
+    ).toEqual([]);
   });
 
   it("test_a_workflow_target_is_already_terminal_and_is_not_awaited", async () => {
@@ -178,18 +221,11 @@ describe("the agent target — a deferred Run the handler must await", () => {
 });
 
 describe("the fallback — and the no-double-execution invariant its comment asserts", () => {
-  it("test_a_failing_submit_still_runs_the_job", async () => {
-    submit.mockRejectedValue(new Error("registry setup failed"));
-    runCronJob.mockResolvedValue(workflowRun);
-
-    await expect(
-      fireCronJobAsTask(job),
-      "the task registry must not be able to break cron",
-    ).resolves.toBeUndefined();
-    expect(runCronJob).toHaveBeenCalledTimes(1);
-  });
-
-  it("test_the_fallback_runs_the_job_exactly_once_never_twice", async () => {
+  // Review found `test_a_failing_submit_still_runs_the_job` was a STRICT SUBSET of this test — both
+  // reject submit and assert `toHaveBeenCalledTimes(1)`, and this one additionally asserted the call
+  // resolves. No mutant killed the subset that this does not, so my audit's "2 killed" was one test
+  // counted twice. Removed; the surviving assertion absorbed its `resolves` check.
+  it("test_the_fallback_runs_the_job_exactly_once_and_does_not_throw", async () => {
     // THE invariant. The fallback is safe only because a `submit` throw means `work` never started —
     // so the fallback's own run is the job's first and only execution. If that ever stopped holding,
     // every cron fire would run twice, and before this test nothing would have noticed.
@@ -199,7 +235,10 @@ describe("the fallback — and the no-double-execution invariant its comment ass
     submit.mockRejectedValue(new Error("id collision in registry setup"));
     runCronJob.mockResolvedValue(workflowRun);
 
-    await fireCronJobAsTask(job);
+    await expect(
+      fireCronJobAsTask(job),
+      "the task registry must not be able to break cron",
+    ).resolves.toBeUndefined();
 
     expect(
       runCronJob,

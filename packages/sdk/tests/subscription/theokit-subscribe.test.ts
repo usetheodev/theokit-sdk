@@ -122,7 +122,11 @@ describe("the WebSocket transport", () => {
 
     const e = expectCode(err, "ws_global_missing");
     expect(e.message, "must name the runtime that has it").toContain("Node >=22");
-    expect(e.message, "and the package that supplies it otherwise").toContain("ws");
+    // Review: `toContain("ws")` was near-tautological — the message begins with the literal
+    // `Theokit.subscribe(transport='ws')`, so the prefix alone satisfied it. Deleting the entire
+    // remedy clause left the test green. The test's name promises the whole remedy; assert the half
+    // that was unconstrained.
+    expect(e.message, "and the package that supplies it otherwise").toContain("install 'ws'");
   });
 
   it("test_a_ws_error_frame_is_a_typed_error", async () => {
