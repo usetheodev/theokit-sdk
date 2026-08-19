@@ -67,16 +67,14 @@ describe("Symbol.asyncDispose support (ADR D5)", () => {
       cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
     });
 
-    // B-067. Same hollow oracle as the LocalAgent case above, but the cloud path cannot use the
-    // same fix: repairing it surfaced a real asymmetry, filed as B-094. `CloudAgent` declares
-    // `disposed` (cloud-agent.ts:55) but uses it ONLY to short-circuit `dispose()` (:217-218);
-    // `send` (:107) never consults it, so a disposed cloud agent still resolves with a CloudRun
-    // while the local one rejects. Asserting the LocalAgent behaviour here would fail on `main`
-    // for a defect this batch is not fixing.
+    // B-067 wrote this comment; B-094 retired it. It used to explain why the cloud twin could NOT
+    // make the LocalAgent assertion — `CloudAgent` declared `disposed` and `send` never consulted it,
+    // so a disposed cloud agent still resolved with a live CloudRun while the local one rejected.
+    // That asymmetry is fixed, so the assertion the comment called impossible is now below.
     //
-    // What the guard DOES buy today is that the work behind dispose happens once. Counting the
-    // flush is that claim stated as an oracle: it is 1 on the current code and 3 with the
-    // `if (this.disposed) return;` line removed.
+    // The flush count stays: it is a different claim (the teardown work happens once, 1 on current
+    // code and 3 with the `if (this.disposed) return;` line removed) and it is still the only oracle
+    // for that half of idempotence.
     const flush = vi.spyOn(registry, "flushRegistrySaves");
     try {
       await agent.dispose();
@@ -86,6 +84,14 @@ describe("Symbol.asyncDispose support (ADR D5)", () => {
         flush,
         "repeated dispose must do the teardown work exactly once",
       ).toHaveBeenCalledTimes(1);
+
+      // B-094 — the half that was missing. A disposed handle must refuse work, and it must refuse it
+      // the same way the local one does: a typed AgentDisposedError, not a TypeError from a nulled
+      // client and not a live run.
+      await expect(
+        agent.send("anything"),
+        "after repeated dispose the cloud agent must refuse work, as the local one does",
+      ).rejects.toThrow(/dispose/i);
     } finally {
       flush.mockRestore();
     }
