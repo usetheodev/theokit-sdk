@@ -27,6 +27,28 @@ import { exchangeCode } from "./oauth-engine.js";
 /** Buffer added to every poll interval to avoid hitting the server a hair early. */
 const POLLING_SAFETY_MARGIN_MS = 3000;
 
+/**
+ * Parse a JSON body, or fail with this module's typed error instead of a raw `SyntaxError`.
+ *
+ * Every failure in this file is supposed to reach the caller as an `AuthCallbackError` carrying a code
+ * the CLI can branch on. `res.json()` breaks that contract: a device endpoint that answers with HTML —
+ * a captive portal, a corporate proxy's sign-in page, a load balancer's error page — makes it reject
+ * with a `SyntaxError` that no `catch` here handles, so it escapes untyped past a caller prepared only
+ * for `AuthCallbackError`.
+ *
+ * The body is quoted, truncated, because "not JSON" and "not JSON, and it looks like a proxy login
+ * page" are different diagnoses for whoever is holding the terminal — and routing them to the provider
+ * when the fault is their network is the expensive kind of wrong.
+ */
+async function parseJsonOrFail(res: Response, code: string, what: string): Promise<unknown> {
+  const text = await res.text().catch(() => "");
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new AuthCallbackError(code, `${what} returned a non-JSON body: ${text.slice(0, 120)}`);
+  }
+}
+
 /** Step 1 — request a device code. POSTs `{client_id, scope}` to the device endpoint. */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: RFC 8628 device-code request — cohesive network response parser ported verbatim (ADR D3).
 export async function requestDeviceCode(
@@ -55,7 +77,11 @@ export async function requestDeviceCode(
       `device endpoint returned HTTP ${res.status}`,
     );
   }
-  const data = (await res.json()) as {
+  const data = (await parseJsonOrFail(
+    res,
+    "oauth_device_authorization_failed",
+    "device endpoint",
+  )) as {
     device_code?: unknown;
     user_code?: unknown;
     verification_uri?: unknown;
@@ -226,7 +252,11 @@ export async function requestOpenAIUsercode(
       `usercode endpoint returned HTTP ${res.status}`,
     );
   }
-  const data = (await res.json()) as {
+  const data = (await parseJsonOrFail(
+    res,
+    "oauth_device_authorization_failed",
+    "usercode endpoint",
+  )) as {
     device_auth_id?: unknown;
     user_code?: unknown;
     interval?: unknown;
@@ -275,7 +305,7 @@ export async function openaiDeviceLogin(
       );
     }
     if (res.ok) {
-      const data = (await res.json()) as {
+      const data = (await parseJsonOrFail(res, "oauth_token_exchange_failed", "device poll")) as {
         authorization_code?: unknown;
         code_verifier?: unknown;
       };
