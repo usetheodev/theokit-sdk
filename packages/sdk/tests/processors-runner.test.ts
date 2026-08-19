@@ -121,7 +121,11 @@ describe("SE24 — processor runner", () => {
     expect(res).toEqual({ kind: "ok", value: "HI" });
   });
 
-  it("output phase: warn() fires onViolation and continues; a non-abort throw propagates", async () => {
+  // B-043. These two were one `it` whose name joined two claims with a semicolon, over two
+  // independent fixtures. The first failure masked the second: if warn() stopped firing
+  // onViolation the throw-propagation half never ran, and the report named one failure for two
+  // broken contracts. Split, one fixture each.
+  it("output phase: warn() fires onViolation and lets the pipeline continue", async () => {
     const onViolation = vi.fn();
     const warnProcs: Processor[] = [
       {
@@ -132,15 +136,26 @@ describe("SE24 — processor runner", () => {
         },
         onViolation,
       },
+      // The word in the name is *continue*, so a downstream processor has to exist for the
+      // pipeline to continue INTO — with a single processor, `kind: "ok"` is also what a
+      // warn() that short-circuited like abort() would produce. Mirrors the input-phase test.
+      { id: "after", processOutput: (ctx) => `${ctx.text}-after` },
     ];
+
     const ok = await runOutputProcessors(warnProcs, "text", "a1");
-    expect(ok).toEqual({ kind: "ok", value: "text" });
+
+    expect(ok, "warn() must not short-circuit — the processor after it still runs").toEqual({
+      kind: "ok",
+      value: "text-after",
+    });
     expect(onViolation).toHaveBeenCalledWith({
       processorId: "owarn",
       message: "odd output",
       detail: { n: 1 },
     });
+  });
 
+  it("output phase: a non-abort throw from a processor propagates", async () => {
     const buggy: Processor[] = [
       {
         id: "obug",
@@ -149,6 +164,7 @@ describe("SE24 — processor runner", () => {
         },
       },
     ];
+
     await expect(runOutputProcessors(buggy, "text", "a1")).rejects.toThrow("output boom");
   });
 
