@@ -29,15 +29,23 @@ import {
   RateLimitError,
   UnknownAgentError,
 } from "../../src/errors.js";
-import { mapHttpStatusToError } from "../../src/internal/http.js";
+import { mapHttpStatusToError, readErrorResponseBody } from "../../src/internal/http.js";
 
 describe("mapHttpStatusToError", () => {
   it("test_401_and_403_are_authentication_failures", () => {
     for (const status of [401, 403]) {
-      const err = mapHttpStatusToError(status, {});
+      // ADR D1 asked for class AND code, and the first version of this file asserted class only —
+      // which review broke with a drop-in subclass: `CredentialError extends AuthenticationError`
+      // (credential-store.ts:76) satisfies `toBeInstanceOf` and survives all eight mutants. The
+      // class says "authentication-shaped"; the code says WHICH guard produced it.
+      const err = mapHttpStatusToError(status, { error: { code: "auth_required" } });
       expect(err, `HTTP ${status} must be an authentication failure`).toBeInstanceOf(
         AuthenticationError,
       );
+      expect(err.constructor.name, "and not a subclass standing in for it").toBe(
+        "AuthenticationError",
+      );
+      expect((err as AuthenticationError & { code?: string }).code).toBe("auth_required");
     }
   });
 
@@ -45,7 +53,9 @@ describe("mapHttpStatusToError", () => {
     // 429 sits inside the 4xx range, so it reaches this branch only because the check precedes the
     // generic one. Swap the order and it silently becomes a ConfigurationError — which a caller
     // would not retry, turning a transient throttle into a permanent failure.
-    expect(mapHttpStatusToError(429, {})).toBeInstanceOf(RateLimitError);
+    const err = mapHttpStatusToError(429, {});
+    expect(err).toBeInstanceOf(RateLimitError);
+    expect(err.constructor.name, "exactly RateLimitError, not a subclass").toBe("RateLimitError");
   });
 
   it("test_other_4xx_are_configuration_errors", () => {
@@ -57,17 +67,25 @@ describe("mapHttpStatusToError", () => {
     expect(err, "a plain 4xx must NOT be the integration-specific subclass").not.toBeInstanceOf(
       IntegrationNotConnectedError,
     );
+    // `ConfigurationError` has three subclasses in src/, not one — naming the exact constructor is
+    // what excludes all of them rather than the one I happened to think of.
+    expect(err.constructor.name).toBe("ConfigurationError");
   });
 
   it("test_5xx_are_network_errors_so_the_caller_may_retry", () => {
-    expect(mapHttpStatusToError(500, {})).toBeInstanceOf(NetworkError);
-    expect(mapHttpStatusToError(503, {})).toBeInstanceOf(NetworkError);
+    for (const status of [500, 503]) {
+      const err = mapHttpStatusToError(status, {});
+      expect(err).toBeInstanceOf(NetworkError);
+      expect(err.constructor.name, `HTTP ${status} exactly NetworkError`).toBe("NetworkError");
+    }
   });
 
   it("test_a_status_below_400_falls_back_rather_than_guessing", () => {
     // Reaching here means the caller treated a non-error status as an error. The fallback exists so
     // that is visible as "unknown" instead of being classified as something specific.
-    expect(mapHttpStatusToError(200, {})).toBeInstanceOf(UnknownAgentError);
+    const err = mapHttpStatusToError(200, {});
+    expect(err).toBeInstanceOf(UnknownAgentError);
+    expect(err.constructor.name).toBe("UnknownAgentError");
   });
 
   it("test_the_envelope_code_wins_over_the_status", () => {
@@ -97,5 +115,49 @@ describe("mapHttpStatusToError", () => {
 
   it("test_a_missing_message_degrades_to_the_status_rather_than_to_empty", () => {
     expect(mapHttpStatusToError(418, {}).message).toBe("HTTP 418");
+  });
+});
+
+describe("readErrorResponseBody", () => {
+  // B-003's dod names this function and a non-JSON body; the first version of this batch left it
+  // untested and the commit title still claimed the item. Zero test references suite-wide before
+  // this block.
+  //
+  // It feeds `mapHttpStatusToError`: whatever it returns becomes the envelope the mapper reads and
+  // the `cause` the caller receives. A wrong return here does not throw either — it makes the mapper
+  // classify against the wrong shape.
+
+  it("test_a_json_body_is_parsed_so_the_envelope_is_readable", async () => {
+    const body = await readErrorResponseBody(
+      new Response('{"error":{"code":"rate_limited"}}', { status: 429 }),
+    );
+
+    expect(body, "the mapper reads `.error.code` off this — a string would defeat it").toEqual({
+      error: { code: "rate_limited" },
+    });
+  });
+
+  it("test_a_non_json_body_is_kept_as_text_rather_than_thrown_away", async () => {
+    // The dod's case. An HTML error page or a proxy's plain-text message is exactly when the
+    // operator most needs the body — and JSON.parse throwing here would lose it.
+    const body = await readErrorResponseBody(
+      new Response("<html>502 Bad Gateway</html>", { status: 502 }),
+    );
+
+    expect(body).toBe("<html>502 Bad Gateway</html>");
+  });
+
+  it("test_an_empty_body_degrades_to_an_empty_string_not_to_a_throw", async () => {
+    expect(await readErrorResponseBody(new Response("", { status: 500 }))).toBe("");
+  });
+
+  it("test_a_body_that_cannot_be_read_is_absorbed", async () => {
+    // `.text()` rejecting (a socket dying mid-read) must not turn an HTTP error into an unrelated
+    // exception — the caller would lose the status entirely.
+    const broken = {
+      text: () => Promise.reject(new Error("socket closed")),
+    } as unknown as Response;
+
+    await expect(readErrorResponseBody(broken)).resolves.toBe("");
   });
 });
