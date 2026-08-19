@@ -48,6 +48,14 @@ export interface ProviderRouterOptions {
    * `rate_limit` RunEvent. Wired from `SendOptions.onRunEvent` at the run boundary.
    */
   onRateLimit?: (info: { attempt: number; retryAfterMs?: number }) => void;
+  /**
+   * #332 — the endpoint THIS call should reach, from `ModelSelection.url`.
+   *
+   * It outranks the provider's base-URL env var deliberately. `OLLAMA_HOST` and friends are
+   * process-wide, so with the env var winning, whoever set it for one model would keep hijacking
+   * every other one — which is the bug this field exists to end, wearing a hat.
+   */
+  baseUrl?: string;
 }
 
 /**
@@ -110,14 +118,14 @@ function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmCli
     return new RetryingLlmClient(
       new PoolAwareLlmClient(
         ambient,
-        (apiKey) => selectTransport(profile, apiKey),
+        (apiKey) => selectTransport(profile, apiKey, routerOptions.baseUrl),
         undefined,
         resilience,
       ),
     );
   }
   const poolKeys = filterPoolKeys(routerOptions.apiKeys?.[name]);
-  const noAuthOverride = maybeBuildNoAuthTransport(profile, poolKeys);
+  const noAuthOverride = maybeBuildNoAuthTransport(profile, poolKeys, routerOptions.baseUrl);
   if (noAuthOverride !== undefined) return noAuthOverride;
   return buildPoolOrSingle({ name, profile, poolKeys, routerOptions });
 }
@@ -130,6 +138,7 @@ function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmCli
 function maybeBuildNoAuthTransport(
   profile: ProviderProfile,
   poolKeys: string[] | undefined,
+  baseUrl?: string,
 ): LlmClient | undefined {
   if (profile.authType !== "none" || poolKeys === undefined || poolKeys.length === 0) {
     return undefined;
@@ -137,7 +146,7 @@ function maybeBuildNoAuthTransport(
   warnNoAuthApiKeysIgnoredOnce(profile.name);
   const sentinel = sentinelForNoAuth(profile);
   if (sentinel === undefined) return undefined;
-  return selectTransport(profile, sentinel);
+  return selectTransport(profile, sentinel, baseUrl);
 }
 
 /** Pool path for ≥2 keys; single-key fast path otherwise; sentinel fallback. */
@@ -162,7 +171,7 @@ function buildPoolOrSingle(args: {
     return new RetryingLlmClient(
       new PoolAwareLlmClient(
         pool,
-        (apiKey) => selectTransport(profile, apiKey),
+        (apiKey) => selectTransport(profile, apiKey, routerOptions.baseUrl),
         undefined,
         resilience,
       ),
@@ -182,7 +191,7 @@ function buildPoolOrSingle(args: {
   // M93 — the ONE-key arm returned the RAW transport, with no retry at all. A pool of 1 key is a
   // pool of size 1: what changes between 1 and 2 keys is whether there is somewhere to rotate to, not
   // whether resilience exists. The typical consumer resolves exactly one credential and always landed here.
-  return new RetryingLlmClient(selectTransport(profile, apiKey));
+  return new RetryingLlmClient(selectTransport(profile, apiKey, routerOptions.baseUrl));
 }
 
 function resolveBaseUrlEnvOverride(providerName: string): string | undefined {
@@ -287,7 +296,12 @@ function resolveApiKey(envVars: ReadonlyArray<string>): string | undefined {
  * EC-3 fix: exhaustive switch with actionable error on unsupported apiMode.
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 4-mode transport ladder (chat_completions / anthropic_messages / responses_api / bedrock) + Ollama native dispatch (D191) + per-provider envOverride is one cohesive switch — splitting hurts readability and obscures the dispatch contract.
-function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
+function selectTransport(
+  profile: ProviderProfile,
+  apiKey: string,
+  /** #332 — the endpoint THIS call should reach; outranks the provider's base-URL env var. */
+  baseUrl?: string,
+): LlmClient {
   // M41 — the optional provider `transform` seam (refresh-aware `fetch` + dynamic `headers` from the resolved
   // bearer). Invoked LAZILY, per-branch, ONLY by the transports that consume it (chat_completions +
   // responses_api) — so a transform's side effects (e.g. a token refresh) never fire for a transport that
@@ -356,7 +370,7 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     // models to emit raw tool JSON as plain text — confirmed via peer-project
     // upstream warning and our own dogfood of telegram-pro.
     if (profile.name === "ollama") {
-      const ollamaBase = process.env.OLLAMA_HOST ?? profile.baseUrl;
+      const ollamaBase = baseUrl ?? process.env.OLLAMA_HOST ?? profile.baseUrl;
       return new OllamaNativeClient({ apiKey, baseUrl: ollamaBase });
     }
     const opts: ConstructorParameters<typeof OpenAIClient>[0] = { apiKey };
@@ -381,6 +395,8 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     // remote-box pointing without disturbing the others.
     const envOverride = resolveBaseUrlEnvOverride(profile.name);
     if (envOverride !== undefined) opts.baseUrl = envOverride;
+    // #332 — last, so the model's own endpoint outranks the process-wide env var above.
+    if (baseUrl !== undefined) opts.baseUrl = baseUrl;
     // M41 — feed the provider transform: `fetch` (refresh-aware transport) + `headers` merged over the
     // profile's static `extraHeaders`. OpenAIClient now honors `extraHeaders` (was ignored) — additive-safe:
     // no builtin sets it on chat_completions.
