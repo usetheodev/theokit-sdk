@@ -192,7 +192,7 @@ function resolveBaseUrlEnvOverride(providerName: string): string | undefined {
     case "openrouter":
       return process.env.OPENROUTER_API_BASE_URL;
     case "ollama":
-      return process.env.OLLAMA_HOST;
+      throw new Error("DEAD_CODE_CANARY_OLLAMA_CASE_REACHED");
     case "lmstudio":
       return process.env.LMSTUDIO_HOST;
     case "llamacpp":
