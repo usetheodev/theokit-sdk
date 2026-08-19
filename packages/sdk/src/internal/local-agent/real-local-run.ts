@@ -225,8 +225,12 @@ function buildLoopInputs(
   // SE2 — when the caller subscribed via `onRunEvent`, a 429 retry surfaces a
   // typed `rate_limit` RunEvent (the pool-aware client calls this before backing off).
   const rateLimitSink = options.sendOptions.onRunEvent;
+  // #332 — the model's own endpoint, when it named one. Threaded here because this is the only
+  // place that holds both the resolved `ModelSelection` and the router options.
+  const modelBaseUrl = options.model?.url;
   const chain = resolveProviderChain({
     primary,
+    ...(modelBaseUrl !== undefined ? { baseUrl: modelBaseUrl } : {}),
     ...(fallback !== undefined ? { fallback } : {}),
     ...(apiKeys !== undefined ? { apiKeys } : {}),
     ...(credentialPoolStrategy !== undefined ? { credentialPoolStrategy } : {}),
