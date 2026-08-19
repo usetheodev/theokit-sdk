@@ -44,11 +44,20 @@ describe("TaskRegistry — submit lifecycle", () => {
       kind: "custom",
       work: async () => "done",
     });
+    // B-019. The body opened this subscription, dropped it into a floating async IIFE, and then
+    // slept 50ms hoping the work had landed. The runtime ANNOUNCES completion on the very stream the
+    // test already opened, so the sleep was ignoring the signal it was waiting for.
+    //
+    // Awaiting the `finished` event makes the test independent of how long the work takes — and of
+    // whatever else the machine is doing. Measured: this test already fails when the event stops
+    // being emitted, so what changes here is determinism, not coverage. The 50ms was not too small
+    // today; it was a number nobody could justify.
     const sub = subscribe(handle.id);
-    void (async () => {
-      for await (const ev of sub) observed.push(ev);
-    })();
-    await new Promise((r) => setTimeout(r, 50));
+    for await (const ev of sub) {
+      observed.push(ev);
+      if (ev.type === "finished") break;
+    }
+
     const final = await get(handle.id);
     expect(final?.state).toBe("finished");
     expect(final?.result).toBe("done");
