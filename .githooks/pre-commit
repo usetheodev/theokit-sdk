@@ -2,7 +2,7 @@
 # pre-commit hook — light Tier 1 quality gates.
 # See .claude/quality-gates.md.
 
-set -e
+set -eo pipefail
 
 # Load nvm if available so we hit the .nvmrc-pinned Node.
 if [ -s "$HOME/.nvm/nvm.sh" ]; then
@@ -25,7 +25,14 @@ if ! pnpm exec biome check --no-errors-on-unmatched --staged 2>&1; then
   exit 1
 fi
 
-if ! pnpm -w run typecheck 2>&1 | tail -3; then
+# The output is captured rather than piped. `... | tail -3` returns tail's status, so
+# without pipefail the `if !` could never be true and this gate always passed — it ran
+# build+typecheck for the whole monorepo on every commit to produce a verdict that was
+# green by construction. Capturing also means a real failure prints the type errors
+# instead of the last three lines of turbo's summary.
+if ! typecheck_out=$(pnpm -w run typecheck 2>&1); then
+  echo ""
+  echo "$typecheck_out" | tail -30
   echo ""
   echo "✗ G1 (typecheck) failed. Fix the types."
   exit 1
