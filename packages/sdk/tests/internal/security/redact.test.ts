@@ -177,14 +177,45 @@ describe("_resetForTests", () => {
 });
 
 describe("vitest.setup.ts wire (EC-3 fix)", () => {
-  // Test A: add a pattern, verify it works in this test.
-  it("A: adding pattern works inside test", () => {
+  // B-011, second attempt. The original pair was genuinely order-dependent: test B asserted the
+  // pattern was gone, which is true by default whenever A never ran, so B passed alone and passed
+  // with A deleted. That part of the criticism stands.
+  //
+  // My first replacement then threw the baby out. Review measured it: with `_resetForTests` deleted
+  // from vitest.setup.ts:78, the whole 4465-test suite stayed green — the EC-3 wire could be removed
+  // and nothing would notice. Worse, my replacement was a near-verbatim duplicate of
+  // "clearExtras removes patterns added via addPattern" thirteen lines above, so it had zero unique
+  // killing power while its comment claimed it covered the setup file. And the justification I wrote
+  // for deleting old B — that it "would have passed if the reset were removed entirely" — was simply
+  // false: old B killed that mutant. The ordering defect was real; discarding the coverage was not
+  // the fix for it.
+  //
+  // Two SYMMETRIC halves instead. Each asserts the probe is NOT redacted on entry, then adds the
+  // pattern. Whichever runs second, its entry assertion is load-bearing — the only thing that can
+  // have removed the pattern the other half added is the setup file's beforeEach. Neither half
+  // depends on a SPECIFIC order: any order covers the wire, which is what separates this from the
+  // pair it replaces.
+  const PROBE = "EC3-ABCDEFGH";
+
+  /** Assert nothing leaked into this test, then deliberately leave a pattern behind for the sibling. */
+  function assertCleanEntryThenDirty(): void {
+    expect(
+      redactSecrets(PROBE),
+      "a runtime pattern leaked past the setup file's beforeEach",
+    ).toContain(PROBE);
+
     addPattern(/EC3-[A-Z]{8}/g);
-    expect(redactSecrets("EC3-ABCDEFGH")).not.toContain("EC3-ABCDEFGH");
+    expect(
+      redactSecrets(PROBE),
+      "the pattern must take effect, or the sibling's entry check proves nothing",
+    ).not.toContain(PROBE);
+  }
+
+  it("test_no_runtime_pattern_survives_into_this_test_first_half", () => {
+    assertCleanEntryThenDirty();
   });
 
-  // Test B: pattern from test A must NOT be present (cleared by beforeEach).
-  it("B: pattern from previous test cleared by vitest.setup.ts beforeEach", () => {
-    expect(redactSecrets("EC3-ABCDEFGH")).toContain("EC3-ABCDEFGH");
+  it("test_no_runtime_pattern_survives_into_this_test_second_half", () => {
+    assertCleanEntryThenDirty();
   });
 });
