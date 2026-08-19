@@ -61,9 +61,16 @@ const grant: DeviceCodeGrant = {
 /**
  * A `DeviceDeps` whose clock is frozen and whose sleep is free, driven by a queue of canned responses.
  *
- * `sleep` resolving immediately is what keeps the poll-loop tests instant; the loop's bound comes from
- * `now`, not from elapsed wall time, which is why a frozen clock does not make them spin forever — each
- * poll consumes one queued response and the assertions land before the queue runs dry.
+ * `sleep` resolving immediately is what keeps the poll-loop tests instant.
+ *
+ * Read the termination condition carefully before reusing this: with the DEFAULT frozen clock,
+ * `deps.now() < deadline` is permanently true, so the `now`-based bound is exactly what a frozen clock
+ * disables. What actually ends a loop here is the response queue running dry, which surfaces as the
+ * stub's own error at the first `fetch` site — NOT as the expiry throw. A `pollDeviceToken` expiry test
+ * written on the default clock therefore gets `oauth_token_exchange_failed`, not
+ * `oauth_device_code_expired`. Pass a moving `clock` to test expiry (see the two expiry tests below).
+ *
+ * The thirteen error tests are unaffected: each throws on its first response, before the queue matters.
  */
 function depsFrom(
   responses: Array<Response | Error>,
@@ -210,10 +217,19 @@ describe("openaiDeviceLogin — four failures, including the one that distinguis
   });
 
   it("test_a_poll_body_without_an_authorization_code_is_rejected", async () => {
+    // Review found this was the one test of the thirteen whose oracle was not discriminating. Delete the
+    // guard entirely (`if (false)`) and control falls through to `exchangeCode`, which hits the exhausted
+    // stub queue and raises `oauth_token_exchange_failed` — THE SAME CODE — from a different module.
+    // The test passed against a mutant in which no throw in this file executed at all.
+    //
+    // The message is what separates them: only this site says "no authorization_code".
     const deps = depsFrom([usercodeOk(), json({ code_verifier: "ver" })]);
-    await expectAuthCode(
+    const err = await expectAuthCode(
       openaiDeviceLogin(openaiConfig, deps, { onPrompt: () => {} }),
       "oauth_token_exchange_failed",
+    );
+    expect(err.message, "the code alone is shared with the harness's own failure path").toContain(
+      "authorization_code",
     );
   });
 
@@ -228,16 +244,42 @@ describe("openaiDeviceLogin — four failures, including the one that distinguis
     expect(err.message).toContain("500");
   });
 
-  it("test_the_two_step_poll_expires_once_the_deadline_passes", async () => {
-    // The deadline is 15 minutes of INJECTED clock. Advancing `now` past it on the second read is what
-    // ends the loop — a real clock would make this test take fifteen minutes or nothing at all.
-    let reads = 0;
-    const clock = () => (reads++ === 0 ? FIXED_NOW : FIXED_NOW + 16 * 60 * 1000);
-    const deps = depsFrom([usercodeOk()], clock);
-    await expectAuthCode(
-      openaiDeviceLogin(openaiConfig, deps, { onPrompt: () => {} }),
+  it("test_the_two_step_poll_expires_after_polling_rather_than_before", async () => {
+    // The deadline is 15 minutes of INJECTED clock — a real clock would make this test take fifteen
+    // minutes or nothing at all.
+    //
+    // Review caught the first version advancing the clock on read 1, which is the `while` test itself:
+    // the loop body never ran, so it proved "the loop is not entered when the deadline has already
+    // passed" while being named for expiry after polling. It still killed a `while (true)` mutant, but
+    // by stub exhaustion rather than by the behaviour.
+    //
+    // Now the clock holds through one real pending poll (403) and only then jumps past the deadline, so
+    // the test walks the path a user walks: they were polled for, they did not approve, it expired.
+    // The clock is keyed to the poll HAVING HAPPENED rather than to a count of `now()` reads. Counting
+    // reads is brittle — my first attempt was off by one, the loop went round again, and the test failed
+    // against the stub running dry instead of against expiry.
+    let polled = false;
+    const clock = () => (polled ? FIXED_NOW + 16 * 60 * 1000 : FIXED_NOW);
+    const deps = depsFrom([usercodeOk(), json({}, 403)]);
+    const inner = deps.fetch;
+    const withClock: DeviceDeps = {
+      ...deps,
+      now: clock,
+      fetch: (async (...args: Parameters<typeof fetch>) => {
+        const res = await inner(...args);
+        if (res.status === 403) polled = true;
+        return res;
+      }) as unknown as typeof fetch,
+    };
+    const err = await expectAuthCode(
+      openaiDeviceLogin(openaiConfig, withClock, { onPrompt: () => {} }),
       "oauth_device_code_expired",
     );
+    expect(polled, "expiry must be reached THROUGH a poll, not before the first one").toBe(true);
+    expect(
+      err.message,
+      "and not the stub running dry, which shares no message with expiry",
+    ).toContain("expired");
   });
 });
 
@@ -281,5 +323,102 @@ describe("deviceLogin — the orchestrator a caller actually invokes", () => {
       "prompt",
       "poll",
     ]);
+  });
+});
+
+describe("a non-JSON body — the proxy case the module's own contract did not survive", () => {
+  /** What a captive portal or a corporate proxy actually returns: HTTP 200, and HTML in the body. */
+  const html = (status = 200): Response =>
+    new Response("<html><title>Network sign-in required</title></html>", {
+      status,
+      headers: { "content-type": "text/html" },
+    });
+
+  // B-051's DoD listed "malformed JSON" among the responses to table-drive, and it was the one item the
+  // first pass did not deliver — the batch's own prose invoked "an endpoint returning HTML through a
+  // corporate proxy" while no test fed a non-JSON body. Review caught the gap, and the gap was hiding a
+  // real defect: three of the four entry points let `res.json()`'s raw `SyntaxError` escape, past a
+  // caller prepared only for `AuthCallbackError`. These four tests are the RED that fix answered.
+
+  it("test_html_from_the_device_endpoint_is_typed_rather_than_a_raw_syntax_error", async () => {
+    const err = await expectAuthCode(
+      requestDeviceCode(deviceConfig, depsFrom([html()])),
+      "oauth_device_authorization_failed",
+    );
+    expect(
+      err.message,
+      "the body is quoted so the user can see it is a proxy, not the provider",
+    ).toContain("Network sign-in required");
+  });
+
+  it("test_html_from_the_usercode_endpoint_is_typed_rather_than_a_raw_syntax_error", async () => {
+    const err = await expectAuthCode(
+      requestOpenAIUsercode(openaiConfig, depsFrom([html()])),
+      "oauth_device_authorization_failed",
+    );
+    expect(err.message).toContain("non-JSON");
+  });
+
+  it("test_html_from_the_two_step_poll_is_typed_rather_than_a_raw_syntax_error", async () => {
+    const deps = depsFrom([
+      json({ device_auth_id: "dai", user_code: "UC", interval: "1" }),
+      html(),
+    ]);
+    const err = await expectAuthCode(
+      openaiDeviceLogin(openaiConfig, deps, { onPrompt: () => {} }),
+      "oauth_token_exchange_failed",
+    );
+    expect(err.message).toContain("non-JSON");
+  });
+
+  it("test_a_body_that_cannot_be_read_at_all_still_produces_a_typed_error", async () => {
+    // The `.catch(() => "")` inside the parse helper: a socket that dies mid-body makes `res.text()`
+    // itself reject. Without the catch that rejection escapes untyped — the same defect this batch
+    // fixes, reintroduced one layer down by the fix for it. Cheap to cover, and it was the last
+    // function in the file at FNDA:0.
+    const broken = {
+      status: 200,
+      ok: true,
+      text: () => Promise.reject(new Error("socket closed")),
+    } as unknown as Response;
+    const deps: DeviceDeps = {
+      now: () => FIXED_NOW,
+      sleep: async () => {},
+      fetch: (async () => broken) as unknown as typeof fetch,
+    };
+    const err = await expectAuthCode(
+      requestDeviceCode(deviceConfig, deps),
+      "oauth_device_authorization_failed",
+    );
+    expect(err.message).toContain("non-JSON");
+  });
+
+  it("test_the_poll_loop_already_tolerated_a_non_json_body_and_still_does", async () => {
+    // The one entry point that was already safe, via `.catch(() => ({}))` on the poll parse. It is here
+    // so the fix cannot silently regress the path that did NOT need fixing — and because that catch
+    // handler was the last function in the file at FNDA:0 after the first pass.
+    const err = await expectAuthCode(
+      pollDeviceToken(deviceConfig, grant, depsFrom([html(500)])),
+      "oauth_token_exchange_failed",
+    );
+    expect(err.message, "a non-2xx with an unreadable body is reported by its status").toContain(
+      "500",
+    );
+  });
+});
+
+describe("pollDeviceToken expiry — the throw the item deliberately does not claim", () => {
+  it("test_the_device_code_expires_once_the_deadline_passes", async () => {
+    // Line 176 is the one throw in the file that lcov already showed as covered, which is why B-051
+    // excludes it — and reviewing this batch found nothing ASSERTS it: mutating its code argument left
+    // the whole 4451-test suite green. That is the same distinction this batch argues for everywhere
+    // else (executed is not asserted), so leaving it would be arguing the point and then not applying it.
+    const deps = depsFrom([], () => FIXED_NOW);
+    const expired = { ...grant, expiresIn: 0 };
+    const err = await expectAuthCode(
+      pollDeviceToken(deviceConfig, expired, deps),
+      "oauth_device_code_expired",
+    );
+    expect(err.message).toContain("expired");
   });
 });
