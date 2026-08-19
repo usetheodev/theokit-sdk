@@ -22,7 +22,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { safePathJoin } from "../src/internal/security/path-guard.js";
+import { PathTraversalError, safePathJoin } from "../src/internal/security/path-guard.js";
 import { createTempWorkspace, type TempWorkspace } from "./helpers/temp-workspace.js";
 
 let workspace: TempWorkspace;
@@ -49,11 +49,26 @@ afterEach(async () => {
 describe("safePathJoin — a symlink out of the root is refused", () => {
   it("test_a_path_through_a_symlink_leaving_the_root_is_refused", () => {
     // The escape. `<root>/escape/secret.txt` is lexically inside and physically outside.
-    expect(() => safePathJoin(root, "escape/secret.txt")).toThrow();
+    //
+    // B-079. This asserted a bare `toThrow()`. Measured: replacing the guard's
+    // `throw new PathTraversalError(...)` with `throw new TypeError("boom")` leaves all six tests in
+    // this file GREEN. So a containment test could not distinguish "refused this escape" from "broke
+    // on everything" — and on a security guard those are opposite outcomes: the second means the
+    // function rejects legitimate paths too, which is an outage, not a defence.
+    //
+    // The type is the property. The message matcher is weaker than it looks and says so here rather
+    // than in a comment nobody re-measures: `PathTraversalError`'s message carries BOTH the attempted
+    // path and the resolved one, and both end in `escape/secret.txt`, so this regex cannot tell them
+    // apart. Measured — dropping the attempted path from the message leaves all six green; dropping
+    // both fails. It pins "the message names the path somehow", which is worth keeping and is not
+    // the stronger claim an earlier version of this comment made.
+    expect(() => safePathJoin(root, "escape/secret.txt")).toThrow(PathTraversalError);
+    expect(() => safePathJoin(root, "escape/secret.txt")).toThrow(/escape\/secret\.txt/);
   });
 
   it("test_a_symlinked_directory_itself_is_refused", () => {
-    expect(() => safePathJoin(root, "escape")).toThrow();
+    // B-079. Same measurement, same repair.
+    expect(() => safePathJoin(root, "escape")).toThrow(PathTraversalError);
   });
 
   it("test_an_ordinary_path_inside_the_root_is_still_allowed", () => {
@@ -87,6 +102,6 @@ describe("safePathJoin — a symlink out of the root is refused", () => {
     // the other — which is exactly what happened when these guards were fixed one at a time.
     mkdirSync(`${root}-evil`);
 
-    expect(() => safePathJoin(root, `../${"root"}-evil/x`)).toThrow();
+    expect(() => safePathJoin(root, `../${"root"}-evil/x`)).toThrow(PathTraversalError);
   });
 });
