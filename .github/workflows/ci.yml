@@ -115,6 +115,80 @@ jobs:
       - name: Bundle budget gate
         run: pnpm check:bundle
 
+  # B-075 — the coverage floors declared in packages/sdk/vitest.config.ts were enforced by
+  # nothing. `validate` does not call `quality:coverage`, and this workflow runs `pnpm test`
+  # rather than `pnpm validate`, so a number the project set for itself could sit below its
+  # own floor without a single gate noticing. It did, on 2026-08-18: branches 74.72% against
+  # a declared 75, reported to nobody. This job is what notices.
+  #
+  # A separate job rather than a step inside `validate`: the coverage report is a second full
+  # pass over the suite (measured 2026-08-19: 233s for `vitest run`, 366s with `--coverage`
+  # on an idle machine), and appending that to both Node legs would push a 6-minute job
+  # toward its 30-minute ceiling. As its own job it runs in parallel and costs a runner
+  # rather than wall-clock on the critical path. One Node version is enough — coverage is a
+  # property of which lines the tests reach, not of the runtime.
+  #
+  # It is also deliberately NOT in the pre-push `validate` chain. Measured on a shared
+  # developer checkout on 2026-08-19, four of nine `pnpm quality:coverage` runs died before
+  # producing a report with
+  #   Error: Something removed the coverage directory ".../packages/sdk/coverage/.tmp"
+  #   Vitest created earlier. Make sure you are not running multiple Vitests with the same
+  #   "coverage.reportsDirectory" at the same time.
+  # The runs that failed were on a machine where other vitest processes came and went, and
+  # the cause was NOT isolated — a genuine race inside the v8 provider and a second vitest
+  # sharing `packages/sdk/coverage` are both consistent with the evidence. A CI runner has
+  # exactly one vitest, which is the condition the message says is required; a developer
+  # machine with `test:watch` open does not. Putting a gate that dies ~40% of the time into
+  # a hook whose only escape is `--no-verify` would teach people to use `--no-verify`.
+  # The failure is fail-closed (exit 1, no report), so it can never pass a low number.
+  # If it recurs here, investigate the duplicate vitest install first: the lockfile carries
+  # vitest@4.1.8 twice (peered to @types/node 22.19.19 and 26.1.2) and
+  # @vitest/coverage-v8 is linked to only one of them.
+  coverage:
+    name: coverage floors
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack + pin pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.12'
+          cache: pnpm
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # Same ABI guard as the validate job: the preflight in vitest setup fails fast under
+      # CI=true instead of rebuilding, so the rebuild happens here or not at all.
+      - name: Rebuild native bindings (better-sqlite3 ABI guard)
+        run: pnpm rebuild better-sqlite3 || echo "::warning::native rebuild failed — preflight will surface details at test time"
+
+      # Same step as the validate job, for parity of WHAT RUNS. Without bubblewrap the ten
+      # kernel-confinement tests skip. The floors were calibrated on a machine without it, so
+      # this step can only move the measured number UP relative to the calibration — which is
+      # the safe direction for a floor, and the reason a first red run here would be a real
+      # signal rather than a mis-calibration.
+      - name: Install bubblewrap + enable unprivileged userns
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
+
+      # Fails when any of lines / functions / branches / statements falls below the floor
+      # declared in packages/sdk/vitest.config.ts. vitest prints
+      # "ERROR: Coverage for <metric> (X%) does not meet global threshold (Y%)" and exits 1.
+      - name: Coverage floors (packages/sdk)
+        run: pnpm quality:coverage
+
   # A dependency added in a pull request is reviewed for known vulnerabilities and
   # licence before it can merge, rather than after it is already in the lockfile.
   dependency-review:
