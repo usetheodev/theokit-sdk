@@ -8,7 +8,7 @@
  * reverse-proxy auth.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveProviderChain } from "../../../src/internal/llm/router.js";
 import {
@@ -20,6 +20,51 @@ import {
   getProviderProfile,
   listProviders,
 } from "../../../src/internal/providers/registry.js";
+
+/**
+ * Drives a resolved chain client through one turn against a stubbed global `fetch`, and reports
+ * what the transport actually requested.
+ *
+ * B-028/B-029. The env overrides these tests are named for are applied when the transport is built
+ * (`router.ts:383` sets `opts.baseUrl` from `resolveBaseUrlEnvOverride`), and `LlmClient` exposes
+ * only `name` and `stream` — so nothing about the base URL or the credential is readable from the
+ * chain itself. Measured alternatives that do NOT work: `selectTransport` is module-local and cannot
+ * be spied, and a namespace spy on `OpenAIClient` records zero calls because the router holds a
+ * direct import binding.
+ *
+ * What the user configures IS observable at the request, which is the better oracle anyway. The idiom
+ * — resolve the chain, drain the client, assert on what the fetch received — is the one
+ * `tests/internal/llm/router-auth.test.ts:63` already uses.
+ */
+async function captureRequest(
+  primary: string,
+): Promise<{ url: string; authorization: string; name: string }> {
+  let url = "";
+  let authorization = "";
+  vi.stubGlobal("fetch", (async (u: unknown, init?: { headers?: Record<string, string> }) => {
+    url = String(u);
+    authorization = init?.headers?.authorization ?? init?.headers?.Authorization ?? "";
+    return new Response('data: {"choices":[{"delta":{"content":"hi"}}]}\n\ndata: [DONE]\n\n', {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch);
+  try {
+    const [client] = resolveProviderChain({ primary });
+    if (client === undefined) throw new Error(`no client resolved for primary="${primary}"`);
+    const gen = (
+      client as unknown as { stream: (r: unknown, s: AbortSignal) => AsyncGenerator }
+    ).stream(
+      { model: "m", messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }] },
+      new AbortController().signal,
+    );
+    let r = await gen.next();
+    while (!r.done) r = await gen.next();
+    return { url, authorization, name: client.name };
+  } finally {
+    vi.unstubAllGlobals();
+  }
+}
 
 const ORIG_ENV: Record<string, string | undefined> = {};
 const TRACKED_ENV = [
@@ -70,30 +115,52 @@ describe("ollama builtin provider (D182)", () => {
   });
 
   it("router resolves ollama client with ZERO env vars set", () => {
-    // The whole point: non-technical user runs `ollama serve` and the SDK
-    // just works. No OLLAMA_API_KEY required.
+    // B-073. The whole point: a non-technical user runs `ollama serve` and the SDK just works, with
+    // no OLLAMA_API_KEY. `toHaveLength(1)` proved a client existed, never that it was this one.
     const chain = resolveProviderChain({ primary: "ollama" });
+
     expect(chain).toHaveLength(1);
+    expect(chain[0]?.name, "zero configuration must still resolve the ollama client").toBe(
+      "ollama",
+    );
   });
 
-  it("OLLAMA_HOST env var overrides baseUrl (advanced users on remote box)", () => {
+  it("OLLAMA_HOST env var overrides baseUrl (advanced users on remote box)", async () => {
+    // B-028. The body asserted `toHaveLength(1)` under a comment claiming the deeper assertion
+    // "lives in transport unit tests". No such test exists — measured: deleting
+    // `case "ollama": return process.env.OLLAMA_HOST` from `router.ts` passes 1923 tests in
+    // `tests/internal/` + `tests/golden/` with zero failures. The override was not weakly tested,
+    // it was untested, and the comment is why that survived: a reader checking for coverage found a
+    // sentence saying it was covered elsewhere.
     process.env.OLLAMA_HOST = "http://192.168.1.50:11434";
-    const chain = resolveProviderChain({ primary: "ollama" });
-    expect(chain).toHaveLength(1);
-    // The transport selection must honor OLLAMA_HOST; we assert indirectly via
-    // the chain resolving without throwing. Deeper assertion lives in transport
-    // unit tests but here we just guard against regression.
+
+    const { url } = await captureRequest("ollama");
+
+    expect(url, "the request must go to the host OLLAMA_HOST names").toMatch(
+      /^http:\/\/192\.168\.1\.50:11434\//,
+    );
   });
 
-  it("OLLAMA_API_KEY env var overrides sentinel (Ollama Cloud / reverse-proxy)", () => {
+  it("OLLAMA_API_KEY env var overrides sentinel (Ollama Cloud / reverse-proxy)", async () => {
+    // B-029. Same shape: `toHaveLength(1)` never observed the credential. Measured — dropping
+    // `envVars: ["OLLAMA_API_KEY"]` from the ollama profile passes all 48 provider tests.
+    // "Overrides the sentinel" means something specific to a caller behind a reverse proxy: the
+    // request carries THEIR key, not Ollama's local placeholder. That is what is asserted.
     process.env.OLLAMA_API_KEY = "secret-from-ollama-cloud";
-    const chain = resolveProviderChain({ primary: "ollama" });
-    expect(chain).toHaveLength(1);
+
+    const { authorization } = await captureRequest("ollama");
+
+    expect(authorization, "the caller's key must reach the wire, not the local sentinel").toBe(
+      "Bearer secret-from-ollama-cloud",
+    );
   });
 
   it("ollama works as fallback when primary has no key", () => {
-    // primary=anthropic with no key → ollama fallback should take over.
+    // B-030. `toHaveLength(1)` says one client resolved; the test is named for WHICH one. A
+    // regression that dropped the fallback and resolved something else entirely would have passed.
     const chain = resolveProviderChain({ primary: "anthropic", fallback: ["ollama"] });
+
     expect(chain).toHaveLength(1);
+    expect(chain[0]?.name, "the keyless primary must yield to the ollama fallback").toBe("ollama");
   });
 });

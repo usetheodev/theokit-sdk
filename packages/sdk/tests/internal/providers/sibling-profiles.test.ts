@@ -7,7 +7,7 @@
  * apiMode.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   _resetNoAuthApiKeyWarnings,
@@ -53,6 +53,37 @@ afterEach(() => {
   _resetBuiltinsRegistered();
 });
 
+/**
+ * Same behavioural route as `ollama.test.ts` — see the note there. The `_HOST` overrides are applied
+ * when the transport is built and `LlmClient` exposes only `name` and `stream`, so the request is
+ * where the configuration becomes observable.
+ */
+async function captureRequestUrl(primary: string): Promise<string> {
+  let url = "";
+  vi.stubGlobal("fetch", (async (u: unknown) => {
+    url = String(u);
+    return new Response('data: {"choices":[{"delta":{"content":"hi"}}]}\n\ndata: [DONE]\n\n', {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch);
+  try {
+    const [client] = resolveProviderChain({ primary });
+    if (client === undefined) throw new Error(`no client resolved for primary="${primary}"`);
+    const gen = (
+      client as unknown as { stream: (r: unknown, s: AbortSignal) => AsyncGenerator }
+    ).stream(
+      { model: "m", messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }] },
+      new AbortController().signal,
+    );
+    let r = await gen.next();
+    while (!r.done) r = await gen.next();
+    return url;
+  } finally {
+    vi.unstubAllGlobals();
+  }
+}
+
 describe("LM Studio profile (D188)", () => {
   it("registered as builtin with authType: none", () => {
     const p = getProviderProfile("lmstudio");
@@ -70,10 +101,15 @@ describe("LM Studio profile (D188)", () => {
     expect(chain).toHaveLength(1);
   });
 
-  it("LMSTUDIO_HOST env var allows pointing at a remote box", () => {
+  it("LMSTUDIO_HOST env var allows pointing at a remote box", async () => {
+    // B-031. `toHaveLength(1)` never observed the host. Measured: deleting
+    // `case "lmstudio": return process.env.LMSTUDIO_HOST` from `router.ts` left this file green.
     process.env.LMSTUDIO_HOST = "http://192.168.1.50:1234";
-    const chain = resolveProviderChain({ primary: "lmstudio" });
-    expect(chain).toHaveLength(1);
+
+    expect(
+      await captureRequestUrl("lmstudio"),
+      "the request must go to the host LMSTUDIO_HOST names",
+    ).toMatch(/^http:\/\/192\.168\.1\.50:1234\//);
   });
 });
 
@@ -95,10 +131,14 @@ describe("llama.cpp profile (D189)", () => {
     expect(chain).toHaveLength(1);
   });
 
-  it("LLAMACPP_HOST env var allows pointing at a remote box", () => {
+  it("LLAMACPP_HOST env var allows pointing at a remote box", async () => {
+    // B-032. Same measurement, same gap: deleting the `llamacpp` case left this file green.
     process.env.LLAMACPP_HOST = "http://192.168.1.50:8080";
-    const chain = resolveProviderChain({ primary: "llamacpp" });
-    expect(chain).toHaveLength(1);
+
+    expect(
+      await captureRequestUrl("llamacpp"),
+      "the request must go to the host LLAMACPP_HOST names",
+    ).toMatch(/^http:\/\/192\.168\.1\.50:8080\//);
   });
 });
 
