@@ -166,11 +166,29 @@ export default async (sessionId) => {
       });
       expect(session.sessionId).toMatch(/^[0-9a-f-]{36}$/);
 
-      // 3. cancel — idempotent + accepts unknown sessions
-      // Cancel is a notification (no response). Send + small wait.
+      // 3. cancel — a notification, so the server owes no response to it. Liveness afterwards is
+      //    the whole point of the step.
+      //
+      // B-055. This used to sleep 50ms and infer survival from the absence of a crash. That is an
+      // assumption about subprocess scheduling wearing the clothes of an assertion: a server that
+      // died at 60ms passed, and a server that was merely slow to start could pass without ever
+      // having processed the cancel. Nothing was asserted at all.
+      //
+      // A follow-up REQUEST is the signal the server itself emits. `session/list` is read-only, so
+      // it proves three things the sleep could not: the process is alive, its JSON-RPC loop still
+      // answers, and the cancel did not destroy the session (cancel aborts work, it is not a
+      // delete). It is also ordered by the transport rather than by the clock — a single stdio
+      // stream dispatches the notification before the request that follows it on the wire.
       client.notify("session/cancel", { sessionId: session.sessionId });
-      await new Promise((r) => setTimeout(r, 50));
-      // No assertion needed — must not crash the server. We assert via "still alive".
+
+      const listed = await client.request<{ sessions: Array<{ sessionId: string }> }>(
+        "session/list",
+        {},
+      );
+      expect(
+        listed.sessions.map((s) => s.sessionId),
+        "the server must still answer after a cancel, with the session intact",
+      ).toContain(session.sessionId);
     } finally {
       child.stdin.end();
       await new Promise<void>((resolve) => {
