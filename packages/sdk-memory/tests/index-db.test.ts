@@ -57,8 +57,11 @@ describe("sdk-memory index-db (iter 65)", () => {
   });
 
   describe("openMemoryDb (requires better-sqlite3 — gracefully skipped otherwise)", () => {
-    it("test_creates_parent_dirs_and_opens_a_writable_db", async () => {
-      if (!(await hasBetterSqlite3())) return;
+    it("test_creates_parent_dirs_and_opens_a_writable_db", async (ctx) => {
+      // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+      // having asserted nothing, so a machine without the capability looked identical to one
+      // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+      if (!(await hasBetterSqlite3())) ctx.skip();
       const filePath = defaultIndexPath(cwd);
       const db: MemoryDb = await openMemoryDb({ filePath });
 
@@ -78,8 +81,11 @@ describe("sdk-memory index-db (iter 65)", () => {
       await expect(access(filePath)).resolves.toBeUndefined();
     });
 
-    it("test_chunks_fts_virtual_table_present_after_open", async () => {
-      if (!(await hasBetterSqlite3())) return;
+    it("test_chunks_fts_virtual_table_present_after_open", async (ctx) => {
+      // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+      // having asserted nothing, so a machine without the capability looked identical to one
+      // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+      if (!(await hasBetterSqlite3())) ctx.skip();
       const db = await openMemoryDb({ filePath: defaultIndexPath(cwd) });
       // chunks_fts virtual table should exist (FTS5 search foundation).
       const row = db
@@ -91,8 +97,11 @@ describe("sdk-memory index-db (iter 65)", () => {
       db.close();
     });
 
-    it("test_EC7_corrupt_db_renamed_aside_and_rebuilt", async () => {
-      if (!(await hasBetterSqlite3())) return;
+    it("test_EC7_corrupt_db_renamed_aside_and_rebuilt", async (ctx) => {
+      // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+      // having asserted nothing, so a machine without the capability looked identical to one
+      // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+      if (!(await hasBetterSqlite3())) ctx.skip();
       const filePath = defaultIndexPath(cwd);
 
       // Pre-seed the path with garbage bytes — SQLite will refuse to open.
@@ -113,8 +122,11 @@ describe("sdk-memory index-db (iter 65)", () => {
       expect(corrupt).toBeDefined();
     });
 
-    it("test_recoverCorrupt_false_propagates_the_open_error", async () => {
-      if (!(await hasBetterSqlite3())) return;
+    it("test_recoverCorrupt_false_propagates_the_open_error", async (ctx) => {
+      // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+      // having asserted nothing, so a machine without the capability looked identical to one
+      // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+      if (!(await hasBetterSqlite3())) ctx.skip();
       const filePath = defaultIndexPath(cwd);
 
       const { mkdir } = await import("node:fs/promises");
