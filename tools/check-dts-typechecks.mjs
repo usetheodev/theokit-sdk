@@ -70,37 +70,6 @@ function isKnownUpstream(diagnostic) {
   return match !== null && KNOWN_UPSTREAM_UNBOUND.has(match[1]);
 }
 
-/**
- * EVERY `types` entry a consumer's resolver can land on, read from the package's own `exports` —
- * one per declared subpath, not just `"."`. A package that adds a subpath is covered the moment it
- * declares it; a package that moves an entry moves this gate with it rather than silently dropping
- * out of it.
- *
- * Falls back to the top-level `types`/`typings` only when `exports` declares no typed entry at all,
- * which is the legacy shape.
- */
-function typedExportEntries(exportsField) {
-  const entries = [];
-  for (const [subpath, condition] of Object.entries(exportsField ?? {})) {
-    const types = condition?.import?.types ?? condition?.types;
-    if (typeof types === "string") entries.push({ subpath, rel: types });
-  }
-  return entries;
-}
-
-function declaredTypesEntries(pkgDir) {
-  const manifestPath = join(pkgDir, "package.json");
-  if (!existsSync(manifestPath)) return [];
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  if (manifest.private === true) return [];
-
-  const entries = typedExportEntries(manifest.exports);
-  if (entries.length > 0) return entries;
-
-  const legacy = manifest.types ?? manifest.typings;
-  return typeof legacy === "string" ? [{ subpath: ".", rel: legacy }] : [];
-}
-
 const LABEL = "dts-typecheck";
 
 function typecheck(entryPaths) {
