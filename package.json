@@ -23,7 +23,7 @@
     "validate:naming": "ls-lint",
     "quality:dead": "knip",
     "quality:cycles": "node tools/check-cycles.mjs",
-    "quality:depcruise": "depcruise --config .dependency-cruiser.cjs packages/sdk/src",
+    "quality:depcruise": "depcruise --config .dependency-cruiser.cjs packages/sdk/src packages/sdk/tests",
     "quality:loc": "node tools/check-loc.mjs",
     "quality:duplication": "node tools/check-duplication.mjs",
     "quality:coverage": "pnpm --filter=@theokit/sdk exec vitest run --coverage",
