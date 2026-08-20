@@ -166,7 +166,22 @@ export default async (sessionId) => {
       });
       expect(session.sessionId).toMatch(/^[0-9a-f-]{36}$/);
 
-      // 3. cancel — a notification, so the server owes no response to it. Liveness afterwards is
+      // 3. prompt — B-112. The smoke test's name and docblock promised "prompt → response with
+      //    stopReason" but never sent `session/prompt`; this is the actual wire round-trip. Fixture
+      //    mode (`theo_test_*` apiKey, no THEOKIT_API_BASE_URL) makes the run deterministic: it
+      //    always finishes, so the mapped stop reason is "end_turn" (prompt-handler.ts's
+      //    `mapStopReason`) — never the fabricated fallback B-125 removed.
+      const prompted = await client.request<{ stopReason: string }>(
+        "session/prompt",
+        {
+          sessionId: session.sessionId,
+          prompt: [{ type: "text", text: "say hello" }],
+        },
+        15_000,
+      );
+      expect(prompted.stopReason).toBe("end_turn");
+
+      // 4. cancel — a notification, so the server owes no response to it. Liveness afterwards is
       //    the whole point of the step.
       //
       // B-055. This used to sleep 50ms and infer survival from the absence of a crash. That is an
