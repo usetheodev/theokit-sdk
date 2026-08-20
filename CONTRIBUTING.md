@@ -89,6 +89,34 @@ task 1f3c… was "finished" — expected error   <- reports the defect
 The second is the one to write. `tests/helpers/poll-until.ts` accepts a function for its message so it
 can be built at failure time from the state the poll actually saw.
 
+## While a mutant is applied, the tree is not yours
+
+Mutation testing means editing production source, running something, and restoring it. During that
+window the working tree does not say what the repository says — and the rule is **not** "do not
+commit". It is stronger:
+
+**No other process may compile, test, lint or inspect the tree while a mutant is applied — reading is
+as unsafe as writing.** A concurrent reader corrupts nothing. It *harvests your mutant as a finding*,
+and the result has the same shape as a real defect.
+
+Two real incidents, and the second is the dangerous one:
+
+- An agent ran `git add -A` while a mutation run was rewriting `src/**` in place. The result was a
+  **1268-file patch** — obvious, caught immediately, harmless.
+- A sibling repository ran a five-pass suite loop while a single-line mutant was applied for a few
+  seconds. Two of the passes came back `1 failed | 1688 passed` — **exactly the signature of the
+  intermittent write race that loop was measuring.** Plausible, and plausible is worse. Without
+  knowing when the mutant was applied, those two lines would have confirmed a flakiness claim using
+  noise from the measuring instrument itself.
+
+So: **declare the window, do not merely observe it.** Write down "mutant applied 02:11, restored
+02:13" *before* applying, so contamination is attributable immediately rather than reconstructed
+later. Discipline only helps while you remember you are inside a window, and the person who wrote
+this rule violated it within the hour, having written it.
+
+Prefer a worktree for anything that mutates. A worktree has its own `src/`, so nothing else on the
+machine can read through your window.
+
 ## Verify before you remove
 
 A premise that only justifies **keeping** something can be wrong and survive. One that justifies a
@@ -116,6 +144,11 @@ One corollary, since it is the most common case here: **the type system is not a
 forbids it" says a TypeScript caller cannot express the value. A JavaScript caller, a JSON config, or
 an `as` cast can. A reachability argument is admissible for an internal call shape and inadmissible
 for a boundary check — boundary checks exist for the callers you have not met.
+
+And its silent sibling: **`as` is "the type already guarantees it" without even the argument.** It is
+not a reachability claim you can weigh — it is an assertion of reachability with the reasoning
+removed. The guard that was deleted here on "the types forbid it" was refuted by a contract test that
+supplied the value *by cast*.
 
 ## Quality gates
 
