@@ -75,6 +75,23 @@ interface ChunkAccumulator {
   heading: string | undefined;
 }
 
+/**
+ * Split markdown into the chunks that get embedded and searched.
+ *
+ * Boundaries are structural rather than fixed-width: a chunk ends at the next
+ * heading, or at a blank line. Each chunk carries the nearest preceding heading,
+ * so a hit can be cited with the section it came from. A run of text longer than
+ * `maxChars` is then cut at the last whitespace within 200 characters of the
+ * limit, falling back to a hard cut when a single token is longer than that.
+ *
+ * Returns `[]` for empty input. `minChars` on the options is currently not read
+ * — small paragraphs are emitted as their own chunks regardless.
+ *
+ * Line numbers are 1-indexed and inclusive at both ends. They are exact for
+ * normal chunks; for a paragraph that had to be split by length, the numbers are
+ * derived from newline counts within the slice and mark the span the slice came
+ * from rather than a precise per-slice range.
+ */
 export function chunkMarkdown(text: string, options: ChunkMarkdownOptions = {}): MemoryChunk[] {
   const maxChars = options.maxChars ?? 800;
   if (text.length === 0) return [];

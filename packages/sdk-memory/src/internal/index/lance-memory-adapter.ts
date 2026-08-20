@@ -11,11 +11,13 @@
  *    facts use `LanceIndex.addFacts` directly (exposed via the index
  *    object returned to advanced callers).
  *  - `search()` performs vector-only retrieval. `MemorySearchHit.textScore`
- *    is undefined (no FTS5 layer); `vectorScore === score`.
- *  - `status()` reports `backend: "hybrid"` only when an embedding runtime
- *    is wired (always the case for Lance — embedding is required at open).
- *    `chunksIndexed` reflects total Lance row count; `filesIndexed` is 0
- *    because Lance does not track file provenance per-row.
+ *    is 0 on every hit (no FTS5 layer); `vectorScore === score`.
+ *  - `status()` always reports `backend: "hybrid"` — embedding is required
+ *    at open, so there is no text-only Lance index. Both counts are 0: the
+ *    Lance row count is only available asynchronously and `status()` is
+ *    synchronous, so callers needing a real count call
+ *    `unwrap().countFacts()`. Lance does not track file provenance per row,
+ *    so `filesIndexed` has nothing to report either way.
  *
  * Ships with the lancedb-backend-ship-v1-1 plan (close D12, supersede via
  * D43). v1.4.0 of `@theokit/sdk`.
@@ -110,6 +112,26 @@ const EMPTY_SYNC_RESULT: SyncResult = Object.freeze({
   chunksEmbedded: 0,
 });
 
+/**
+ * Presents a `LanceIndex` as a {@link MemoryIndex}, so a consumer written
+ * against the SQLite index runs unchanged on `backend: "lance"`.
+ *
+ * Choose it when the corpus is large enough that SQLite plus sqlite-vec is the
+ * bottleneck and you are willing to feed the index yourself. Stay on the SQLite
+ * default when you want the markdown corpus crawled for you, or text matching on
+ * exact terms: this adapter's `sync()` does nothing and its `search()` is
+ * vector-only, so a query that would have matched by keyword now has to match by
+ * meaning.
+ *
+ * Requires `@lancedb/lancedb`, an optional peer dependency. It is loaded when
+ * the index is opened, not here.
+ *
+ * Two behaviours are worth knowing before switching. Facts only enter the index
+ * through `unwrap().addFacts(...)` — nothing else writes to it. And `search()`
+ * always queries the `default` namespace, because `SearchOptions` has no
+ * namespace field to pass through, so a multi-tenant caller must open one index
+ * per tenant rather than relying on the filter.
+ */
 export class LanceMemoryAdapter implements MemoryIndex {
   constructor(private readonly inner: LanceIndex) {}
 
@@ -172,7 +194,7 @@ export class LanceMemoryAdapter implements MemoryIndex {
  *   - `source` → `source`
  *   - synthetic `startLine: 0, endLine: 0` (Lance has no line info)
  *   - synthetic `citation: id` (no path:line citation available)
- *   - `textScore` omitted (Lance does NOT do FTS5)
+ *   - `textScore` set to 0 (Lance does NOT do FTS5)
  */
 function translateLanceHit(hit: {
   id: string;

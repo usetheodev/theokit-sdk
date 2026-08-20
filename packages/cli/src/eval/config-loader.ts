@@ -1,8 +1,12 @@
 /**
  * Load + validate the user's `eval.config.{ts,mjs}` (T5.1).
  *
- * Uses dynamic `import()` so tsx handles `.ts` transpilation. Zod
- * validates the exported shape.
+ * Uses a bare dynamic `import()` — no transpiler is registered here, so whether a `.ts` config loads
+ * is decided by the Node that runs the CLI (its type-stripping support) or by a loader the caller
+ * arranged. When it cannot, the failure arrives as `config_load_failed`, not as a syntax error.
+ *
+ * Validation is three hand-written checks (see {@link loadEvalConfig}); no schema library is
+ * involved, despite `zod` sitting in this package's dependencies.
  *
  * @internal
  */
@@ -39,6 +43,19 @@ function validateShape(cfg: Partial<EvalConfig>, abs: string): EvalConfig {
   return cfg as EvalConfig;
 }
 
+/**
+ * Import the eval config and confirm it is roughly the right shape.
+ *
+ * IMPORTING EXECUTES IT: top-level code in the config runs before any validation.
+ *
+ * The check is shallow on purpose — `dataset` is an array, `scorers` is an array, `agent` is an
+ * object. Element types are NOT inspected, so a scorer that is not a function, or a dataset entry
+ * with no `input`, passes here and fails later inside the run, per row.
+ *
+ * @throws Error with a `code`: `config_not_found`, `config_load_failed` (the module threw),
+ * `config_no_default_export`, `config_invalid_shape`. `theokit eval` maps every `config_*` code to
+ * exit 2.
+ */
 export async function loadEvalConfig(cwd: string, configPath?: string): Promise<EvalConfig> {
   const relPath = configPath ?? "./eval.config.ts";
   const abs = isAbsolute(relPath) ? relPath : resolve(cwd, relPath);

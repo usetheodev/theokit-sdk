@@ -61,6 +61,25 @@ export interface ProviderTransform {
   fetch?(ctx: ProviderTransformContext): typeof fetch;
 }
 
+/**
+ * A data-only declaration of an LLM provider: its name, HTTP dialect, auth style, base URL and
+ * fallback models. There is nothing to implement — the router selects the transport from `apiMode` —
+ * so any OpenAI- or Anthropic-compatible endpoint (Groq, Together, Fireworks, a private gateway)
+ * becomes a provider without new code.
+ *
+ * A profile does nothing by itself. Wrap it with `Provider.create(profile)` and pass the resulting
+ * plugin to `Agent.create({ plugins: [...] })`; from there you route to it with the `provider/model`
+ * id prefix or through `providers.routes`.
+ *
+ * `name` is the routing prefix and `aliases` adds alternatives to it. `envVars` lists the environment
+ * variables that may supply the credential, and `authType` says what kind of credential that is.
+ *
+ * Reach for `transform` only when static data genuinely is not enough — a provider that computes
+ * headers per request or refreshes its own token. Leaving it absent keeps the profile on the pure
+ * data path. If you do supply `headers`, note that they are spread AFTER the transport's own
+ * `authorization` and `content-type`, so returning either key replaces the base header rather than
+ * adding to it.
+ */
 export interface ProviderProfile {
   name: string;
   apiMode: ApiMode;

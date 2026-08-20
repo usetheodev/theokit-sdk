@@ -1,10 +1,3 @@
-import { homedir } from "node:os";
-
-import type { CredentialStoreConfig, OAuthProviderConfig } from "../../auth/auth-types.js";
-import { readStoredOAuth } from "../../auth/credential-store.js";
-import { resolveCredential } from "../../auth/resolve-credential.js";
-import type { ProviderProfile } from "../types.js";
-
 /**
  * M43 — the ChatGPT "Codex" backend as a first-class builtin `ProviderProfile`. Migrated from the
  * agent-builder M40 workaround; the SDK now owns the provider, so a consumer only selects
@@ -17,6 +10,13 @@ import type { ProviderProfile } from "../types.js";
  *
  * @internal
  */
+
+import { homedir } from "node:os";
+
+import type { CredentialStoreConfig, OAuthProviderConfig } from "../../auth/auth-types.js";
+import { readStoredOAuth } from "../../auth/credential-store.js";
+import { resolveCredential } from "../../auth/resolve-credential.js";
+import type { ProviderProfile } from "../types.js";
 
 /**
  * The SDK-owned ambient credential store the transform reads. Defaults to `~/.theokit/auth.json`. A consumer

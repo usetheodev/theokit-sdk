@@ -80,13 +80,6 @@ export interface SessionWriterLease {
 }
 
 /**
- * Take the exclusive writer lease for `sessionPath`, or reject with {@link SessionBusyError}.
- *
- * The lock is a sibling `.lock` file created with `wx` — the same file-existence primitive the
- * SDK's `withFileLock` builds on. Exclusivity comes from the filesystem, so it holds across
- * processes, not just across async tasks in one process.
- */
-/**
  * Staleness window **between machines** — and only between them.
  *
  * 30 s from ACQUISITION. Calling it a "heartbeat" would be a lie: the record is written once, when
@@ -252,6 +245,13 @@ export function sessionHasWriter(sessionPath: string): boolean {
   }
 }
 
+/**
+ * Take the exclusive writer lease for `sessionPath`, or reject with {@link SessionBusyError}.
+ *
+ * The lock is a sibling `.lock` file created with `wx` — the same file-existence primitive the
+ * SDK's `withFileLock` builds on. Exclusivity comes from the filesystem, so it holds across
+ * processes, not just across async tasks in one process.
+ */
 export async function acquireSessionWriter(sessionPath: string): Promise<SessionWriterLease> {
   // M95 — `.writer.lock`, NOT `.lock`.
   //

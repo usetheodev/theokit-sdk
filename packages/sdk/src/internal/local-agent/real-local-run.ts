@@ -345,15 +345,6 @@ function buildLoopInputs(
 }
 
 /**
- * Resolve the effective custom-tool catalog for this run.
- *
- * Precedence (matches the mcpServers semantics — "fully replaces, not merged"):
- *  - `sendOptions.tools === undefined` → fall back to `agentOptions.tools`
- *  - `sendOptions.tools = []`         → explicitly clear (no custom tools)
- *  - `sendOptions.tools = [t1, ...]`  → use exactly these for this run
- */
-
-/**
  * M77 — the process-wide pool backing `mcpLifecycle: 'session'`.
  *
  * Keyed by `(agentId, server, config)`, so it is session-scoped despite being a module-level object:

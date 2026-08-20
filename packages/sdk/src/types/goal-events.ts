@@ -33,17 +33,12 @@ export interface JudgeResult {
 }
 
 /**
- * Public event types emitted by {@link SDKAgent.runUntil} (ADRs D115-D117).
- *
- * Discriminated union by `type` field so consumers can `switch (event.type)`
- * with full TypeScript exhaustiveness. Mirrors the
+ * Single event emitted while iterating a goal-driven loop — the public event type of
+ * {@link SDKAgent.runUntil} (ADRs D115-D117). Discriminated union by the `type` field so
+ * consumers can `switch (event.type)` with full TypeScript exhaustiveness; mirrors the
  * {@link import("../stream-object.js").StreamObjectEvent} pattern (ADR D39).
  *
- * @public
- */
-
-/**
- * Single event emitted while iterating a goal-driven loop. Five variants:
+ * Five variants:
  *
  * - `turn_start` — the agent is about to invoke `send()`. Emitted once
  *   per turn.

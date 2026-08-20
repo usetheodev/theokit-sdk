@@ -195,6 +195,36 @@ function makeStringScorer(
   };
 }
 
+/**
+ * The built-in scorer factories for {@link Eval}. Each call returns a fresh
+ * `NamedScorer` (`{ name, score }`) to drop into `EvalOptions.scorers`; the
+ * result is stateless and safe to reuse across runs.
+ *
+ *   import { Eval, Scorers } from "@theokit/sdk/eval";
+ *   scorers: [Scorers.exactMatch(), Scorers.jsonShape(MySchema)]
+ *
+ * How they fail: a scorer does not throw for a bad row. A mismatch, an unusable
+ * `expected`, or an output that cannot be parsed all come back as
+ * `{ score: 0, reason: "<why>" }` — `expected_not_string`, `expected_empty`,
+ * `mismatch`, `not_found`, `regex_no_match`, `input_too_large`,
+ * `output_not_numeric`, `expected_not_numeric`, `invalid_json`, `schema_invalid`,
+ * `output_too_large`, `embed_failed`, `verify_gate_empty_command`. When a run
+ * scores 0 across the board, `reason` usually says the dataset is wrong rather
+ * than the model.
+ *
+ * Three of these are NOT pure and NOT free: `llmJudge` and `embeddingSimilarity`
+ * each make one network call PER ROW and need their own credentials, and
+ * `verifyGate` runs a shell command through a `SandboxBackend` — defaulting to
+ * `LocalSandbox`, which is not an isolation boundary. The rest — `exactMatch`,
+ * `containsExpected`, `regex`, `levenshtein`, `numericDiff`, `jsonShape` — are
+ * deterministic, offline, and safe in CI.
+ *
+ * Trap: the default case-sensitivity is NOT uniform. `exactMatch` defaults to
+ * case-SENSITIVE; `containsExpected` and `levenshtein` default to
+ * case-INSENSITIVE. Pass `caseSensitive` explicitly whenever it matters.
+ *
+ * @public
+ */
 export const Scorers = {
   /**
    * `output.trim() === expected.trim()`. Refuses empty `expected` (EC-1
@@ -290,13 +320,6 @@ export const Scorers = {
   },
 
   /**
-   * Parse `output` as JSON and validate against a Zod schema.
-   *
-   * - EC-2 fix: output is bounded by `JSON_SHAPE_MAX_BYTES` (1 MB)
-   *   BEFORE `JSON.parse` to avoid OOM on runaway LLM responses.
-   * - `strict: true` includes Zod's first error message in `reason`.
-   */
-  /**
    * LLM-as-judge scorer (ADR D205).
    *
    * **Cost note (EC-12):** every row with this scorer adds ~1 LLM call
@@ -355,6 +378,14 @@ export const Scorers = {
     };
   },
 
+  /**
+   * Parse `output` as JSON and validate against a Zod schema.
+   *
+   * - EC-2 fix: output is bounded by `JSON_SHAPE_MAX_BYTES` (1e6) BEFORE
+   *   `JSON.parse` to avoid OOM on runaway LLM responses. The bound is applied to
+   *   `output.length` — UTF-16 code units, not bytes, despite the constant's name.
+   * - `strict: true` includes Zod's first error message in `reason`.
+   */
   jsonShape<T extends ZodType>(schema: T, opts: JsonShapeOptions = {}): NamedScorer {
     return {
       name: "json-shape",

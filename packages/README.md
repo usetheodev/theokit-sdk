@@ -1,24 +1,34 @@
 # `theokit-sdk` packages
 
-This monorepo ships **14 packages** — the Agent-AI **Harness** — organized in **3 families**. The family lets you find a package by what it does, not by alphabetical position.
+This monorepo ships the Agent-AI **Harness**, organized in **3 families**. The family lets you find a package by what it does, not by alphabetical position.
 
-> Versions below are indicative of the current published line; the authoritative value is each package's `package.json` / npm. `@theokit/sdk` is the only 4.x line — the satellites version independently.
+> **No version numbers here, on purpose.** They were listed once and every one of the seven went
+> stale — `@theokit/sdk` read 4.2.1 against a published 4.53.1, `@theokit/sdk-tools` 0.11.1 against
+> 0.27.0. A number labelled "indicative" that is fifty releases out is not a hint, it is a trap for
+> anyone pinning from it. Read `package.json`, or `npm view @theokit/<name> version`. `@theokit/sdk`
+> is the only 4.x line; the satellites version independently, so their numbers never line up.
 
 > **Monorepo cohesion split (2026-06-18, plan `monorepo-cohesion-split`).** The non-Harness clusters were extracted to sibling repos so the SDK is a coherent harness ("LEGO pieces to build any agent"). See the "Extracted to sibling repos" section below.
+
+> **Looking for a symbol rather than a package?** Two generated references ship inside
+> `@theokit/sdk` and are the authority when any prose here disagrees with them:
+> `docs/harness-capability-map.md` (every public symbol and the exact specifier to import it from)
+> and `docs/error-codes.md` (every `code` an error can carry, and where it is raised). Both are
+> regenerated from the built declarations by `pnpm run docs`, so they cannot drift silently.
 
 ## Families
 
 ### Core — agent runtime + extensions + data layer
 
-| Package | Status | Purpose |
-|---|---|---|
-| `@theokit/sdk` | **4.2.1** | Agent kernel: `Agent.create`, `AgentBuilder`, `AgentFactory.create`, `Tool.create`, runtime loop, plugin foundation, persistence primitives, MCP, hooks, providers, subscription/a2a/sandbox/client/server sub-paths. (SE36 v3.0 collapsed the `define*`/`create*` factories to the uniform `X.create` surface.) |
-| `@theokit/sdk-cache` | **0.3.1** | Semantic LLM response cache. Integrates via Plugin protocol. |
-| `@theokit/sdk-tools` | **0.11.1** | Built-in tools (read-file, list-dir, search-text, git-diff, subprocess, run-vitest). |
-| `@theokit/sdk-memory` | **0.2.2** | `MemoryProvider` port consumer — markdown store with disk-backed session-summary write/recall + `memory_remember` / `memory_search` tools + agent-scope privacy filter. |
-| `@theokit/sdk-budget` | **0.3.1** | `BudgetTracker` port consumer + USD pricing tracker. |
-| `@theokit/sdk-handoff` | **0.1.1** | Inter-agent dispatch via plugin protocol. `Handoff.asPlugin()` + lazy-loaded `internal/tool-injector`. |
-| `@theokit/sdk-pty` | **0.1.0** | `PtyInteractiveBackend` — `node-pty`-backed `InteractiveProvider` for the interactive-shell tools. Opt-in; isolates the native module so core/`sdk-tools` stay surface-agnostic (terminal / desktop / cluster). |
+| Package | Purpose |
+|---|---|
+| `@theokit/sdk` | Agent kernel: `Agent.create`, `AgentBuilder`, `AgentFactory.create`, `Tool.create`, runtime loop, plugin foundation, persistence primitives, MCP, hooks, providers, subscription/a2a/sandbox/client/server sub-paths. (SE36 v3.0 collapsed the `define*`/`create*` factories to the uniform `X.create` surface.) |
+| `@theokit/sdk-cache` | Semantic LLM response cache, in two modes that behave differently. `consult`/`remember` short-circuit: a hit returns the stored answer and the provider is never called. `asPlugin()` does NOT — it hands the stored answer back as `recalledContext`, which the agent loop injects as a `<memory-context>` block before the prompt, and the request still goes to the provider. Pick the mode by which of those you wanted. |
+| `@theokit/sdk-tools` | Built-in tools (read-file, list-dir, search-text, git-diff, subprocess, run-vitest). |
+| `@theokit/sdk-memory` | `MemoryProvider` port consumer — markdown store with disk-backed session-summary write/recall + `memory_remember` / `memory_search` tools + agent-scope privacy filter. |
+| `@theokit/sdk-budget` | `BudgetTracker` port consumer + USD pricing tracker. |
+| `@theokit/sdk-handoff` | Inter-agent dispatch via plugin protocol. `Handoff.asPlugin()` + lazy-loaded `internal/tool-injector`. The receiving agent currently starts with an EMPTY history in both wirings (`{ messages: [] }`, history replay deferred), so it does not see the message that triggered the handoff. |
+| `@theokit/sdk-pty` | `PtyInteractiveBackend` — `node-pty`-backed `InteractiveProvider` for the interactive-shell tools. Opt-in; isolates the native module so core/`sdk-tools` stay surface-agnostic (terminal / desktop / cluster). |
 
 ### Memory adapters — external memory backends
 

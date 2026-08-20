@@ -41,10 +41,24 @@ export interface SessionSummaryInput {
 
 const MAX_TURN_CHARS = 2000;
 
+/**
+ * Path to `<memory root>/sessions`, where one markdown summary per finished run
+ * is written. `IndexManager.sync()` indexes these with `source: "sessions"`.
+ * Pure path computation.
+ */
 export function sessionsDir(cwd: string): string {
   return join(memoryDir(cwd), "sessions");
 }
 
+/**
+ * Path of the summary file for a run.
+ *
+ * The run id is sanitised before it reaches the path: every character outside
+ * `[a-zA-Z0-9_-]` becomes an underscore and the result is cut to 128
+ * characters. That keeps a hostile id inside the sessions directory, and it also
+ * means two different ids can collide onto one file — pass ids that are already
+ * within the safe alphabet if that matters.
+ */
 export function sessionSummaryPath(cwd: string, runId: string): string {
   return join(sessionsDir(cwd), `${sanitizeRunId(runId)}.md`);
 }

@@ -29,6 +29,20 @@ import { loadPlainMarkdown } from "./context-loaders.js";
 import { parseMdc, shouldActivate } from "./context-mdc-parser.js";
 import { parseRules, shouldActivateRule } from "./context-rules-frontmatter.js";
 
+/**
+ * Input to the context-discovery run: where to walk, how much of each file to keep, and which
+ * trust boundary an `@import` may not cross.
+ *
+ * `cwd` and `maxBytesPerFile` are required because neither has a safe default — an unset root walks
+ * the wrong tree, and an unset cap lets one large file consume the context window.
+ *
+ * `importRoot` is the field to reach for when the caller's trust boundary is narrower than the
+ * repository. Left unset, the repository IS the boundary (`gitRoot ?? cwd`), which is the honest
+ * default for a document found by walking the repository — but it does mean an `@import` can pull
+ * in any file the repo contains.
+ *
+ * @public — re-exported from '@theokit/sdk/context', and therefore under semver.
+ */
 export interface DiscoveryRunnerOptions {
   /** Workspace root passed to all discovery scopes. */
   readonly cwd: string;
@@ -52,10 +66,32 @@ export interface DiscoveryRunnerOptions {
 }
 
 /**
- * Run discovery + loading across all specs. Returns sources ready for
- * the aggregator (priority + content fields populated).
+ * Find, read and parse every context file the specs describe, and return them ready for the
+ * aggregator.
  *
- * @internal
+ * Specs are processed in the order given — `opts.specs` when supplied, otherwise
+ * `DEFAULT_DISCOVERY_SPECS` — and within a spec, in the order its scope resolves paths. The
+ * returned array carries `priority` on each source; it is NOT sorted here, so the aggregator is
+ * what applies the ordering.
+ *
+ * A path already emitted is skipped, across specs as well as within one. Paths arrive resolved
+ * through `realpath`, so two specs pointing at the same physical file through a symlink produce
+ * one source rather than two.
+ *
+ * Missing and unreadable files are not errors: a file that does not exist is simply not matched,
+ * and one that fails to read or parse is dropped and the run continues. A frontmatter file whose
+ * activation conditions do not hold — `enabled: false`, or a scope that no touched file matches —
+ * is dropped the same way. So a shorter result than expected means "nothing qualified", and this
+ * function will not tell you which of those it was.
+ *
+ * Reads the filesystem and nothing else. No network, no writes, and no mutation of `opts`.
+ *
+ * Privacy: `<source name="">` is built from the path RELATIVE to the git root (or `cwd` when
+ * there is no git root), never an absolute path, so a home directory never reaches the prompt.
+ * `@import` resolution is bounded by `opts.importRoot`, defaulting to that same root — a document
+ * cannot pull in a file from outside the repository.
+ *
+ * @public — re-exported from `@theokit/sdk/context`, and therefore under semver.
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: per-spec dispatch ladder + cross-spec dedup is a flat orchestrator; splitting would obscure the priority-merge invariant.
 export async function runDiscovery(opts: DiscoveryRunnerOptions): Promise<AggregatorSource[]> {

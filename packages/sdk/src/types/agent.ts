@@ -353,8 +353,11 @@ export interface MemorySettings {
  * to add prompt/response/args events to the spans (consumer's
  * responsibility to sanitize PII).
  *
- * `@opentelemetry/api` is an OPTIONAL peer dependency. Without it
- * installed, telemetry is a no-op even when `enabled: true`.
+ * `@opentelemetry/api` is an OPTIONAL peer dependency — declared, so your package manager can
+ * tell you the version range, and not installed for you. Without it, telemetry is a NO-OP even
+ * when `enabled: true`: the tracer is loaded lazily inside a try/catch, so nothing throws and
+ * nothing is recorded. A run that reports no spans with `enabled: true` is almost always this,
+ * not a misconfigured collector.
  *
  * @public
  */

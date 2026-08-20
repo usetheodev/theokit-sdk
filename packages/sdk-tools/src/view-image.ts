@@ -64,6 +64,11 @@ const MEDIA_TYPES = new Map<string, string>([
  */
 export const DEFAULT_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
+/**
+ * Options for {@link createViewImageTool}. `maxBytes` is measured on disk, before base64 inflates the
+ * payload by roughly a third on its way into the model's context — so the real context cost of a file
+ * at the limit is about 6.7 MB of text, not 5 MB.
+ */
 export interface CreateViewImageToolOptions {
   /** Root the tool reads from. Every path is resolved inside it. */
   projectRoot: string;

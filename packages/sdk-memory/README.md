@@ -4,6 +4,35 @@ Memory subsystem for [`@theokit/sdk`](https://www.npmjs.com/package/@theokit/sdk
 Implements the kernel-facing `MemoryProvider` port (SDK 2.0 Phase 1 / T1.1 —
 Hexagonal Architecture / SOLID Dependency Inversion).
 
+## Install
+
+```bash
+pnpm add @theokit/sdk-memory
+```
+
+`@theokit/sdk` (>=4.0.0) is a peer dependency. Three more are OPTIONAL, and which you need depends
+on the backend you ask for — the in-memory markdown provider needs none of them:
+
+```bash
+pnpm add better-sqlite3      # only when your Node has no built-in `node:sqlite`
+pnpm add sqlite-vec          # vector recall; without it, search is text-only
+pnpm add @lancedb/lancedb    # `backend: "lance"`, for large corpora
+```
+
+The three behave differently when absent, and the difference is worth knowing before you debug a
+thin answer:
+
+- **`better-sqlite3`** — the driver is chosen at runtime. `node:sqlite` is used where the running
+  Node exposes it (22.5+), and this package is the fallback. Opening fails only on a Node without
+  the built-in AND without this installed.
+- **`sqlite-vec`** — the index opens without it and reports `backend: "fts-only"`. Search still
+  works, by TEXT only; no vector table is created. This is a silent degradation by design, so check
+  `index.status().backend` when recall seems shallow.
+- **`@lancedb/lancedb`** — asking for `backend: "lance"` without it raises
+  `ConfigurationError({ code: "lance_backend_unavailable" })` at open time, naming the install
+  command. No silent fallback, because a large-corpus backend quietly becoming a small one is worse
+  than a refusal.
+
 ```ts
 import { Agent } from "@theokit/sdk";
 import { createInMemoryMarkdownProvider } from "@theokit/sdk-memory";
@@ -80,6 +109,19 @@ The agent loop calls the port's four lifecycle methods at well-defined
 hook points (init / buildTools / runActivePass / dispose). Your impl
 fulfills the contract; sdk-core never imports this package directly —
 that's the seam that makes the split possible.
+
+## API reference
+
+Every symbol this package exports, with the exact specifier to import it from, is in the generated
+capability map that ships inside `@theokit/sdk`:
+
+```
+node_modules/@theokit/sdk/docs/harness-capability-map.md   # symbol -> import specifier
+node_modules/@theokit/sdk/docs/error-codes.md              # every `code` an error can carry
+```
+
+Both are generated from the built type declarations, so they describe the version you installed
+rather than the version someone wrote a page about.
 
 ## License
 

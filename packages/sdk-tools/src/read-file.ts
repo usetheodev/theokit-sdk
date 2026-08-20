@@ -87,8 +87,6 @@ export interface CreateReadFileToolOptions {
   allowAbsolute?: boolean;
 }
 
-/** Sensitive path segments — secret-bearing dirs/files that must never be read at ANY depth. */
-
 /** Secret guard for both read paths — the project-relative first-segment check plus, for an honored
  *  absolute path (`allowAbsolute`), an any-depth check. Returns an error JSON string, or null if safe. */
 function forbiddenReadError(path: string, allowAbsolute: boolean): string | null {
@@ -116,6 +114,26 @@ function renderView(
   return opts.lineNumbers ? slice.map((l, i) => `${start + i}\t${l}`).join("\n") : slice.join("\n");
 }
 
+/**
+ * Build the `read_file` tool.
+ *
+ * Success is `{ ok: true, content, size }`. Every refusal is a `{ ok: false, error }` value rather
+ * than a throw, so the model can correct itself: `not_found`, `forbidden_path` (the sensitive-file
+ * blocklist), `path_traversal` (escapes `projectRoot`, or the backend refused it), `binary_file` (a
+ * null byte in the first 8 KB) and `too_large` (over 5 MB — a fixed ceiling, not an option).
+ *
+ * `offset`/`limit` page by line and `lineNumbers` renders a `cat -n` view (`<n>\t<line>`). Both are
+ * applied after the whole file has been read, so they bound what the model sees, not what is read
+ * from disk; the 5 MB cap is what bounds the read.
+ *
+ * `allowAbsolute` widens the boundary to the entire filesystem for absolute paths, leaving only the
+ * any-depth secret guard in front of it. It is for a trusted local agent; on a shared or
+ * multi-tenant host pass `filesystem` instead and let the backend own the boundary.
+ *
+ * Pass one {@link ReadTracker} here and the same instance to {@link createWriteFileTool} to enable
+ * read-before-write: this tool records the mtime it saw, and the write tool then refuses to
+ * overwrite a file that was never read or has changed since.
+ */
 export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool {
   const { projectRoot, readTracker, filesystem, lineNumbers, allowAbsolute } = opts;
   const numbered = lineNumbers === true ? " Returns a cat -n numbered view (`<n>\\t<line>`)." : "";

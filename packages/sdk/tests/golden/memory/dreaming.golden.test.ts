@@ -9,9 +9,7 @@ import type { EmbeddingRuntime } from "../../../src/internal/memory/embedding-ad
 import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
-/**
- * Phase 9 T9.1 — dreaming/REM consolidation (deterministic mode).
- */
+// Phase 9 T9.1 — dreaming/REM consolidation (deterministic mode).
 
 /**
  * Deterministic embedding: encodes a text as a sparse-ish vector based on a

@@ -40,6 +40,7 @@ export interface MemoryDb {
   loadExtension(path: string): void;
 }
 
+/** Options for {@link openMemoryDb}. */
 export interface OpenDbOptions {
   filePath: string;
   /**
@@ -49,6 +50,24 @@ export interface OpenDbOptions {
   recoverCorrupt?: boolean;
 }
 
+/**
+ * Open (or create) the SQLite memory index at `filePath`, applying the pragmas
+ * and creating the schema before returning. Parent directories are created as
+ * needed, so pointing this at a fresh workspace works.
+ *
+ * The driver is chosen at runtime: `node:sqlite` where the running Node exposes
+ * it, and `better-sqlite3` otherwise. `better-sqlite3` is an optional peer
+ * dependency of this package — on a Node build without `node:sqlite` and
+ * without it installed, opening fails.
+ *
+ * A file that is corrupt, truncated or encrypted is renamed aside to
+ * `<path>.corrupt-<timestamp>` and rebuilt empty, unless `recoverCorrupt` is
+ * `false`. Recovery loses every indexed chunk; the markdown corpus is the source
+ * of truth and the next `sync()` rebuilds from it.
+ *
+ * Loading the sqlite-vec extension is a separate step — this returns an index
+ * that can do text search only.
+ */
 export async function openMemoryDb(opts: OpenDbOptions): Promise<MemoryDb> {
   return openSqliteResilient<MemoryDb>({
     filePath: opts.filePath,
@@ -62,6 +81,12 @@ export async function openMemoryDb(opts: OpenDbOptions): Promise<MemoryDb> {
   });
 }
 
+/**
+ * Where the SQLite index lives when the caller does not name a path:
+ * `<cwd>/.theokit/memory/.index/memory.sqlite`. Pure path computation. The file
+ * sits under the memory root but outside the markdown corpus, so it is never
+ * indexed as content.
+ */
 export function defaultIndexPath(cwd: string): string {
   return join(cwd, ".theokit", "memory", ".index", "memory.sqlite");
 }

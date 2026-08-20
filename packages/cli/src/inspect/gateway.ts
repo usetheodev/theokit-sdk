@@ -11,6 +11,7 @@
 
 import { createRequire } from "node:module";
 
+/** One known gateway and whether this CLI can resolve its package. */
 interface GatewayInfo {
   readonly name: string;
   readonly packageName: string;
@@ -22,6 +23,13 @@ const KNOWN_GATEWAYS = [
   { name: "discord", packageName: "@theokit/gateway-discord" },
 ] as const;
 
+/**
+ * Report which gateway packages are resolvable, for the fixed list known to this CLI version.
+ *
+ * Resolution is relative to THIS module, so it answers "can the CLI see it", which in a hoisted
+ * monorepo or a global `npx` install is not the same question as "is it a dependency of the user's
+ * project". Never throws and always returns one row per known gateway, `installed: false` included.
+ */
 export function listGatewayAdapters(): GatewayInfo[] {
   const require = createRequire(import.meta.url);
   return KNOWN_GATEWAYS.map((g) => {

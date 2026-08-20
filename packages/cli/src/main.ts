@@ -1,12 +1,16 @@
 /**
  * Top-level CLI dispatcher via commander (ADR D194).
  *
- * Subcommands: `init`, `dev`, `inspect`, `eval`, `setup`, `acp`, `tasks`.
+ * Subcommands: `init`, `dev`, `inspect`, `eval`, `acp`, `setup`, `db`, `tasks`.
  *
- * Exit codes:
- *  - 0  → success
- *  - 1  → unknown error
- *  - 2  → user error (bad flags, unknown subcommand suggestion)
+ * Exit codes at this layer:
+ *  - 0  → success, and also `--help` / `--version`
+ *  - 1  → unknown error (an exception that escaped a subcommand)
+ *  - 2  → user error (unknown subcommand, unknown option, bad flag value)
+ *
+ * Subcommands are free to return codes of their own beyond these — `theokit tasks` uses 3 and 4,
+ * `theokit db check-schema-drift` uses 1 to mean "drift found", and `theokit dev` forwards the
+ * child process's exit code verbatim. Each command module documents its own.
  *
  * @internal
  */
@@ -199,6 +203,20 @@ function mapCommanderExitCode(code: string | undefined, fallback: number): numbe
   return fallback > 0 ? fallback : 2;
 }
 
+/**
+ * Parse `argv` and run the matching subcommand, returning the process exit code instead of exiting.
+ *
+ * `argv` is commander-shaped, i.e. the full `process.argv`: `[execPath, scriptPath, ...args]`. The
+ * first two entries are skipped, so passing `["theokit", "init"]` silently drops `init` — pass
+ * `["node", "theokit", "init"]` when synthesising one.
+ *
+ * Never throws and never calls `process.exit`; the caller decides what to do with the code (the
+ * bundled `bin/theokit.ts` shim exits with it). Writes to `process.stdout` and `process.stderr`
+ * directly, so redirect the streams if you need to capture the output.
+ *
+ * Returns `0` for success and for `--help` / `--version`, `2` for a user error, `1` for anything
+ * that escaped a subcommand as an exception, and otherwise whatever the subcommand returned.
+ */
 export async function main(argv: ReadonlyArray<string>): Promise<number> {
   const program = new Command();
   program

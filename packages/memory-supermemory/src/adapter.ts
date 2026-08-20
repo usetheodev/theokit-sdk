@@ -26,13 +26,37 @@ import SupermemoryClient from "supermemory";
 
 import { buildContainerTags, primaryContainerTag } from "./translate.js";
 
-/** Configuration accepted by the `supermemoryMemory(...)` factory. @public */
+/**
+ * Configuration accepted by the `supermemoryMemory(...)` factory.
+ *
+ * @public
+ */
 export interface SupermemoryAdapterOptions {
-  /** Supermemory API key. Falls back to `SUPERMEMORY_API_KEY`. */
+  /**
+   * Supermemory API key, forwarded verbatim to `new Supermemory({ apiKey })`.
+   *
+   * REQUIRED by this type. The `supermemory` client does default to `SUPERMEMORY_API_KEY` when it
+   * receives `undefined`, but this adapter's `isAvailable()` reports `false` for an empty or
+   * missing key, and the client is only built on the first `write` / `recall` — so an absent key
+   * surfaces as `MemoryAdapterError(code: "auth_failed")` at the first call rather than at
+   * `Agent.create`.
+   */
   apiKey: string;
-  /** Base URL override for self-hosted Supermemory deployments. */
+  /**
+   * Base URL for a self-hosted Supermemory, forwarded as the vendor's `baseURL`.
+   *
+   * Omit it for Supermemory cloud; the vendor then reads `SUPERMEMORY_BASE_URL` and falls back to
+   * its own production URL.
+   */
   baseUrl?: string;
-  /** Prefix for every containerTag (default `"theokit"`). Useful for test isolation (EC-S). */
+  /**
+   * First segment of every containerTag this adapter writes and searches. Default `"theokit"`.
+   *
+   * Changing it PARTITIONS the memory: entries written under one prefix are invisible to an
+   * adapter configured with another, which is what makes it useful for test isolation and
+   * dangerous as a casual rename. Must match `/^[a-zA-Z0-9_-]+$/` — a bad value is rejected on the
+   * first `write` / `recall`, not at construction.
+   */
   containerTagPrefix?: string;
 }
 

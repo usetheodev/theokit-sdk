@@ -1,11 +1,17 @@
 /**
- * @theokit/cli — developer CLI for @theokit/sdk (Adoption Roadmap #1).
+ * `@theokit/cli` — the `theokit` developer CLI for `@theokit/sdk` (Adoption Roadmap #1).
  *
- * Subcommands at v1: `init`, `dev`, `inspect`, `eval`.
+ * Normally used as a binary: `npx theokit <subcommand>`. Subcommands: `init`, `dev`, `inspect`,
+ * `eval`, `acp`, `setup`, `db`, `tasks`. Run `theokit --help` for the authoritative list — it is
+ * generated from the same registration this package ships.
  *
- * Programmatic entry: `main(argv)` returns the exit code. The
- * `bin/theokit.ts` shim calls this with `process.argv` and exits with
- * the resolved code.
+ * The importable surface is deliberately small:
+ * - {@link main} — the dispatcher, for embedding the CLI in another process.
+ * - {@link EvalConfig} and friends — the types you write `eval.config.ts` against.
+ * - {@link CLI_VERSION} / {@link SDK_VERSION} — build-time version constants.
+ *
+ * `@theokit/acp` is an OPTIONAL peer: only `theokit acp` needs it, and its absence is reported at
+ * that point, not at import time.
  *
  * @public
  */

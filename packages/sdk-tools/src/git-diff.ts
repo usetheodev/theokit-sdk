@@ -32,15 +32,16 @@ export interface CreateGitDiffToolOptions {
   name?: string;
   /** M76 — description exposed to the model. Omitted => today's literal (additive). */
   description?: string;
+  /** Absolute path to the project root. `git` runs here and every `path` scope is gated against it. */
   projectRoot: string;
+  /** Wall-clock cap on the local `git` child; the process group is killed on expiry. Default 30_000. */
   timeoutMs?: number;
+  /** Cap on captured stdout; excess sets `truncated: true`. Default 5 MB. Local path only. */
   maxStdoutBytes?: number;
   /** Optional injected execution backend (`@theokit/sdk/sandbox`) — when provided, `git diff` runs via
    *  `SandboxBackend.execute` (surface-agnostic); omitted ⇒ the local `git` child process (unchanged). */
   sandbox?: SandboxProvider;
 }
-
-/** POSIX single-quote a `git diff` argument for the backend command string (safe against metacharacters). */
 
 /** Run `git diff` through an injected SandboxBackend, mapping its result to git_diff's JSON shape. The
  *  scope check (pure security) still applies; the local `.git` existsSync check does not (the repo is in
@@ -67,6 +68,21 @@ async function diffViaSandbox(
   return JSON.stringify({ ok: true, diff: r.stdout, truncated: false });
 }
 
+/**
+ * Build the `git_diff` tool: `git diff --no-color` over the working tree, or the staged changes when
+ * the model passes `cached`.
+ *
+ * Reach for it before a commit or after a run of edits, when the question is what CHANGED rather than
+ * what a file now contains — `read_file` answers the latter and spends a whole file doing it.
+ *
+ * Refusals are `not_a_repo`, `path_traversal`, `timeout` and `git_failed`. The local path kills the
+ * process group at `timeoutMs` and caps captured stdout at `maxStdoutBytes`, flagging
+ * `truncated: true`; neither limit applies on the `sandbox` path, where the backend's own `timeoutMs`
+ * is the only bound and `truncated` always comes back false.
+ *
+ * With `sandbox` set the local `.git` probe is skipped deliberately — the repository lives in the
+ * backend, and a missing one surfaces as git's own "not a git repository".
+ */
 export function createGitDiffTool(opts: CreateGitDiffToolOptions): CustomTool {
   const {
     projectRoot,

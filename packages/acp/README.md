@@ -66,6 +66,19 @@ await serveAcp({
 
 Pre-1.0 (`0.x`). Breaking changes are allowed within `0.x` (D181 pattern) until upstream ACP stabilizes.
 
+## API reference
+
+Every symbol this package exports, with the exact specifier to import it from, is in the generated
+capability map that ships inside `@theokit/sdk`:
+
+```
+node_modules/@theokit/sdk/docs/harness-capability-map.md   # symbol -> import specifier
+node_modules/@theokit/sdk/docs/error-codes.md              # every `code` an error can carry
+```
+
+Both are generated from the built type declarations, so they describe the version you installed
+rather than the version someone wrote a page about.
+
 ## License
 
 Apache-2.0

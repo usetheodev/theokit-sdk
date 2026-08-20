@@ -28,15 +28,33 @@ import MemoryClient from "mem0ai";
 import { CircuitBreaker, type CircuitBreakerOptions } from "./circuit-breaker.js";
 import { toMem0Options } from "./translate.js";
 
-/** Configuration accepted by the `mem0Memory(...)` factory. @public */
+/**
+ * Configuration accepted by the `mem0Memory(...)` factory.
+ *
+ * @public
+ */
 export interface Mem0AdapterOptions {
-  /** Mem0 API key. Required. */
+  /**
+   * Mem0 API key. Genuinely required — `mem0ai` reads no `MEM0_API_KEY` environment variable, so
+   * there is no fallback anywhere in the chain.
+   *
+   * The client is built lazily on the first `write` / `recall`, so a wrong key does not fail
+   * `Agent.create`; it surfaces as `MemoryAdapterError(code: "auth_failed")` on the first call.
+   */
   apiKey: string;
-  /** Override host (default mem0 cloud). */
+  /** Alternate Mem0 API host. Omit for Mem0 cloud, which is the vendor default. */
   host?: string;
+  /** Mem0 organization to scope writes to. Forwarded only when set. */
   organizationId?: string;
+  /** Mem0 project to scope writes to. Forwarded only when set. */
   projectId?: string;
-  /** Circuit breaker tuning (EC-K). */
+  /**
+   * Circuit-breaker tuning. Defaults: trip after 5 failures, 2-minute cooldown.
+   *
+   * The breaker is PER ADAPTER INSTANCE — one `mem0Memory(...)` call, one breaker. Two agents
+   * built from two separate factory calls do not share it, so one agent tripping does not
+   * protect the other.
+   */
   breaker?: CircuitBreakerOptions;
 }
 

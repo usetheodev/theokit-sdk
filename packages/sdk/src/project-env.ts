@@ -59,7 +59,16 @@ export const SOVEREIGN_ENV_KEYS = [
   "THEOKIT_OAUTH_TX_SALT",
 ] as const;
 
-/** @public */
+/**
+ * The union of {@link SOVEREIGN_ENV_KEYS} entries — the variables a project-scoped `.env` may never
+ * set.
+ *
+ * Derived from the array rather than written out, so adding a key in one place cannot leave the
+ * type behind. Use it where a caller must name one of the protected variables and a plain `string`
+ * would let a typo through silently.
+ *
+ * @public
+ */
 export type SovereignEnvKey = (typeof SOVEREIGN_ENV_KEYS)[number];
 
 /** The mutable shape of `process.env`, narrowed so a caller can pass a plain object in tests. */

@@ -6,7 +6,7 @@
  *
  * Return shape (always a JSON string):
  *   - `{ ok: true, replacements: 1 }` on success
- *   - `{ ok: false, error: 'no_match' | 'not_found' | 'path_traversal' |
+ *   - `{ ok: false, error: 'no_change' | 'no_match' | 'not_found' | 'path_traversal' |
  *        'forbidden_path' }` on refusal
  */
 
@@ -148,6 +148,21 @@ function editScopeError(path: string, projectRoot: string): string | null {
   }
 }
 
+/**
+ * Build the `edit_file` tool: replace one occurrence of `old_string` with `new_string` in place,
+ * after copying the previous content to `<path>.bak`.
+ *
+ * Three matching attempts run in order and the first hit wins — the exact substring, then the same
+ * text with runs of whitespace collapsed, then a line-based ladder tolerating trailing whitespace and
+ * typographic punctuation. The FIRST exact occurrence is taken with no ambiguity check, so a short
+ * `old_string` appearing twice edits the earlier one silently: include enough surrounding context to
+ * make it unique. Only the ladder refuses an ambiguous target, and it is reached only when the exact
+ * and whitespace-normalised passes have both failed.
+ *
+ * `old_string === new_string` is refused up front as `no_change`; the other refusals are `no_match`,
+ * `not_found`, `forbidden_path` and `path_traversal`. Exactly one occurrence changes per call, so
+ * replacing every occurrence means calling until `no_match`.
+ */
 export function createEditFileTool(opts: CreateEditFileToolOptions): CustomTool {
   const { projectRoot, filesystem } = opts;
 

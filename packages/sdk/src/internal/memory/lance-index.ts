@@ -233,14 +233,6 @@ export class LanceIndex {
 }
 
 /**
- * Escape a value for safe SQL string interpolation in Lance predicates.
- * Lance does not support bind parameters — string-quote escape is the
- * only injection-safe option. Standard SQL: replace single quotes with
- * doubled single quotes.
- *
- * @internal
- */
-/**
  * T5.2 — Harden SQL value escaping for Lance `.where()` predicates.
  *
  * Pre-T5.2 this only escaped single quotes (`'` → `''`). T5.2 adds:

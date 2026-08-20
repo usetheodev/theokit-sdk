@@ -1,6 +1,9 @@
 /**
  * Extract user text + attachments from ACP `ContentBlock[]` with size cap (D360).
  *
+ * The size cap is a RUNNING total over the blocks in order, checked after each one, so the first
+ * block to cross it aborts the whole extraction and later blocks are never measured.
+ *
  * @internal
  */
 
@@ -82,6 +85,20 @@ function processBlock(block: acp.ContentBlock, state: ExtractState): void {
   }
 }
 
+/**
+ * Flatten one ACP prompt into the text the agent will receive, plus a description of its attachments.
+ *
+ * Text blocks are joined with `"\n"` in wire order. Attachments are only DESCRIBED here — the ACP
+ * prompt handler forwards `text` and drops `attachments`, so an image-only prompt yields an empty
+ * string and is rejected upstream as an empty prompt.
+ *
+ * Byte accounting per block: UTF-8 length for text, base64-decoded length for image/audio (computed
+ * as `floor(len * 3 / 4)`, so padding makes it over-count by up to 2 bytes), UTF-8 length of the URI
+ * for `resource_link`, and the UTF-8 length of the block's JSON form for an embedded `resource`.
+ *
+ * @throws PromptTooLargeError as soon as the running total exceeds `maxBytes`.
+ * @throws Error on a `ContentBlock` variant this build does not know (compile-time exhaustive).
+ */
 export function extractPrompt(
   blocks: ReadonlyArray<acp.ContentBlock>,
   maxBytes: number,

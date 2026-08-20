@@ -25,6 +25,17 @@ import { resolve as resolvePath } from "node:path";
 import { Security } from "@theokit/sdk";
 import { safePathJoin, sanitizeIdentifier } from "@theokit/sdk/path-safety";
 
+/**
+ * Per-agent memory configuration. `enabled` gates the configuration-aware
+ * accessors (`readFacts`, `appendFact`) — with it `false` they resolve without
+ * touching disk, while the lower-level markdown functions ignore it.
+ *
+ * `namespace`, `scope` and `userId` are only consulted for the legacy JSON path
+ * (see {@link legacyMemoryJsonPath}); the markdown store keeps one `MEMORY.md`
+ * per workspace and does not partition by them. They are treated as
+ * user-supplied and sanitised before they reach a path. `storePath` is treated
+ * as trusted and resolved as given.
+ */
 export interface MemoryConfig {
   enabled: boolean;
   namespace?: string;
@@ -33,6 +44,11 @@ export interface MemoryConfig {
   storePath?: string;
 }
 
+/**
+ * One remembered statement. `text` is what gets written, embedded and searched;
+ * it passes through secret redaction on the way to disk, so what is stored may
+ * differ from what was passed in.
+ */
 export interface MemoryFact {
   text: string;
   /**
@@ -117,7 +133,7 @@ export interface MemoryReadResult {
   linesReturned: number;
   /** Total lines in the file (after the read). */
   totalLines: number;
-  /** True when fewer lines were returned than the requested `lines` AND EOF was hit. */
+  /** True when content remains after the returned slice, i.e. `remainingLines > 0`. */
   truncated: boolean;
   /** Lines past the returned slice that remain in the file. */
   remainingLines: number;

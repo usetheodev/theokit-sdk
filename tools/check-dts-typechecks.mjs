@@ -24,17 +24,25 @@
 // `skipLibCheck`, is the same question a consumer's type-aware lint asks, which is the only question
 // that matters here.
 //
+// EVERY DECLARED SUBPATH, not just the root. Until 2026-08-20 this read `exports["."]` alone, so it
+// checked 12 entries while the packages publish 45 — `@theokit/sdk` had 32 subpaths outside it. That
+// is not a narrower gate, it is a gate aimed away from the damage: `stripInternal` deletes a
+// declaration from the emitted `.d.ts` whenever ANY leading comment range contains the literal
+// `@internal` — including a file header that no statement separates from the first declaration — and
+// the subpath barrel that re-exports it then fails to resolve the name. The root entry does not
+// re-export those, so it compiles while `@theokit/sdk/internal/persistence` ships 19 unresolved
+// references (#348). The entry a consumer imports is the entry that has to compile.
+//
+// Attribution is per PACKAGE: one `tsc` invocation takes all of that package's entries as roots, so
+// a diagnostic inside a shared chunk cannot be pinned to one subpath. The diagnostic still carries
+// its own file path, which is what a fix needs.
+//
 // Deliberately NOT skipped when `dist/` is missing — see CONTRIBUTING "A silent gate reports absence
 // it never checked". A gate whose green can mean "there was nothing to check" is not a gate.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(HERE, "..");
-const PACKAGES = join(ROOT, "packages");
+import { existsSync } from "node:fs";
+import { declaredEntries, ROOT } from "./lib/published-entries.mjs";
 
 /** How many diagnostics to print per package before eliding the rest. */
 const MAX_SHOWN = 12;
@@ -63,21 +71,39 @@ function isKnownUpstream(diagnostic) {
 }
 
 /**
- * The `types` entry a consumer's resolver would land on, read from the package's own `exports`
- * rather than assumed to be `dist/index.d.ts`. A package that moves its entry should move this
- * gate with it, not silently drop out of it.
+ * EVERY `types` entry a consumer's resolver can land on, read from the package's own `exports` —
+ * one per declared subpath, not just `"."`. A package that adds a subpath is covered the moment it
+ * declares it; a package that moves an entry moves this gate with it rather than silently dropping
+ * out of it.
+ *
+ * Falls back to the top-level `types`/`typings` only when `exports` declares no typed entry at all,
+ * which is the legacy shape.
  */
-function declaredTypesEntry(pkgDir) {
-  const manifestPath = join(pkgDir, "package.json");
-  if (!existsSync(manifestPath)) return undefined;
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  if (manifest.private === true) return undefined;
-  const root = manifest.exports?.["."];
-  const entry = root?.import?.types ?? root?.types ?? manifest.types ?? manifest.typings;
-  return typeof entry === "string" ? entry : undefined;
+function typedExportEntries(exportsField) {
+  const entries = [];
+  for (const [subpath, condition] of Object.entries(exportsField ?? {})) {
+    const types = condition?.import?.types ?? condition?.types;
+    if (typeof types === "string") entries.push({ subpath, rel: types });
+  }
+  return entries;
 }
 
-function typecheck(entryPath) {
+function declaredTypesEntries(pkgDir) {
+  const manifestPath = join(pkgDir, "package.json");
+  if (!existsSync(manifestPath)) return [];
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  if (manifest.private === true) return [];
+
+  const entries = typedExportEntries(manifest.exports);
+  if (entries.length > 0) return entries;
+
+  const legacy = manifest.types ?? manifest.typings;
+  return typeof legacy === "string" ? [{ subpath: ".", rel: legacy }] : [];
+}
+
+const LABEL = "dts-typecheck";
+
+function typecheck(entryPaths) {
   try {
     execFileSync(
       "npx",
@@ -91,12 +117,26 @@ function typecheck(entryPath) {
         "esnext",
         "--moduleResolution",
         "bundler",
-        entryPath,
+        ...entryPaths,
       ],
       { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
     return [];
   } catch (error) {
+    // A FAILED INVOCATION IS NOT A CLEAN COMPILE. `tsc` exits 1 or 2 with diagnostics on stdout;
+    // a spawn that never ran (npx absent, ENOENT, a killed process) arrives here with
+    // `status === null` and `stdout === null`, and the old body turned that into `[]` — which every
+    // caller reads as "no diagnostics". Measured 2026-08-20: with `npx` off PATH this printed
+    // `PASS — 45 published declaration(s) compile without skipLibCheck` in under a second, having
+    // compiled nothing, with output byte-identical to a genuine four-minute green run. That is the
+    // exact shape this file's header forbids, one level down from where it was looking.
+    if (typeof error.status !== "number") {
+      console.error(`[${LABEL}] ✗ tsc could not be run: ${error.message}`);
+      console.error(
+        "  Refusing to report: a gate that cannot invoke its tool has checked nothing.",
+      );
+      process.exit(2);
+    }
     const output = `${error.stdout ?? ""}${error.stderr ?? ""}`;
     return output
       .split("\n")
@@ -105,32 +145,33 @@ function typecheck(entryPath) {
   }
 }
 
-const pkgNames = readdirSync(PACKAGES, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => entry.name)
-  .sort();
+const byPackage = new Map();
+for (const entry of declaredEntries()) {
+  byPackage.set(entry.pkg, [...(byPackage.get(entry.pkg) ?? []), entry]);
+}
 
 let checked = 0;
 let unbuilt = 0;
 let waivedTotal = 0;
 const failures = [];
 
-for (const name of pkgNames) {
-  const pkgDir = join(PACKAGES, name);
-  const entry = declaredTypesEntry(pkgDir);
-  if (entry === undefined) continue;
-
-  const entryPath = join(pkgDir, entry);
-  if (!existsSync(entryPath)) {
-    console.error(`[dts-typecheck] ✗ ${name}: declared types entry is missing — ${entry}`);
-    unbuilt += 1;
+for (const [name, entries] of [...byPackage].sort()) {
+  const missing = entries.filter((e) => !existsSync(e.typesAbs));
+  if (missing.length > 0) {
+    for (const e of missing) {
+      console.error(
+        `[dts-typecheck] ✗ ${name}: declared types entry is missing — ${e.subpath} (${e.condition}) → ${e.typesRel}`,
+      );
+    }
+    unbuilt += missing.length;
     continue;
   }
 
-  const all = typecheck(entryPath);
+  const entry = `${entries.length} entr${entries.length === 1 ? "y" : "ies"}`;
+  const all = typecheck(entries.map((e) => e.typesAbs));
   const waived = all.filter(isKnownUpstream);
   const diagnostics = all.filter((line) => !isKnownUpstream(line));
-  checked += 1;
+  checked += entries.length;
   waivedTotal += waived.length;
 
   if (diagnostics.length === 0) {
@@ -152,9 +193,7 @@ for (const name of pkgNames) {
 
 if (unbuilt > 0) {
   console.error("");
-  console.error(
-    `[dts-typecheck] FAIL — ${unbuilt} package(s) declare a types entry that does not exist.`,
-  );
+  console.error(`[dts-typecheck] FAIL — ${unbuilt} declared types entr(ies) do not exist.`);
   console.error(
     "  Run 'pnpm build' first. This gate does not pass on an unbuilt tree: a green that",
   );
@@ -167,7 +206,8 @@ if (unbuilt > 0) {
 if (failures.length > 0) {
   console.error("");
   console.error(
-    `[dts-typecheck] FAIL — ${failures.length} of ${checked} published declaration(s) do not compile.`,
+    `[dts-typecheck] FAIL — ${failures.length} package(s) publish a declaration that does not ` +
+      `compile, across ${checked} checked entr(ies).`,
   );
   console.error(
     "  `skipLibCheck` hides this from `tsc`; type-aware lint in a consumer project does",

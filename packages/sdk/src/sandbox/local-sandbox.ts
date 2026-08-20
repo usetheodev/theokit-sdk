@@ -22,6 +22,38 @@ import { dirname } from "node:path";
 import { resolveChildEnv } from "../internal/runtime/lifecycle/env-policy.js";
 import { type ExecuteResult, SandboxBackend, type SandboxConfig } from "./types.js";
 
+/**
+ * Runs a command with `/bin/sh -c` on the host. NOT an isolation boundary — the
+ * module note above states exactly what it does and does not protect.
+ *
+ *   const sandbox = new LocalSandbox({ workDir: "/srv/repo", timeoutMs: 10_000 });
+ *   const { stdout, exitCode, timedOut } = await sandbox.execute("ls -1");
+ *
+ * Needs a POSIX host with `/bin/sh`. Every helper inherited from
+ * {@link SandboxBackend} — `readFile`, `glob`, `grep`, `listDir` — is built on
+ * this `execute`, so they inherit that requirement too.
+ *
+ * How it fails: `execute` NEVER rejects. Every outcome, including a failure to
+ * spawn, comes back as an {@link ExecuteResult}; read `timedOut` first
+ * (`true` implies `exitCode` 124) and `stderr` for the reason. `uploadFile` DOES
+ * reject, with the raw `node:fs` error, on a bad path or missing permission.
+ *
+ * Traps:
+ *  - `exitCode` is not the child's exit code. It is 0, 124 (timed out) or 1 — a
+ *    command that exits 3 is reported as 1, so branching on a specific code does
+ *    not work here.
+ *  - Output beyond `maxOutputBytes` (default 5 MiB) makes Node kill the child.
+ *    The result is `exitCode: 1`, `timedOut: false`, and for plain ASCII output
+ *    the buffer is cut exactly at the cap, so the `...(truncated)` marker
+ *    described on `ExecuteResult` is NOT appended — a truncated stdout is
+ *    indistinguishable from a complete one.
+ *  - `uploadFile` resolves a relative path against `workDir` but does not contain
+ *    it: an absolute path, or one containing `..`, writes wherever the process
+ *    can. `workDir` is a starting directory, not a jail.
+ *  - Secret-like parent env vars are dropped by default. Passing
+ *    `env: "all"` in {@link SandboxConfig} puts the host's API keys back within
+ *    reach of any command the agent runs.
+ */
 export class LocalSandbox extends SandboxBackend {
   constructor(config: SandboxConfig = {}) {
     super(config);

@@ -63,6 +63,19 @@ function omitUndefined(usage: {
   };
 }
 
+/**
+ * Which usage dialect a provider reports in, inferred from its name.
+ *
+ * Providers do not agree on the shape of a usage object: Anthropic reports `input_tokens` /
+ * `output_tokens`, OpenAI's Responses API reports yet another, and the large
+ * OpenAI-chat-compatible family (openai, openrouter, deepseek, google, ollama, lmstudio, …) shares
+ * one. This maps a provider name onto that choice.
+ *
+ * UNKNOWN NAMES FALL BACK to the OpenAI chat-completions shape, because that is what almost every
+ * compatible endpoint speaks — a new proxy usually works without a change here. Pass
+ * {@link normalizeUsage}'s `apiMode` explicitly when a provider is compatible in its wire format but
+ * not in its name.
+ */
 export function inferApiMode(provider: string): ApiMode {
   const p = provider.toLowerCase();
   if (p === "anthropic" || p === "claude" || p === "bedrock_anthropic") {
@@ -77,6 +90,20 @@ interface RawRecord {
   [k: string]: unknown;
 }
 
+/**
+ * Turn a provider's raw usage object into the SDK's canonical {@link TokenUsage}.
+ *
+ * NEVER THROWS, and that is the point: usage arrives from a third party at the end of a successful
+ * call, so a missing or malformed field must not fail a request the model already answered. `null`,
+ * `undefined` and non-objects all yield an all-zero usage, and unrecognised fields are dropped.
+ *
+ * The cost of that tolerance is that a zero is ambiguous — it means "the provider reported nothing
+ * usable" as readily as "no tokens". A budget that suddenly stops accruing is the symptom of a
+ * dialect mismatch, not of free traffic.
+ *
+ * `apiMode` overrides the guess {@link inferApiMode} makes from the provider name; supply it for a
+ * compatible endpoint whose name is not recognised.
+ */
 export function normalizeUsage(
   rawUsage: unknown,
   opts: { provider: string; apiMode?: ApiMode },

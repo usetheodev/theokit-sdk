@@ -30,6 +30,17 @@ import { TaskStore } from "@theokit/sdk/task-store";           // task persisten
 
 Other public subpaths: `/messages`, `/models`, `/skills`, `/project`, `/subagents`, `/sandbox`, `/client`, `/persistence`, `/retry`, `/concurrency`, `/sanitize`. There is **no** `@theokit/sdk/rag` subpath. Never import from `@theokit/sdk/internal/*` or `@theokit/sdk/dist/*`.
 
+That list is a shortcut, not the whole surface — `./cron`, `./compaction`, `./context`, `./providers`, `./auth`, `./mcp-auth`, `./filesystem`, `./interactive`, `./path-safety`, `./subagents-loader` and `./server/errors-envelope` are public too. Two generated references ship inside the installed package and are the authority when this file and the package disagree:
+
+```
+node_modules/@theokit/sdk/docs/harness-capability-map.md   # every public symbol + the exact specifier to import it from
+node_modules/@theokit/sdk/docs/error-codes.md              # every `code` an error can carry, and where it is raised
+```
+
+Read the capability map before guessing an import: a symbol reachable from two specifiers is listed under both, and when a class is emitted separately into a subpath entry it is a distinct nominal type from the one in the root bundle — passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
+
+Branch on `err.code`, never on the message: messages carry an id, a path or a limit and change with them, while the code is the contract.
+
 ## Quick Start
 
 ```typescript

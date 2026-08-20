@@ -4,9 +4,12 @@
  * Walks `templates/<name>/`, copies files to `<dest>/`, performs
  * placeholder substitution (`{{projectName}}`, `{{sdkVersion}}`).
  *
- * **EC-B MUST FIX**: writes go to `<dest>.tmp-<random>/` first, then
- * atomic `renameSync` at the end. On any error mid-copy, the tmp dir
- * is cleaned up — `<dest>` is either fully scaffolded or absent.
+ * **EC-B MUST FIX**: writes go to `<dest>.tmp-<random>/` first, then `renameSync` at the end. On any
+ * error mid-copy the tmp dir is removed, so `<dest>` is never left half-written.
+ *
+ * "Atomic" describes the FRESH case. Under `force`, an existing `<dest>` is deleted before the
+ * rename, so a failure in that narrow window leaves neither the old tree nor the new one — and the
+ * old tree is gone unconditionally, with no backup.
  *
  * **EC-G MUST TEST**: symlinks at `<dest>` are rejected (path-guard).
  *
@@ -32,19 +35,29 @@ import { SDK_VERSION } from "../version.js";
 import { findTemplate } from "./templates.js";
 import { validateProjectName } from "./validate-name.js";
 
+/** Input for {@link scaffold}. `projectName` doubles as the destination directory name. */
 interface ScaffoldOptions {
+  /** npm-valid package name; also the directory created under `cwd`. */
   projectName: string;
+  /** Must be a name in the bundled registry. */
   template: string;
+  /** Root the destination is resolved against and confined to. */
   cwd: string;
+  /** Permit a non-empty destination by DELETING it first. Does not permit a symlink. */
   force?: boolean;
 }
 
+/** `filesWritten` counts regular files only; directories and any skipped entry are not counted. */
 interface ScaffoldResult {
   destAbs: string;
   filesWritten: number;
 }
 
-/** Files NOT substituted (binary/strict-content). All current templates are text-only. */
+/**
+ * Extensions whose contents DO get `{{projectName}}` / `{{sdkVersion}}` substitution — despite the
+ * name below, this is the include list, not an exclude list. `.gitignore` and `.env.example` are
+ * matched by full filename as well. Anything else is copied byte-for-byte.
+ */
 const SUBSTITUTE_EXTS = new Set([
   ".ts",
   ".tsx",
@@ -145,6 +158,18 @@ function atomicCopy(
   }
 }
 
+/**
+ * Copy a bundled template into `<cwd>/<projectName>`, substituting `{{projectName}}` and
+ * `{{sdkVersion}}` in text files.
+ *
+ * Validation order is deliberate — name, then template, then destination — so nothing touches the
+ * filesystem until the inputs are known good.
+ *
+ * @throws Error with a `code` property: `invalid_project_name`, `unknown_template`, `invalid_dest`
+ * (the name escapes `cwd`), `dest_is_symlink` (refused, `force` does not override it),
+ * `dest_not_empty` (pass `force`). A missing bundled `templates/` directory throws WITHOUT a code —
+ * that is a packaging defect, not user input (EC-C).
+ */
 export async function scaffold(opts: ScaffoldOptions): Promise<ScaffoldResult> {
   validateNameAndTemplate(opts);
   const cwdAbs = resolve(opts.cwd);

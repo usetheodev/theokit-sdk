@@ -35,6 +35,24 @@ interface CacheEntry {
 const DEFAULT_TTL_MS = 15_000;
 const DEFAULT_CAPACITY = 1000;
 
+/**
+ * A bounded, TTL-expiring cache of recall results, so two identical sends in
+ * quick succession run one search.
+ *
+ * Entries expire `ttlMs` after they were written (default 15s) and are dropped
+ * on the read that finds them expired. A read that hits also moves the entry to
+ * the most-recent position, so eviction under pressure removes the
+ * least-recently-read entry rather than the oldest write.
+ *
+ * The key covers the query text, the query mode, and the tenant triple
+ * (`namespace`, `userId`, `scope`) joined by NUL bytes. Passing no tenant
+ * context is allowed and hashes as three empty strings — safe only when the
+ * process serves a single tenant.
+ *
+ * Not process-wide: construct one per agent. Nothing here expires in the
+ * background, so an untouched entry occupies its slot until it is read or
+ * evicted.
+ */
 export class ActiveMemoryCache {
   private readonly map = new Map<string, CacheEntry>();
 

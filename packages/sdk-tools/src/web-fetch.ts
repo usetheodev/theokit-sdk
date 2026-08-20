@@ -51,6 +51,26 @@ export interface CreateWebFetchToolOptions {
   lookup?: ScreenedFetchOptions["lookup"];
 }
 
+/**
+ * Build the `web_fetch` tool: retrieve one URL over HTTP or HTTPS and hand the model the body as
+ * text. Every option is optional — `createWebFetchTool()` gives an SSRF-guarded fetch with a
+ * 30-second timeout.
+ *
+ * The body is decoded as UTF-8 whatever the content type says, so a PDF or an image comes back as
+ * mojibake rather than an error: check `content_type` before trusting `content`. The 1 MB body cap is
+ * fixed rather than an option, and is enforced twice — against `content-length` when the server sends
+ * one, then against the bytes actually downloaded.
+ *
+ * The SSRF guard screens the resolved ADDRESS rather than the hostname, and screens every redirect
+ * hop again. `maxRedirects: 0` refuses any 3xx outright with `redirect_blocked`, which is the strict
+ * setting for a URL the model chose itself. `allowPrivateHosts: true` disables the guard entirely,
+ * and with a model-supplied URL that is enough to reach a cloud metadata endpoint — it is for local
+ * development against your own services, not for production.
+ *
+ * Refusals: `invalid_url` (unparseable, or a scheme other than http/https), `ssrf_blocked`,
+ * `redirect_blocked`, `too_large`, `timeout`, `fetch_failed`. A 4xx or 5xx is NOT a refusal — it
+ * returns `ok: true` with the body and `status_code`, so check the status.
+ */
 export function createWebFetchTool(opts?: CreateWebFetchToolOptions): CustomTool {
   const defaultTimeoutMs = opts?.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS;
   const allowPrivateHosts = opts?.allowPrivateHosts ?? false;

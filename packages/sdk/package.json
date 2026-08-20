@@ -353,6 +353,7 @@
   "files": [
     "dist",
     "bin",
+    "docs",
     "claude-template",
     "README.md",
     "CHANGELOG.md",
@@ -381,6 +382,7 @@
   },
   "peerDependencies": {
     "@lancedb/lancedb": "^0.30.0",
+    "@opentelemetry/api": "^1.9.0",
     "@types/ws": ">=8.0.0",
     "better-sqlite3": "^12.0.0",
     "proper-lockfile": "^4.1.2",
@@ -390,6 +392,9 @@
   },
   "peerDependenciesMeta": {
     "@lancedb/lancedb": {
+      "optional": true
+    },
+    "@opentelemetry/api": {
       "optional": true
     },
     "@types/ws": {

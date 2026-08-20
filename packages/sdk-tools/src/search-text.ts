@@ -87,6 +87,29 @@ interface Match {
   preview: string;
 }
 
+/**
+ * Build the `search_text` tool: scan file CONTENTS across the tree. Use it when you know what the
+ * code says, and `glob_files` when you know what the file is called.
+ *
+ * `regex` is fixed at construction, not chosen per call — it changes both the input schema and the
+ * description the model sees, so one instance is either literal-substring or regex, never both.
+ * Literal matching is case-sensitive and there is no case-insensitive mode. In regex mode the pattern
+ * is compiled with no flags (an inline `(?i)` is a syntax error, not a modifier) and an invalid
+ * pattern returns `{ ok: false, error: "invalid_regex" }` before any file is opened.
+ *
+ * Matches carry `{ file, line, preview }` with `line` 1-based and `preview` cut at 200 characters.
+ * The walk stops at the first match past `maxMatches` (default 100), so on a truncated run
+ * `totalMatches` is `maxMatches + 1` — it counts what was scanned, not how many matches exist. Files
+ * over `maxFileSize` (default 1 MB), files with a null byte in their first 8 KB, and anything
+ * unreadable are skipped in silence.
+ *
+ * `allowAbsolute` honours an absolute `path` scope. Be aware that the sensitive-path filter applied
+ * during the walk inspects only the first segment of each entry's path relative to `projectRoot`,
+ * plus its basename. Under an absolute scope every entry's relative path begins with `..`, so a
+ * nested `.env` is neither skipped nor refused and its matching lines are returned.
+ * {@link createReadFileTool} and {@link createListDirTool} carry an any-depth guard for exactly this
+ * case; this tool does not.
+ */
 export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomTool {
   const {
     projectRoot,

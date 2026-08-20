@@ -34,6 +34,15 @@ export interface TaskWorkContext {
   emit(payload: unknown): void;
 }
 
+/**
+ * The unit of work handed to {@link Task.submit}.
+ *
+ * It receives the context rather than raw arguments: `ctx.signal` aborts on cancel and should be
+ * observed by anything long-running, and `ctx.emit(payload)` produces a `progress` event for
+ * subscribers. May be synchronous — the return type allows a plain value as well as a promise.
+ *
+ * @public
+ */
 export type TaskWorkFn<T> = (ctx: TaskWorkContext) => Promise<T> | T;
 
 /**
@@ -47,6 +56,22 @@ export interface TaskConfigureOptions {
   readonly retentionMs?: number;
 }
 
+/**
+ * Static facade over the process-wide task registry — the observability layer for asynchronous
+ * work.
+ *
+ * Not instantiable: the constructor throws, and every operation is a static that delegates to one
+ * in-process singleton. Tasks are an OPT-IN wrapper. `Agent.send`, `Agent.batch`, `Workflow.run`
+ * and `Cron` fires only appear here when submitted with `{ task: true }`; work you submit yourself
+ * goes through `Task.submit`.
+ *
+ * Two ordering constraints bite in practice. `Task.configure` must run before the first `submit` of
+ * the process — a later call logs one line and is otherwise a no-op. And `Task.get` returning
+ * `undefined` does not mean the id never existed: retention evicts terminal tasks, so an id can go
+ * from known to unknown over time.
+ *
+ * @public
+ */
 export class Task {
   // D361 — static class with private constructor.
   private constructor() {

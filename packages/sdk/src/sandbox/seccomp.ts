@@ -60,6 +60,12 @@ interface Insn {
 const stmt = (code: number, k: number): Insn => ({ code, jt: 0, jf: 0, k });
 const jmp = (code: number, k: number, jt: number, jf: number): Insn => ({ code, jt, jf, k });
 
+/**
+ * Input to {@link buildSeccompFilter} — the one axis the generated cBPF program varies on.
+ *
+ * `networkRestricted: true` adds the socket-family denials on top of the always-denied syscall set;
+ * `false` emits the base program, which is NOT "no filter". The always-denied set applies either way.
+ */
 export interface SeccompOptions {
   /** When true (network off), also deny the socket set + non-AF_UNIX socket(). */
   networkRestricted: boolean;

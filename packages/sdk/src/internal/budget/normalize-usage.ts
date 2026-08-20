@@ -63,6 +63,19 @@ function omitUndefined(usage: {
   };
 }
 
+/**
+ * Guess which usage shape a provider reports, from its name alone.
+ *
+ * Matching is case-insensitive and exact — `"anthropic"`, `"claude"` and `"bedrock_anthropic"`
+ * give `"anthropic_messages"`; `"openai-codex"` and `"codex"` give `"openai_responses"`. Every
+ * other name, including ones this SDK has never seen, falls through to
+ * `"openai_chat_completions"`. There is no unknown result, so a wrong guess is silent: it is
+ * read as a Chat Completions payload, whose fields are absent, and the tokens come back as 0.
+ *
+ * The default is right for the OpenAI-compatible majority (openai, openrouter, deepseek, and the
+ * compat endpoints of google, ollama and lmstudio). When it is not, pass `apiMode` to
+ * `normalizeUsage` explicitly instead of relying on the name.
+ */
 export function inferApiMode(provider: string): ApiMode {
   const p = provider.toLowerCase();
   if (p === "anthropic" || p === "claude" || p === "bedrock_anthropic") {
@@ -77,6 +90,38 @@ interface RawRecord {
   [k: string]: unknown;
 }
 
+/**
+ * Convert a provider's raw `usage` object into the SDK's canonical `TokenUsage`.
+ *
+ * Never throws and never reports failure. `null`, `undefined` and any non-object argument return
+ * all-zero usage, which is indistinguishable from a real response that used no tokens — so this
+ * is not the place to detect a malformed payload.
+ *
+ * `opts.apiMode` selects the reader; when omitted it is derived from `opts.provider` via
+ * `inferApiMode`, whose fallback is Chat Completions. Pass it explicitly for any provider whose
+ * name does not identify its wire shape.
+ *
+ * The shapes differ in one way that matters: Anthropic reports cache tokens in buckets separate
+ * from `input_tokens`, while both OpenAI shapes report a prompt total that already includes
+ * them. For the OpenAI readers the cache buckets are subtracted, so `inputTokens` is always the
+ * uncached portion and `inputTokens + cacheReadTokens + cacheWriteTokens` reconstructs the
+ * provider's prompt total. The subtraction is floored at 0, so a payload whose cache counts
+ * exceed its prompt total yields 0 rather than a negative.
+ *
+ * Every field is coerced: numbers are truncated toward zero, numeric strings are parsed, negative
+ * and non-finite values become 0, and anything else becomes 0.
+ *
+ * `totalTokens` is computed here as input + output + both cache buckets; a `total_tokens` the
+ * provider sent is ignored. Reasoning tokens are reported separately but are NOT added again —
+ * providers already count them inside output. `cacheReadTokens`, `cacheWriteTokens` and
+ * `reasoningTokens` are omitted from the result when they are 0, so absent means zero, not
+ * unknown.
+ *
+ * Chat Completions also accepts Anthropic-style top-level `cache_read_input_tokens` /
+ * `cache_creation_input_tokens`, which OpenAI-compatible proxies emit when they route Claude.
+ * The nested `prompt_tokens_details` values win; the top-level fields are consulted only when
+ * those are 0 or missing.
+ */
 export function normalizeUsage(
   rawUsage: unknown,
   opts: { provider: string; apiMode?: ApiMode },

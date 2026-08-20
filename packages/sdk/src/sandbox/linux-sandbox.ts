@@ -13,7 +13,7 @@ import { LocalSandbox } from "./local-sandbox.js";
 import { buildSeccompFilter } from "./seccomp.js";
 import type { SandboxBackend, SandboxConfig } from "./types.js";
 
-/**
+/*
  * M53 — kernel-enforced sandbox backend, injected into `createShellTool({ sandbox })`.
  *
  * `LinuxSandbox extends LocalSandbox` and only REWRITES the command: `<bwrap-bin> <policy flags> --
@@ -71,6 +71,21 @@ const ENV_ALLOWLIST = [
   "SHELL",
 ];
 
+/**
+ * Build the environment a confined command runs with after `--clearenv`: `PATH`, `HOME`, `LANG`,
+ * `LC_ALL`, `LC_CTYPE`, `TERM`, `USER`, `TMPDIR` and `SHELL`, copied from `source` (default
+ * `process.env`) and omitted where unset.
+ *
+ * The allowlist shape is the point, and it is what separates this from the other env control in the
+ * package. `SandboxConfig.env: "inherit-scrubbed"` is a denylist: it drops variables whose NAME looks
+ * secret-ish, so an oddly named secret survives. Here the child gets these nine names and nothing
+ * else, and a secret's name stops mattering.
+ *
+ * Call it when you compose the wrap yourself and need an `env` for `wrapCommandForSandbox`;
+ * {@link LinuxSandbox} already applies it when its `env` option is omitted. Passing a different
+ * `source` changes the VALUES, never the set of names — to give a confined command an extra variable,
+ * extend the returned object, which is a fresh one on every call.
+ */
 export function allowlistedEnv(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const out: Record<string, string> = {};
   for (const k of ENV_ALLOWLIST) {
@@ -80,6 +95,30 @@ export function allowlistedEnv(source: NodeJS.ProcessEnv = process.env): Record<
   return out;
 }
 
+/**
+ * Kernel-confined backend for Linux hosts: a `LocalSandbox` whose commands are rewritten as
+ * `bwrap <policy flags> -- /bin/sh -c '<command>'` before they are spawned. Spawning, output caps,
+ * timeouts and the `ExecuteResult` shape are all inherited, so confinement is a change to the argv
+ * and never an in-process one.
+ *
+ * Prefer `createSandboxBackend` over constructing this directly. The class assumes bubblewrap is
+ * present and never probes for it, so on a host without it every command comes back failed rather
+ * than confined; the factory probes first and degrades to a plain `LocalSandbox` with a warning.
+ *
+ * What the confinement actually covers: the filesystem is bound read-only in full, and
+ * `mode: "workspace-write"` adds the workspace root plus `/tmp` as the only writable paths, while
+ * `"read-only"` adds none. The network is unshared unless `network: true`. The environment is cleared
+ * and repopulated from {@link allowlistedEnv} unless an explicit `env` is passed. The seccomp syscall
+ * filter is a second stage with two conditions on it — x86_64 only, and only when the network is
+ * restricted — so `network: true` gives you bwrap's filesystem confinement and no syscall filter.
+ * `mode: "danger-full-access"` skips the wrap entirely and this class behaves as plain
+ * `LocalSandbox`.
+ *
+ * `uploadFile` is overridden so that writes go through the confined `execute` (base64 over stdin,
+ * keeping arbitrary content out of the shell command line). A write the policy forbids therefore
+ * fails, throwing a plain `Error` naming the target path and the stderr, instead of quietly landing
+ * on the host as the inherited implementation would.
+ */
 export class LinuxSandbox extends LocalSandbox {
   private readonly mode: SandboxMode;
   private readonly network: boolean;
@@ -241,6 +280,21 @@ export function resolveSandboxPosture(opts: {
   return { mode: opts.mode, enforced: true, detail: "kernel (bwrap)" };
 }
 
+/**
+ * Options for `createSandboxBackend`, which probes for bubblewrap and returns a {@link LinuxSandbox}
+ * when confinement is genuinely available or a `LocalSandbox` when it is not — warning once when the
+ * absence is a failure, and silently when `mode` is `"danger-full-access"`, since that is an explicit
+ * opt-out rather than a degradation.
+ *
+ * The declared return type is `SandboxBackend` either way, so it does not tell you which one you got.
+ * Call `resolveSandboxPosture({ mode })` for that, and surface it durably — the warning fires once
+ * per process and a user who missed it has no way to tell they are unconfined.
+ *
+ * `workDir` and `timeoutMs` are forwarded into the backend's `SandboxConfig`; `maxOutputBytes` and
+ * the env policy are not, and keep their defaults. `network` only reaches the confined path, being
+ * meaningless on a fallback where the network was never restricted. `detect` and `warn` exist so
+ * tests can drive both branches without a real bubblewrap.
+ */
 export interface CreateSandboxBackendOptions {
   mode: SandboxMode;
   workDir?: string;
@@ -311,6 +365,24 @@ function seccompPathForNetwork(networkOpen: boolean): string | undefined {
   return networkOpen ? undefined : restrictedSeccompPath();
 }
 
+/**
+ * Options for `interactiveWrapCommand`, the PTY counterpart of `createSandboxBackend`.
+ *
+ * They differ in what they hand back, and that is how you choose. A PTY owns its own spawn and
+ * accepts no backend object, so this path returns a `(command, cwd) => string | null` transform: the
+ * wrapped command line, or `null` meaning run it as-is. Use it when something else does the spawning;
+ * use `createSandboxBackend` when you want an object that executes.
+ *
+ * Detection is consulted on every wrap instead of being frozen at construction, because an
+ * interactive session outlives the probe — a bubblewrap binary that disappears mid-session stops
+ * being asserted as present.
+ *
+ * `network` defaults to `false`, matching the non-interactive path, and carries the same consequence:
+ * the seccomp filter is installed only when the network is restricted. The warn-once latch is
+ * deliberately separate from the one `createSandboxBackend` keeps, so a user who only ever opens an
+ * interactive shell still sees the "runs WITHOUT kernel confinement" warning in the session where
+ * they type commands.
+ */
 export interface InteractiveWrapOptions {
   mode: SandboxMode;
   /** `true` keeps the network. Default `false`, same as non-interactive `run_shell`. */

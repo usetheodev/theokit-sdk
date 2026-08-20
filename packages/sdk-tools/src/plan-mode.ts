@@ -25,6 +25,13 @@ const PLAN_INSTRUCTIONS = [
 
 const NORMAL_INSTRUCTIONS = "Returned to NORMAL MODE. You may now execute changes.";
 
+/**
+ * The `plan_mode` tool object returned by the no-argument {@link createPlanModeTool}. Its `handler`
+ * is synchronous, where {@link PlanModeToolWithStore}'s returns a promise — so the two are not
+ * interchangeable at a call site that does not await.
+ *
+ * `currentMode` is a test seam; the mode also comes back in every result.
+ */
 export interface PlanModeTool {
   name: string;
   description: string;
@@ -109,6 +116,20 @@ function invalidAction(action: string): string {
   });
 }
 
+/**
+ * Build the `plan_mode` tool, which flips a flag and returns instruction text telling the model to
+ * outline before it edits. It enforces nothing — no other tool consults the mode, so a model that
+ * ignores the instructions is not stopped, and the mode lives in this object rather than in the
+ * session.
+ *
+ * With no argument it returns a {@link PlanModeTool} whose handler is synchronous. With options it
+ * returns a {@link PlanModeToolWithStore} whose handler is async and accepts a `plan` string,
+ * persisted to `artifactStore` under `artifactId` (default `"plan"`) when the model exits plan mode.
+ * An empty or absent `plan` is not written, and `persisted` in the result says which happened.
+ *
+ * `name` and `description` are read on the options overload only. The no-argument form always
+ * publishes `plan_mode` with the built-in description, since it takes nothing to override it with.
+ */
 export function createPlanModeTool(): PlanModeTool;
 export function createPlanModeTool(options: PlanModeToolOptions): PlanModeToolWithStore;
 export function createPlanModeTool(

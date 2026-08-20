@@ -9,9 +9,18 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
+/** Input for {@link startRunner}. */
 interface RunnerOptions {
+  /** Absolute path to the file tsx should load. */
   entry: string;
+  /** Working directory for the child, and the root `envFile` is resolved against. */
   cwd: string;
+  /**
+   * Env file passed to `tsx --env-file`, relative to `cwd`. Default `.env`.
+   *
+   * The flag is only added when the file EXISTS — a missing one (including a misspelled explicit
+   * name) is skipped silently, so the child starts without those variables and nothing says so.
+   */
   envFile?: string;
   /** Pass `--watch` to tsx. Default true (production). Tests use false. */
   watch?: boolean;
@@ -27,6 +36,7 @@ interface RunnerOptions {
   stdio?: "inherit" | "ignore";
 }
 
+/** `exited` resolves with the child's exit code, or `130` when it was killed by a signal. It never rejects. */
 interface RunnerHandle {
   child: ChildProcess;
   exited: Promise<number>;
@@ -43,6 +53,20 @@ function resolveTsxBin(): string {
   return require.resolve("tsx/cli");
 }
 
+/**
+ * Spawn `tsx` on `opts.entry` and return the child plus a promise for its exit code.
+ *
+ * Returns immediately — the caller awaits `exited`. The child gets this process's `env` verbatim and
+ * `stdio` per `opts.stdio` (default `"inherit"`).
+ *
+ * Installs `SIGINT`/`SIGTERM` listeners on the CURRENT process that forward `SIGTERM` to the child
+ * and `SIGKILL` it 5s later. Those listeners are never removed, so calling this repeatedly in one
+ * process accumulates them (fine for the CLI, which spawns once; a caller that does not should keep
+ * that in mind).
+ *
+ * @throws whatever `require.resolve("tsx/cli")` throws when tsx is missing from this package's
+ * install — `theokit dev` turns that into exit 1 with a "run pnpm install" hint.
+ */
 export function startRunner(opts: RunnerOptions): RunnerHandle {
   const tsxBin = resolveTsxBin();
   const args: string[] = [];

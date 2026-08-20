@@ -18,6 +18,11 @@ const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
+/**
+ * Options for {@link createBraveWebSearchAdapter}. `apiKey` falls back to `BRAVE_API_KEY` and
+ * `endpoint` to Brave's public search URL, both read once at construction, so a process that exports
+ * the env var can call the factory with no arguments.
+ */
 export interface CreateBraveWebSearchAdapterOptions {
   /** Brave API key. Defaults to `process.env.BRAVE_API_KEY`. */
   apiKey?: string;

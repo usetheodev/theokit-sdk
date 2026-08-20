@@ -32,16 +32,32 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 
+/**
+ * Escapes a name for literal use inside `new RegExp`. The rollup dedupes colliding identifiers as
+ * `Name$1`, and `$` is an end-of-input anchor: unescaped, the pattern for `Plugin$1` matches
+ * nothing, so the tool declined to bind the very identifiers it exists for and reported success.
+ * `Plugin$1`, `FetchLike$1`, `Skill$1` and `HandoffDescriptor$1` are all present in this repo's own
+ * built declarations. The adjacent `chunk` was already escaped; the name was not.
+ */
+function escapeRegExp(literal) {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /** `path/to/file.d.ts(985,21): error TS2552: Cannot find name 'TokenUsage'.` */
 const DIAGNOSTIC = /^(.+?\.d\.[cm]?ts)\((\d+),\d+\): error TS\d+: Cannot find name '([^']+)'/;
 
-function typecheck(entryPath) {
+const ts = createRequire(import.meta.url)(join(ROOT, "node_modules/typescript"));
+
+const LABEL = "dts-repair";
+
+function typecheck(entryPaths) {
   try {
     execFileSync(
       "npx",
@@ -55,12 +71,26 @@ function typecheck(entryPath) {
         "esnext",
         "--moduleResolution",
         "bundler",
-        entryPath,
+        ...entryPaths,
       ],
       { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
     return [];
   } catch (error) {
+    // A FAILED INVOCATION IS NOT A CLEAN COMPILE. `tsc` exits 1 or 2 with diagnostics on stdout;
+    // a spawn that never ran (npx absent, ENOENT, a killed process) arrives here with
+    // `status === null` and `stdout === null`, and the old body turned that into `[]` — which every
+    // caller reads as "no diagnostics". Measured 2026-08-20: with `npx` off PATH this printed
+    // `PASS — 45 published declaration(s) compile without skipLibCheck` in under a second, having
+    // compiled nothing, with output byte-identical to a genuine four-minute green run. That is the
+    // exact shape this file's header forbids, one level down from where it was looking.
+    if (typeof error.status !== "number") {
+      console.error(`[${LABEL}] ✗ tsc could not be run: ${error.message}`);
+      console.error(
+        "  Refusing to report: a gate that cannot invoke its tool has checked nothing.",
+      );
+      process.exit(2);
+    }
     return `${error.stdout ?? ""}${error.stderr ?? ""}`.split("\n").map((line) => line.trim());
   }
 }
@@ -99,19 +129,50 @@ function bindExternalName(source, name, pkgDir) {
   const importClause = /import\s*\{([^}]*?)\}\s*from\s*(['"])([^.'"][^'"]*)\2/g;
   for (const match of source.matchAll(importClause)) {
     const [, specifiers, quote, specifier] = match;
-    if (new RegExp(String.raw`(?:^|,)\s*(?:\w+\s+as\s+)?${name}\s*(?:,|$)`).test(specifiers)) {
+    if (
+      new RegExp(String.raw`(?:^|,)\s*(?:\w+\s+as\s+)?${escapeRegExp(name)}\s*(?:,|$)`).test(
+        specifiers,
+      )
+    ) {
       return undefined; // already bound — not this defect
     }
     if (!moduleDeclares(specifier, name, pkgDir)) continue;
     return source.replace(
       match[0],
-      `import { ${name},${specifiers}} from ${quote}${specifier}${quote}`,
+      `import { ${escapeRegExp(name)},${specifiers}} from ${quote}${specifier}${quote}`,
+    );
+  }
+
+  // The SIDE-EFFECT form: `import '@theokit/sdk';` with no bindings at all. The rollup emits the
+  // specifier and drops every name it was meant to carry, so there is no clause to append to and
+  // the loop above matches nothing. Measured on `@theokit/sdk-handoff`'s `./internal` entry, where
+  // `SDKAgent` and `CustomTool` were unresolved through two builds — invisible until the typecheck
+  // gate stopped reading only `exports["."]`.
+  //
+  // Rewriting it to a named import keeps the module reference and binds the name. Deliberately NOT
+  // handled: inserting a fresh import when the file names the module nowhere. That case has no
+  // measured instance, and the shortfall is already reported rather than silently passed.
+  const bareImport = /import\s*(['"])([^.'"][^'"]*)\1\s*;/g;
+  for (const match of source.matchAll(bareImport)) {
+    const [, quote, specifier] = match;
+    if (!moduleDeclares(specifier, name, pkgDir)) continue;
+    return source.replace(
+      match[0],
+      `import { ${escapeRegExp(name)} } from ${quote}${specifier}${quote};`,
     );
   }
   return undefined;
 }
 
-/** Does `specifier`'s published declaration name `name` as an export, resolved from `pkgDir`? */
+/**
+ * Does `specifier`'s published declaration EXPORT `name`, resolved from `pkgDir`?
+ *
+ * Asked of the compiler. The previous regex required only that the token sit between whitespace or
+ * braces, which every word in a JSDoc paragraph satisfies — `moduleDeclares("@theokit/sdk", "Codex")`
+ * returned true against four prose mentions and no declaration. This is the one guard on the
+ * bare-import rewrite, so a false positive writes `import { Codex } from '@theokit/sdk';` into a
+ * published declaration: a fabricated import, which is the single thing this tool must never do.
+ */
 function moduleDeclares(specifier, name, pkgDir) {
   const manifest = join(pkgDir, "node_modules", specifier, "package.json");
   if (!existsSync(manifest)) return false;
@@ -121,21 +182,46 @@ function moduleDeclares(specifier, name, pkgDir) {
   if (typeof types !== "string") return false;
   const declPath = join(pkgDir, "node_modules", specifier, types);
   if (!existsSync(declPath)) return false;
-  const decl = readFileSync(declPath, "utf8");
-  return new RegExp(
-    String.raw`(?:^|[,{\s])(?:\w+\s+as\s+)?${name}(?=[,}\s])|\bdeclare\s+(?:type|interface|const|class|function)\s+${name}\b`,
-  ).test(decl);
+
+  const cached = exportNamesOf(declPath);
+  return cached.has(name);
+}
+
+/** Export names of a declaration file, memoised — each call would otherwise build a program. */
+const exportNameCache = new Map();
+function exportNamesOf(declPath) {
+  const hit = exportNameCache.get(declPath);
+  if (hit !== undefined) return hit;
+
+  const program = ts.createProgram([declPath], {
+    noEmit: true,
+    skipLibCheck: true,
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    types: [],
+  });
+  const checker = program.getTypeChecker();
+  const source = program.getSourceFile(declPath);
+  const moduleSymbol = source === undefined ? undefined : checker.getSymbolAtLocation(source);
+  const names = new Set(
+    moduleSymbol === undefined
+      ? []
+      : checker.getExportsOfModule(moduleSymbol).map((symbol) => symbol.getName()),
+  );
+  exportNameCache.set(declPath, names);
+  return names;
 }
 
 function bindReExportedName(source, name) {
   const exportClause = /export\s*\{([^}]*?)\}\s*from\s*(['"])(\.[^'"]+)\2/g;
   for (const match of source.matchAll(exportClause)) {
     const [, specifiers, , chunk] = match;
-    const bound = new RegExp(String.raw`(?:^|,)\s*(?:(\w+)\s+as\s+)?${name}\s*(?:,|$)`).exec(
-      specifiers,
-    );
+    const bound = new RegExp(
+      String.raw`(?:^|,)\s*(?:(\w+)\s+as\s+)?${escapeRegExp(name)}\s*(?:,|$)`,
+    ).exec(specifiers);
     if (bound === null) continue;
-    const specifier = bound[1] === undefined ? name : `${bound[1]} as ${name}`;
+    const specifier = bound[1] === undefined ? name : `${bound[1]} as ${escapeRegExp(name)}`;
 
     const importClause = new RegExp(
       String.raw`import\s*\{([^}]*?)\}\s*from\s*(['"])${chunk.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\2`,
@@ -143,7 +229,11 @@ function bindReExportedName(source, name) {
     const existing = importClause.exec(source);
     if (existing !== null) {
       // Already bound under some alias? Then this is not the defect; leave it alone.
-      if (new RegExp(String.raw`(?:^|,)\s*(?:\w+\s+as\s+)?${name}\s*(?:,|$)`).test(existing[1])) {
+      if (
+        new RegExp(String.raw`(?:^|,)\s*(?:\w+\s+as\s+)?${escapeRegExp(name)}\s*(?:,|$)`).test(
+          existing[1],
+        )
+      ) {
         return undefined;
       }
       return source.replace(
@@ -179,16 +269,39 @@ function bindReExportedName(source, name) {
  * name missing there can equally be a real defect that SHOULD fail the gate rather than be quietly
  * reclassified.
  */
+/**
+ * True when the clause containing `index` belongs to a statement that is ALREADY type-only —
+ * `import type { … }` / `export type { … }`. Adding a per-name `type` inside one of those is
+ * TS2206, not a repair.
+ *
+ * The per-name guard alone is not enough. It only asks whether `type` sits immediately before the
+ * name, which is true of `{ type A, B }` and false of `import type { A, B }` — and the root barrel
+ * never exposed the difference, because its clauses are the VALUE form (`export { … } from`).
+ * Widening this pass to the subpath entries, whose clauses are `import type { … }`, turned a silent
+ * no-op into three TS2206 diagnostics on the first build.
+ */
+function inTypeOnlyStatement(source, index) {
+  const head = source.lastIndexOf("import", index);
+  const tail = source.lastIndexOf("export", index);
+  const start = Math.max(head, tail);
+  if (start === -1) return false;
+  const brace = source.indexOf("{", start);
+  if (brace === -1 || brace > index) return false;
+  return /\b(import|export)\s+type\s*$/.test(source.slice(start, brace));
+}
+
 function restoreTypeOnlyExports(source, typeOnlyNames) {
   let out = source;
   let fixed = 0;
   for (const name of typeOnlyNames) {
-    const specifier = new RegExp(String.raw`([{,]\s*)${name}(\s*[,}])`, "g");
-    out = out.replace(specifier, (match, lead, tail) => {
+    const specifier = new RegExp(String.raw`([{,]\s*)${escapeRegExp(name)}(\s*[,}])`, "g");
+    out = out.replace(specifier, (match, lead, tail, offset) => {
       // Already `type X`, or `X as Y` — leave both alone.
       if (/\btype\s*$/.test(lead)) return match;
+      // The whole statement is already type-only: a per-name modifier there is an error.
+      if (inTypeOnlyStatement(out, offset)) return match;
       fixed += 1;
-      return `${lead}type ${name}${tail}`;
+      return `${lead}type ${escapeRegExp(name)}${tail}`;
     });
   }
   return fixed === 0 ? undefined : { source: out, fixed };
@@ -220,18 +333,41 @@ if (!existsSync(manifestPath)) {
   process.exit(2);
 }
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-const rootExport = manifest.exports?.["."];
-const entry = rootExport?.import?.types ?? rootExport?.types ?? manifest.types ?? manifest.typings;
-if (typeof entry !== "string") {
+
+// EVERY declared subpath, not just `exports["."]`. Until 2026-08-20 this read the root entry alone,
+// so a package repaired its main declaration and shipped every other one unrepaired —
+// `@theokit/sdk-handoff`'s `./internal` entry still had `SDKAgent` and `CustomTool` unbound after a
+// clean build, and no gate saw it because `check-dts-typechecks.mjs` had the SAME root-only bias.
+// Widening one without the other would have moved the blind spot rather than closed it.
+const declaredEntries = [];
+for (const [subpath, conditions] of Object.entries(manifest.exports ?? {})) {
+  // BOTH conditions. The `.d.cts` is emitted separately from the `.d.ts` and needs the same
+  // repair: measured 2026-08-20, `tool-injector.d.ts` carried the bound import while its `.d.cts`
+  // sibling still held the bare `import '@theokit/sdk';` this tool exists to fix, because only the
+  // `import` condition was ever enumerated. Ten packages published a CJS declaration that did not
+  // compile while the ESM half read green.
+  const esm = conditions?.import?.types ?? conditions?.types;
+  if (typeof esm === "string") declaredEntries.push({ subpath, rel: esm });
+  const cjs = conditions?.require?.types;
+  if (typeof cjs === "string") declaredEntries.push({ subpath, rel: cjs });
+}
+if (declaredEntries.length === 0) {
+  const legacy = manifest.types ?? manifest.typings;
+  if (typeof legacy === "string") declaredEntries.push({ subpath: ".", rel: legacy });
+}
+if (declaredEntries.length === 0) {
   console.log(
     `[dts-repair] ${manifest.name ?? target}: no published types entry — nothing to check.`,
   );
   process.exit(0);
 }
 
-const entryPath = join(pkgDir, entry);
-if (!existsSync(entryPath)) {
-  console.error(`[dts-repair] ${manifest.name}: declared types entry missing — ${entry}`);
+const entryPaths = declaredEntries.map((e) => join(pkgDir, e.rel));
+const absent = declaredEntries.filter((e) => !existsSync(join(pkgDir, e.rel)));
+if (absent.length > 0) {
+  for (const e of absent) {
+    console.error(`[dts-repair] ${manifest.name}: declared types entry missing — ${e.rel}`);
+  }
   process.exit(1);
 }
 
@@ -239,19 +375,23 @@ if (!existsSync(entryPath)) {
 // below: an over-broad export typechecks fine, it just promises a value the runtime never ships.
 const typeOnly = typeOnlyExportNames(pkgDir);
 if (typeOnly.length > 0) {
-  const entrySource = readFileSync(entryPath, "utf8");
-  const restored = restoreTypeOnlyExports(entrySource, typeOnly);
-  if (restored !== undefined) {
+  let restoredTotal = 0;
+  for (const entryPath of entryPaths) {
+    const restored = restoreTypeOnlyExports(readFileSync(entryPath, "utf8"), typeOnly);
+    if (restored === undefined) continue;
     writeFileSync(entryPath, restored.source);
+    restoredTotal += restored.fixed;
+  }
+  if (restoredTotal > 0) {
     console.log(
-      `[dts-repair] ${manifest.name}: restored the \`type\` modifier on ${restored.fixed} export(s) ` +
+      `[dts-repair] ${manifest.name}: restored the \`type\` modifier on ${restoredTotal} export(s) ` +
         "the rollup emitted as values (#279 class).",
     );
   }
 }
 
 // Pass 2 — bind names the rollup re-exported without importing (#345).
-const before = typecheck(entryPath);
+const before = typecheck(entryPaths);
 const unresolved = unresolvedByFile(before);
 if (unresolved.size === 0) {
   console.log(`[dts-repair] ${manifest.name}: declaration resolves cleanly — nothing to bind.`);
@@ -282,7 +422,7 @@ if (repaired === 0) {
   process.exit(0);
 }
 
-const after = typecheck(entryPath).filter((line) => /error TS\d+/.test(line));
+const after = typecheck(entryPaths).filter((line) => /error TS\d+/.test(line));
 if (after.length > 0) {
   console.error(
     `[dts-repair] ${manifest.name}: bound ${repaired} name(s), but ${after.length} diagnostic(s) remain:`,

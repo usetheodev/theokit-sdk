@@ -7,9 +7,10 @@
  *
  * `node-pty` is an OPTIONAL dependency of this package — the ONLY place in the
  * theokit ecosystem that touches it. Core / sdk-tools / cluster / desktop never
- * do. When the native module is unavailable (or a spawn fails), every method
+ * do. When the native module is unavailable (or a spawn fails), `startInteractive`
  * throws the SDK's typed {@link InteractiveUnavailableError} so the caller falls
- * back to non-interactive exec.
+ * back to non-interactive exec; `available()` reports `false` up front, and
+ * `writeStdin` / `kill` are unreachable because no session was ever created.
  *
  * Safety (mirrors M11): graceful typed degradation; per-session write
  * serialization (concurrent writes never steal each other's output); idle TTL
@@ -32,7 +33,24 @@ import {
 
 const nodeRequire = createRequire(import.meta.url);
 
+/**
+ * Floor for `StartInteractiveOptions.yieldMs` — how long a call waits for the process to produce
+ * output before returning what it has.
+ *
+ * A shorter wait does not make the call faster, it makes it return an empty or truncated buffer that
+ * the model then reasons about as if the program had said nothing. Anything below this is clamped
+ * up, silently and on purpose: the alternative is an agent concluding a command produced no output
+ * when it simply had not flushed yet.
+ */
 export const YIELD_MIN_MS = 250;
+
+/**
+ * Ceiling for `StartInteractiveOptions.yieldMs`, clamped down.
+ *
+ * A pty session is interactive; a caller asking to block for longer than this wants a batch command,
+ * which `shell` already does without holding a session open. The cap is what keeps a mistyped
+ * `yieldMs` from parking an agent turn indefinitely.
+ */
 export const YIELD_MAX_MS = 30_000;
 const DEFAULT_YIELD_MS = 500;
 const DEFAULT_TTL_MS = 300_000; // 5 min idle → reap
@@ -71,10 +89,10 @@ function capTail(buf: string, max: number): string {
 }
 
 /**
- * M75 T3.1 — how the caller wraps the command before the spawn.
+ * Constructor options for {@link PtyInteractiveBackend}. Both are optional; `new
+ * PtyInteractiveBackend()` gives unconfined commands and an unlimited number of sessions.
  *
- * It exists so confinement (sandbox) composes with the PTY without inheritance: the backend keeps owning the
- * spawn, the caller keeps owning the policy, and neither knows the other's type.
+ * @public
  */
 export interface PtyInteractiveBackendOptions {
   /**
@@ -100,9 +118,17 @@ export interface PtyInteractiveBackendOptions {
 /**
  * M77 — the {@link PtyInteractiveBackendOptions.maxSessions} ceiling was reached.
  *
- * Carries `liveSessionIds` by design: `rules/error-handling.md § 2` asks for a message with enough context
- * enough context to act, and here the action is reusing an existing session. An error merely stating
+ * Carries `liveSessionIds` by design: `rules/error-handling.md § 2` asks for a message with enough
+ * context to act, and here the action is reusing an existing session. An error merely stating
  * "limit reached" would leave the model with no way out — it would retry, and fail again.
+ *
+ * It EXTENDS {@link InteractiveUnavailableError} and inherits its
+ * `code === "interactive_unavailable"`, so a caller catching the parent — or branching on `code` —
+ * cannot tell "no pty on this machine" from "you already have N open". Use `instanceof
+ * MaxSessionsError` when the two need different handling; only this one is retryable after a
+ * `kill()`.
+ *
+ * @public
  */
 export class MaxSessionsError extends InteractiveUnavailableError {
   constructor(
@@ -116,6 +142,24 @@ export class MaxSessionsError extends InteractiveUnavailableError {
   }
 }
 
+/**
+ * `InteractiveBackend` backed by a real pty, for programs that only behave correctly on a terminal.
+ *
+ * Use it when the target REQUIRES a tty — a REPL that prints a prompt, an installer that asks a
+ * question, `ssh` asking for a passphrase, anything that checks `isatty` and changes behaviour. For
+ * a command that reads stdin and exits, the plain `shell` tool is simpler and does not leave a
+ * session to reap.
+ *
+ * `node-pty` is an OPTIONAL dependency (`optionalDependencies`, not a peer), imported lazily on
+ * first use: an install that cannot build the native module still succeeds, and a caller that never
+ * starts a session never needs one. When it is absent,
+ * starting a session raises `InteractiveUnavailableError` rather than failing at import time — so an
+ * agent that merely has the backend registered still runs.
+ *
+ * Sessions are stateful and idle-reaped (5 minutes by default). A session id that has been reaped
+ * raises `NoSuchSessionError`, which is a different fact from "the command failed" and should be
+ * handled as "start again", not as an error from the program.
+ */
 export class PtyInteractiveBackend extends InteractiveBackend {
   private readonly sessions = new Map<string, PtySession>();
   private readonly wrapCommand: ((command: string, cwd: string) => string | null) | undefined;
@@ -142,7 +186,17 @@ export class PtyInteractiveBackend extends InteractiveBackend {
     return this.ptyModule;
   }
 
-  /** Whether the interactive (PTY) path is usable in this environment. */
+  /**
+   * Whether `node-pty` loaded — i.e. whether `startInteractive` can work at all here.
+   *
+   * Extra to the `InteractiveBackend` contract; a caller writing against the base class must catch
+   * {@link InteractiveUnavailableError} instead. `require`s the native module on the first call and
+   * CACHES the answer for the life of this instance, so it is cheap to poll and will not notice a
+   * module installed afterwards.
+   *
+   * `true` does not promise a session: the spawn can still fail, and a missing `cwd` is rejected —
+   * both surface as {@link InteractiveUnavailableError} from `startInteractive`.
+   */
   available(): boolean {
     return this.loadPty() !== null;
   }
@@ -202,6 +256,37 @@ export class PtyInteractiveBackend extends InteractiveBackend {
     }
   }
 
+  /**
+   * Spawn `command` on a real pty and return its id plus whatever it printed during the yield
+   * window.
+   *
+   * ```ts
+   * const { sessionId, output } = await backend.startInteractive("python3 -i");
+   * await backend.writeStdin(sessionId, "print(1+1)\n");
+   * backend.kill(sessionId);
+   * ```
+   *
+   * The command runs as `$SHELL -c <command>`, falling back to `/bin/bash` when `SHELL` is unset —
+   * so shell syntax works, and so does the user's rc-file behaviour. The child inherits
+   * `process.env` WHOLE; there is no allowlist, so every secret in the parent's environment is
+   * visible to it.
+   *
+   * Defaults applied here: `yieldMs` 500 (clamped into [{@link YIELD_MIN_MS},
+   * {@link YIELD_MAX_MS}]), `ttlMs` 300000 (5 min idle, then reaped), `maxBytes` 100000, `cols` 80,
+   * `rows` 24, `cwd` `process.cwd()`.
+   *
+   * IT ALWAYS RESOLVES AFTER THE YIELD WINDOW, never when the program is ready. `output` is
+   * whatever arrived by then, TAIL-capped to `maxBytes` with a `…(truncated)` marker — so a slow
+   * starter returns an empty string that reads exactly like "the program said nothing". Poll with
+   * `writeStdin(id, "")` rather than raising `yieldMs`.
+   *
+   * Throws {@link InteractiveUnavailableError} when `node-pty` is absent, when `cwd` does not exist
+   * (checked here because node-pty spawns a broken session instead of failing), or when the spawn
+   * itself fails. Throws {@link MaxSessionsError} — a SUBCLASS of it, so a `catch` on the parent
+   * swallows the distinction — when `maxSessions` is set and reached.
+   *
+   * The session outlives this call and must be reclaimed: `kill()` it, or let the idle TTL do it.
+   */
   async startInteractive(
     command: string,
     opts?: StartInteractiveOptions,
@@ -244,6 +329,25 @@ export class PtyInteractiveBackend extends InteractiveBackend {
     return { sessionId: id, output };
   }
 
+  /**
+   * Write `chars` to a live session's stdin and return the output produced during the yield window,
+   * plus whether the process is still alive.
+   *
+   * YOU SUPPLY THE NEWLINE. `"print(1+1)"` leaves a REPL waiting; `"print(1+1)\n"` runs it. An
+   * EMPTY `chars` writes nothing and just waits — the supported way to poll a program that is still
+   * producing output.
+   *
+   * Every call resets the idle TTL, so a polled session never gets reaped mid-work. Defaults match
+   * `startInteractive`: `yieldMs` 500 (clamped), `ttlMs` 300000, `maxBytes` 100000 tail-capped.
+   *
+   * Concurrent calls on the same session are SERIALIZED, each reading only its own output window —
+   * two writes in flight cannot steal each other's output. They are not, however, interleaved with
+   * anything the program prints unprompted, which is drained by whichever call is waiting.
+   *
+   * Throws {@link NoSuchSessionError} when the id is unknown, already killed, or was reaped for
+   * idleness. That is a different fact from a failing command: the correct response is to start a
+   * new session, not to report an error from the program.
+   */
   async writeStdin(
     sessionId: string,
     chars: string,
@@ -268,7 +372,14 @@ export class PtyInteractiveBackend extends InteractiveBackend {
     return run;
   }
 
-  /** Kill a single session (idempotent). Kills the whole process GROUP so a detached grandchild dies too. */
+  /**
+   * End a session and free its `maxSessions` slot. Idempotent — an unknown or already-killed id is a
+   * silent no-op, never a throw.
+   *
+   * SIGKILLs the whole process GROUP, so a detached grandchild dies with it; there is no graceful
+   * shutdown and no chance for the program to flush or save. Falls back to killing just the pty
+   * process if the group kill fails. Any output buffered but not yet collected is discarded.
+   */
   kill(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (session === undefined) return;
@@ -286,12 +397,25 @@ export class PtyInteractiveBackend extends InteractiveBackend {
     }
   }
 
-  /** Reap every session — used by the process-exit reaper; also callable on `/clear`. */
+  /**
+   * `kill()` every live session of THIS backend instance. Extra to the `InteractiveBackend`
+   * contract.
+   *
+   * Also runs automatically on the host process's `exit` event, armed lazily on the first
+   * `startInteractive`. Only `exit` — installing SIGINT/SIGTERM handlers would suppress Node's
+   * default terminate-on-signal, so a `kill -9` of the host still orphans the ptys.
+   */
   killAll(): void {
     for (const id of [...this.sessions.keys()]) this.kill(id);
   }
 
-  /** Live session count — for observability / tests. */
+  /**
+   * How many sessions this instance currently holds — the number `maxSessions` is compared against.
+   * Extra to the `InteractiveBackend` contract.
+   *
+   * Drops on its own when a process exits or a TTL fires, so it is a live gauge rather than a
+   * counter, and it never counts sessions belonging to another backend instance.
+   */
   activeSessionCount(): number {
     return this.sessions.size;
   }

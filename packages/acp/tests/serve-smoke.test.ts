@@ -139,6 +139,50 @@ function spawnAcpClient(entryPath: string): { client: StdioClient; teardown: () 
   return { client, teardown };
 }
 
+/**
+ * Budget for the `initialize` handshake, which is NOT a per-request budget: it absorbs the child's
+ * cold start — `node` booting plus the ACP entry importing its whole module graph, `@theokit/sdk`
+ * included — before a single byte of JSON-RPC is answered.
+ *
+ * Measured 2026-08-20. On an idle machine the handshake completes comfortably inside the 5s
+ * per-request default; under `turbo run test` across twelve packages in parallel it exceeded it and
+ * failed as "timeout waiting for initialize", while the same file passed 3/3 in isolation. A test
+ * that passes alone and fails in the suite is a flaky test, and `rules/testing.md` § 3 calls that a
+ * bug rather than a nuisance.
+ *
+ * Raising the per-request default would have slackened every other assertion in this file, most of
+ * which assert that a call fails FAST. Only this one call waits on a process starting, so only this
+ * one gets the larger budget.
+ */
+const HANDSHAKE_TIMEOUT_MS = 20_000;
+
+/**
+ * Budget for a whole spawn-based test. It must EXCEED {@link HANDSHAKE_TIMEOUT_MS}, or vitest kills
+ * the test first and the failure says "Test timed out" instead of naming the RPC that hung — the
+ * package's `testTimeout` is 15s, which is below the handshake budget and would have done exactly
+ * that.
+ *
+ * Applied to EVERY spawning `it` in this file, the wire-flow test included. That one used to carry a
+ * hand-written `30_000`, which is above the package default but below its own worst case: handshake
+ * (20s) + the prompt's explicit 15s + the 5s teardown fallback is 40s. The test with the longest
+ * tail had the smallest margin.
+ */
+const SPAWN_TEST_TIMEOUT_MS = 45_000;
+
+/**
+ * Performs the ACP `initialize` handshake with the cold-start budget above, and RETURNS the response
+ * so a caller can still assert on it. A `void` helper would have forced the wire-flow test — which
+ * asserts `protocolVersion` — to keep its own bare `client.request("initialize", …)` on
+ * `StdioClient.request`'s 5s default, which is the flake this constant exists to remove.
+ */
+async function handshake(client: StdioClient): Promise<{ protocolVersion: number }> {
+  return client.request<{ protocolVersion: number }>(
+    "initialize",
+    { protocolVersion: 1, clientCapabilities: {} },
+    HANDSHAKE_TIMEOUT_MS,
+  );
+}
+
 /** Awaits `promise`, asserting it rejects with an `AcpRpcError` — never merely "it threw"
  *  (`testing.md § 4.1`) — and returns the error so callers assert its `code` and `message`. */
 async function expectAcpError(promise: Promise<unknown>): Promise<AcpRpcError> {
@@ -189,89 +233,93 @@ export default async (sessionId) => {
     for (const p of cleanupExtras) rmSync(p, { force: true });
   });
 
-  it("initializes, opens a session, prompts, cancels, and shuts down cleanly", async () => {
-    const child = spawn("node", [BIN, "--entry", entryPath, "--permission", "auto"], {
-      cwd: process.cwd(),
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, SKIP_OLLAMA_E2E: "1" },
-    });
-
-    const stderrLines: string[] = [];
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderrLines.push(chunk.toString("utf-8"));
-    });
-
-    const client = new StdioClient(child.stdin, child.stdout);
-
-    try {
-      // 1. initialize
-      const init = await client.request<{ protocolVersion: number }>("initialize", {
-        protocolVersion: 1,
-        clientCapabilities: {},
+  it(
+    "initializes, opens a session, prompts, cancels, and shuts down cleanly",
+    async () => {
+      const child = spawn("node", [BIN, "--entry", entryPath, "--permission", "auto"], {
+        cwd: process.cwd(),
+        stdio: ["pipe", "pipe", "pipe"],
+        env: { ...process.env, SKIP_OLLAMA_E2E: "1" },
       });
-      expect(init.protocolVersion).toBeTypeOf("number");
-      expect(init.protocolVersion).toBeGreaterThan(0);
 
-      // 2. new_session
-      const session = await client.request<{ sessionId: string }>("session/new", {
-        cwd: workDir,
-        mcpServers: [],
+      const stderrLines: string[] = [];
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderrLines.push(chunk.toString("utf-8"));
       });
-      expect(session.sessionId).toMatch(/^[0-9a-f-]{36}$/);
 
-      // 3. prompt — B-112. The smoke test's name and docblock promised "prompt → response with
-      //    stopReason" but never sent `session/prompt`; this is the actual wire round-trip. Fixture
-      //    mode (`theo_test_*` apiKey, no THEOKIT_API_BASE_URL) makes the run deterministic: it
-      //    always finishes, so the mapped stop reason is "end_turn" (prompt-handler.ts's
-      //    `mapStopReason`) — never the fabricated fallback B-125 removed.
-      const prompted = await client.request<{ stopReason: string }>(
-        "session/prompt",
-        {
-          sessionId: session.sessionId,
-          prompt: [{ type: "text", text: "say hello" }],
-        },
-        15_000,
-      );
-      expect(prompted.stopReason).toBe("end_turn");
+      const client = new StdioClient(child.stdin, child.stdout);
 
-      // 4. cancel — a notification, so the server owes no response to it. Liveness afterwards is
-      //    the whole point of the step.
-      //
-      // B-055. This used to sleep 50ms and infer survival from the absence of a crash. That is an
-      // assumption about subprocess scheduling wearing the clothes of an assertion: a server that
-      // died at 60ms passed, and a server that was merely slow to start could pass without ever
-      // having processed the cancel. Nothing was asserted at all.
-      //
-      // A follow-up REQUEST is the signal the server itself emits. `session/list` is read-only, so
-      // it proves three things the sleep could not: the process is alive, its JSON-RPC loop still
-      // answers, and the cancel did not destroy the session (cancel aborts work, it is not a
-      // delete). It is also ordered by the transport rather than by the clock — a single stdio
-      // stream dispatches the notification before the request that follows it on the wire.
-      client.notify("session/cancel", { sessionId: session.sessionId });
+      try {
+        // 1. initialize — through `handshake()` for the cold-start budget. This call spawns the same
+        //    child and absorbs the same `node` boot + `@theokit/sdk` module graph as the seven tests
+        //    below; left on the 5s per-request default it was the one remaining source of the
+        //    "timeout waiting for initialize" flake under `turbo run test`.
+        const init = await handshake(client);
+        expect(init.protocolVersion).toBeTypeOf("number");
+        expect(init.protocolVersion).toBeGreaterThan(0);
 
-      const listed = await client.request<{ sessions: Array<{ sessionId: string }> }>(
-        "session/list",
-        {},
-      );
-      expect(
-        listed.sessions.map((s) => s.sessionId),
-        "the server must still answer after a cancel, with the session intact",
-      ).toContain(session.sessionId);
-    } finally {
-      child.stdin.end();
-      await new Promise<void>((resolve) => {
-        child.once("exit", () => resolve());
-        setTimeout(() => {
-          child.kill();
-          resolve();
-        }, 5000);
-      });
-    }
+        // 2. new_session
+        const session = await client.request<{ sessionId: string }>("session/new", {
+          cwd: workDir,
+          mcpServers: [],
+        });
+        expect(session.sessionId).toMatch(/^[0-9a-f-]{36}$/);
 
-    // Server should have logged session creation + cleanup to stderr.
-    const stderr = stderrLines.join("");
-    expect(stderr).toMatch(/\[acp\] stdin closed; disposing/);
-  }, 30_000);
+        // 3. prompt — B-112. The smoke test's name and docblock promised "prompt → response with
+        //    stopReason" but never sent `session/prompt`; this is the actual wire round-trip. Fixture
+        //    mode (`theo_test_*` apiKey, no THEOKIT_API_BASE_URL) makes the run deterministic: it
+        //    always finishes, so the mapped stop reason is "end_turn" (prompt-handler.ts's
+        //    `mapStopReason`) — never the fabricated fallback B-125 removed.
+        const prompted = await client.request<{ stopReason: string }>(
+          "session/prompt",
+          {
+            sessionId: session.sessionId,
+            prompt: [{ type: "text", text: "say hello" }],
+          },
+          15_000,
+        );
+        expect(prompted.stopReason).toBe("end_turn");
+
+        // 4. cancel — a notification, so the server owes no response to it. Liveness afterwards is
+        //    the whole point of the step.
+        //
+        // B-055. This used to sleep 50ms and infer survival from the absence of a crash. That is an
+        // assumption about subprocess scheduling wearing the clothes of an assertion: a server that
+        // died at 60ms passed, and a server that was merely slow to start could pass without ever
+        // having processed the cancel. Nothing was asserted at all.
+        //
+        // A follow-up REQUEST is the signal the server itself emits. `session/list` is read-only, so
+        // it proves three things the sleep could not: the process is alive, its JSON-RPC loop still
+        // answers, and the cancel did not destroy the session (cancel aborts work, it is not a
+        // delete). It is also ordered by the transport rather than by the clock — a single stdio
+        // stream dispatches the notification before the request that follows it on the wire.
+        client.notify("session/cancel", { sessionId: session.sessionId });
+
+        const listed = await client.request<{ sessions: Array<{ sessionId: string }> }>(
+          "session/list",
+          {},
+        );
+        expect(
+          listed.sessions.map((s) => s.sessionId),
+          "the server must still answer after a cancel, with the session intact",
+        ).toContain(session.sessionId);
+      } finally {
+        child.stdin.end();
+        await new Promise<void>((resolve) => {
+          child.once("exit", () => resolve());
+          setTimeout(() => {
+            child.kill();
+            resolve();
+          }, 5000);
+        });
+      }
+
+      // Server should have logged session creation + cleanup to stderr.
+      const stderr = stderrLines.join("");
+      expect(stderr).toMatch(/\[acp\] stdin closed; disposing/);
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 
   it("rejects invalid entry with non-zero exit", async () => {
     const child = spawn("node", [BIN, "--entry", "/does/not/exist.ts"], {
@@ -337,126 +385,154 @@ export default async (sessionId) => {
     rmSync(entryPath, { force: true });
   });
 
-  it("authenticate — the real handler runs and returns the empty success ACP expects", async () => {
-    const { client, teardown } = spawnAcpClient(entryPath);
-    try {
-      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
-      // D350: auth is deferred to v0.2, so every methodId is accepted the same way. Asserting
-      // the exact empty-object response (not merely "it didn't throw") is what a mutant that
-      // changed the shape or added a thrown error would fail.
-      const result = await client.request("authenticate", { methodId: "none" });
-      expect(result).toEqual({});
-    } finally {
-      await teardown();
-    }
-  });
+  it(
+    "authenticate — the real handler runs and returns the empty success ACP expects",
+    async () => {
+      const { client, teardown } = spawnAcpClient(entryPath);
+      try {
+        await handshake(client);
+        // D350: auth is deferred to v0.2, so every methodId is accepted the same way. Asserting
+        // the exact empty-object response (not merely "it didn't throw") is what a mutant that
+        // changed the shape or added a thrown error would fail.
+        const result = await client.request("authenticate", { methodId: "none" });
+        expect(result).toEqual({});
+      } finally {
+        await teardown();
+      }
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 
-  it("session/new — an unresolvable cwd drives the newSession error branch, and the client receives the specific JSON-RPC error", async () => {
-    const { client, teardown } = spawnAcpClient(entryPath);
-    try {
-      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
-      const missingCwd = join(workDir, "does-not-exist");
-      const err = await expectAcpError(
-        client.request("session/new", { cwd: missingCwd, mcpServers: [] }),
-      );
-      expect(err.code).toBe(ACP_ERR.INVALID_REQUEST);
-      expect(err.message).toBe(`cwd not found: ${missingCwd}`);
-    } finally {
-      await teardown();
-    }
-  });
+  it(
+    "session/new — an unresolvable cwd drives the newSession error branch, and the client receives the specific JSON-RPC error",
+    async () => {
+      const { client, teardown } = spawnAcpClient(entryPath);
+      try {
+        await handshake(client);
+        const missingCwd = join(workDir, "does-not-exist");
+        const err = await expectAcpError(
+          client.request("session/new", { cwd: missingCwd, mcpServers: [] }),
+        );
+        expect(err.code).toBe(ACP_ERR.INVALID_REQUEST);
+        expect(err.message).toBe(`cwd not found: ${missingCwd}`);
+      } finally {
+        await teardown();
+      }
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 
-  it("session/prompt — an unknown sessionId drives the prompt error branch, and the client receives the specific JSON-RPC error", async () => {
-    const { client, teardown } = spawnAcpClient(entryPath);
-    try {
-      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
-      const err = await expectAcpError(
-        client.request("session/prompt", {
-          sessionId: "no-such-session",
-          prompt: [{ type: "text", text: "hello" }],
-        }),
-      );
-      expect(err.code).toBe(ACP_ERR.INVALID_SESSION);
-      expect(err.message).toBe("unknown session: no-such-session");
-    } finally {
-      await teardown();
-    }
-  });
+  it(
+    "session/prompt — an unknown sessionId drives the prompt error branch, and the client receives the specific JSON-RPC error",
+    async () => {
+      const { client, teardown } = spawnAcpClient(entryPath);
+      try {
+        await handshake(client);
+        const err = await expectAcpError(
+          client.request("session/prompt", {
+            sessionId: "no-such-session",
+            prompt: [{ type: "text", text: "hello" }],
+          }),
+        );
+        expect(err.code).toBe(ACP_ERR.INVALID_SESSION);
+        expect(err.message).toBe("unknown session: no-such-session");
+      } finally {
+        await teardown();
+      }
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 
-  it("session/load — a sessionId already open in this process rejects on the store guard (accepted by the cwd guard first)", async () => {
-    const { client, teardown } = spawnAcpClient(entryPath);
-    try {
-      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
-      const session = await client.request<{ sessionId: string }>("session/new", {
-        cwd: workDir,
-        mcpServers: [],
-      });
-      const err = await expectAcpError(
-        client.request("session/load", {
-          sessionId: session.sessionId,
+  it(
+    "session/load — a sessionId already open in this process rejects on the store guard (accepted by the cwd guard first)",
+    async () => {
+      const { client, teardown } = spawnAcpClient(entryPath);
+      try {
+        await handshake(client);
+        const session = await client.request<{ sessionId: string }>("session/new", {
           cwd: workDir,
           mcpServers: [],
-        }),
-      );
-      expect(err.code).toBe(ACP_ERR.INVALID_REQUEST);
-      expect(err.message).toBe(`session ${session.sessionId} already loaded`);
-    } finally {
-      await teardown();
-    }
-  });
+        });
+        const err = await expectAcpError(
+          client.request("session/load", {
+            sessionId: session.sessionId,
+            cwd: workDir,
+            mcpServers: [],
+          }),
+        );
+        expect(err.code).toBe(ACP_ERR.INVALID_REQUEST);
+        expect(err.message).toBe(`session ${session.sessionId} already loaded`);
+      } finally {
+        await teardown();
+      }
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 
-  it("session/load — a sessionId this process never created passes the store guard and fails at Agent.resume, with the serverless hint attached", async () => {
-    const { client, teardown } = spawnAcpClient(entryPath);
-    try {
-      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
-      const unknownId = "11111111-1111-4111-8111-111111111111";
-      const err = await expectAcpError(
-        client.request("session/load", { sessionId: unknownId, cwd: workDir, mcpServers: [] }),
-      );
-      expect(err.code).toBe(ACP_ERR.INVALID_SESSION);
-      expect(err.message).toBe(
-        `session not found: ${unknownId} — if running on serverless/multi-host infra, pass ` +
-          "conversationStorage to Agent.create (see docs/recipes/conversation-storage-postgres.md)",
-      );
-    } finally {
-      await teardown();
-    }
-  });
+  it(
+    "session/load — a sessionId this process never created passes the store guard and fails at Agent.resume, with the serverless hint attached",
+    async () => {
+      const { client, teardown } = spawnAcpClient(entryPath);
+      try {
+        await handshake(client);
+        const unknownId = "11111111-1111-4111-8111-111111111111";
+        const err = await expectAcpError(
+          client.request("session/load", { sessionId: unknownId, cwd: workDir, mcpServers: [] }),
+        );
+        expect(err.code).toBe(ACP_ERR.INVALID_SESSION);
+        expect(err.message).toBe(
+          `session not found: ${unknownId} — if running on serverless/multi-host infra, pass ` +
+            "conversationStorage to Agent.create (see docs/recipes/conversation-storage-postgres.md)",
+        );
+      } finally {
+        await teardown();
+      }
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 
-  it("session/fork — a parent never loaded in this process rejects on the lookup guard", async () => {
-    const { client, teardown } = spawnAcpClient(entryPath);
-    try {
-      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
-      const unknownId = "22222222-2222-4222-8222-222222222222";
-      const err = await expectAcpError(
-        client.request("session/fork", { sessionId: unknownId, cwd: workDir }),
-      );
-      expect(err.code).toBe(ACP_ERR.INVALID_SESSION);
-      expect(err.message).toBe(`parent session not loaded: ${unknownId}`);
-    } finally {
-      await teardown();
-    }
-  });
+  it(
+    "session/fork — a parent never loaded in this process rejects on the lookup guard",
+    async () => {
+      const { client, teardown } = spawnAcpClient(entryPath);
+      try {
+        await handshake(client);
+        const unknownId = "22222222-2222-4222-8222-222222222222";
+        const err = await expectAcpError(
+          client.request("session/fork", { sessionId: unknownId, cwd: workDir }),
+        );
+        expect(err.code).toBe(ACP_ERR.INVALID_SESSION);
+        expect(err.message).toBe(`parent session not loaded: ${unknownId}`);
+      } finally {
+        await teardown();
+      }
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 
-  it("session/fork — a real parent PASSES the lookup guard, landing on the documented v0.2 deferral instead of the lookup error", async () => {
-    const { client, teardown } = spawnAcpClient(entryPath);
-    try {
-      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
-      const session = await client.request<{ sessionId: string }>("session/new", {
-        cwd: workDir,
-        mcpServers: [],
-      });
-      const err = await expectAcpError(
-        client.request("session/fork", { sessionId: session.sessionId, cwd: workDir }),
-      );
-      // Distinct from the previous test's INVALID_SESSION: proves the guard let this input
-      // through rather than rejecting every input the same way (testing.md § 4.2).
-      expect(err.code).toBe(ACP_ERR.INVALID_REQUEST);
-      expect(err.message).toBe(
-        "session/fork is deferred to @theokit/acp v0.2 — current SDK fork is a one-shot sub-run, not a session split",
-      );
-    } finally {
-      await teardown();
-    }
-  });
+  it(
+    "session/fork — a real parent PASSES the lookup guard, landing on the documented v0.2 deferral instead of the lookup error",
+    async () => {
+      const { client, teardown } = spawnAcpClient(entryPath);
+      try {
+        await handshake(client);
+        const session = await client.request<{ sessionId: string }>("session/new", {
+          cwd: workDir,
+          mcpServers: [],
+        });
+        const err = await expectAcpError(
+          client.request("session/fork", { sessionId: session.sessionId, cwd: workDir }),
+        );
+        // Distinct from the previous test's INVALID_SESSION: proves the guard let this input
+        // through rather than rejecting every input the same way (testing.md § 4.2).
+        expect(err.code).toBe(ACP_ERR.INVALID_REQUEST);
+        expect(err.message).toBe(
+          "session/fork is deferred to @theokit/acp v0.2 — current SDK fork is a one-shot sub-run, not a session split",
+        );
+      } finally {
+        await teardown();
+      }
+    },
+    SPAWN_TEST_TIMEOUT_MS,
+  );
 });

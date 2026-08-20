@@ -75,6 +75,22 @@ export interface CreateListDirToolOptions {
   filesystem?: FilesystemProvider;
 }
 
+/**
+ * Build the `list_dir` tool: the direct entries of one directory as `{ name, type }`. Never
+ * recursive — use `glob_files` to search a tree.
+ *
+ * The result always carries `truncated` and `totalCount`, so an agent that hits the `max` cap
+ * (default 500) can tell a large directory from a complete listing and switch to `glob_files` or
+ * `search_text`. There is no offset input, so paging past the cap is not possible; `totalCount`
+ * counts everything the directory holds, including what was cut.
+ *
+ * `path` is project-relative and `"."` means the root. Refusals are `forbidden_path`,
+ * `path_traversal` and `not_found`, the last of which also covers a path that exists but is a file.
+ *
+ * On a `filesystem` backend each entry costs a `stat` to learn its type, and an entry whose `stat`
+ * fails is reported as a file rather than dropped — so `type` is best-effort there and exact on the
+ * local path.
+ */
 export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
   const { projectRoot, max = DEFAULT_MAX_ENTRIES, filesystem } = opts;
 

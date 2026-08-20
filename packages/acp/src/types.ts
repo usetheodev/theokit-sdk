@@ -7,90 +7,171 @@
 import type { SDKAgent } from "@theokit/sdk";
 
 /**
- * Factory function shape: receives the ACP session id (UUID) and returns
- * a fresh `SDKAgent` for that session. Per D351, this enforces per-session
- * conversation isolation when consumers want it.
+ * Builds the agent that will serve one ACP session.
+ *
+ * Called once per `session/new`, with a freshly generated UUID, and awaited. Returning a NEW agent
+ * per call is what gives each session its own conversation state (D351); returning the same instance
+ * every time is the shared-state shape described on {@link AgentOrFactory}.
+ *
+ * A throw or rejection here is reported to the host as JSON-RPC `-32603`, message
+ * `agent factory threw: <your message>`, and no session is created.
  *
  * @public
  */
 export type AgentFactory = (sessionId: string) => SDKAgent | Promise<SDKAgent>;
 
 /**
- * Acceptable shapes for `serveAcp({ agent })`:
- *   - `AgentFactory`: per-session isolation (recommended).
- *   - `SDKAgent`: single shared agent — emits one-time stderr warning.
+ * What `serveAcp({ agent })` accepts.
+ *
+ * - {@link AgentFactory} — one agent per session. Recommended.
+ * - `SDKAgent` — one agent for the whole process. Legal, but every ACP session then appends to the
+ *   SAME conversation; `serveAcp` writes a one-time warning through its `log` and carries on.
+ *
+ * Anything else (a plain object, `null`, a string) makes `serveAcp` fail with an
+ * `InvalidAgentError` before a single byte of protocol is read. `serveAcp` is `async`, so that
+ * arrives as a REJECTED PROMISE, never as a synchronous throw — `try { serveAcp(...) } catch` around
+ * the call alone catches nothing. The class is not exported either (see {@link serveAcp}); match on
+ * `err.name`. The duck-test is narrow: an object qualifies only when it has a string `agentId` and a
+ * callable `send`.
  *
  * @public
  */
 export type AgentOrFactory = AgentFactory | SDKAgent;
 
 /**
- * Permission mode controlling how tool calls flow through ACP permission
- * round-trip (D355).
+ * How tool calls are gated before they execute (D355).
+ *
+ * - `"ask"` (default) — every tool call except the ones named in `trustedTools` round-trips through
+ *   the host's `session/request_permission`. A `deny` choice, a cancelled request, a transport
+ *   failure, or `permissionTimeoutMs` elapsing all BLOCK the call.
+ * - `"auto"` — no gating whatsoever: the veto plugin is never installed, so `trustedTools` AND
+ *   `permissionTimeoutMs` are silently ignored in this mode.
+ * - `"deny"` — blocks every tool call without asking the host. `trustedTools` does NOT exempt
+ *   anything here: the deny branch is evaluated before the trusted-tool check.
+ *
+ * `"ask"` and `"deny"` fail closed. When the runtime has no plugin manager to hang the veto on (a
+ * cloud-backed agent, for instance), the prompt is refused with `-32603` rather than executed
+ * ungated — a security control that cannot be installed must not silently degrade to `"auto"`.
  *
  * @public
  */
 export type PermissionMode = "ask" | "auto" | "deny";
 
 /**
- * Capabilities advertised in the ACP `initialize` handshake. Users may
- * override any subset; defaults are loaded internally.
+ * Overrides for the capabilities advertised in the ACP `initialize` handshake.
+ *
+ * Only `loadSession` and the three `prompt` flags reach the wire. `forkSession` and `listSessions`
+ * are accepted by this type and never advertised — setting them changes nothing today.
  *
  * @public
  */
 export interface AcpCapabilities {
+  /** Advertise `session/load`. Default `true`. The handler needs the SDK to be able to resume that id. */
   loadSession?: boolean;
+  /**
+   * Not advertised, and not honoured: `session/fork` has no success path in v0.1. It is always
+   * refused, but NOT always with the same code — the handler validates before it defers, so the code
+   * names which thing was wrong:
+   *
+   * - `-32001` (`INVALID_SESSION`, `parent session not loaded: <id>`) when this process's session
+   *   store does not hold the parent. The store is in-memory and per-process, so after a restart —
+   *   or on any host that did not create the session here — this is the ORDINARY answer, not an
+   *   exotic one. A host that branches on `-32602` alone to fall back to `session/new` will miss it.
+   * - `-32602` (`INVALID_REQUEST`) only once the parent lookup has SUCCEEDED: for a `cwd` that does
+   *   not resolve, and otherwise for the "deferred to @theokit/acp v0.2" message.
+   *
+   * Present so the field does not have to be added back in a minor.
+   */
   forkSession?: boolean;
+  /** Not advertised. `session/list` is answered regardless, from the in-memory store. */
   listSessions?: boolean;
+  /** Prompt content the host may send. Anything disabled here is a hint to the host, not a guard. */
   prompt?: {
+    /** Default `false`. Audio blocks are still accepted and counted against `maxPromptBytes`. */
     audio?: boolean;
+    /** Default `true`. */
     embeddedContext?: boolean;
+    /** Default `true`. Images are accepted but only the TEXT blocks of a prompt reach the agent. */
     image?: boolean;
   };
 }
 
 /**
- * Display info for the agent in the ACP host UI.
+ * Display info for the agent in an ACP host UI.
+ *
+ * **Not wired.** Nothing reads this today: the `initialize` response carries `protocolVersion`,
+ * `agentCapabilities` and an empty `authMethods`, and no agent name. Passing `info` is accepted and
+ * has no observable effect on the handshake.
  *
  * @public
  */
 export interface AcpAgentInfo {
+  /** Machine-ish identifier, e.g. `"my-bot"`. */
   name: string;
+  /** Human label preferred by a UI over `name`. */
   title?: string;
+  /** Semver of the agent, not of this package. */
   version: string;
 }
 
 /**
- * Options for `serveAcp()`.
+ * Options for {@link serveAcp}. Every field but `agent` is optional and every default is listed
+ * below — this object is the whole configuration surface, nothing is read from env or disk.
  *
  * @public
  */
 export interface AcpServerOptions {
-  /** Single agent OR factory `(sessionId) => SDKAgent`. Required. */
+  /** The agent, or a per-session factory. Required; an unusable value throws before serving. */
   agent: AgentOrFactory;
-  /** Display info advertised in `initialize`. Defaults to package metadata. */
+  /** Accepted and currently ignored — see {@link AcpAgentInfo}. */
   info?: AcpAgentInfo;
-  /** Capability overrides for the `initialize` handshake. */
+  /** Handshake capability overrides. Only a subset is honoured — see {@link AcpCapabilities}. */
   capabilities?: AcpCapabilities;
-  /** Permission mode (default `"ask"`). See D355. */
+  /** Default `"ask"`. Read {@link PermissionMode} before choosing: `"auto"` disables the two fields below. */
   permissionDefault?: PermissionMode;
-  /** Timeout (ms) for `requestPermission` round-trip before vetoing (default 60_000). EC-2. */
+  /**
+   * How long to wait for the host to answer `session/request_permission` before BLOCKING the tool
+   * call (fail-closed, EC-2). Default `60_000` ms. Ignored unless `permissionDefault` is `"ask"`.
+   */
   permissionTimeoutMs?: number;
-  /** Tool names that bypass `ask` mode. */
+  /**
+   * Tool names that skip the permission round-trip. Matched by exact tool name.
+   *
+   * Effective in `"ask"` mode ONLY: `"auto"` never installs the plugin, and `"deny"` blocks these
+   * too.
+   */
   trustedTools?: ReadonlyArray<string>;
-  /** Cap on total prompt bytes (default 2 MiB). D360. */
+  /**
+   * Ceiling on the ACCUMULATED size of one prompt, in bytes. Default `2 * 1024 * 1024` (2 MiB), D360.
+   *
+   * Counted per block and summed: UTF-8 bytes for text, base64-DECODED bytes for image and audio,
+   * the URI for a resource link, the JSON form for an embedded resource. Crossing it rejects the
+   * whole prompt with `-32602` — see {@link PromptTooLargeError}.
+   */
   maxPromptBytes?: number;
-  /** Logger — defaults to `process.stderr.write` per D359. */
+  /**
+   * Sink for this package's diagnostics — one line per call, newline NOT included.
+   *
+   * Defaults to a write to `process.stderr` (D359). Never route this to stdout: stdout carries the
+   * JSON-RPC frames.
+   */
   log?: (msg: string) => void;
-  /** Override stdin (test seam). */
+  /** Override the protocol input stream. Defaults to `process.stdin`. Test seam. */
   stdin?: NodeJS.ReadableStream;
-  /** Override stdout (test seam). */
+  /** Override the protocol output stream. Defaults to `process.stdout`. Test seam. */
   stdout?: NodeJS.WritableStream;
 }
 
 /**
- * Thrown by `extractPrompt` when the decoded prompt exceeds `maxPromptBytes`.
- * Public so callers can `instanceof` it.
+ * Raised when a prompt's accumulated size passes `maxPromptBytes` (D360).
+ *
+ * `size` is the running total AT the block that crossed the limit, not the size of the full prompt:
+ * extraction stops at the first offending block, so blocks after it are never measured.
+ *
+ * Under {@link serveAcp} this never escapes to the caller — it is caught and returned to the ACP
+ * host as JSON-RPC `-32602` carrying `message` verbatim (`prompt exceeds N bytes (got M)`). The
+ * class is exported so that text has a named origin; the extractor that throws it is not part of the
+ * public surface, so there is no supported call site where a consumer can `instanceof` it directly.
  *
  * @public
  */

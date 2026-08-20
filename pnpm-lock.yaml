@@ -265,6 +265,9 @@ importers:
 
   packages/sdk-cache:
     devDependencies:
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
       '@theokit/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -283,6 +286,9 @@ importers:
 
   packages/sdk-handoff:
     devDependencies:
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
       '@theokit/sdk':
         specifier: workspace:*
         version: link:../sdk

@@ -29,6 +29,28 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "text-embedding-ada-002": 1536,
 };
 
+/**
+ * Azure OpenAI embeddings. Same models as the OpenAI adapter, addressed the
+ * Azure way, and the one adapter whose configuration is not just "set a key".
+ *
+ * Two things differ from every other adapter here. `model` names your Azure
+ * DEPLOYMENT, not an OpenAI model id — it is substituted into the path
+ * (`/openai/deployments/{model}/embeddings`) rather than sent in the body. And
+ * `AZURE_OPENAI_ENDPOINT` must be set to your resource URL, without the
+ * `/openai/...` suffix; the built-in default is a placeholder that resolves
+ * nowhere, so leaving it unset fails at the network rather than at
+ * configuration.
+ *
+ * Authentication uses the `api-key` header, which is what an Azure resource key
+ * expects; Entra ID bearer tokens are not supported by this adapter. Reads
+ * `AZURE_OPENAI_API_KEY`. The API version is pinned to `2024-02-01`.
+ *
+ * The deployment name still has to appear in the dimension table
+ * (`text-embedding-3-small`, `-3-large`, `ada-002`), so a deployment named
+ * anything else is refused with `embedding_unknown_model` — pass `model` as the
+ * matching id and point the base URL at the right deployment, or add the name to
+ * the table.
+ */
 export const azureOpenAiMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "azure-openai",
   defaultModel: DEFAULT_AZURE_OPENAI_EMBEDDING_MODEL,

@@ -1,14 +1,17 @@
 /**
  * ACP lifecycle handlers (D352, D354, EC-1/3/5/6).
  *
- * - handleInitialize: capability advertisement (D353)
- * - handleNewSession: Agent.create via factory (D351)
- * - handleLoadSession: Agent.resume({ agentId: sessionId }) (D352, EC-6)
- * - handleForkSession: agent.fork() (D352, EC-3)
- * - handleListSessions: snapshot of in-memory sessions
- * - handleCancel: fire lifecycle abort (D354)
+ * - `buildInitializeResponse` — capability advertisement (D353)
+ * - `handleNewSession` — mint a UUID, build the agent through the factory (D351)
+ * - `handleLoadSession` — `Agent.resume(sessionId, { local: { cwd } })` (D352, EC-6)
+ * - `handleForkSession` — refuses every request; `INVALID_SESSION` when the parent is not in the
+ *   store, `INVALID_REQUEST` once it is; deferred to v0.2 (D352, EC-3)
+ * - `handleListSessions` — snapshot of the in-memory store
+ * - `handleCancel` — abort the session's `AbortController` (D354)
  *
- * All handlers are pure functions over `(params, deps)`. `serve.ts` wires them.
+ * Each takes `(params, deps)` and returns either `{ response }` or `{ error }` so `serve.ts` can map
+ * the error onto `acp.RequestError` at one place. They are NOT pure: they mint ids, read the clock
+ * and mutate the session store.
  *
  * @internal
  */
@@ -27,6 +30,14 @@ interface InitializeDeps {
   capabilities?: AcpCapabilities;
 }
 
+/**
+ * Build the `initialize` reply. Ignores the request entirely — the negotiated protocol version is
+ * always `acp.PROTOCOL_VERSION` from the installed `@agentclientprotocol/sdk`, never the client's.
+ *
+ * Advertises `loadSession` (default `true`) and the three prompt flags (`image` and
+ * `embeddedContext` default `true`, `audio` defaults `false`). `authMethods` is always empty, and
+ * `AcpCapabilities.forkSession` / `.listSessions` / `AcpServerOptions.info` are not advertised at all.
+ */
 export function buildInitializeResponse(
   _params: acp.InitializeRequest,
   deps: InitializeDeps,
@@ -56,13 +67,24 @@ interface NewSessionDeps {
 
 type AcpResult<T> = { ok: true; value: T } | { ok: false; error: AcpError };
 
+/** A JSON-RPC error a handler wants `serve.ts` to raise. `data` is accepted but never sent today. */
 export interface AcpError {
   code: number;
   message: string;
   data?: unknown;
 }
 
-/** JSON-RPC error codes per ACP spec. */
+/**
+ * The JSON-RPC codes this package names. Only THREE of the four are ever emitted:
+ * `INVALID_REQUEST`, `INTERNAL_ERROR` and `INVALID_SESSION`.
+ *
+ * `AUTH_REQUIRED` has no producer anywhere in `packages/acp` — `serve.ts`'s `authenticate` answers an
+ * empty success without checking anything (D350), so no path reaches `-32002`. It is a value reserved
+ * for the deferred auth work, not a code a host can observe today.
+ *
+ * `INVALID_REQUEST` is `-32602` (JSON-RPC "invalid params"), not `-32600` — the name predates the
+ * value and the value is what goes on the wire.
+ */
 export const ACP_ERR = {
   INVALID_REQUEST: -32_602,
   INTERNAL_ERROR: -32_603,
@@ -91,6 +113,15 @@ function resolveCwdOrError(rawCwd: string | undefined): AcpResult<string> {
   return { ok: true, value: resolved };
 }
 
+/**
+ * Create a session: validate `params.cwd`, mint a UUID, await the factory, register the session.
+ *
+ * `cwd` is required and must already exist — it is resolved against the SERVER process's cwd when
+ * relative, and never created. The generated id is what the host must quote in every later request.
+ *
+ * Errors: `INVALID_REQUEST` when `cwd` is missing/empty/absent from disk; `INTERNAL_ERROR` when the
+ * factory throws. The store is left untouched on either.
+ */
 export async function handleNewSession(
   params: acp.NewSessionRequest,
   deps: NewSessionDeps,
@@ -136,6 +167,17 @@ interface LoadSessionDeps {
 const STORAGE_HINT =
   " — if running on serverless/multi-host infra, pass conversationStorage to Agent.create (see docs/recipes/conversation-storage-postgres.md)";
 
+/**
+ * Re-attach to a conversation the SDK already persisted, keyed by `params.sessionId` as the agentId.
+ *
+ * Resolves it through `Agent.resume`, so it only succeeds where that agent's conversation storage is
+ * reachable from THIS process — the default local store is per-host, which is why the failure
+ * message carries a serverless hint.
+ *
+ * Errors: `INVALID_REQUEST` for a bad `cwd` or an id this process already holds (loading twice is
+ * refused rather than replacing the live session); `INVALID_SESSION` when the resume fails, whatever
+ * the underlying cause. Returns an EMPTY response on success — the id the host sent stays valid.
+ */
 export async function handleLoadSession(
   params: acp.LoadSessionRequest,
   deps: LoadSessionDeps,
@@ -187,6 +229,15 @@ interface ForkSessionDeps {
   log: (msg: string) => void;
 }
 
+/**
+ * Refuses every fork request. There is no success path in v0.1.
+ *
+ * It still validates first, so the code tells the host WHICH thing was wrong: `INVALID_SESSION` when
+ * the parent is not loaded here, `INVALID_REQUEST` for an unusable `cwd`, and otherwise
+ * `INVALID_REQUEST` with the "deferred to v0.2" message. The SDK's `agent.fork()` is a one-shot
+ * ephemeral sub-run (D110-D114), not a session split, so wiring it here would give hosts a
+ * session id that dies after one turn (EC-3).
+ */
 export async function handleForkSession(
   params: acp.ForkSessionRequest,
   deps: ForkSessionDeps,
@@ -230,6 +281,13 @@ export async function handleForkSession(
 
 // ===== listSessions =====
 
+/**
+ * Snapshot the sessions THIS process is holding in memory. Never errors, ignores every filter on the
+ * request, and does not read persisted conversations — a restart empties it.
+ *
+ * `title` is the agent's `agentId`, `lastUpdatedAt` is the last time a prompt or cancel touched the
+ * session (not the last agent output).
+ */
 export function handleListSessions(
   _params: acp.ListSessionsRequest,
   store: SessionStore,
@@ -249,6 +307,14 @@ interface CancelDeps {
   store: SessionStore;
 }
 
+/**
+ * Abort the in-flight turn of a session. Idempotent, and silently succeeds for an unknown id —
+ * `session/cancel` is a notification, so there is no channel to report one.
+ *
+ * One-way: the session owns a single `AbortController` created at session creation, and nothing in
+ * this package re-arms or replaces it. Every subsequent prompt on that session is therefore handed
+ * an already-aborted signal, both to `agent.send` and to the stream translator.
+ */
 export function handleCancel(params: acp.CancelNotification, deps: CancelDeps): void {
   const session = deps.store.get(params.sessionId);
   if (session === undefined) return; // idempotent — silently succeed on unknown sessionId

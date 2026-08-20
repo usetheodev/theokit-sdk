@@ -81,6 +81,53 @@ const WorkflowOptionsSchema = z.object({
 
 /* ─── Builder ─── */
 
+/**
+ * Fluent step accumulator returned by {@link Workflow.create}. Each method
+ * appends a step and returns the SAME builder (mutated in place, never a copy);
+ * `.commit()` freezes the list into a {@link Workflow} and mints the id its
+ * single-flight lock uses.
+ *
+ *   const wf = Workflow.create({ name: "demo" })
+ *     .then(fn("validate", (i: { id: string }) => i))
+ *     .commit();
+ *
+ * You never construct one directly — `Workflow.create(options)` validates the
+ * options with Zod and hands it back. Import it from `@theokit/sdk/workflow`; the
+ * root `@theokit/sdk` barrel does not export it.
+ *
+ * How it fails:
+ *  - Every appending method throws a plain `Error` after `.commit()` —
+ *    "Workflow already committed; create a fresh Workflow.create(...) call." A
+ *    builder is single-use.
+ *  - A step id is validated on the spot by `sanitizeIdentifier`
+ *    (`^[a-z0-9][a-z0-9-_]*$`, max 64 chars) and a rejection throws one of TWO
+ *    classes, not a plain `Error` and not one class: an id carrying a NUL (`0x00`),
+ *    a C0 control char (`0x01`-`0x1f`) or DEL (`0x7f`) throws `PathTraversalError`
+ *    with code `path_traversal`; every other rejection — length, a space, `/`, `..`,
+ *    a leading `-` — throws `ConfigurationError` with code `invalid_identifier`.
+ *    `PathTraversalError` extends `ConfigurationError`, so catching the base class
+ *    catches both; branching on `code === "invalid_identifier"` alone does not
+ *    (usetheokit/theokit-sdk#368).
+ *  - `sleep(durationMs)` throws a plain `Error` on a negative or non-finite value.
+ *  - A duplicate id anywhere in the tree, including inside `parallel`, `branch`,
+ *    `foreach` and `dowhile`, throws `WorkflowDuplicateStepIdError` at
+ *    `.commit()` — not at the `.then()` that introduced it.
+ *
+ * Traps:
+ *  - `.then(step)` is a STEP APPENDER, not a promise continuation. That makes the
+ *    builder a JavaScript thenable, so `await Workflow.create({ ... })` — the
+ *    shape `await Agent.create({ ... })` trains you into — is a mistake:
+ *    TypeScript rejects it (TS1320) and plain JavaScript throws an unrelated
+ *    `TypeError: Cannot read properties of undefined (reading 'length')` out of
+ *    the id validator. `Workflow.create` is synchronous.
+ *  - `parallel`, `branch`, `foreach`, `dowhile` and `suspend` widen the output
+ *    type to `unknown` (or `unknown[]`); only `.then<T>()` and `sleep` carry a
+ *    type through. The generics are a convenience, not a checked pipeline —
+ *    nothing verifies that one step's output matches the next step's input.
+ *  - Auto-generated ids are POSITIONAL (`parallel_2`, `foreach_5`), so inserting a
+ *    step earlier renames the later ones. Pass `opts.id` for any step whose id you
+ *    rely on in event streams or resume snapshots.
+ */
 export class WorkflowBuilder<TInput = unknown, TOutput = unknown> {
   private readonly _steps: Step[] = [];
   private _committed = false;
@@ -251,6 +298,52 @@ function describeStep(step: Step): WorkflowStepDescription {
   return base;
 }
 
+/**
+ * A committed, immutable workflow: a fixed list of steps you can `run`, `stream`
+ * or `resume`. Built with `Workflow.create(options)` plus `.commit()`; the
+ * constructor is not part of the published surface.
+ *
+ *   import { Workflow, fn } from "@theokit/sdk/workflow";
+ *   const wf = Workflow.create({ name: "demo" })
+ *     .then(fn("validate", (i: { id: string }) => i))
+ *     .commit();
+ *   const run = await wf.run({ id: "x" });   // run.status, run.output
+ *
+ * THE IMPORT SPECIFIER MATTERS. `Workflow` is emitted TWICE — once as the
+ * `@theokit/sdk/workflow` sub-path entry, and once inside the shared chunk behind
+ * the root `@theokit/sdk` barrel. Both declarations carry private fields, so the
+ * two are DISTINCT nominal types and TypeScript refuses to pass one where the
+ * other is expected:
+ *
+ *   Types have separate declarations of a private property '_options'.
+ *
+ * Import `Workflow` — and everything that consumes one, such as `workflowStep`
+ * and `cloneWorkflow` — from `@theokit/sdk/workflow`, and do not mix the two
+ * specifiers in one program. The root barrel re-exports only `Workflow`,
+ * `agentStep` and `fn`; the builder, the step helpers, the error classes and every
+ * workflow type live on the sub-path. (`workflowAsTool` is exempt: it accepts any
+ * `{ run }`-shaped value structurally, so either `Workflow` satisfies it.)
+ *
+ * How it fails: a step that throws does NOT reject `run()`. The promise resolves
+ * with `status: "failed"` and the cause on `run.error`; `"suspended"` and
+ * `"cancelled"` are the other non-`"completed"` terminals, and an `outputSchema`
+ * mismatch also lands as `"failed"` (`WorkflowOutputError`) rather than a throw.
+ * What DOES throw out of `run()` is pre-flight: `WorkflowAlreadyRunningError` when
+ * you pin `WorkflowRunOptions.runId` to one still in flight. `Workflow.resume`
+ * throws `WorkflowSnapshotNotFoundError` for an unknown `runId`.
+ *
+ * Traps:
+ *  - Without an explicit `runId` each call mints its own, so concurrent runs of
+ *    the same committed workflow do NOT collide — the single-flight lock only
+ *    bites when you pin the id yourself.
+ *  - `stream()` reports progress; its `result` promise is the AUTHORITATIVE
+ *    outcome. Not every terminal emits a closing event, so a consumer that only
+ *    drains events can miss a failure. Always `await result`.
+ *  - `run()` and `stream()` load the executor by dynamic `import()`, so the first
+ *    call pays a module load and cannot be made synchronous.
+ *
+ * @public
+ */
 export class Workflow<TInput = unknown, TOutput = unknown> {
   /** @internal */
   constructor(

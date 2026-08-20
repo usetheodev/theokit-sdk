@@ -1,18 +1,28 @@
 /**
- * @theokit/sdk/server/auth — same-origin returnTo validator
+ * Clamp a caller-supplied `returnTo` to a same-origin destination, falling back
+ * to `'/'` for anything else. This is the open-redirect guard for a post-login
+ * redirect (`@theokit/sdk/server/auth`; OWASP A01:2021, v1.1 EC-2). Without it,
+ * `/login?returnTo=https://evil.com` would send the freshly authenticated session
+ * to an attacker's domain.
  *
- * Per v1.1 EC-2 MUST FIX — OWASP A01:2021 open-redirect mitigation.
+ *   validateReturnTo(req.query.returnTo, new URL("https://app.example.com"));
  *
- * Without this check, attacker craft `/login?returnTo=https://evil.com` would
- * cause post-login redirect to attacker domain with authenticated session cookie.
+ * Pure and synchronous. It never throws and always returns a string:
+ *   - undefined / empty / whitespace-only `returnTo` -> `'/'`
+ *   - protocol-relative `//evil.com` -> `'/'` (a browser would resolve it against
+ *     the current protocol)
+ *   - absolute URL whose origin differs from `baseUrl.origin` -> `'/'`
+ *   - absolute URL on `baseUrl.origin` -> its `pathname + search + hash`, with
+ *     the origin dropped
+ *   - relative path starting with `'/'` -> kept verbatim
+ *   - anything else, including `javascript:` and `data:` -> `'/'`
  *
- * Rules:
- *   - undefined/empty returnTo → default '/'
- *   - protocol-relative `//evil.com` → default '/' (URL parser would resolve to baseUrl protocol)
- *   - absolute URL with origin ≠ baseUrl.origin → default '/' (cross-origin redirect)
- *   - absolute URL with origin === baseUrl.origin → keep (same-origin allowed)
- *   - relative path starting with '/' → keep (same-app navigation)
- *   - relative path not starting with '/' → default '/' (defensive)
+ * `baseUrl` is compared by ORIGIN only (scheme + host + port); its path is
+ * ignored, so an app mounted under a sub-path gets no extra containment from it.
+ *
+ * Trap: this defends the origin, not the route. A same-origin relative path is
+ * returned unchanged — `..` segments included, and with no notion of whether the
+ * user is allowed there. Authorise the destination separately.
  */
 export function validateReturnTo(returnTo: string | undefined, baseUrl: URL): string {
   if (!returnTo || typeof returnTo !== "string" || returnTo.trim() === "") {

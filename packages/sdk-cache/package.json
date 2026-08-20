@@ -44,10 +44,17 @@
     "prepublishOnly": "node ../../tools/check-publish-no-workspace.mjs ."
   },
   "peerDependencies": {
+    "@opentelemetry/api": "^1.9.0",
     "@theokit/sdk": ">=4.0.0",
     "zod": "^4.0.0"
   },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^4.1.8",

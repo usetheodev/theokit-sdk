@@ -35,6 +35,20 @@ interface OTelApi {
   SpanStatusCode: { OK: number; ERROR: number };
 }
 
+/**
+ * The subset of the OpenTelemetry `Span` API this SDK calls.
+ *
+ * Structural, not nominal: a real `@opentelemetry/api` span satisfies it, and so does a test double
+ * or a no-op. That is why it is exported — `@theokit/sdk-memory` previously kept a hand-written
+ * mirror of this shape, and the two had already drifted (the mirror rejected `undefined` attribute
+ * values this one accepts, and declared `end()` without its `endTime` parameter). Import this
+ * instead of re-declaring it.
+ *
+ * Erased at build time, so importing it adds nothing to a bundle and does not require
+ * `@opentelemetry/api` to be installed.
+ *
+ * @public
+ */
 export interface OTelSpan {
   setAttribute(key: string, value: string | number | boolean): void;
   setAttributes(attrs: Record<string, string | number | boolean | undefined>): void;

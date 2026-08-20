@@ -54,7 +54,19 @@ export interface WiredEntity {
   readonly suppressedByTrust: boolean;
 }
 
-/** @public */
+/**
+ * The two halves of the observation: the gate that was applied, and what was handed to the builder.
+ *
+ * `requested` drives the shape of the record — the result has exactly its keys — while `posture`
+ * only has to contain a gate for each of them. A posture that gates MORE than `requested` covers is
+ * fine and normal; a posture that gates FEWER is refused, see `recordWiring`.
+ *
+ * Pass the values at the moment they go to the builder. Re-deriving them from configuration
+ * afterwards would defeat the point: config is what was asked for, and the disagreement with what
+ * was wired is the only thing this records.
+ *
+ * @public
+ */
 export interface WiringRecordInput<K extends string> {
   /**
    * The gate. Typically the output of `resolveTrustPosture`, which is what makes the name
@@ -70,9 +82,23 @@ export interface WiringRecordInput<K extends string> {
 }
 
 /**
+ * Record what a build actually wired, per capability.
+ *
+ * For each key of `requested`: `active` is a copy of the requested names when the posture allows
+ * that capability and an empty array when it does not, `requested` is always a copy of what was
+ * asked for, and `suppressedByTrust` is true only when the gate emptied a NON-EMPTY request. A
+ * withheld capability that requested nothing reports `false`, because a flag that fires when
+ * nothing happened is a flag readers learn to ignore.
+ *
+ * Pure and synchronous — it performs no I/O, which is what makes "this is not a second read of the
+ * configuration" checkable rather than promised.
+ *
  * @returns one entry per key of `requested`, each a snapshot rather than a view of the caller's
  *   arrays — the record is read long after the build, and aliasing would make it answer with what
  *   the process holds now instead of with what was wired.
+ * @throws UngatedCapabilityError when a key of `requested` has no entry in `posture.allows`. Absent
+ *   is not read as denied: reporting a capability nobody gates as suppressed would send the reader
+ *   looking for a trust setting that does not exist.
  * @public
  */
 export function recordWiring<K extends string>(

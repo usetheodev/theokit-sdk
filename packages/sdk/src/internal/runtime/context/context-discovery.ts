@@ -27,10 +27,32 @@ export type DiscoveryScope = "cwd-only" | "git-root-walk" | "globbed";
 export type DiscoveryParser = "plain-markdown" | "mdc" | "frontmatter-zod" | "rules-frontmatter";
 
 /**
- * Specification for one discoverable context source. The default registry
- * `DEFAULT_DISCOVERY_SPECS` covers the 2026 industry-standard set.
+ * One kind of context file the runner knows how to find and read. The shipped registry is
+ * `DEFAULT_DISCOVERY_SPECS`; a caller supplies its own array to change the set.
  *
- * @internal
+ * `scope` decides how `pattern` is used and how many files a single spec can yield:
+ * `cwd-only` looks for one path and stops, `git-root-walk` collects a match in every directory
+ * from `cwd` up to the git root (nearest first), and `globbed` expands `pattern` as a glob
+ * relative to `cwd`. So `pattern` is a filename for the first two and a glob for the third —
+ * putting a glob on a walk scope silently finds nothing.
+ *
+ * `priority` orders the merged prompt, ascending, and is a plain number rather than an index, so
+ * a new spec can be slotted between two existing ones. Lower means earlier and therefore more
+ * general; later content wins on conflict.
+ *
+ * `parser` must match the file format — `plain-markdown` reads the whole file, `mdc` and
+ * `rules-frontmatter` parse frontmatter and can DECLINE the file when its activation conditions
+ * do not hold, and `frontmatter-zod` is the legacy path the runner currently skips entirely.
+ *
+ * `followImports` is honored only by `plain-markdown`, and turns `@path` directives in the body
+ * into inlined content bounded by the import root. Setting it on a frontmatter parser does
+ * nothing.
+ *
+ * `id` names the source in `<source name="">` and in telemetry. When one spec matches files in
+ * several directories, the runner suffixes it with the path relative to the git root to keep them
+ * apart.
+ *
+ * @public — re-exported from `@theokit/sdk/context`, and therefore under semver.
  */
 export interface DiscoverySpec {
   /** Stable identifier — used as `<source name="">` and telemetry key. */
@@ -46,11 +68,21 @@ export interface DiscoverySpec {
 }
 
 /**
- * 2026 industry-standard context file registry. Sorted by priority
- * ascending — earlier in prompt = more general, last-writer-wins on
- * conflict (D152 concat-by-priority).
+ * The context files theokit looks for out of the box, in the order they are concatenated.
  *
- * @internal
+ * Two things follow from the ordering. `AGENTS.md` comes first at priority 10 and `THEO.md` last,
+ * so theokit-specific instruction wins over the vendor-neutral file on conflict. And the array is
+ * consumed in the order written — the runner does not re-sort it — so a caller passing its own
+ * array is responsible for keeping `priority` and array position consistent.
+ *
+ * `CLAUDE.md` and `GEMINI.md` are the only two entries with `followImports: true`, which means
+ * they are the only files whose `@path` directives pull other files into the prompt. Those
+ * imports cannot escape the import root.
+ *
+ * Frozen only by type: `ReadonlyArray` is a compile-time constraint, and the array and its
+ * elements are not deep-frozen at runtime. Build a new array rather than mutating this one.
+ *
+ * @public — re-exported from `@theokit/sdk/context`, and therefore under semver.
  */
 export const DEFAULT_DISCOVERY_SPECS: ReadonlyArray<DiscoverySpec> = [
   {

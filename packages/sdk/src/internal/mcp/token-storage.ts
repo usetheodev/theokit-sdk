@@ -7,9 +7,31 @@ import { diag } from "../diagnostics.js";
 import { atomicWriteJson } from "../persistence/atomic-write.js";
 
 /**
- * OAuth token bundle persisted per MCP server. See ADR D41.
+ * The OAuth tokens held for one MCP server. See ADR D41.
  *
- * @internal
+ * Persisted per server name by `setTokens` and returned unchanged by `getTokens`. Where it lands
+ * depends on what is installed: `keytar` puts the serialized bundle in the OS keychain, and
+ * without it the bundle is written to a JSON file at mode 0600 inside a 0700 directory — in
+ * PLAINTEXT, keyed by server name alongside every other server's tokens. Nothing here encrypts it.
+ *
+ * `refreshToken` is the field that matters most and the field that is optional. When present it
+ * outlives `accessToken` and can mint new ones, so a leaked store is a persistent compromise of
+ * the account rather than a temporary one. When absent, an expired access token means re-running
+ * the authorization flow.
+ *
+ * `expiresAt` and `obtainedAt` are both epoch milliseconds and both describe the ACCESS token —
+ * when it stops working, and when this bundle was issued. Nothing records when the refresh token
+ * expires, so a refresh rejected because the grant itself lapsed is only discovered at the token
+ * endpoint.
+ *
+ * The value is not validated on read: whatever JSON was stored is cast to this shape, so a
+ * hand-edited or truncated store yields an object whose fields may be missing rather than an
+ * error.
+ *
+ * `scope` records what the token was granted, as the server returned it. It is stored for
+ * inspection; nothing in this module enforces it.
+ *
+ * @public — re-exported from `@theokit/sdk/mcp-auth`, and therefore under semver.
  */
 export interface OAuthTokens {
   accessToken: string;

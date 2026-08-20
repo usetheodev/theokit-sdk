@@ -60,11 +60,16 @@ export interface RunGitInfo {
 }
 
 /**
- * SE3 — provenance of the turn that produced a run: WHO triggered it. Stamped in
- * the multi-agent path (Squad / a2a / handoff / background-delegation) and
- * forwarded onto {@link RunResult.origin} — so consumers can attribute/route
- * turns by their trigger. Metadata-only; discriminate on `kind`. Mirrors the
- * Anthropic Agent SDK's `origin` shape.
+ * SE3 — provenance of the turn that produced a run: WHO triggered it. Metadata-only —
+ * it never changes routing or dispatch. Stamped in the multi-agent path (Squad / a2a /
+ * handoff / background-delegation) and forwarded onto {@link RunResult.origin}, so
+ * consumers can attribute/route turns by their trigger; discriminate on `kind`. Mirrors
+ * the Anthropic Agent SDK's `origin` shape.
+ *
+ * Producers: `peer` (Squad step / a2a envelope), `coordinator` (subagent delegation) and
+ * `auto-continuation` (the run-to-completion / stream-to-completion driver's continuation
+ * rounds) are stamped BY the SDK. `human` and `task-notification` are positive markers a
+ * HOST stamps (e.g. re-sending an agent after a background task completed).
  *
  * Encoding note (distinct from absence): an ABSENT origin (`undefined`) means the
  * provenance was NOT stamped — the default for a plain `agent.send()`. The explicit
@@ -74,16 +79,6 @@ export interface RunGitInfo {
  * = unknown/unstamped; `{ kind: "human" }` = explicitly human. Consumers writing an
  * exhaustive `switch (origin?.kind)` therefore handle `undefined` (unstamped) and
  * `"human"` (explicit) as separate, meaningful cases.
- *
- * @public
- */
-/**
- * SE3 — provenance of a turn (metadata-only; never changes routing/dispatch).
- * Producers: `peer` (Squad step / a2a envelope), `coordinator` (subagent
- * delegation), `auto-continuation` (the run-to-completion / stream-to-completion
- * driver's continuation rounds) are stamped BY the SDK. `human` and
- * `task-notification` are positive markers a HOST stamps (e.g. re-sending an
- * agent after a background task completed). Absent origin ⇒ `undefined`.
  *
  * @public
  */
@@ -517,11 +512,6 @@ export interface CompletionCheckResult {
 }
 
 /**
- * Handle to a single prompt submission.
- *
- * @public
- */
-/**
  * theokit#140 - one element of {@link Run.events}: either a structural SDK message or a live delta.
  *
  * A discriminated union rather than a widened `SDKMessage`, because a token delta is not a message
@@ -551,6 +541,24 @@ export type RunTimelineEvent =
     }
   | { kind: "delta"; update: import("./updates.js").InteractionUpdate };
 
+/**
+ * Handle to a single prompt submission, returned by `agent.send()` before the model has answered.
+ *
+ * It is a live handle rather than a result — `status` is `"running"` when you receive it — and how
+ * you consume the turn is the decision it asks of you. Call `wait()` when only the final answer
+ * matters. Call `events()` when you want the whole timeline: structural messages and token/tool
+ * deltas interleaved in true order, from one source. That is the one to reach for instead of fusing
+ * `stream()` with `SendOptions.onDelta` yourself, which is what produced the ordering and
+ * duplicate-text bugs it replaces. `stream()` remains the SDKMessage-only view, and
+ * `conversation()` returns the finished turn grouped per turn instead of as a stream.
+ *
+ * `cancel()` moves the run to `"cancelled"`, aborts the stream and stops in-flight tool calls.
+ *
+ * Not every method is available on every runtime — see {@link RunOperation}. Ask `supports(op)`
+ * before calling an optional one and surface `unsupportedReason(op)`, rather than calling it and
+ * catching. The optional fields (`result`, `model`, `durationMs`, `git`, `createdAt`) fill in as the
+ * run progresses, so treat their absence as "not yet", not as an error.
+ */
 export interface Run {
   readonly id: string;
   readonly agentId: string;

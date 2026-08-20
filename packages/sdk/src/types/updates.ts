@@ -135,23 +135,54 @@ export interface UserMessageAppendedUpdate {
   userMessage: UserMessage;
 }
 
-/** @public */
+/**
+ * A conversation summary produced during a run, delivered through `SendOptions.onDelta`.
+ *
+ * Nothing in this package emits it. It is declared so an exhaustive `switch` over
+ * {@link InteractionUpdate} compiles, and so a runtime that does produce summaries has a typed
+ * channel — do not build a feature that waits on it against the local runtime.
+ *
+ * @public
+ */
 export interface SummaryUpdate {
   type: "summary";
   summary: string;
 }
 
-/** @public */
+/**
+ * Opens the bracket around a {@link SummaryUpdate}, for a UI that wants to show a pending state
+ * before the summary text exists. Paired with {@link SummaryCompletedUpdate}.
+ *
+ * Like the summary variants around it, nothing in this package emits it.
+ *
+ * @public
+ */
 export interface SummaryStartedUpdate {
   type: "summary-started";
 }
 
-/** @public */
+/**
+ * Closes the bracket opened by {@link SummaryStartedUpdate}. Carries no payload — the summary text
+ * itself arrives as {@link SummaryUpdate}.
+ *
+ * Like the summary variants around it, nothing in this package emits it.
+ *
+ * @public
+ */
 export interface SummaryCompletedUpdate {
   type: "summary-completed";
 }
 
-/** @public */
+/**
+ * Incremental output from a shell command running inside a run.
+ *
+ * `event` is an untyped bag on purpose: this package neither produces nor narrows it, so a consumer
+ * that receives one should treat it as unvalidated input and check for the fields it needs rather
+ * than casting. As with the summary variants, nothing here emits this — it exists so the
+ * {@link InteractionUpdate} union covers a runtime that does.
+ *
+ * @public
+ */
 export interface ShellOutputDeltaUpdate {
   type: "shell-output-delta";
   event: Record<string, unknown>;

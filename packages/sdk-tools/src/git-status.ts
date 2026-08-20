@@ -60,6 +60,23 @@ export interface CreateGitStatusToolOptions {
   includeBranch?: boolean;
 }
 
+/**
+ * Build the `git_status` tool. Returns `git status --porcelain=v1` output, which is the reason to use
+ * this rather than a `shell_exec` of plain `git status`: the human format is not stable across git
+ * versions and the porcelain one is.
+ *
+ * The output arrives in a field named `diff`, shared with {@link createGitDiffTool} rather than named
+ * after what it holds.
+ *
+ * A missing `.git` is `{ ok: false, error: "not_a_repo" }` rather than an empty string, so the model
+ * cannot read "not a repository" as "nothing changed". The other refusals are `path_traversal`,
+ * `timeout` and `git_failed`.
+ *
+ * With `sandbox` the command itself runs through the injected backend — but the local `.git` probe
+ * runs BEFORE that branch, so a sandboxed status still requires `<projectRoot>/.git` to exist on the
+ * host. {@link createGitDiffTool} skips its equivalent probe when sandboxed. Configure both tools the
+ * same way in one session: one confined and one not is an asymmetry nothing surfaces.
+ */
 export function createGitStatusTool(opts: CreateGitStatusToolOptions): CustomTool {
   const { projectRoot, timeoutMs = 30_000, maxStdoutBytes = 5 * 1024 * 1024 } = opts;
 

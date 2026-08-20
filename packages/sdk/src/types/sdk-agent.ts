@@ -29,6 +29,20 @@ export interface SDKAgentSkillDetail {
   references?: Record<string, string>;
 }
 
+/**
+ * The skill handle exposed as `agent.skills`, present only when project-scoped skills are enabled
+ * (`settingSources: ["project"]`) or `skills.enabled` is set. The property is optional on the agent,
+ * and `undefined` there means skills were never turned on — not that none were found.
+ *
+ * The split between its two methods is the choice it asks of a caller. `list()` returns name and
+ * description only, which is what belongs in a system prompt: it stays cheap and it keeps skill
+ * bodies out of the context window. `get(name)` resolves one skill WITH its `instructions` — the
+ * SKILL.md body for a filesystem skill, the inline body for one built with `createSkill` — and
+ * returns `undefined` when no enabled skill matches that name. Ask for a body only when you are
+ * about to use it.
+ *
+ * @public
+ */
 export interface SDKAgentSkills {
   list(): Promise<ReadonlyArray<SystemPromptSkillRef>>;
   /**

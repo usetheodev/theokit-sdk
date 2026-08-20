@@ -20,7 +20,14 @@
 
 import { createHash } from "node:crypto";
 
-/** @public */
+/**
+ * One provider's credential lookup, as the product resolved it.
+ *
+ * `value` is the secret itself. It is hashed and dropped inside `describeCredential` — it never
+ * reaches the report, and nothing here stores it.
+ *
+ * @public
+ */
 export interface CredentialInput {
   /** The product's name for the provider. This module never knows one of its own. */
   readonly provider: string;
@@ -30,7 +37,15 @@ export interface CredentialInput {
   readonly source: string;
 }
 
-/** @public */
+/**
+ * A presence-only view of one credential, safe to print, log, or attach to a support bundle.
+ *
+ * `fingerprint` is the first eight hex characters of the SHA-256 of the trimmed secret: enough for
+ * two people to agree they are holding the same key, and not a substring of it. It is absent
+ * whenever `present` is false.
+ *
+ * @public
+ */
 export interface CredentialReport {
   readonly provider: string;
   readonly present: boolean;
@@ -40,6 +55,13 @@ export interface CredentialReport {
 }
 
 /**
+ * Turn a resolved credential into something you can show a user.
+ *
+ * The value is trimmed before the emptiness test, so `undefined`, `""` and whitespace all report
+ * `present: false` with no fingerprint. That matters because an environment variable that expanded
+ * to nothing arrives as an empty string, and calling that "present" sends whoever is debugging to
+ * hunt for a routing bug instead of a missing secret.
+ *
  * @returns a report safe to log, render and attach to a support bundle.
  * @public
  */

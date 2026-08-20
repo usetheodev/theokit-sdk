@@ -163,18 +163,6 @@ function renderSessionSummaryMarkdown(args: RecordSessionSummaryArgs): string {
 }
 
 /**
- * Read previously-written session summaries from disk + substring-
- * match against the user message. Best-effort: errors degrade to
- * empty recall (no throw — matches the non-throwing-on-hot-path
- * contract).
- *
- * Iter 34: this is the SUBSTRING-match version. Future iters can
- * upgrade to embedding-based semantic similarity (LanceDB ANN)
- * without changing the public surface.
- *
- * Cap: returns at most 5 hits to bound the systemPromptAdditions size.
- */
-/**
  * Extract `agentId:` value from a session-summary YAML frontmatter.
  * Returns undefined when the file is malformed or has no agentId.
  *
@@ -196,6 +184,18 @@ function extractAgentIdFromFrontmatter(content: string): string | undefined {
   return match[1].trim();
 }
 
+/**
+ * Read previously-written session summaries from disk + substring-
+ * match against the user message. Best-effort: errors degrade to
+ * empty recall (no throw — matches the non-throwing-on-hot-path
+ * contract).
+ *
+ * Iter 34: this is the SUBSTRING-match version. Future iters can
+ * upgrade to embedding-based semantic similarity (LanceDB ANN)
+ * without changing the public surface.
+ *
+ * Cap: returns at most 5 hits to bound the systemPromptAdditions size.
+ */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: session recall has branching on multiple storage modes
 async function recallSessionSummaries(
   cwd: string,

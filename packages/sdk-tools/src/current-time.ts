@@ -47,6 +47,17 @@ function formatInTimezone(now: Date, tz: string): string {
   return `${p.year}-${p.month}-${p.day} ${hour}:${p.minute}:${p.second} ${tz}`;
 }
 
+/**
+ * Build the `current_time` tool, so the model reads a clock instead of stating a date from training
+ * data.
+ *
+ * The model may pass an IANA `timezone`; omitted, the answer is UTC. An unknown zone comes back as
+ * `{ ok: false, error: "invalid_timezone" }` — the `RangeError` `Intl` raises is caught, so the
+ * handler never throws at the model.
+ *
+ * Pass `clock` in tests. The default reads the real wall clock, and a test asserting on a formatted
+ * date without injecting one is asserting on the day it was written.
+ */
 export function createCurrentTimeTool(opts: CreateCurrentTimeToolOptions = {}): CustomTool {
   const clock = opts.clock ?? (() => new Date());
 

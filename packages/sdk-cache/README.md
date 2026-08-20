@@ -98,6 +98,19 @@ import { Cache } from "@theokit/sdk-cache";
 
 See the monorepo `CHANGELOG.md` for the 1.x → 2.0 package-split migration notes.
 
+## API reference
+
+Every symbol this package exports, with the exact specifier to import it from, is in the generated
+capability map that ships inside `@theokit/sdk`:
+
+```
+node_modules/@theokit/sdk/docs/harness-capability-map.md   # symbol -> import specifier
+node_modules/@theokit/sdk/docs/error-codes.md              # every `code` an error can carry
+```
+
+Both are generated from the built type declarations, so they describe the version you installed
+rather than the version someone wrote a page about.
+
 ## License
 
 Apache-2.0.

@@ -47,14 +47,16 @@ export interface MemoryIndexHandle {
 }
 
 /**
- * Public `Memory` namespace.
+ * Inputs for {@link Memory.runDreamingSweep}.
  *
- * Exposes operations users can run outside of `agent.send()` — most notably
- * the dreaming sweep (consolidation of facts via dedup + clustering).
+ * `embedding` is required and has no default: the sweep scores cosine similarity between facts, so
+ * without real embeddings there is nothing to dedup or cluster on. Both thresholds are cosine
+ * similarity in [0, 1] and default to `0.95` for dedup and `0.75` for clustering — dedup is the
+ * stricter of the two because merging two facts that were merely related is a data loss, while
+ * failing to cluster them only costs a note.
  *
  * @public
  */
-
 export interface DreamingSweepOptions {
   /** Workspace cwd holding `.theokit/memory/`. */
   cwd: string;
@@ -74,6 +76,18 @@ export interface DreamingSweepOptions {
   clusterThreshold?: number;
 }
 
+/**
+ * What one dreaming sweep did.
+ *
+ * `status` is `"skipped"` when the workspace held no facts to work on and `"error"` when the sweep
+ * failed; both come back with every counter at zero, so check `status` before reading a zero as
+ * "there was nothing to consolidate". A failure is reported through this field rather than as a
+ * rejection, which means a caller that only awaits the promise never learns the sweep did nothing.
+ * `factsBefore` and `factsAfter` bracket the run, which is the pair to compare when you want to
+ * know whether the sweep was worth running rather than how many operations it performed.
+ *
+ * @public
+ */
 export interface DreamingSweepResult {
   status: "ok" | "skipped" | "error";
   factsBefore: number;
@@ -107,6 +121,19 @@ export interface OpenMemoryIndexOptions {
   backend?: "sqlite-vec" | "lance";
 }
 
+/**
+ * Memory operations that run OUTSIDE an agent turn.
+ *
+ * Everything here is reachable without `Agent.create({ memory: ... })`, which is the point: opening
+ * an index directly is how a CLI or a maintenance job inspects or rebuilds what the agent will
+ * later read, and the dreaming sweep is maintenance that no `send()` triggers.
+ *
+ * Both operations route through the `@theokit/sdk-memory` peer package when it is installed and
+ * fall back to the in-tree implementation when it is not. The fallback is not a degraded mode —
+ * behaviour and thrown errors match — so consumers do not branch on which path ran.
+ *
+ * @public
+ */
 export const Memory = {
   /**
    * Open a memory index. Dispatches to SQLite-vec (default, zero deps) or

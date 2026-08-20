@@ -1,6 +1,9 @@
 /**
- * ACP prompt handler — extracts user text, drives `agent.send`, translates
- * stream via `translator.ts`, returns `PromptResponse` with stop reason.
+ * ACP prompt handler — extracts user text, installs the permission veto, drives `agent.send`,
+ * translates the stream via `translator.ts`, and answers with a `PromptResponse` stop reason.
+ *
+ * Order matters and is load-bearing: the prompt is validated and the veto is installed BEFORE the
+ * run starts, so a prompt that cannot be gated never reaches a tool.
  *
  * @internal
  */
@@ -132,6 +135,21 @@ async function installPermissionOrError(
   }
 }
 
+/**
+ * Run one ACP `session/prompt` turn to completion and report why it stopped.
+ *
+ * Steps, each able to end the turn: look the session up, flatten the prompt to text, install the
+ * permission plugin, `agent.send`, translate the stream, await the run, map its status.
+ *
+ * Errors returned (never thrown): `INVALID_SESSION` for an id this process has not loaded;
+ * `INVALID_REQUEST` for a prompt with no text or one over `maxPromptBytes`; `INTERNAL_ERROR` when
+ * the permission veto cannot be installed, when `agent.send` throws, or when the run ends in a
+ * status/error-code pair ACP has no stop reason for.
+ *
+ * An abort — from `session/cancel` or from an already-aborted session — is NOT an error: it answers
+ * `{ stopReason: "cancelled" }`. A mid-stream translator failure is logged and does not fail the
+ * turn: the run is still awaited and its own status decides the stop reason.
+ */
 export async function handlePrompt(
   params: acp.PromptRequest,
   deps: HandlePromptDeps,

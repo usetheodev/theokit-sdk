@@ -25,6 +25,30 @@ import type { CustomTool } from "./agent-prims.js";
 import type { MemoryAdapter } from "./memory-adapter.js";
 import type { ProviderProfile } from "./provider-profile.js";
 
+/**
+ * The fixed set of points a `"general"` plugin may attach to through `PluginContext.on`. A closed
+ * enum rather than an open string, so a plugin cannot register for a hook the loop never fires.
+ *
+ * What separates them is what the SDK does with the handler's return value, and that is the thing to
+ * settle before writing one:
+ *
+ * - `pre_tool_call` is the only VETO point. Return `{ block: true, message }` to stop the call; the
+ *   first handler that blocks wins and the remaining handlers are not consulted.
+ * - `transform_tool_result` and `transform_llm_output` are CHAINED. Each handler receives what the
+ *   previous one returned; `undefined` keeps the current value and anything else — `null` included —
+ *   replaces it.
+ * - `pre_user_send` returns `{ recalledContext }`, which the loop concatenates across handlers and
+ *   injects ahead of the user prompt.
+ * - Everything else (`post_tool_call`, `pre_llm_call`, `post_llm_call`, `on_session_start`,
+ *   `on_session_end`, `post_assistant_reply`) is fire-and-forget: the return value is DISCARDED. A
+ *   policy that needs to change a tool result belongs on `transform_tool_result` — put it on
+ *   `post_tool_call` and it quietly degrades to observation.
+ *
+ * Failure is asymmetric too. A fire-and-forget or transform handler that throws is caught, logged to
+ * stderr, and the run continues. A `pre_tool_call` handler that throws is NOT caught by the hook
+ * dispatcher, so its exception escapes into the tool-dispatch path — a permission-style handler
+ * should resolve its own errors to an explicit block rather than relying on that.
+ */
 export type HookName =
   | "pre_tool_call"
   | "post_tool_call"
@@ -38,6 +62,18 @@ export type HookName =
   | "pre_user_send"
   | "post_assistant_reply";
 
+/**
+ * What a `pre_tool_call` handler is given: the tool about to run, the arguments the model produced
+ * for it, and the identity of the run asking.
+ *
+ * `args` came from the model, not from a validated caller. A handler that gates on argument values
+ * must treat every field as untrusted and survive one that is missing or of the wrong type.
+ *
+ * `permissionMode` is the run's resolved mode — `SendOptions.permissionMode` falling back to
+ * `AgentOptions.permissionMode` — threaded here so a permission-style plugin can gate per run rather
+ * than at construction time. Absent means neither was set, and the plugin's own default applies;
+ * plugins that are not about permissions ignore it.
+ */
 export interface PreToolCallContext {
   name: string;
   args: Record<string, unknown>;
@@ -52,6 +88,19 @@ export interface PreToolCallContext {
   permissionMode?: import("../permission-engine.js").PermissionMode;
 }
 
+/**
+ * The veto a `pre_tool_call` handler returns to stop a tool call. Returning `undefined` allows it —
+ * there is no approval value, and `block` is the literal `true`, so `{ block: false }` is not
+ * expressible and cannot be used to force a call through.
+ *
+ * The first blocking handler decides; later `pre_tool_call` handlers never run.
+ *
+ * `message` is not a log line. The loop turns the veto into a `tool_result` reading "Plugin blocked
+ * this tool call: <message>", deliberately NOT flagged as an error, so the model reads it and can
+ * choose another route instead of the run failing. Write it for the model: say what was refused and
+ * what it might do instead. It also reaches observability — as the `stderr` of a tool-completed event
+ * with exit code 126, and as the message on a `permission_denied` run event.
+ */
 export interface PreToolCallDecision {
   block: true;
   message: string;
@@ -181,6 +230,21 @@ export interface CommandOptions {
   description?: string;
 }
 
+/**
+ * The registration surface passed to a `"general"` plugin's `register(ctx)`, and the plugin's only
+ * route into the agent. Outside production it is a sealed Proxy that throws when a plugin assigns a
+ * property of its own, so smuggling state onto the context fails loudly in development.
+ *
+ * `register` runs ONCE, when the plugin is registered — never per run. Anything the plugin wants to
+ * do during a turn has to be attached here as a hook; there is no later entry point. Each plugin gets
+ * its own context, so registrations stay attributable to the plugin that made them.
+ *
+ * Two things worth knowing before writing one. Commands registered here are consumed by CLI and bot
+ * wrappers only — the agent loop never dispatches them, so a plugin that ships nothing but commands
+ * has no effect on a programmatic run. And `on` drops a handler that is not a function, with a
+ * warning on stderr rather than an error at registration: the gentler failure, and the easier one to
+ * miss.
+ */
 export interface PluginContext {
   /** Register a custom tool. Equivalent to passing in `AgentOptions.tools`. */
   registerTool(tool: CustomTool): void;

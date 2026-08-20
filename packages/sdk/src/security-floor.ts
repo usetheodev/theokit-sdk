@@ -34,7 +34,19 @@
  * @public
  */
 
-/** @public */
+/**
+ * The vocabulary, the layer names, and the values to resolve.
+ *
+ * Two orders matter and they are not the same one. The UNRESTRICTED layers — every key of `layers`
+ * that is neither `override` nor listed in `restricted` — are resolved last-wins in the enumeration
+ * order of the `layers` object. The RESTRICTED layers are applied in the order of the `restricted`
+ * array, regardless of where they sit in `layers`. Put a layer in `restricted` and its position in
+ * that array is what decides when it gets to tighten.
+ *
+ * A layer named in `restricted` but absent from `layers`, or present with `undefined`, is skipped.
+ *
+ * @public
+ */
 export interface SecurityFloorInput {
   /**
    * The vocabulary, ordered from most confined to least. Index is permissiveness, so
@@ -58,10 +70,6 @@ function permissivenessOf(order: readonly string[], value: string | undefined): 
   return order.indexOf(value);
 }
 
-/**
- * @returns the resolved value, or `undefined` when no layer supplied one.
- * @public
- */
 /**
  * The value the restricted layers must not exceed, taken from the unrestricted layers in the order
  * given. Separated because it answers a different question from the floor itself: what did the
@@ -107,6 +115,23 @@ function tightenOnly(input: SecurityFloorInput, start: string | undefined): stri
 }
 
 /**
+ * Resolve a security-relevant setting so that a lower-trust layer can only tighten it.
+ *
+ * Two paths. When `layers[override]` holds a value, that value is returned VERBATIM and nothing
+ * else is consulted — it is not checked against `permissiveness`, because validating the operator's
+ * own flag belongs to the consumer that owns the vocabulary and the error message. Otherwise a
+ * baseline is taken from the unrestricted layers, and each restricted layer in turn may lower it
+ * and never raise it.
+ *
+ * Two consequences worth knowing before wiring this up. A value in a restricted layer that is not
+ * in `permissiveness` is IGNORED rather than trusted, so a typo in a repository's config leaves the
+ * baseline standing instead of becoming the effective setting. And the ceiling only ever descends:
+ * once one restricted layer tightens, a later one cannot return to the baseline, even though it
+ * could have chosen that value had it come first.
+ *
+ * When no layer supplied a value at all, the answer is `undefined` — the absence is reported rather
+ * than filled in with the most confined member of the vocabulary.
+ *
  * @returns the resolved value, or `undefined` when no layer supplied one.
  * @public
  */

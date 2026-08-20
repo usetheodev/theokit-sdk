@@ -12,12 +12,6 @@ import type { CustomTool } from "./types/agent.js";
 import type { ToolResultContentBlock } from "./types/content-blocks.js";
 
 /**
- * Spec accepted by {@link Tool.create}. `inputSchema` is a Zod schema; the
- * `handler` argument type is inferred via `z.infer<T>` — no `as` casts.
- *
- * @public
- */
-/**
  * SE16 — the handler's return type. With no `outputSchema` the tool returns a
  * plain `string` (pre-SE16 shape). With an `outputSchema` the handler returns the
  * STRUCTURED output inferred from it (validated + serialized to the tool result).
@@ -25,6 +19,20 @@ import type { ToolResultContentBlock } from "./types/content-blocks.js";
  */
 type ToolHandlerReturn<O extends ZodType> = [O] extends [never] ? string : ZodNamespace.infer<O>;
 
+/**
+ * Spec accepted by {@link Tool.create}. `inputSchema` is a Zod schema; the `handler` argument type
+ * is inferred via `z.infer<T>` — no `as` casts.
+ *
+ * The two optional output fields do different jobs and compose. `outputSchema` changes what the
+ * handler must RETURN (a structured value instead of a string) and validates it; `toModelOutput`
+ * changes only what the MODEL sees in the tool result, while observability still receives the full
+ * handler output. Set neither and the handler returns a plain string that goes to both.
+ *
+ * `zod` is referenced as a type only, so a consumer that never calls `Tool.create` does not need it
+ * installed.
+ *
+ * @public
+ */
 export interface DefineToolSpec<T extends ZodType, O extends ZodType = never> {
   /** Tool name surfaced to the LLM. Same constraints as {@link CustomTool.name}. */
   name: string;
@@ -73,22 +81,6 @@ export interface DefineToolSpec<T extends ZodType, O extends ZodType = never> {
   sanitize?: boolean | SanitizeOptions;
 }
 
-/**
- * Type-safe builder for {@link CustomTool}. Converts a Zod schema to JSON
- * Schema (for the LLM-facing `inputSchema` field), wraps the handler with a
- * runtime `schema.parse` step, and preserves type inference.
- *
- * Behaviour (ADR D24):
- * - JSON Schema conversion uses Zod 4's native `z.toJSONSchema` with
- *   `unrepresentable: "any"` so transforms/refinements round-trip.
- * - Runtime parse failures throw `ZodError`; the SDK's tool-dispatch converts
- *   them to `tool_result(isError)` with the Zod message.
- * - Handler signature is `(input: z.infer<T>)`, not `Record<string, unknown>`.
- * - `zod` loads lazily via `createRequire` — consumers who don't call
- *   `defineTool` don't need `zod` installed.
- *
- * @public
- */
 /**
  * SE17 — symbol under which a `toModelOutput` tool carries its model/app SPLIT
  * resolver on the built `CustomTool.handler` function. The runtime tool dispatch
@@ -176,6 +168,20 @@ export class Tool {
   }
 }
 
+/**
+ * Type-safe builder for {@link CustomTool}. Converts a Zod schema to JSON
+ * Schema (for the LLM-facing `inputSchema` field), wraps the handler with a
+ * runtime `schema.parse` step, and preserves type inference.
+ *
+ * Behaviour (ADR D24):
+ * - JSON Schema conversion uses Zod 4's native `z.toJSONSchema` with
+ *   `unrepresentable: "any"` so transforms/refinements round-trip.
+ * - Runtime parse failures throw `ZodError`; the SDK's tool-dispatch converts
+ *   them to `tool_result(isError)` with the Zod message.
+ * - Handler signature is `(input: z.infer<T>)`, not `Record<string, unknown>`.
+ * - `zod` loads lazily via `createRequire` — consumers who don't call
+ *   `defineTool` don't need `zod` installed.
+ */
 function defineTool<T extends ZodType, O extends ZodType = never>(
   spec: DefineToolSpec<T, O>,
 ): CustomTool {

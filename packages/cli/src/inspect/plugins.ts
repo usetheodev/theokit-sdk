@@ -12,6 +12,7 @@ import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+/** One discovered plugin. `path` points at its `PLUGIN.md`, not at the plugin directory. */
 interface PluginInfo {
   readonly name: string;
   readonly source: "user-global" | "project";
@@ -66,6 +67,19 @@ function walkPluginDir(root: string, source: PluginInfo["source"]): PluginInfo[]
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * Discover plugins from `~/.theokit/plugins/` and `<cwd>/.theokit/plugins/`, merged and sorted by name.
+ *
+ * A plugin is a DIRECTORY containing `PLUGIN.md`; the frontmatter's `name` wins over the directory
+ * name when present. Directories without that file, and files with unreadable frontmatter, are
+ * skipped silently (D198) — so "my plugin is not listed" almost always means a missing or malformed
+ * `PLUGIN.md`, not a broken CLI.
+ *
+ * On a name collision the PROJECT entry replaces the user-global one (EC-N, mirroring D162), and the
+ * shadowed entry is not reported.
+ *
+ * Never executes plugin code and never throws for a missing directory — safe in CI.
+ */
 export function listPlugins(cwd: string): PluginInfo[] {
   const userPlugins = walkPluginDir(join(homedir(), ".theokit", "plugins"), "user-global");
   const projectPlugins = walkPluginDir(join(cwd, ".theokit", "plugins"), "project");

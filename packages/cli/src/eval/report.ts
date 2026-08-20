@@ -6,6 +6,16 @@
 
 import type { EvalRunResult } from "./types.js";
 
+/**
+ * Render an {@link EvalRunResult} as the markdown report `theokit eval` writes.
+ *
+ * Pure — no I/O, deterministic, safe to snapshot in a test.
+ *
+ * The per-row table is LOSSY and says so nowhere in its own output: inputs are truncated to 60 UTF-16
+ * units and outputs to 80, `|` is escaped and newlines are flattened to spaces, and a row that
+ * errored shows `*error*` in place of its output. Read `EvalRunResult` itself when you need the full
+ * text; there is no flag that widens the table.
+ */
 export function formatReport(result: EvalRunResult): string {
   const lines: string[] = [];
   lines.push("# Eval Report");

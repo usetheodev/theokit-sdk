@@ -21,7 +21,11 @@
  *
  * Glob + YAML subset are shared with the MDC parser (DRY, no new dependency).
  *
- * @internal
+ * NOTE — no internal-visibility tag in this block. `tsconfig.base.json` sets `stripInternal: true`,
+ * and TypeScript scans EVERY leading comment range of the declaration that follows, including the
+ * import right below this one. The tag that used to sit here deleted that import from the emitted
+ * `.d.ts`, leaving the types it binds unresolvable for any consumer running type-aware lint
+ * (usetheodev/theokit-sdk#283 records the same trap on a declaration).
  */
 
 import { z } from "zod";
@@ -29,7 +33,17 @@ import { z } from "zod";
 import { anyGlobMatches } from "./context-glob.js";
 import { parseSimpleYaml, splitFrontmatter } from "./context-yaml-lite.js";
 
-/** YAML frontmatter schema for `.theokit/rules/*.md` files. @internal */
+/**
+ * YAML frontmatter schema for `.theokit/rules/*.md` files.
+ *
+ * Every field is optional, and unknown keys are dropped rather than rejected — `safeParse` failing
+ * therefore means a declared key had the wrong TYPE (`paths` as a bare string, `enabled` as the
+ * string `"false"`), never that an unexpected key was present.
+ *
+ * Exported because {@link RulesFrontmatter} is inferred from it and appears in the signature of
+ * {@link shouldActivateRule}, which `@theokit/sdk/context` publishes: the constant has to reach the
+ * emitted declarations for that inferred type to resolve in a consumer's project.
+ */
 export const RulesFrontmatterSchema = z.object({
   description: z.string().optional(),
   paths: z.array(z.string()).optional(),
@@ -46,10 +60,24 @@ export interface RulesParseResult {
 }
 
 /**
- * Parse `.theokit/rules/*.md` content into frontmatter + body. No frontmatter
- * fence → unconditional rule. Malformed YAML → `undefined`.
+ * Split a `.theokit/rules/*.md` document into its frontmatter and its body.
  *
- * @internal
+ * A file with no `---` fence is not an error: the whole text becomes the body and the frontmatter
+ * is synthesised as `{ alwaysApply: true }`, so a plain markdown rule with no metadata applies
+ * unconditionally. That default is the one thing to know before adding a fence — adding one and
+ * omitting both `alwaysApply` and a path pattern turns an always-on rule into a dormant one.
+ *
+ * `undefined` means the fence was there and its contents did not survive: YAML the lite parser
+ * could not read, or a shape the schema rejected (`paths` as a bare string rather than a list,
+ * `enabled` as `"false"` rather than `false`). It never throws, and it does not say WHICH of the
+ * two happened — the caller drops the file and counts it.
+ *
+ * Unknown frontmatter keys are dropped rather than rejected, so a misspelled `alwaysAply` parses
+ * fine and simply has no effect.
+ *
+ * Nothing here decides whether the rule applies; that is `shouldActivateRule`.
+ *
+ * @public — re-exported from `@theokit/sdk/context`, and therefore under semver.
  */
 export function parseRules(content: string): RulesParseResult | undefined {
   const { yaml, body } = splitFrontmatter(content);
@@ -67,11 +95,28 @@ export function parseRules(content: string): RulesParseResult | undefined {
 }
 
 /**
- * Decide whether a rule activates given the in-scope files. `paths` and
- * `globs` are unioned; both are glob patterns matched against the caller's
- * declared scope.
+ * Decide whether a parsed rule applies to this turn, given the files in scope.
  *
- * @internal
+ * Checked in strict order, first match wins:
+ *
+ *   1. `enabled: false` — never applies, whatever else the frontmatter says. This overrides
+ *      `alwaysApply: true`, which is the point of having it.
+ *   2. `alwaysApply: true` — applies, and `inScopePaths` is not consulted.
+ *   3. otherwise — applies only if some pattern from `paths` or `globs` matches some path in
+ *      `inScopePaths`. The two lists are a union, not alternatives; `globs` exists for
+ *      Cursor compatibility and behaves identically.
+ *
+ * A scoped rule with an EMPTY `inScopePaths` never applies. That is the case worth planning for:
+ * `contextPaths` is empty on a plain `agent.send()`, so a rule scoped by path stays dormant until
+ * the caller declares which files the turn is about. It is quiet — a dormant rule looks exactly
+ * like a rule that was never written.
+ *
+ * A rule with a fence but no patterns and no `alwaysApply` also never applies, since step 3 has
+ * nothing to match.
+ *
+ * `description` is not consulted. It is a note for humans, not an activation condition.
+ *
+ * @public — re-exported from `@theokit/sdk/context`, and therefore under semver.
  */
 export function shouldActivateRule(
   fm: RulesFrontmatter,

@@ -7,7 +7,11 @@
  * barrel `@theokit/sdk/persistence` instead. This alias re-exports the FULL current
  * surface UNCHANGED for one release (external back-compat, EC-1); it is scheduled
  * for removal in a future major. See `final_report.md § MEDIUM — internal/persistence`.
- * @internal
+ *
+ * Semver-exempt: everything reachable through this sub-path is an internal primitive and is NOT
+ * covered by the package's semver contract. It is nonetheless declared in `package.json` `exports`,
+ * so it MUST be emitted into the published declarations — a tag that erased it here would break
+ * every consumer the back-compat alias exists to serve.
  */
 
 export type { AtomicWriteJsonOptions } from "./atomic-write.js";

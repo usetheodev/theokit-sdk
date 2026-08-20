@@ -108,7 +108,6 @@ export function forkTranscript(
 export interface ReadJsonlTailOptions {
   /** Maximum records to return, counted from the END. */
   readonly maxRecords?: number;
-  /** Stop once a line contains this marker (exclusive). */
   /**
    * Start the window AFTER the last record whose `subtype` (or `type`) equals this.
    *
@@ -158,14 +157,6 @@ function nonEmptyLines(text: string): string[] {
 }
 
 /**
- * Read the LAST records of a JSONL file without loading the whole thing.
- *
- * Reads fixed-size chunks backwards from EOF until enough newlines have been seen. A session
- * transcript grows without bound; loading megabytes to show the last three turns is the cost this
- * exists to avoid — and a `slice` over a full read would be that same cost with a better name.
- */
-
-/**
  * Whether a raw JSONL line IS the marker record, rather than a line that talks about it.
  *
  * Matches on the record's own discriminants (`subtype`, then `type`) — the fields that identify
@@ -185,6 +176,13 @@ function isMarkerRecord(line: string, marker: string): boolean {
   return record.subtype === marker || record.type === marker;
 }
 
+/**
+ * Read the LAST records of a JSONL file without loading the whole thing.
+ *
+ * Reads fixed-size chunks backwards from EOF until enough newlines have been seen. A session
+ * transcript grows without bound; loading megabytes to show the last three turns is the cost this
+ * exists to avoid — and a `slice` over a full read would be that same cost with a better name.
+ */
 export function readJsonlTail<T = Record<string, unknown>>(
   path: string,
   options: ReadJsonlTailOptions = {},

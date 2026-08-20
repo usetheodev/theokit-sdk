@@ -75,8 +75,8 @@ export function classifyRound(
  * (`inputTokens + outputTokens`), never summed independently, to preserve the
  * EC-10 invariant (`usage.ts`) at this aggregation boundary even if a provider
  * folded extra buckets into a round's own `totalTokens`.
+ * @internal — shared with the streaming twin (`stream-to-completion.ts`, V3-4).
  */
-/** @internal — shared with the streaming twin (`stream-to-completion.ts`, V3-4). */
 export function addUsage(
   acc: TokenUsage | undefined,
   u: TokenUsage | undefined,

@@ -24,6 +24,15 @@
 //
 // It does not read prose. `Tool.create` written as `defineTool` in a sentence still slips past —
 // the READMEs were swept by hand once for that, and the gap is stated here rather than implied.
+//
+// A specific instance of that gap: a SUBPATH named in prose rather than in an import. AGENTS.md
+// lists eleven of them in one sentence ("Other public subpaths: /messages, /models, …"), and no
+// check reaches them. All eleven were verified by hand on 2026-08-20 and all eleven resolve. A gate
+// was considered and NOT built: catching this means telling a sentence that names a subpath from one
+// that denies it exists ("There is **no** `@theokit/sdk/rag` subpath", in that same paragraph), and
+// that is the same negation heuristic whose first version here hid a real finding behind the word
+// "before" in ordinary prose. With zero measured instances of the defect, the heuristic is the
+// larger risk. Re-open the decision when one appears.
 
 import { execFileSync } from "node:child_process";
 import {

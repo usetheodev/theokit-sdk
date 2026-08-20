@@ -432,7 +432,12 @@ The push is gated locally by `.githooks/pre-push`, and again in CI. Every gate i
 | Cluster boundary | `pnpm quality:cross-cluster` | importing an extracted sibling repo |
 | File size | `pnpm quality:loc` | a source file over 400 LoC |
 | Duplication | `pnpm quality:duplication` | a copied block in `packages/sdk/src` |
-| Docs drift | `pnpm quality:capability-map` | a documented import that no longer resolves |
+| Docs drift | `pnpm quality:doc-api` | a documented import that no longer resolves |
+| Declaration typecheck | `pnpm quality:dts-typechecks` | a published `.d.ts`/`.d.cts` that does not compile without `skipLibCheck` |
+| Export parity | `pnpm quality:dts-parity` | a name the source barrel exports and the emit omits |
+| Orphaned docblocks | `pnpm quality:doc-orphans` | a JSDoc block stranded above another, attaching to nothing |
+| Doc coverage | `pnpm quality:doc-coverage` | a public export with no documentation (floor: 100%) |
+| Generated references | `pnpm quality:docs-map` + `quality:docs-errors` | the committed capability map or error-code reference has drifted from the build |
 | Dependencies | `pnpm quality:audit` | a known vulnerability in a shipped dependency |
 | Bundle size | `pnpm check:bundle` | a package over its `.bundle-budget.json` |
 

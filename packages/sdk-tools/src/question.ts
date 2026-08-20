@@ -3,7 +3,9 @@
  *
  * Return shape (always a JSON string):
  *   - `{ ok: true, answer: string }`
- *   - `{ ok: false, error: "timeout" }`
+ *   - `{ ok: false, error: "timeout" }` — nobody answered within `timeoutMs`
+ *   - `{ ok: false, error: "no_asker" }` — neither `ctx.context.askUser` nor the factory's `askUser`
+ *     was available, so there was nobody to ask
  */
 
 export interface QuestionToolOptions {
@@ -78,6 +80,23 @@ function askerFromContext(
     : undefined;
 }
 
+/**
+ * Build the `question` tool: the agent stops, asks the user something, and the turn waits for the
+ * answer.
+ *
+ * The asker is resolved per call — run context first (`ctx.context.askUser`), then the factory's
+ * `askUser` — so one tool object shared across sessions can still reach the right user. With neither,
+ * the call returns `{ ok: false, error: "no_asker" }` at once rather than hanging until the timeout;
+ * that error means the host is mis-wired, not that the user declined.
+ *
+ * After `timeoutMs` (default 5 minutes) the result is `{ ok: false, error: "timeout" }` and
+ * `onAbandon` fires. Supply `onAbandon` whenever your asker holds a slot per thread: the promise the
+ * tool stopped awaiting is still pending on your side, so without the callback the UI keeps rendering
+ * a prompt nobody is waiting on and rejects every later question as already pending.
+ *
+ * Anything else the asker rejects with propagates out of the handler — only its own timeout is
+ * converted.
+ */
 export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
   const timeoutMs = opts.timeoutMs ?? 300_000;
 

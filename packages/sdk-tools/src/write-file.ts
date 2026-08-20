@@ -41,6 +41,10 @@ const BINARY_PROBE_BYTES = 8 * 1024;
 /** The run-scoped context a `defineTool` handler receives as its 2nd argument. */
 type WriteToolContext = { signal?: AbortSignal; context?: unknown };
 
+/**
+ * Options for {@link createWriteFileTool}. `requireReadBeforeWrite` and `readTracker` are a pair —
+ * the flag without the tracker is refused at construction rather than quietly disabling the guard.
+ */
 export interface CreateWriteFileToolOptions {
   /** M76 — name exposed to the model. Omitted => today's literal (additive). The name is a contract:
    *  the approval key, what the model sees and what telemetry records. */
@@ -68,6 +72,22 @@ export interface CreateWriteFileToolOptions {
   readTracker?: ReadTracker;
 }
 
+/**
+ * Build the `write_file` tool. It OVERWRITES: reach for {@link createEditFileTool} when the file
+ * exists and only part of it changes.
+ *
+ * Parent directories are created recursively. Refusals arrive as `{ ok: false, error }`:
+ * `forbidden_path`, `path_traversal`, `binary_file`, plus `read_required` / `stale_file` when
+ * read-before-write is on, plus `read_only` / `write_failed` on the backend path.
+ *
+ * The `binary_file` probe (a null byte in the first 8 KB of the file being replaced) runs on the
+ * local path only. A `filesystem` backend has no equivalent, so overwriting a binary file through a
+ * backend is not refused.
+ *
+ * Throws at construction — not at call time — when `requireReadBeforeWrite` is set without a
+ * `readTracker`. A guard that silently does nothing is worse than no guard, and construction is the
+ * only place the pairing can be checked.
+ */
 export function createWriteFileTool(opts: CreateWriteFileToolOptions): CustomTool {
   const { projectRoot, filesystem } = opts;
   // SE32 — fail fast on a misconfiguration: requiring read-before-write without

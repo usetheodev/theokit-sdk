@@ -43,7 +43,18 @@ export interface DeclaredAction {
   readonly reversible: boolean;
 }
 
-/** @public */
+/**
+ * The action to decide on, plus what the operator granted.
+ *
+ * `granted` is matched against `action.scope` by exact string equality: there is no prefix or
+ * wildcard rule, so granting `cluster:prod` does not grant `cluster:prod:kube-system`. A product
+ * that wants hierarchical scopes expands them itself before calling.
+ *
+ * `irreversibleAllowed` defaults to empty, so an irreversible action inside a granted scope asks
+ * for approval unless its scope was pre-approved for destruction as well.
+ *
+ * @public
+ */
 export interface BlastRadiusInput {
   readonly action: DeclaredAction;
   /** Scopes the operator granted reach to. Empty grants nothing — never everything. */
@@ -52,7 +63,16 @@ export interface BlastRadiusInput {
   readonly irreversibleAllowed?: readonly string[];
 }
 
-/** @public */
+/**
+ * What the policy decided.
+ *
+ * `require-approval` means a human has to say yes before the action runs; a caller with no way to
+ * ask must treat it as a refusal. `refuse` is not appealable through this policy at all — the
+ * operator has to grant the scope first, which is deliberately a configuration change rather than
+ * a prompt.
+ *
+ * @public
+ */
 export type BlastRadiusOutcome = "allow" | "require-approval" | "refuse";
 
 /** Why the decision came out that way. Rendered to the operator and read by an audit. @public */
@@ -62,7 +82,14 @@ export type BlastRadiusReason =
   | "scope-not-granted"
   | "scope-undeclared";
 
-/** @public */
+/**
+ * The outcome, the rule that produced it, and the scope it was decided about.
+ *
+ * `scope` echoes what the action declared, so it is the empty string when the reason is
+ * `scope-undeclared` — the decision names what it saw rather than substituting a placeholder.
+ *
+ * @public
+ */
 export interface BlastRadiusDecision {
   readonly outcome: BlastRadiusOutcome;
   readonly reason: BlastRadiusReason;
@@ -71,6 +98,19 @@ export interface BlastRadiusDecision {
 }
 
 /**
+ * Decide one declared action against the scopes the operator granted.
+ *
+ * Four checks, in this order, each short-circuiting: an empty `scope` is refused as undeclared
+ * before any comparison happens; a scope absent from `granted` is refused; an irreversible action
+ * whose scope is not in `irreversibleAllowed` escalates to approval; anything left is allowed.
+ *
+ * Refusal outranking escalation is a decision, not an accident. Asking a human to approve a scope
+ * the operator never granted trains them to approve by reflex, which is how an approval prompt
+ * stops being a control.
+ *
+ * This decides reach only. Whether the operator permitted the tool at all is `decideApproval`, and
+ * the two are independent.
+ *
  * @returns the outcome with the reason and the scope it was decided on.
  * @public
  */
