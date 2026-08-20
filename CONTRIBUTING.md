@@ -89,6 +89,32 @@ task 1f3c… was "finished" — expected error   <- reports the defect
 The second is the one to write. `tests/helpers/poll-until.ts` accepts a function for its message so it
 can be built at failure time from the state the poll actually saw.
 
+## A measurement that confirms you gets no second reading
+
+Two instrument bugs on the same night, in two repositories:
+
+- `git ls-remote --tags | tail` sorts **lexicographically**, so `v0.9.0` came back as the newest tag
+  when 141 tags existed including `v0.72.0`.
+- A coverage join matched repo-relative module paths against `SF:` entries that are
+  **package-relative**, so an inverted `endsWith` matched nothing and reported *39 of 39 uncovered*.
+
+Same class of bug. What differed is what happened next — and it was not care.
+
+The first result **contradicted** its author's expectation and still went unchecked, because it
+served the issue being written. The second **confirmed** the alarm it was measuring, which is the
+position no checking instinct fires from. It was caught for one reason only: *39 of 39 is too clean
+to be true.*
+
+**The failure is not carelessness. It is confirmation.** A measurement that agrees with what you were
+already going to write does not get a second reading, and that is precisely where the second reading
+is cheapest.
+
+The procedure that survives this is small, and it is the one that worked:
+
+> **A number that is too round is a signal.** 39 of 39, zero findings, 100% — each earns the question
+> *what would this result look like if the tool were broken?* If the answer is "the same", the
+> measurement distinguishes nothing and you have learned only that the command ran.
+
 ## A claim about A does not transfer to B
 
 `## Verify before you remove` covers the destructive direction — a premise that justifies deleting
