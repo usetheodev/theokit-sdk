@@ -14,16 +14,20 @@
  * it replaces — and a condition that genuinely never becomes true still
  * fails, with a message naming what was expected instead of a silent flake.
  *
+ * The condition may be sync or async. B-056 widened it: the task registry's state lives behind
+ * `await get(id)`, so the signal those tests need to wait on cannot be read synchronously, and
+ * a second near-identical helper for that case would be the duplication this file exists to end.
+ *
  * @internal
  */
 export async function pollUntil(
-  condition: () => boolean,
+  condition: () => boolean | Promise<boolean>,
   opts: { deadlineMs?: number; intervalMs?: number; message?: string } = {},
 ): Promise<void> {
   const deadlineMs = opts.deadlineMs ?? 5_000;
   const intervalMs = opts.intervalMs ?? 10;
   const deadline = Date.now() + deadlineMs;
-  while (!condition()) {
+  while (!(await condition())) {
     if (Date.now() >= deadline) {
       throw new Error(opts.message ?? `pollUntil: condition not met within ${deadlineMs}ms`);
     }
