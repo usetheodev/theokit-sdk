@@ -157,3 +157,84 @@ describe("agent-helpers.ts — validateRehydratedAgent (Agent.resume)", () => {
     }
   });
 });
+
+describe("Missing API key — the message names what the environment actually has (#338 item 5)", () => {
+  const PROVIDER_VARS = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY"] as const;
+  const saved: Record<string, string | undefined> = {};
+  let cwd: string;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "theokit-missing-key-"));
+    for (const key of [...PROVIDER_VARS, "THEOKIT_API_KEY"]) {
+      saved[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
+
+  afterEach(async () => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it("points at the provider key that IS set, instead of only naming the one that is not", async () => {
+    // Arrange — the reported situation: the provider credential is right there, and the
+    // variable the SDK reads is not. `shouldUseRealLocalRuntime` consults OPENROUTER_API_KEY
+    // by name, so the environment looks configured to the person who set it up.
+    process.env.OPENROUTER_API_KEY = "sk-or-v1-not-a-real-key";
+
+    // Act
+    const error = await Agent.create({ model: { id: "claude-sonnet-4-6" }, local: { cwd } }).then(
+      () => undefined,
+      (caught: unknown) => caught as Error,
+    );
+
+    // Assert — the message has to close the gap between "I set a key" and "it wants a
+    // different one". Naming only THEOKIT_API_KEY leaves the reader to guess that the
+    // provider key must be passed as `apiKey`; this is the reported 3-hour diagnosis.
+    // The whole sentence, not a substring: this message exists to be READ, and a `toContain`
+    // would keep passing while it degraded into something unhelpful around the words it checks.
+    expect(error?.message ?? "").toBe(
+      "Missing API key — set THEOKIT_API_KEY, or pass `apiKey` to Agent.create(). " +
+        "OPENROUTER_API_KEY is set, but a provider credential is not read from the environment " +
+        "automatically — pass it explicitly, e.g. " +
+        "`Agent.create({ apiKey: process.env.OPENROUTER_API_KEY, ... })`.",
+    );
+  });
+
+  it("still names the variable it reads when nothing at all is set", async () => {
+    // The accepted case for the message: with an empty environment there is no provider key
+    // to point at, and the message must not invent one.
+    const error = await Agent.create({ model: { id: "claude-sonnet-4-6" }, local: { cwd } }).then(
+      () => undefined,
+      (caught: unknown) => caught as Error,
+    );
+
+    expect(error?.message ?? "").toContain("THEOKIT_API_KEY");
+    for (const key of PROVIDER_VARS) {
+      expect(error?.message ?? "").not.toContain(key);
+    }
+  });
+
+  it("keeps the code and the class the existing contract pins", async () => {
+    process.env.OPENAI_API_KEY = "sk-not-a-real-key";
+
+    await expect(
+      Agent.create({ model: { id: "claude-sonnet-4-6" }, local: { cwd } }),
+    ).rejects.toMatchObject({ name: "AuthenticationError", code: "missing_api_key" });
+  });
+
+  it("never puts the key's VALUE in the message", async () => {
+    // A message that helps must still not print the credential it found.
+    process.env.OPENROUTER_API_KEY = "sk-or-v1-canary-value-must-not-appear";
+
+    const error = await Agent.create({ model: { id: "claude-sonnet-4-6" }, local: { cwd } }).then(
+      () => undefined,
+      (caught: unknown) => caught as Error,
+    );
+
+    expect(error?.message ?? "").not.toContain("canary-value-must-not-appear");
+  });
+});

@@ -3,12 +3,16 @@ import { stat } from "node:fs/promises";
 import { AuthenticationError, ConfigurationError, UnknownAgentError } from "./errors.js";
 import { validateApiKeyShape } from "./internal/auth/api-key-validator.js";
 import { CloudAgent, validateCloudToolParity } from "./internal/cloud-agent/index.js";
-import { resolveApiKey } from "./internal/env.js";
+import { API_KEY_ENV_VAR, resolveApiKey } from "./internal/env.js";
 import { httpRequest } from "./internal/http.js";
 import { isLocalAgentId } from "./internal/ids.js";
 import { LocalAgent } from "./internal/local-agent/index.js";
 import { discoverProviderPlugins } from "./internal/providers/discovery.js";
-import { getConfiguredBaseUrl, isFixtureApiKey } from "./internal/runtime/fixtures/fixture-mode.js";
+import {
+  getConfiguredBaseUrl,
+  isFixtureApiKey,
+  presentProviderCredentialEnvVars,
+} from "./internal/runtime/fixtures/fixture-mode.js";
 import { normalizeModel } from "./internal/runtime/model-selection.js";
 import {
   flushRegistrySaves,
@@ -146,10 +150,37 @@ function keyWillFlowToProvider(apiKey: string, provider: string | undefined): bo
   return profile.authType !== "none";
 }
 
+/**
+ * The "Missing API key" refusal, told from the caller's environment rather than from ours (#338).
+ *
+ * The message used to be the three words alone. A caller with `OPENROUTER_API_KEY` exported and no
+ * `THEOKIT_API_KEY` met it while looking at a shell that, to them, plainly had a key in it — and the
+ * SDK consults that exact variable a moment later, in `shouldUseRealLocalRuntime`, to decide whether
+ * to drive a real runtime. Reported as three hours of diagnosis on the wrong cause.
+ *
+ * So when a provider credential IS present, the message names it and says where to put it. It does
+ * NOT quietly adopt it: `resolveApiKey` reading provider variables would make the SDK pick a
+ * credential by ambient scan, and with two of them exported there is no non-arbitrary answer to
+ * which one it meant. Keeping resolution explicit and the diagnosis specific is the trade this
+ * takes — fail fast, fail CLEAR (`rules/error-handling.md` § 2-3), not fail helpfully-and-wrongly.
+ *
+ * Names the variables, never their values.
+ */
+function missingApiKeyMessage(): string {
+  const present = presentProviderCredentialEnvVars();
+  const base = `Missing API key — set ${API_KEY_ENV_VAR}, or pass \`apiKey\` to Agent.create()`;
+  if (present.length === 0) return `${base}.`;
+  return (
+    `${base}. ${present.join(" and ")} ${present.length === 1 ? "is" : "are"} set, but a provider ` +
+    "credential is not read from the environment automatically — pass it explicitly, e.g. " +
+    `\`Agent.create({ apiKey: process.env.${present[0]}, ... })\`.`
+  );
+}
+
 async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
   const apiKey = resolveApiKey(options.apiKey);
   if (apiKey === undefined) {
-    throw new AuthenticationError("Missing API key", { code: "missing_api_key" });
+    throw new AuthenticationError(missingApiKeyMessage(), { code: "missing_api_key" });
   }
   const provider = providerFromModelId(normalizeModel(options.model)?.id);
   const willFlowToProvider = keyWillFlowToProvider(apiKey, provider);
