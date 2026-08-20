@@ -345,10 +345,46 @@ that names a directory cannot.
 
 Two corollaries this repo now follows:
 
-- **Suppress files, not trees.** Seven named paths can be audited by reading the list. `src/**` cannot.
-- **A gate that skips must say so on success.** `knip` exits 0 and prints nothing, which reads
-  identically whether it swept 527 files or two. `tools/report-dead-code-scope.mjs` prints the scope
-  after a passing run for that reason — see [Quality gates](#quality-gates).
+- **Suppress files, not trees.** The list is down to a single named path, and a single path can be
+  audited by reading it. `src/**` cannot.
+- **A gate that skips must say so on success** — see
+  [A silent gate reports absence it never checked](#a-silent-gate-reports-absence-it-never-checked),
+  which is the same failure in four unrelated tools.
+
+## A silent gate reports absence it never checked
+
+A passing gate makes a claim: *I looked, and there was nothing.* When it prints nothing on success,
+that claim is indistinguishable from a much weaker one: *I did not look.* The reader cannot tell,
+and the reader is usually the person deciding whether it is safe to ship.
+
+This is not one tool's quirk. Four instances, all measured here on 2026-08-19/20, in four tools with
+nothing in common:
+
+| Gate | What its green meant | What the reader assumed |
+|---|---|---|
+| `knip` (`quality:dead`) | swept the public barrel; `src/internal/**` — 527 files — was ignored | the repo has no dead exports |
+| a secret scan | `bytes=0` — it had been handed an empty file set | nothing scanned found no secrets |
+| a test-execution gate | `PASS` with zero languages detected, so no suite ran at all | the suite ran and passed |
+| `.githooks/pre-commit` G1 | *(after the fix)* no TypeScript staged, nothing to typecheck | types were checked |
+
+The first three each cost a backlog item to find. The fourth was written to announce itself from the
+start — `→ G1: SKIPPED — no TypeScript staged, so there is nothing to typecheck.` — because by then
+the pattern had a name.
+
+So when you add or change a gate:
+
+- **Print the scope on success, not only the failures.** `depcruise` says "541 modules cruised";
+  `biome` says "Checked 1701 files". Those numbers are what makes their green legible. A gate that
+  reports only when angry cannot be audited.
+- **Skipping is a legitimate outcome — reporting it is not optional.** "Nothing to check" and
+  "checked, all clean" are different results and must read differently.
+- **Distrust a zero.** Zero findings, zero files, zero packages selected: each is either good news or
+  a broken instrument, and the two are indistinguishable until the gate says which. When a count
+  surprises you by being clean, ask what this result would look like if the tool were broken.
+
+The counterpart failure is in [A measurement that confirms you gets no second
+reading](#a-measurement-that-confirms-you-gets-no-second-reading) — a silent gate is that trap built
+into the tooling, where it fires on everyone rather than on whoever ran the command.
 
 ## The gate you run is not the gate that decides
 
