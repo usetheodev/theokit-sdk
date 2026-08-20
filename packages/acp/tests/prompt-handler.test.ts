@@ -234,15 +234,6 @@ describe("handlePrompt — stop reason derivation", () => {
       { status: "error", error: { code: "max_tokens" } },
       "max_tokens",
     ],
-    // Documents current behaviour, and it is worth being explicit about: an
-    // errored run whose code matches none of the mappings above is reported to
-    // the ACP client as a NORMAL end of turn. The failure is invisible on the
-    // wire. Changing that is a product decision, so the test pins what ships.
-    [
-      "an errored run with an unmapped code falls back to end_turn",
-      { status: "error", error: { code: "provider_5xx" } },
-      "end_turn",
-    ],
     [
       "an iteration cap reports max_turn_requests",
       { status: "error", error: { code: "max_iterations" } },
@@ -262,6 +253,30 @@ describe("handlePrompt — stop reason derivation", () => {
 });
 
 describe("handlePrompt — failure paths", () => {
+  // B-125 — the stop-reason mapping used to fall through to `end_turn` for any
+  // error code it didn't recognize, so an errored run was reported to the ACP
+  // client as a normal, successful end of turn: the failure was invisible on
+  // the wire. `StopReason` (from `@agentclientprotocol/sdk`) has no value that
+  // means "error" — `"end_turn" | "max_tokens" | "max_turn_requests" |
+  // "refusal" | "cancelled"` — so a run status the mapping can't place must
+  // surface through the protocol's OTHER failure channel: the JSON-RPC
+  // `{ error: AcpError }` response `handlePrompt` already uses for every other
+  // rejection in this file, not through the `StopReason` enum.
+  it("test_an_unmapped_error_code_reaches_the_client_as_a_failure_not_end_turn", async () => {
+    const h = makeHarness({
+      runResult: { status: "error", error: { code: "provider_5xx" } },
+    });
+
+    const out = await handlePrompt(promptWith("hello"), h.deps);
+
+    expect(out).toEqual({
+      error: {
+        code: ACP_ERR.INTERNAL_ERROR,
+        message: expect.stringContaining("provider_5xx"),
+      },
+    });
+  });
+
   it("converts an AbortError from agent.send into a cancelled response, not an error", async () => {
     const abort = new Error("the run was stopped");
     abort.name = "AbortError";

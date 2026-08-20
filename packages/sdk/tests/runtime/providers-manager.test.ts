@@ -174,7 +174,7 @@ describe("ProvidersManagerImpl — model surfacing", () => {
     expect(route?.model).toBe("claude-opus-4");
   });
 
-  it("omits the model entirely for a provider with no default", async () => {
+  it("surfaces the selected model's name from the model id when the route sets none", async () => {
     const mgr = new ProvidersManagerImpl(
       model("openai:gpt-4o"),
       routing([{ capability: "chat", provider: "openai" }]),
@@ -184,23 +184,16 @@ describe("ProvidersManagerImpl — model surfacing", () => {
     const [route] = await mgr.routes();
 
     expect(route?.reason).toBe("explicit-model-provider");
-    expect(route).not.toHaveProperty("model");
+    expect(route?.model).toBe("gpt-4o");
   });
 
-  /**
-   * Pins CURRENT behaviour, and it is wrong in a way worth recording.
-   *
-   * `extractModelName`'s comment says it will "surface the model name from the
-   * prefix split" — but it does not split anything. It calls
-   * `defaultModelForProvider`, which returns the hard-coded literal
-   * `claude-3-7-sonnet` for anthropic. So a user on `anthropic:claude-opus-4`
-   * who does not set `route.model` is told their chat route resolves to
-   * `claude-3-7-sonnet` — a model they never selected.
-   *
-   * The test asserts what ships so the discrepancy is visible rather than
-   * latent; fixing it is a product decision, not a test change.
-   */
-  it("reports the hard-coded anthropic default instead of the selected model", async () => {
+  // B-124 — `extractModelName`'s comment always claimed to surface the name
+  // "from the prefix split", but it called `defaultModelForProvider` and
+  // returned the hard-coded literal `claude-3-7-sonnet` for anthropic instead.
+  // A user on `anthropic:claude-opus-4` who does not set `route.model` was told
+  // their chat route resolved to a model they never selected. Fixed: the
+  // reported model is now derived from the model id actually passed in.
+  it("test_reports_the_actually_selected_model_not_a_hard_coded_default", async () => {
     const mgr = new ProvidersManagerImpl(
       model("anthropic:claude-opus-4"),
       routing([{ capability: "chat", provider: "anthropic" }]),
@@ -209,8 +202,21 @@ describe("ProvidersManagerImpl — model surfacing", () => {
 
     const [route] = await mgr.routes();
 
-    expect(route?.model).toBe("claude-3-7-sonnet");
-    expect(route?.model).not.toBe("claude-opus-4");
+    expect(route?.model).toBe("claude-opus-4");
+    expect(route?.model).not.toBe("claude-3-7-sonnet");
+  });
+
+  it("omits the model entirely when the model id carries no name after the provider prefix", async () => {
+    const mgr = new ProvidersManagerImpl(
+      model("anthropic:"),
+      routing([{ capability: "chat", provider: "anthropic" }]),
+      undefined,
+    );
+
+    const [route] = await mgr.routes();
+
+    expect(route?.reason).toBe("explicit-model-provider");
+    expect(route).not.toHaveProperty("model");
   });
 });
 

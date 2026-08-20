@@ -116,13 +116,13 @@ describe("posthog adapter — registration guards", () => {
     expect(instances[0]?.key).toBe("proj-key");
   });
 
-  // Pins CURRENT behaviour, which is a trap rather than a design: the source
-  // reads `POSTHOG_API_KEY ?? POSTHOG_PROJECT_API_KEY`, and `??` does not treat
+  // B-123 — the trap this test used to pin is now closed: the source used to
+  // read `POSTHOG_API_KEY ?? POSTHOG_PROJECT_API_KEY`, and `??` does not treat
   // an empty string as absent. `POSTHOG_API_KEY=` in a .env or CI config — a
-  // very ordinary way to "leave it blank" — therefore masks a correctly set
-  // POSTHOG_PROJECT_API_KEY, and telemetry silently stops. Changing this is a
-  // product decision; the test exists so the change is deliberate and visible.
-  it("lets an EMPTY POSTHOG_API_KEY mask a valid POSTHOG_PROJECT_API_KEY", async () => {
+  // very ordinary way to "leave it blank" — used to mask a correctly set
+  // POSTHOG_PROJECT_API_KEY, silently stopping telemetry. The adapter now
+  // treats an empty or whitespace-only value as absent and falls through.
+  it("test_an_empty_api_key_falls_through_to_the_project_key", async () => {
     const { module, instances } = makePosthogModule([]);
     modules.set("posthog-node", module);
     modules.set("@opentelemetry/api", makeOtel({ addSpanProcessor: vi.fn() }));
@@ -132,7 +132,22 @@ describe("posthog adapter — registration guards", () => {
     const adapter = await loadAdapter();
     adapter.register();
 
-    expect(instances).toHaveLength(0);
+    expect(instances).toHaveLength(1);
+    expect(instances[0]?.key).toBe("proj-key");
+  });
+
+  it("test_a_whitespace_only_api_key_falls_through_to_the_project_key", async () => {
+    const { module, instances } = makePosthogModule([]);
+    modules.set("posthog-node", module);
+    modules.set("@opentelemetry/api", makeOtel({ addSpanProcessor: vi.fn() }));
+    vi.stubEnv("POSTHOG_API_KEY", "   ");
+    vi.stubEnv("POSTHOG_PROJECT_API_KEY", "proj-key");
+
+    const adapter = await loadAdapter();
+    adapter.register();
+
+    expect(instances).toHaveLength(1);
+    expect(instances[0]?.key).toBe("proj-key");
   });
 
   it("uses the default PostHog host when none is configured", async () => {
@@ -159,6 +174,20 @@ describe("posthog adapter — registration guards", () => {
     adapter.register();
 
     expect(instances[0]?.opts?.host).toBe("https://eu.posthog.example");
+  });
+
+  // B-123 — same `??` trap named in the evidence, on the sibling env var.
+  it("test_an_empty_host_falls_through_to_the_default_host", async () => {
+    const { module, instances } = makePosthogModule([]);
+    modules.set("posthog-node", module);
+    modules.set("@opentelemetry/api", makeOtel({ addSpanProcessor: vi.fn() }));
+    vi.stubEnv("POSTHOG_API_KEY", "k");
+    vi.stubEnv("POSTHOG_HOST", "");
+
+    const adapter = await loadAdapter();
+    adapter.register();
+
+    expect(instances[0]?.opts?.host).toBe("https://us.i.posthog.com");
   });
 
   it("skips a no-op tracer provider that cannot accept a span processor", async () => {

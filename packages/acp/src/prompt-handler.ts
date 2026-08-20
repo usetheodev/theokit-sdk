@@ -24,13 +24,36 @@ interface HandlePromptDeps {
   log: (msg: string) => void;
 }
 
-function mapStopReason(runStatus: string, errorCode?: string): acp.StopReason {
+/**
+ * B-125 — an unmapped error code used to fall through to `"end_turn"`, so an
+ * errored run was reported to the ACP client as ordinary success. `undefined`
+ * now means "no mapping" and MUST NOT be treated as `end_turn` by the caller —
+ * `StopReason` has no "error" value, so an unmapped status has to surface
+ * through the protocol's `{ error: AcpError }` channel instead (see
+ * `runPrompt`).
+ */
+function mapStopReason(runStatus: string, errorCode?: string): acp.StopReason | undefined {
   if (errorCode === "aborted" || runStatus === "cancelled") return "cancelled";
   if (errorCode === "safety_blocked") return "refusal";
   if (errorCode === "context_length_exceeded" || errorCode === "max_tokens") return "max_tokens";
   if (errorCode === "max_iterations") return "max_turn_requests";
   if (runStatus === "finished") return "end_turn";
-  return "end_turn";
+  return undefined;
+}
+
+/** Thrown by `runPrompt` when a run ends in a status/error-code combination
+ * `mapStopReason` cannot place. Caught by `handlePrompt`'s existing failure
+ * path and turned into a JSON-RPC `{ error: AcpError }`, never into a
+ * fabricated `end_turn`. */
+class UnmappedRunStatusError extends Error {
+  constructor(runStatus: string, errorCode: string, detail: string | undefined) {
+    super(
+      `run ended in status "${runStatus}" with unmapped error code "${errorCode}"${
+        detail !== undefined ? `: ${detail}` : ""
+      }`,
+    );
+    this.name = "UnmappedRunStatusError";
+  }
 }
 
 function isAbortError(err: unknown): boolean {
@@ -76,7 +99,11 @@ async function runPrompt(
   const result = await run.wait();
   const errorCode =
     result.status === "error" && result.error !== undefined ? (result.error.code ?? "") : "";
-  return mapStopReason(result.status, errorCode);
+  const stopReason = mapStopReason(result.status, errorCode);
+  if (stopReason === undefined) {
+    throw new UnmappedRunStatusError(result.status, errorCode, result.error?.message);
+  }
+  return stopReason;
 }
 
 /**
@@ -129,7 +156,8 @@ export async function handlePrompt(
   } catch (err) {
     if (isAbortError(err)) return { response: { stopReason: "cancelled" } };
     const msg = err instanceof Error ? err.message : String(err);
-    deps.log(`[acp] agent.send threw: ${msg}`);
+    const label = err instanceof UnmappedRunStatusError ? "run ended unmapped" : "agent.send threw";
+    deps.log(`[acp] ${label}: ${msg}`);
     return { error: { code: ACP_ERR.INTERNAL_ERROR, message: msg } };
   }
 }
