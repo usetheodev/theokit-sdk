@@ -37,6 +37,19 @@ export interface SubscribeOptions {
   signal?: AbortSignal;
   /** Additional fetch-style headers (e.g., `Authorization`). */
   headers?: Record<string, string>;
+  /**
+   * Override the SSE transport's `fetch`. Defaults to `globalThis.fetch`.
+   * Lets a consumer supply a proxying agent or instrumented fetch without
+   * mutating the runtime global.
+   */
+  fetch?: typeof globalThis.fetch;
+  /**
+   * Override the WS transport's `WebSocket` constructor. Defaults to
+   * `globalThis.WebSocket`. Lets a consumer polyfill WS on a runtime that
+   * lacks it, or supply an instrumented implementation, without mutating
+   * the runtime global.
+   */
+  WebSocket?: typeof WebSocket;
 }
 
 const defaultRetry = (attempt: number) => Math.min(30_000, 1000 * 2 ** attempt);
@@ -120,7 +133,8 @@ async function* openSse<T>(
   opts: SubscribeOptions,
 ): AsyncIterable<FrameOut<T>> {
   const url = `${stripTrailingSlash(opts.baseUrl)}/api/subscriptions/${encodeURIComponent(name)}?input=${encodeURIComponent(JSON.stringify(input))}`;
-  const res = await fetch(url, {
+  const fetchFn = opts.fetch ?? globalThis.fetch;
+  const res = await fetchFn(url, {
     method: "GET",
     headers: {
       accept: "text/event-stream",
@@ -164,10 +178,10 @@ async function* openWs<T>(
     .replace(/^https:/, "wss:")
     .concat("/api/ws");
 
-  const WS = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
+  const WS = opts.WebSocket ?? (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
   if (WS === undefined) {
     throw new SubscriptionError(
-      "Theokit.subscribe(transport='ws'): no global WebSocket available. Use Node >=22 or install 'ws' as a runtime dep + assign to globalThis.WebSocket.",
+      "Theokit.subscribe(transport='ws'): no global WebSocket available. Use Node >=22 or install 'ws' as a runtime dep + assign to globalThis.WebSocket, or pass opts.WebSocket.",
       { code: "ws_global_missing" },
     );
   }
@@ -257,12 +271,13 @@ async function* openWs<T>(
 async function selectTransport(
   pref: SubscriptionTransport,
   _name: string,
-  _opts: SubscribeOptions,
+  opts: SubscribeOptions,
 ): Promise<"ws" | "sse"> {
   if (pref === "ws") return "ws";
   if (pref === "sse") return "sse";
-  // auto — prefer WS if available, else SSE.
-  if (typeof (globalThis as { WebSocket?: unknown }).WebSocket === "function") {
+  // auto — prefer WS if available (injected or global), else SSE.
+  const WS = opts.WebSocket ?? (globalThis as { WebSocket?: unknown }).WebSocket;
+  if (typeof WS === "function") {
     return "ws";
   }
   return "sse";

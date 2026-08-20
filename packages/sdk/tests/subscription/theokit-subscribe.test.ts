@@ -8,10 +8,9 @@
  * connection died" — the same subclass trap that let a drop-in replacement survive every mutant in an
  * earlier batch of this campaign.
  *
- * `fetch` and `WebSocket` are read off `globalThis` rather than injected, so the tests replace them for
- * their own duration. Injection would be the better design and is deliberately NOT done here: changing
- * a `@public` signature to make it testable is a production change smuggled into a coverage batch.
- * Recorded as B-108 instead.
+ * `fetch` and `WebSocket` are injected through `opts.fetch` / `opts.WebSocket` (B-108) rather than
+ * read off `globalThis` — no `vi.stubGlobal` needed. The seam defaults to the runtime globals, so a
+ * consumer that never touches these fields still sees the previous behavior.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -62,9 +61,8 @@ function sseResponse(frames: string[], init: { ok?: boolean; status?: number } =
 describe("the argument guards — refusals before any connection is attempted", () => {
   it("test_an_empty_name_is_refused_before_any_connection", async () => {
     const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
 
-    const err = await firstError(subscribe("", {}, { baseUrl: BASE }));
+    const err = await firstError(subscribe("", {}, { baseUrl: BASE, fetch: fetchSpy }));
 
     expectCode(err, "subscribe_name_invalid");
     expect(
@@ -75,9 +73,10 @@ describe("the argument guards — refusals before any connection is attempted", 
 
   it("test_a_missing_base_url_is_refused_before_any_connection", async () => {
     const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
 
-    const err = await firstError(subscribe("feed", {}, {} as unknown as { baseUrl: string }));
+    const err = await firstError(
+      subscribe("feed", {}, { fetch: fetchSpy } as unknown as { baseUrl: string }),
+    );
 
     expectCode(err, "subscribe_baseUrl_missing");
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -86,10 +85,14 @@ describe("the argument guards — refusals before any connection is attempted", 
 
 describe("the SSE transport", () => {
   it("test_a_non_2xx_subscribe_response_is_a_typed_error", async () => {
-    vi.stubGlobal("fetch", async () => sseResponse([], { ok: false, status: 503 }));
+    const fetchSpy = vi.fn(async () => sseResponse([], { ok: false, status: 503 }));
 
     const err = await firstError(
-      subscribe("feed", {}, { baseUrl: BASE, transport: "sse", maxReconnectAttempts: 0 }),
+      subscribe(
+        "feed",
+        {},
+        { baseUrl: BASE, transport: "sse", maxReconnectAttempts: 0, fetch: fetchSpy },
+      ),
     );
 
     const e = expectCode(err, "sse_http_error");
@@ -99,10 +102,14 @@ describe("the SSE transport", () => {
   it("test_an_error_frame_mid_stream_is_a_typed_error", async () => {
     // The interesting one: it arrives as a well-formed SSE frame, so nothing but the `event:` name
     // distinguishes it from data.
-    vi.stubGlobal("fetch", async () => sseResponse(["event: error\ndata: handler exploded\n\n"]));
+    const fetchSpy = vi.fn(async () => sseResponse(["event: error\ndata: handler exploded\n\n"]));
 
     const err = await firstError(
-      subscribe("feed", {}, { baseUrl: BASE, transport: "sse", maxReconnectAttempts: 0 }),
+      subscribe(
+        "feed",
+        {},
+        { baseUrl: BASE, transport: "sse", maxReconnectAttempts: 0, fetch: fetchSpy },
+      ),
     );
 
     const e = expectCode(err, "sse_server_error");
@@ -114,6 +121,11 @@ describe("the WebSocket transport", () => {
   it("test_ws_transport_without_a_global_websocket_names_the_remedy", async () => {
     // Pure diagnostics: this message is the entire product of this branch, and it is what a user on an
     // older runtime reads. Diagnostics nobody has read are diagnostics nobody has checked.
+    //
+    // This is the one case the injection seam cannot express: the module falls back to
+    // `opts.WebSocket ?? globalThis.WebSocket`, and Node 22 (this test runtime) DOES define a global
+    // WebSocket. Simulating "no WebSocket anywhere" — not "I didn't inject one" — requires removing
+    // the global itself; there is no `opts` value that overrides a present global back to absent.
     vi.stubGlobal("WebSocket", undefined);
 
     const err = await firstError(
@@ -166,10 +178,17 @@ describe("the WebSocket transport", () => {
       }
     }
 
-    vi.stubGlobal("WebSocket", FakeSocket);
-
     const err = await firstError(
-      subscribe("feed", {}, { baseUrl: BASE, transport: "ws", maxReconnectAttempts: 0 }),
+      subscribe(
+        "feed",
+        {},
+        {
+          baseUrl: BASE,
+          transport: "ws",
+          maxReconnectAttempts: 0,
+          WebSocket: FakeSocket as unknown as typeof WebSocket,
+        },
+      ),
     );
 
     const e = expectCode(err, "ws_server_error");
@@ -181,12 +200,16 @@ describe("reconnect exhaustion — two exits that mean different things", () => 
   it("test_a_disconnect_past_the_attempt_limit_is_a_disconnect_error", async () => {
     // A transport failure that is NOT a SubscriptionError must be wrapped, so the caller can tell a
     // dead connection from a server refusal.
-    vi.stubGlobal("fetch", async () => {
+    const fetchSpy = vi.fn(async () => {
       throw new TypeError("fetch failed");
     });
 
     const err = await firstError(
-      subscribe("feed", {}, { baseUrl: BASE, transport: "sse", maxReconnectAttempts: 0 }),
+      subscribe(
+        "feed",
+        {},
+        { baseUrl: BASE, transport: "sse", maxReconnectAttempts: 0, fetch: fetchSpy },
+      ),
     );
 
     expect(err).toBeInstanceOf(SubscriptionDisconnectError);
@@ -196,10 +219,14 @@ describe("reconnect exhaustion — two exits that mean different things", () => 
   it("test_a_subscription_error_survives_the_reconnect_wrapper_unchanged", async () => {
     // The other exit. `SubscriptionDisconnectError extends SubscriptionError`, so asserting the class
     // alone cannot separate these two tests — the code is what does it.
-    vi.stubGlobal("fetch", async () => sseResponse([], { ok: false, status: 503 }));
+    const fetchSpy = vi.fn(async () => sseResponse([], { ok: false, status: 503 }));
 
     const err = await firstError(
-      subscribe("feed", {}, { baseUrl: BASE, transport: "sse", maxReconnectAttempts: 0 }),
+      subscribe(
+        "feed",
+        {},
+        { baseUrl: BASE, transport: "sse", maxReconnectAttempts: 0, fetch: fetchSpy },
+      ),
     );
 
     expectCode(err, "sse_http_error");
