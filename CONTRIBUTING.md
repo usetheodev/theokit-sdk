@@ -311,6 +311,39 @@ not a reachability claim you can weigh — it is an assertion of reachability wi
 removed. The guard that was deleted here on "the types forbid it" was refuted by a contract test that
 supplied the value *by cast*.
 
+## A blanket suppression is a claim about the tool
+
+When a gate is configured to skip a whole tree, that configuration is asserting something: *this tool
+produces nothing useful here.* It is rarely written down, it is almost never re-measured, and it is
+usually wrong in a specific way — the tool was reporting something real, in a shape nobody wanted to
+read, and the suppression was the quickest way to stop reading it.
+
+Measured on `knip` (2026-08-20). `packages/sdk` ignored `src/internal/**` — 527 of this repo's source
+files, so a green `quality:dead` had examined the public barrel and little else. Two probes:
+
+| Configuration | Findings |
+|---|---|
+| committed (`ignore: src/internal/**`) | 0 |
+| ignore dropped | 269 |
+| ignore dropped + `ignoreExportsUsedInFile: true` | **9** |
+
+knip counts an export as used only when another *file* imports it, so every helper exported for a
+same-file reason read as dead. 260 of the 269 were that. The blanket ignore had been standing in for
+a setting the tool ships for exactly this case, and in standing in for it, it also hid the nine that
+were real.
+
+So before widening a suppression — and certainly before inheriting one — **read the tool's options
+for the case you are actually suppressing.** The useful question is not "should this stay ignored?"
+but "what is this ignore compensating for?" A suppression that names a mechanism can be checked; one
+that names a directory cannot.
+
+Two corollaries this repo now follows:
+
+- **Suppress files, not trees.** Seven named paths can be audited by reading the list. `src/**` cannot.
+- **A gate that skips must say so on success.** `knip` exits 0 and prints nothing, which reads
+  identically whether it swept 527 files or two. `tools/report-dead-code-scope.mjs` prints the scope
+  after a passing run for that reason — see [Quality gates](#quality-gates).
+
 ## Quality gates
 
 The push is gated locally by `.githooks/pre-push`, and again in CI. Every gate is one tool, and the rule is **fix the code, not the threshold**:
