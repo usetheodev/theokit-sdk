@@ -132,3 +132,25 @@ describe("supermemory — the request the vendor SDK actually builds", () => {
     ).toBeTruthy();
   });
 });
+
+// ── env-gated live smoke ─────────────────────────────────────────────────────────────
+//
+// B-049: the DoD asks for "an env-gated live smoke that skips loudly when the vendor key is
+// absent" per adapter. This file shipped without one (batch 17) — added here to close that gap.
+
+const LIVE_SKIP =
+  process.env.SUPERMEMORY_API_KEY === undefined || process.env.SUPERMEMORY_API_KEY.length === 0;
+
+describe.skipIf(LIVE_SKIP)("supermemory — live smoke (SUPERMEMORY_API_KEY set)", () => {
+  it("writes a memory against the real Supermemory API", async () => {
+    const adapter = new SupermemoryAdapter({ apiKey: process.env.SUPERMEMORY_API_KEY as string });
+    const id = await adapter.write(`wire-contract-live-smoke ${Date.now()}`, ctx);
+    expect(id).toContain("supermemory:");
+  }, 30_000);
+});
+
+describe.skipIf(!LIVE_SKIP)("supermemory — live smoke (skipped — no SUPERMEMORY_API_KEY)", () => {
+  it("honest skip: no SUPERMEMORY_API_KEY in the environment", () => {
+    expect(LIVE_SKIP).toBe(true);
+  });
+});

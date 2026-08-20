@@ -281,10 +281,24 @@ export class Mem0Adapter implements MemoryAdapter {
       }
       return err;
     }
+    // The real mem0ai SDK does NOT attach `.status`/`.statusCode`/`.response.status` to its
+    // thrown errors (verified against mem0ai@3.0.3's `createExceptionFromResponse`, which builds
+    // `RateLimitError`/`AuthenticationError`/etc. carrying only `.errorCode` as a string like
+    // `"HTTP_429"`). Without this fallback, every real vendor error fell through to `status ===
+    // undefined` and was misclassified as `code: "unknown"` — 429s never got the EC-K rate-limit
+    // exemption and 5xx never tripped the breaker. Caught by wire-contract.test.ts running the
+    // real SDK; the old hand-written `vi.mock` fabricated `.status` on its thrown errors, which
+    // is why this never failed a test.
+    const errorCode = (err as { errorCode?: unknown })?.errorCode;
+    const statusFromErrorCode =
+      typeof errorCode === "string" && /^HTTP_(\d{3})$/.test(errorCode)
+        ? Number(errorCode.slice(5))
+        : undefined;
     const status =
       (err as { status?: number; statusCode?: number; response?: { status?: number } })?.status ??
       (err as { statusCode?: number })?.statusCode ??
-      (err as { response?: { status?: number } })?.response?.status;
+      (err as { response?: { status?: number } })?.response?.status ??
+      statusFromErrorCode;
     const message = (err as Error)?.message ?? String(err);
     if (status === 401 || status === 403) {
       return new MemoryAdapterError(`Mem0 auth failed (${op}): ${message}`, {
