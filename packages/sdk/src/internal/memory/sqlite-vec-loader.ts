@@ -26,13 +26,3 @@ export async function loadSqliteVecExtension(db: MemoryDb): Promise<void> {
     );
   }
 }
-
-/** Check whether sqlite-vec is loaded by running a tiny version query. */
-export function isSqliteVecLoaded(db: MemoryDb): boolean {
-  try {
-    const row = db.prepare("SELECT vec_version() as v").get();
-    return row !== undefined && row.v !== undefined;
-  } catch {
-    return false;
-  }
-}

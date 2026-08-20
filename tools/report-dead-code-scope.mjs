@@ -15,12 +15,16 @@
  *     ignore dropped                                    269 findings
  *     ignore dropped + `ignoreExportsUsedInFile: true`    9 findings
  *
- * The blanket ignore was standing in for a setting knip ships for exactly this case. It is now that
- * setting plus six NAMED files, each carrying residue that needs its own decision rather than a
- * sweep (B-140): three symbols duplicated across the `sdk` -> `sdk-memory` package extraction, two
- * whose export is reachable, and one unused error class that is the symptom of B-141. The three
- * never-thrown budget error classes that were also hidden here are gone, so `budget.ts` came off
- * the list — the list is meant to shrink.
+ * The blanket ignore was standing in for a setting knip ships for exactly this case — and while
+ * standing in for it, hid the nine real ones. All nine are now resolved (B-140, B-141): three
+ * never-thrown budget error classes and four unused memory/telemetry exports removed, one unwired
+ * middleware documented and covered, and one FALSE POSITIVE kept.
+ *
+ * The single remaining entry is that false positive. `stream-object.ts` exports `streamObjectImpl`,
+ * which `agent.ts` reaches by DYNAMIC import; knip resolves statically and does not follow a
+ * destructure off an import promise, so it reports the export as unused on every run. The reason is
+ * written at the declaration, not only here — an ignore entry with no reason at the site reads
+ * exactly like a suppressed real finding, which is the failure this whole item was about.
  *
  * A gate that does not look is indistinguishable from a gate that found nothing, unless it says which
  * it was. This prints the scope so the pass carries the information the sentence implies.

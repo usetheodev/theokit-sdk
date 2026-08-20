@@ -9,14 +9,7 @@
     "packages/sdk": {
       "entry": ["src/agent.ts", "tests/**/*.test.ts", "tests/helpers/**/*.ts", "bin/*.mjs"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignore": [
-        "src/internal/memory/sqlite-vec-loader.ts",
-        "src/internal/memory/storage/markdown-store.ts",
-        "src/internal/memory/types.ts",
-        "src/internal/runtime/tools/hitl-middleware.ts",
-        "src/internal/telemetry/span-names.ts",
-        "src/stream-object.ts"
-      ],
+      "ignore": ["src/stream-object.ts"],
       "ignoreDependencies": ["jsonrepair"]
     },
     "packages/cli": {
