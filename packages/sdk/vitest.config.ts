@@ -117,32 +117,61 @@ export const SHARED_TEST_OPTIONS = {
   //    were renamed, not merely relocated.
   // 2. Their top-level replacements are `isolate` (subprocess-per-file vs.
   //    shared subprocess — the `singleFork` axis) and `maxWorkers`/
-  //    `minWorkers` (the `*Forks` axis). But `fileParallelism: false` below
-  //    forces `resolved.maxWorkers = 1` UNCONDITIONALLY (vitest ignores any
-  //    configured `maxWorkers` when file parallelism is off) — so even
-  //    migrated to top level, a fork-count knob could never have any effect
-  //    while file parallelism stays disabled. `SDK_TEST_MAX_FORKS` and its
-  //    `MAX_FORKS` constant were deleted rather than migrated: keeping a
-  //    documented env var that cannot act would be worse than having none.
+  //    `minWorkers` (the `*Forks` axis). At the time of this measurement,
+  //    `fileParallelism: false` below forced `resolved.maxWorkers = 1`
+  //    UNCONDITIONALLY (vitest ignores any configured `maxWorkers` when
+  //    file parallelism is off) — so even migrated to top level, a
+  //    fork-count knob could never have any effect while file parallelism
+  //    stayed disabled. `SDK_TEST_MAX_FORKS` and its `MAX_FORKS` constant
+  //    were deleted rather than migrated: keeping a documented env var that
+  //    cannot act would be worse than having none. `fileParallelism` was
+  //    flipped to `true` by B-059 (below); a `maxWorkers` knob would now be
+  //    able to act, but nothing has reintroduced one — `maxConcurrency`
+  //    (also below) is the only concurrency knob this file sets.
   //
   // What DOES still take effect, and is kept: `isolate: true` (Vitest 4's
   // default, made explicit here) is the direct replacement for the old
   // `singleFork: false` — each test file runs in its own fresh subprocess,
   // so `process.env.HOME` mutations in one file's `beforeEach` cannot race
-  // another file's. Do NOT flip this or `fileParallelism` to re-enable
-  // concurrency: file-level serialization is load-bearing for the HOME-race
-  // fix above, independent of this item's scope.
+  // another file's. This is what actually prevents the HOME race described
+  // above — a fresh subprocess per file, not the file-level serialization
+  // below — which is why flipping `fileParallelism` (see immediately below)
+  // does not reopen it.
   isolate: true,
-  // Force file-level serial execution. Vitest can otherwise parallelize
-  // test FILES via async scheduling even inside one worker. `fileParallelism:
-  // false` disables that and gives strict file-level serialization, which
-  // the HOME-race fix requires — and, per the measurement above, it is ALSO
-  // what pins concurrency to 1 process at a time regardless of `isolate` or
-  // any worker-count setting.
-  fileParallelism: false,
-  // Hard cap on test concurrency within a file. Defaults to 5 in vitest 3.x.
-  // Combined with `fileParallelism: false` + `pool: "forks"` + `isolate: true`
-  // this yields strict serial execution, one file per subprocess.
+  // B-059, MEASURED 2026-08-20: this used to be `false`, with a comment
+  // claiming file-level serialization was "load-bearing for the HOME-race
+  // fix". It was never true isolation that required it — `isolate: true`
+  // above already gives every file its own subprocess, so a HOME mutation
+  // in one file's `beforeEach` cannot reach another file's regardless of
+  // whether files run one-at-a-time or concurrently. The two HOME-mutating
+  // leaks the old comment named were independently closed by B-120/B-117.
+  //
+  // Re-measured with those closed: `fileParallelism: true` alone (main
+  // tree, twice, prior to this item) ran the full suite green. This item
+  // then found a REAL race the strict-serial default was masking —
+  // `tests/internal/memory/adapters/embedding-wire-contract.test.ts` kept a
+  // file-level mutable `probeCounter` shared by concurrent `it()` bodies —
+  // reproduced 3/3 under `fileParallelism: true` + `maxConcurrency` restored
+  // + `sequence.shuffle: true` (see `vitest.shuffle.config.ts`). Fixed by
+  // removing the shared counter (each call site now owns its own probe
+  // text; no mutable state left to race). Re-measured after the fix, at the
+  // harder setting (`maxConcurrency: 5` + shuffle): 3/3 clean on the main
+  // tree (0 failures, deterministic across runs), on top of 5/5 clean runs
+  // of the fixed file alone.
+  //
+  // That clears the bar for flipping this flag in the default gate. Files
+  // now run in parallel, each still in its own subprocess (`isolate: true`
+  // above), so cross-file mutable state must be genuinely absent — not
+  // merely lucky under serial scheduling — for a file to pass here.
+  fileParallelism: true,
+  // Hard cap on test concurrency WITHIN a file. Kept at 1 even though
+  // `fileParallelism` is now `true` above: the measurement that justifies
+  // this file's default gate is the twice-validated `fileParallelism: true`
+  // + `maxConcurrency: 1` combination, not the harder `maxConcurrency: 5` +
+  // `sequence.shuffle: true` combination `vitest.shuffle.config.ts` runs as
+  // a separate, periodic, non-blocking probe (see that file's own
+  // doc-comment). Raising this here would fold the shuffle probe's job into
+  // the push/PR gate, which is deliberately not this file's job.
   maxConcurrency: 1,
 };
 
