@@ -124,6 +124,15 @@ describe("validateCronExpression — refusals", () => {
     ["a signed literal", "+5 * * * *", 1],
     ["a hexadecimal literal", "0x5 * * * *", 1],
     ["a step with a trailing suffix", "*/5abc * * * *", 1],
+    // B-121 — the same prefix-parse hole, in the one field shape B-052 left asymmetric.
+    // `isValidRange` called `Number.parseInt` WITHOUT the round-trip its two siblings had, so a
+    // suffix refused as a literal was accepted inside a range. Measured 2026-08-19 against croner
+    // 9 (the engine that actually runs these jobs): it refuses both with "contains illegal
+    // character", so accepting them here only moved the failure from `Cron.create()` to fire time.
+    ["a range whose end carries a trailing suffix", "1-5abc * * * *", 1],
+    ["a range whose start carries a trailing suffix", "1abc-5 * * * *", 1],
+    ["a range member in exponent notation", "1-1e1 * * * *", 1],
+    ["a range member in hexadecimal", "0x1-5 * * * *", 1],
   ])("test_%s_is_refused_and_the_message_names_the_field", (_label, cron, fieldNumber) => {
     const err = cronRefusal(cron);
 
@@ -159,6 +168,16 @@ describe("validateCronExpression — the expressions it must accept", () => {
     ["the upper bound of every field", "59 23 31 12 6"],
     ["the lower bound of every field", "0 0 1 1 0"],
     ["surrounding and repeated whitespace", "  0   0 * * *  "],
+    // B-122 — zero-padding. The `String(n) === field` round-trip B-052 added to reject `"5abc"`
+    // also rejected `"07"`, and the two cases were never separated. Measured 2026-08-19: croner 9,
+    // the engine this SDK schedules with, ACCEPTS `"07 * * * *"` and fires it at :07. Refusing it
+    // at the boundary rejected a schedule the runtime runs correctly, which is a validator being
+    // wrong in the direction that reads to users as "cron is broken".
+    ["a zero-padded literal", "07 * * * *"],
+    ["a zero-padded range", "01-05 * * * *"],
+    ["a zero-padded step", "*/05 * * * *"],
+    ["a zero-padded list", "01,02 * * * *"],
+    ["a zero-padded field at its upper bound", "059 023 031 012 006"],
   ])("test_%s_is_accepted", (_label, cron) => {
     expect(() => validateCronExpression(cron)).not.toThrow();
   });
