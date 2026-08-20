@@ -300,7 +300,19 @@ describe("PoolAwareLlmClient (T3.1)", () => {
       },
     });
     const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
-    await expect(drain(client.stream({} as LlmRequest, controller.signal))).rejects.toThrow();
+    // B-079 — was bare `.rejects.toThrow()`. Measured (not inferred): the
+    // rejection here is `abortError(signal)` (pool-aware-client.ts:267)
+    // echoing `signal.reason` verbatim — which is THIS TEST'S OWN
+    // `new Error("user cancelled")` passed to `controller.abort()`, not a
+    // production-owned error. The message is deterministic because we control
+    // the abort reason, and it is the one signal that distinguishes "aborted"
+    // from "the RateLimitError propagated instead" (the sibling test above).
+    // Production DOES have a genuinely untyped fallback one line away —
+    // `new Error("AbortError")` when `signal.reason` is not an `Error` — but no
+    // test in this file drives that branch; flagged, not fixed here.
+    await expect(drain(client.stream({} as LlmRequest, controller.signal))).rejects.toThrow(
+      /user cancelled/,
+    );
   });
 
   it("CredentialPoolExhaustedError has metadata", async () => {

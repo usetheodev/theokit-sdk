@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
-import { Agent } from "../../../src/index.js";
+import { Agent, AuthenticationError, GenerateObjectError } from "../../../src/index.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
@@ -211,16 +211,23 @@ describe("Agent.generateObject", () => {
     process.env.ANTHROPIC_API_BASE_URL = stub.url;
 
     const schema = z.object({ name: z.string() });
-    await expect(
-      Agent.generateObject({
-        apiKey: "real-not-fixture",
-        model: { id: "claude-sonnet-4-6" },
-        schema,
-        prompt: "name?",
-        local: { cwd },
-        maxRetries: 1, // attempt + 1 retry = 2 total, both fail
-      }),
-    ).rejects.toThrow();
+    // B-079 — was bare `.rejects.toThrow()`. `Agent.generateObject` throws the
+    // typed `GenerateObjectError` (generate-object.ts:281) once retries are
+    // exhausted on a parse failure, with `code: "parse_failed"`. Single call —
+    // the stub server's iteration script is stateful and consumed per request.
+    let rejectedWith: unknown;
+    await Agent.generateObject({
+      apiKey: "real-not-fixture",
+      model: { id: "claude-sonnet-4-6" },
+      schema,
+      prompt: "name?",
+      local: { cwd },
+      maxRetries: 1, // attempt + 1 retry = 2 total, both fail
+    }).catch((err) => {
+      rejectedWith = err;
+    });
+    expect(rejectedWith).toBeInstanceOf(GenerateObjectError);
+    expect((rejectedWith as { code?: string }).code).toBe("parse_failed");
   });
 
   it("propagates provider errors verbatim", async () => {
@@ -238,15 +245,30 @@ describe("Agent.generateObject", () => {
     process.env.ANTHROPIC_API_KEY = "sk-stub";
     process.env.ANTHROPIC_API_BASE_URL = `http://127.0.0.1:${addr.port}`;
 
-    await expect(
-      Agent.generateObject({
-        apiKey: "real-not-fixture",
-        model: { id: "claude-sonnet-4-6" },
-        schema: z.object({ name: z.string() }),
-        prompt: "name?",
-        local: { cwd },
-      }),
-    ).rejects.toThrow();
+    // B-079 — was bare `.rejects.toThrow()`. Measured (not inferred): the
+    // 401 does NOT surface directly — `generateObjectImpl` sees the agent
+    // run finish with `status: "error"` before any tool call and wraps it in
+    // `GenerateObjectError("no_tool_call", …)` (generate-object.ts:235). The
+    // originating typed `AuthenticationError` (from `mapAnthropicError`,
+    // code `anthropic_auth_failed`) survives two levels down the `cause`
+    // chain: `GenerateObjectError.cause` is the run's serialized error event,
+    // whose OWN `.cause` is the live `AuthenticationError` instance — that is
+    // what "propagates verbatim" refers to. Single call — one-shot HTTP stub.
+    let rejectedWith: unknown;
+    await Agent.generateObject({
+      apiKey: "real-not-fixture",
+      model: { id: "claude-sonnet-4-6" },
+      schema: z.object({ name: z.string() }),
+      prompt: "name?",
+      local: { cwd },
+    }).catch((err) => {
+      rejectedWith = err;
+    });
+    expect(rejectedWith).toBeInstanceOf(GenerateObjectError);
+    expect((rejectedWith as { code?: string }).code).toBe("no_tool_call");
+    const providerCause = (rejectedWith as { cause?: { cause?: unknown } }).cause?.cause;
+    expect(providerCause).toBeInstanceOf(AuthenticationError);
+    expect((providerCause as { code?: string }).code).toBe("anthropic_auth_failed");
   });
 
   it("populates usage metrics from the underlying LLM response", async () => {

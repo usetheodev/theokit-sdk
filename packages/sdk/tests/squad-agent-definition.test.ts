@@ -20,6 +20,7 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { ConfigurationError } from "../src/errors.js";
 import { Squad } from "../src/squad.js";
 import type { AgentDefinition, SDKAgent } from "../src/types/agent.js";
 
@@ -76,6 +77,14 @@ describe("M81 T2.2 — Squad.create accepts AgentDefinition", () => {
 
   it("test_an_empty_list_remains_a_TYPED_error", () => {
     // The existing validation must not regress when the type gains the union.
-    expect(() => Squad.create({ agents: [] })).toThrow();
+    // B-079 — was bare `.toThrow()`, ironic given the test's own name:
+    // `createSquad` already throws the typed `ConfigurationError` (squad.ts:114)
+    // with code `invalid_squad`; only the assertion was not pinning it.
+    expect(() => Squad.create({ agents: [] })).toThrow(ConfigurationError);
+    try {
+      Squad.create({ agents: [] });
+    } catch (err) {
+      expect((err as { code?: string }).code).toBe("invalid_squad");
+    }
   });
 });

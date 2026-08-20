@@ -51,8 +51,18 @@ describe("Handoff.create (D222)", () => {
   });
 
   it("throws when target is null/undefined", () => {
-    expect(() => Handoff.create(null as unknown as SDKAgent)).toThrow();
-    expect(() => Handoff.create(undefined as unknown as SDKAgent)).toThrow();
+    // B-079 — was bare `.toThrow()`. `Handoff.create` throws a plain `Error`
+    // (no typed class, no code) even though it is a `@public` API — flagged as
+    // a needs-typing candidate for a separate item rather than fixed here (a
+    // production change with API implications is out of scope for this pass).
+    // The message is the only stable identifier available today, and both
+    // falsy inputs hit the identical guard/message.
+    expect(() => Handoff.create(null as unknown as SDKAgent)).toThrow(
+      /Handoff\.create: target agent is required/,
+    );
+    expect(() => Handoff.create(undefined as unknown as SDKAgent)).toThrow(
+      /Handoff\.create: target agent is required/,
+    );
   });
 
   it("throws when target is not an SDKAgent (no .send)", () => {

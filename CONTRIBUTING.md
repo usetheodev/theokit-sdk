@@ -89,6 +89,64 @@ task 1f3c… was "finished" — expected error   <- reports the defect
 The second is the one to write. `tests/helpers/poll-until.ts` accepts a function for its message so it
 can be built at failure time from the state the poll actually saw.
 
+## A claim about A does not transfer to B
+
+`## Verify before you remove` covers the destructive direction — a premise that justifies deleting
+something. There is a **lateral** direction it does not cover: a claim that is *true about the thing
+you measured*, applied to a neighbour you did not.
+
+Five real instances, collected across two repositories in one night:
+
+| claim | said by someone who genuinely knew |
+|---|---|
+| "zero in-repo callers" | the repo — but grepped the wrong subdirectory |
+| "the same loop held PR #34" | a CI they had watched |
+| "four gates already cover this" | gates that do exist |
+| "no mutation tooling exists" | a repo whose dependency had been added two days earlier |
+| "your gate is shorter, so the same idle window applies" | a mechanism that had been **proved** — in a different repository |
+
+**In none of the five was anyone guessing.** In every one, someone knew something true and extended
+the confidence of that knowledge to an adjacent claim that had not been checked. The last is the
+clearest precisely *because* the proof behind it was good: an isolated mechanism, a clean experiment,
+three failures and one pass at the moment the variable changed. The extension inherited credit that
+only the mechanism had earned. It was wrong — the neighbouring repository has no pre-push hook at all,
+so the idle window it was said to have cannot exist there.
+
+**The test takes five seconds and would have caught all five:**
+
+> *Is this sentence about the system I just measured, or about a neighbour of it?*
+
+If it is about the neighbour, **it inherits nothing** — not the confidence, and not the proof.
+
+This is the symmetric inverse of a rule elsewhere in this file. There: *a hit for a reason nobody
+chose is not a method.* Here: *a proof for a reason you did choose, applied where that reason does not
+reach.*
+
+## Fix the classification, never the requirement
+
+When a gate blocks something it should not, there are two different situations and they take opposite
+responses.
+
+**The gate could not classify the case.** Then failing loudly is correct and you verify by hand. The
+diff-scoped typecheck in `.githooks/pre-commit` selects zero packages for a documentation-only commit,
+and refuses to pass silently — because "zero selected" is genuinely ambiguous: it is either a no-op
+change or a stale ref hiding a real diff, and the gate cannot tell which. Teaching it about Markdown
+would trade a five-second manual check for a new branch nobody tests.
+
+**The gate classified the case wrongly, with confidence.** Then fix the classification. A sibling
+repository had a CHANGELOG gate that called a test fixture production source — not ambiguity, a
+pattern that did not know the layout, in the one place that did not know it while `knip.json` and the
+testing conventions both already treated `tests/**` as non-production.
+
+The difference matters because the second kind is expensive in a way the first is not. A gate
+demanding a public changelog entry for a test-only change invites either a **fabricated entry** —
+which pollutes the contract consumers read — or reaching for an override. **Reaching for an override
+to satisfy a wrong classification is how a gate stops being taken seriously**, and it does not stop
+at that gate.
+
+When you do fix a classification, check both directions. The failure mode is over-exclusion, which
+retires the gate silently: confirm the things that *should* still be caught still are.
+
 ## While a mutant is applied, the tree is not yours
 
 Mutation testing means editing production source, running something, and restoring it. During that
@@ -120,6 +178,20 @@ that caught it was `git commit` answering *"nothing to commit"* — a different 
 | 1 | a snapshot inside the window captures the mutant | a 1268-file patch |
 | 2 | a concurrent **reader** harvests the mutant | two runs of `1 failed \| 1688 passed` |
 | 3 | the restore that closes the window discards the **fix** | green gates over no fix at all |
+
+Form 3 is worth breaking down further, because the three ways of closing a window differ in whether
+anything warns you at all:
+
+| closing the window with | what warns you |
+|---|---|
+| `git restore <file>` | nothing fails; a later `git commit` says *"nothing to commit"* — a weak signal, and only if you commit before staging |
+| `git checkout-index -f -- <file>` | **nothing warns you at all.** The file returns to HEAD and the suite passes, correctly, over unfixed code |
+| `cp -f /tmp/bak <file>` | cannot lose the fix — but only if the backup was taken *after* it |
+
+Both of the first two happened here on the same day. Neither had a guard; one of them happened to
+produce a side effect. **"Restore carefully" is not a rule, because there is no careful enough
+restore** — the only thing that closes the whole class is the ordering: commit the fix before you
+measure it.
 
 **One rule covers all three, and it is simpler than any of them: commit the fix BEFORE you measure
 it.** Then the window contains exactly one uncommitted thing — the mutant — and `git restore` can

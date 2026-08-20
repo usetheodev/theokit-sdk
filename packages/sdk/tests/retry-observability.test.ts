@@ -62,7 +62,11 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
     setDiagnosticsSink((m) => seen.push(m));
 
     const client = new RetryingLlmClient(alwaysFails(rate429()), { rng: () => 0 });
-    await expect(drain(client)).rejects.toThrow();
+    // B-079 — was bare `.rejects.toThrow()`. The mock always fails with the
+    // typed `RateLimitError` this file constructs (`rate429()`); the exhausted
+    // client re-throws it verbatim, so class + code are stable identifiers.
+    await expect(drain(client)).rejects.toThrow(RateLimitError);
+    await expect(drain(client)).rejects.toMatchObject({ code: "openai_rate_limit" });
 
     const first = seen.find((m) => m.includes("retry"));
     expect(first, "no retry diagnostic was emitted").toBeDefined();
@@ -98,7 +102,8 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
 
     try {
       const client = new RetryingLlmClient(alwaysFails(rate429()), { rng: () => 0 });
-      await expect(drain(client)).rejects.toThrow();
+      // B-079 — was bare `.rejects.toThrow()`. Same typed `RateLimitError` as above.
+      await expect(drain(client)).rejects.toThrow(RateLimitError);
 
       expect(
         writes,

@@ -10,6 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../src/agent.js";
+import { AuthenticationError } from "../../src/errors.js";
 import { SPAN_NAMES } from "../../src/internal/telemetry/span-names.js";
 import {
   distinctSpanNames,
@@ -58,14 +59,17 @@ describe("agent.create span (T0.1)", () => {
   });
 
   it("ends agent.create span with ERROR status when validation throws", async () => {
+    // B-079 — was bare `.rejects.toThrow()`. `resolveApiKey("")` finds nothing
+    // (env unset in test) → `createLocalAgent` throws the typed
+    // `AuthenticationError` (agent-helpers.ts:127), not the (misleading, now
+    // corrected) comment's `validateAgentOptions`.
     await expect(
       Agent.create({
-        // intentionally invalid: empty apiKey trips validateAgentOptions
         apiKey: "",
         model: { id: "openai/gpt-4o-mini" },
         telemetry: { enabled: true },
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(AuthenticationError);
 
     const span = findSpanOrThrow(SPAN_NAMES.AGENT_CREATE);
     expect(span.ended).toBe(true);

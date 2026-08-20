@@ -22,7 +22,11 @@ describe("RingBuffer (D372)", () => {
   });
 
   it("rejects invalid capacity", () => {
-    expect(() => new RingBuffer<number>(0)).toThrow();
-    expect(() => new RingBuffer<number>(-1)).toThrow();
+    // B-079 — was bare `.toThrow()`. `RingBuffer`'s constructor throws a plain
+    // `Error` (it is `@internal`, so a typed SDK error class would buy no caller
+    // any branching value); the message is the only stable identifier the guard
+    // has, and it names both the requirement and the offending value.
+    expect(() => new RingBuffer<number>(0)).toThrow(/capacity must be a positive integer, got 0/);
+    expect(() => new RingBuffer<number>(-1)).toThrow(/capacity must be a positive integer, got -1/);
   });
 });
