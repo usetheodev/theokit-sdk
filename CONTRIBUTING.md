@@ -89,6 +89,47 @@ task 1f3c… was "finished" — expected error   <- reports the defect
 The second is the one to write. `tests/helpers/poll-until.ts` accepts a function for its message so it
 can be built at failure time from the state the poll actually saw.
 
+## When a check starts working, listen for what complains first
+
+Turning a dormant check back on is measured most reliably not by the check passing, but by **whatever
+had quietly adjusted to its absence breaking.**
+
+The API-key shape validator here could not run for any input — the predicate deciding whether a key
+reached a provider was false for every key. Turning it back on was proven by two test suites failing:
+one used an 8-character key, the other a 7-character one, both against a real provider prefix.
+Genuinely malformed, passing for years because nothing could look.
+
+**No amount of reading the code would have shown that.** The validator was present, looked correct,
+and did nothing. The only thing that demonstrated its inertia was something else having settled into
+the gap.
+
+So when you re-enable a guard, widen a gate's scope, or remove a suppression, **expect breakage and
+treat it as the evidence** — then fix what accommodated the gap, not the guard. In the case above the
+two suites were about session directories and instance caching; neither was about authentication, so
+the keys were changed to the fixture convention they always meant. *Fix the classification, never the
+requirement.*
+
+## A permissive default needs its reason written next to it
+
+When two errors cost different amounts, "fail fast" does not settle which way to lean — the asymmetry
+does.
+
+The provider check above stays permissive on both unknowns: an unrecognised model identifier or an
+unregistered provider skips strictness. The reason, and it is the whole justification:
+
+> Rejecting a **valid** key blocks a user outright. Accepting a **malformed** one for a provider we
+> cannot identify merely restores the previous behaviour for that case.
+
+**A permissive default chosen for that reason is a different thing from one inherited by accident, and
+the difference exists only while the reason is written down.** An undocumented lenient branch is
+indistinguishable from an oversight, and the next person to read it will either harden it blindly or
+leave it alone for the wrong reason.
+
+One consequence worth stating, because two changes in this repository look like precedent for each
+other and are opposites: a boundary check was once **deleted** on a reachability argument and had to be
+restored, while the change above **strengthened** a boundary check and removed a line that had never
+validated anything — only a runtime's availability. Same surface, opposite movements.
+
 ## A measurement that confirms you gets no second reading
 
 Two instrument bugs on the same night, in two repositories:
