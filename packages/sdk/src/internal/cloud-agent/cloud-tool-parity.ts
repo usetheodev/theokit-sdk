@@ -13,9 +13,12 @@ import type { McpServerConfig } from "../../types/mcp.js";
  *
  * Coordinates with the existing checks in `validateAgentOptions`:
  *   - `programmatic_hooks_rejected` — universal (covers EC-4 hook closures).
- *   - `cloud_plugin_path_rejected` — universal cloud + plugin path.
  *   - `cloud_stdio_cwd_rejected` — cloud + stdio with cwd.
  *   - `runtime_exclusive` — local + cloud both set.
+ *
+ * (`cloud_plugin_path_rejected` used to be listed here too. Removed — B-107, 2026-08-19 — the
+ * `plugins.paths` guard it backed defended a config no caller could express; see
+ * `validate-agent-options.ts` and `plugins-manager.ts` for the decision record.)
  *
  * This module adds:
  *   - `cloud_incompatible_mcp_stdio_local` — stdio command on a local FS path

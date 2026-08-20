@@ -38,12 +38,9 @@ export class PluginsManager {
     private readonly cwd: string,
     private readonly enabled: string[] | undefined,
     private readonly settingSourcesIncludePlugins: boolean,
-    private readonly cloud: boolean,
-    private readonly localPaths: string[] | undefined,
   ) {}
 
   async initialize(): Promise<void> {
-    this.assertCloudRules();
     if (!this.settingSourcesIncludePlugins) {
       this.plugins = [];
       return;
@@ -108,15 +105,15 @@ export class PluginsManager {
     }
   }
 
-  private assertCloudRules(): void {
-    if (!this.cloud) return;
-    if (this.localPaths !== undefined && this.localPaths.length > 0) {
-      throw new ConfigurationError(
-        "Cloud agents reject local plugin paths — plugins must come from committed repo files",
-        { code: "cloud_plugin_path_rejected" },
-      );
-    }
-  }
+  // B-107 (measured 2026-08-19): `assertCloudRules` used to live here, rejecting a
+  // `localPaths` constructor argument for cloud agents. The single construction site
+  // (`local-agent-bootstrap.ts`) always passes `cloud: false`, and no cloud path ever
+  // constructs a `PluginsManager` with local paths — cloud agents load plugins from
+  // committed manifests via a different path entirely. With no caller able to trip it,
+  // the guard and its two constructor parameters (`cloud`, `localPaths`) were removed
+  // rather than kept as untested defensive code (parsimony ladder rung 1). The sibling
+  // guard in `validate-agent-options.ts` (`validatePlugins`) was removed for the same
+  // reason — same class of defect, same decision.
 }
 
 async function loadPluginManifestFromJson(

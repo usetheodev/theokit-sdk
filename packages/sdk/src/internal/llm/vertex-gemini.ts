@@ -97,18 +97,18 @@ export class VertexGeminiClient implements LlmClient {
     //
     // Simplest: create a wrapper fetch that rewrites the URL before delegating.
     const innerFetch = this.options.fetch ?? fetch;
-    const rewriteFetch: typeof fetch = (input, init) => {
-      // OpenAIClient calls `${baseUrl}/v1/chat/completions`. We rewrite that to
-      // the actual Vertex URL.
-      const requested =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : (input as Request).url;
-      const targetUrl = requested.endsWith("/v1/chat/completions") ? url : requested;
-      return innerFetch(targetUrl, init);
-    };
+    // B-103 (measured 2026-08-19): OpenAIClient is the only caller of this `fetch`, and
+    // it invokes it exactly once with the template-literal string
+    // `${baseUrl}${chatPath}` (openai.ts:169). For the placeholder baseUrl used below,
+    // that literal is always "https://_vertex_placeholder/v1/chat/completions" — so the
+    // `RequestInfo | URL` input forms and the endsWith fallback that `typeof fetch`
+    // nominally allows for are unreachable from any caller today. Decision: removed
+    // rather than kept as untested defensive code (parsimony ladder rung 1). The
+    // `typeof fetch` signature is preserved so this still satisfies OpenAIClient's
+    // `fetch` option; `_input` is intentionally unused. If a second caller starts
+    // passing something other than that exact string, this needs a real rewrite rule
+    // for it (and a test), not a silent guess.
+    const rewriteFetch: typeof fetch = (_input, init) => innerFetch(url, init);
 
     // Delegate to OpenAIClient with auth + rewrite.
     const inner = new OpenAIClient({

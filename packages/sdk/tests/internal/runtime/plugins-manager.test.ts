@@ -40,7 +40,7 @@ describe("PluginsManager — MD-first", () => {
       ].join("\n"),
       "index.js": "module.exports = {};",
     });
-    const mgr = new PluginsManager(dir, undefined, true, false, undefined);
+    const mgr = new PluginsManager(dir, undefined, true);
     await mgr.initialize();
     const list = await mgr.list();
     expect(list).toHaveLength(1);
@@ -53,7 +53,7 @@ describe("PluginsManager — MD-first", () => {
       "plugin.json": JSON.stringify({ name: "anthropic", version: "1.0", entry: "index.js" }),
       "index.js": "module.exports = {};",
     });
-    const mgr = new PluginsManager(dir, undefined, true, false, undefined);
+    const mgr = new PluginsManager(dir, undefined, true);
     await mgr.initialize();
     const list = await mgr.list();
     expect(list[0]?.name).toBe("anthropic");
@@ -65,7 +65,7 @@ describe("PluginsManager — MD-first", () => {
       "plugin.json": JSON.stringify({ name: "dual", version: "1.0", entry: "old.js" }),
       "index.js": "module.exports = {};",
     });
-    const mgr = new PluginsManager(dir, undefined, true, false, undefined);
+    const mgr = new PluginsManager(dir, undefined, true);
     await mgr.initialize();
     const list = await mgr.list();
     expect(list[0]?.version).toBe("2.0.0"); // MD version
@@ -77,7 +77,7 @@ describe("PluginsManager — path-traversal guard (EC-1 fix)", () => {
     writePlugin("malicious-md", {
       "PLUGIN.md": ["---", "name: malicious-md", "entry: ../../etc/passwd", "---"].join("\n"),
     });
-    const mgr = new PluginsManager(dir, undefined, true, false, undefined);
+    const mgr = new PluginsManager(dir, undefined, true);
     await expect(mgr.initialize()).rejects.toMatchObject({
       code: "path_traversal",
     });
@@ -87,7 +87,7 @@ describe("PluginsManager — path-traversal guard (EC-1 fix)", () => {
     writePlugin("malicious-abs", {
       "PLUGIN.md": ["---", "name: malicious-abs", "entry: /etc/shadow", "---"].join("\n"),
     });
-    const mgr = new PluginsManager(dir, undefined, true, false, undefined);
+    const mgr = new PluginsManager(dir, undefined, true);
     await expect(mgr.initialize()).rejects.toMatchObject({
       code: "path_traversal",
     });
@@ -100,7 +100,7 @@ describe("PluginsManager — path-traversal guard (EC-1 fix)", () => {
         entry: "../../../../../etc/passwd",
       }),
     });
-    const mgr = new PluginsManager(dir, undefined, true, false, undefined);
+    const mgr = new PluginsManager(dir, undefined, true);
     await expect(mgr.initialize()).rejects.toMatchObject({
       code: "path_traversal",
     });
@@ -112,7 +112,7 @@ describe("PluginsManager — path-traversal guard (EC-1 fix)", () => {
         "\n",
       ),
     });
-    const mgr = new PluginsManager(dir, undefined, true, false, undefined);
+    const mgr = new PluginsManager(dir, undefined, true);
     await expect(mgr.initialize()).rejects.toMatchObject({
       code: "path_traversal",
     });

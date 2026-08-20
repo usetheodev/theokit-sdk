@@ -312,15 +312,73 @@ export async function setAgentName(agentId: string, name: string): Promise<void>
   await flushRegistrySaves();
 }
 
-/** @internal */
-export async function getRegisteredAgentOrThrow(agentId: string): Promise<RegisteredAgent> {
+/**
+ * B-115 (measured 2026-08-19): `cwd` used to be silently dropped by every caller of this helper —
+ * `Agent.get({ cwd })` compiled and did nothing, because hydration always targeted
+ * `process.cwd()` regardless. Mirrors `Agent.list`'s own `cwd` handling (`agent.ts`): the caller's
+ * `cwd` (default `process.cwd()`) is what gets hydrated before the lookup.
+ *
+ * @internal
+ */
+export async function getRegisteredAgentOrThrow(
+  agentId: string,
+  cwd: string = process.cwd(),
+): Promise<RegisteredAgent> {
   let agent = getRegisteredAgent(agentId);
   if (agent === undefined) {
-    await hydrateRegistryFromDisk(process.cwd());
+    await hydrateRegistryFromDisk(cwd);
     agent = getRegisteredAgent(agentId);
   }
   if (agent === undefined) {
     throw new UnknownAgentError(`Agent ${agentId} not found`, { code: "unknown_agent" });
   }
   return agent;
+}
+
+/**
+ * B-115 (measured 2026-08-19): shared `limit`/`cursor` pagination for `Agent.list` and
+ * `Agent.listRuns`, which used to accept both and silently return everything unpaginated.
+ *
+ * `limit === undefined` returns `all` completely unchanged — same order, same items — so a caller
+ * that never asks for a page sees no behaviour change at all (M107 declared, for `Agent.list`
+ * specifically, that imposing a stable sort UNCONDITIONALLY would change the order observed by
+ * every current caller; this keeps that promise by only ever reordering the page it hands back,
+ * never the default listing).
+ *
+ * `sortByKey`: `Agent.list` sorts by `agentId` so a `cursor` is meaningful across separate calls —
+ * the underlying registry's order depends on which cwds have been hydrated into the process so far
+ * and is not itself stable. `Agent.listRuns` does NOT sort — a single agent's runs are already
+ * returned in the stable, append-only order they were created in, and re-sorting by `id` (opaque,
+ * non-chronological) would scramble that.
+ *
+ * A `cursor` naming an item that no longer exists (e.g. removed between pages) restarts from the
+ * beginning rather than throwing — cursor invalidation across paginated reads of a live, mutable
+ * registry is an ordinary occurrence, not a caller error worth failing the whole read over.
+ *
+ * @internal
+ */
+export function paginateByKey<T>(
+  all: readonly T[],
+  keyOf: (item: T) => string,
+  limit: number | undefined,
+  cursor: string | undefined,
+  sortByKey: boolean,
+): { items: T[]; nextCursor?: string } {
+  if (limit === undefined) return { items: [...all] };
+  const ordered = sortByKey
+    ? [...all].sort((a, b) => {
+        const ka = keyOf(a);
+        const kb = keyOf(b);
+        return ka < kb ? -1 : ka > kb ? 1 : 0;
+      })
+    : [...all];
+  const startIndex =
+    cursor === undefined ? 0 : ordered.findIndex((item) => keyOf(item) === cursor) + 1;
+  const page = ordered.slice(startIndex, startIndex + limit);
+  const hasMore = startIndex + limit < ordered.length;
+  const last = page[page.length - 1];
+  return {
+    items: page,
+    ...(hasMore && last !== undefined ? { nextCursor: keyOf(last) } : {}),
+  };
 }

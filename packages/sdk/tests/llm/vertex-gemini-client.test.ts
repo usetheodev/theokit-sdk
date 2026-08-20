@@ -12,10 +12,11 @@
  * rewriting the URL inside an injected `fetch`.
  *
  * What the rewrite test pins is the URL the provider RECEIVES — scoped deliberately. Review showed the
- * rewrite's defensive branches cannot be reached from here: `OpenAIClient` calls `fetch` exactly once,
- * with a template-literal string (openai.ts:169), so the `URL`/`Request` input forms never occur and
- * the `endsWith` guard is never false. Mutants inside those branches survive, and they survive because
- * nothing calls them — a test reaching them would exercise a path no caller takes. Filed as B-103.
+ * rewrite's defensive branches could not be reached from here: `OpenAIClient` calls `fetch` exactly
+ * once, with a template-literal string (openai.ts:169), so the `URL`/`Request` input forms never
+ * occurred and the `endsWith` guard was never false. Filed as B-103; resolved by removing the
+ * unreachable branches at the source (vertex-gemini.ts) rather than pinning them with a test that
+ * would have to fabricate a caller nothing has.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

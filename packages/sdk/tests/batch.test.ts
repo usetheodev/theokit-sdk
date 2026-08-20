@@ -385,56 +385,69 @@ describe("batchImpl (T2.1)", () => {
     );
   });
 
-  // EC-B: a slow onResult must not serialise the batch, and must still be waited for.
+  // EC-B / B-110: `onResult` must be bounded by `concurrency`, not just the underlying agent work.
   //
-  // B-023. One test asserted both halves through a single wall-clock window: two 50ms callbacks had
-  // to land in [45ms, 150ms) — the floor standing for "they overlapped" and the ceiling for "the
-  // batch waited". Both bounds measure the host. The floor was already acknowledged as fragile in
-  // the code ("tolerates setTimeout coarse resolution"), and the ceiling is 3x a 50ms budget on a
-  // suite whose config raises testTimeout to 20s because of documented libuv saturation across 18
-  // parallel package runs — the same contention that pushes elapsed past 150ms.
+  // B-023 shipped a test here under this exact name that asserted the OPPOSITE of what this
+  // describes: at `concurrency: 1`, it required both `onResult` callbacks to be in flight AT THE
+  // SAME TIME, and called that overlap the "contract". It passed because `runBatch` released the
+  // semaphore permit in its `finally` and only THEN awaited `onResult` (batch.ts, pre-B-110) — so a
+  // caller who asked for `concurrency: 1` got overlapping `onResult` invocations regardless. Measured
+  // (B-110, 2026-08-19): a caller doing anything stateful in `onResult` — writing a file, appending
+  // to a buffer, rate-limiting an API — got concurrency they explicitly refused. `types/batch.ts`
+  // now says so explicitly: `concurrency` bounds the whole per-item lifecycle, `onResult` included.
   //
-  // Split into the two behaviours the window was conflating, each asserted on a signal instead.
+  // Fixed by moving the counters update + `await safeCallResult` inside the `try` that the semaphore
+  // release's `finally` wraps, so the permit is held until the callback finishes.
   //
-  // `concurrency: 1` is load-bearing, not incidental. `runBatch` releases the semaphore in its
-  // `finally` and only THEN awaits `onResult` (batch.ts:173-178), so result callbacks are
-  // deliberately NOT gated by the concurrency limit — that is the contract under test here. At
-  // `concurrency: 2` the two callbacks may overlap simply because the two prompts ran side by side,
-  // so the overlap proves nothing about where `safeCallResult` sits relative to `release()`.
-  // At 1 the prompts cannot run side by side, so ANY overlap can only come from the early release.
-  //
-  // Measured: with `concurrency: 2` this test SURVIVES a mutant that moves `safeCallResult` inside
-  // the semaphore; with 1 that mutant is killed. A test that documents a contract it cannot see
-  // violated is a comment, not a test.
-  it("EC-B: onResult callbacks for concurrent prompts overlap", async () => {
+  // `concurrency: 1` is load-bearing, not incidental: at `concurrency: 2` the two callbacks may
+  // overlap simply because the two prompts ran side by side, which proves nothing about whether
+  // `onResult` itself is bounded. At 1 the prompts cannot run side by side, so ANY overlap can only
+  // come from an early release — this is the one configuration that can tell a fixed implementation
+  // from a broken one.
+  it("test_on_result_is_bounded_by_the_concurrency_limit", async () => {
     const create = buildFakeFactory({ onSend: (p) => ({ kind: "ok", text: p }) });
-    const timeline: string[] = [];
-    // Holds each callback until BOTH are inside it. Serialised callbacks can never satisfy that, at
-    // any host speed; the deadline is a failure bound, not a synchroniser.
-    const bothInFlight = barrier(2, "both onResult callbacks to be in flight at the same time");
+    let releaseA!: () => void;
+    const aGate = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
+    let aEntered = false;
+    let bEntered = false;
 
-    await batchImpl(
+    const batch = batchImpl(
       ["a", "b"],
       {
         ...baseOptions,
         concurrency: 1,
         onResult: async (r) => {
-          timeline.push(`enter:${r.prompt}`);
-          await bothInFlight.arrive();
-          timeline.push(`exit:${r.prompt}`);
+          if (r.prompt === "a") {
+            aEntered = true;
+            await aGate;
+          } else {
+            bEntered = true;
+          }
         },
       },
       { create },
     );
 
+    // No sleeps: `setImmediate` drains every microtask reachable through synchronous scheduling
+    // (the fake agent's create → send → wait → dispose chain is all promises, no timers/IO), so this
+    // single tick is enough for "a" to reach its blocked `onResult` — and, under the pre-fix code,
+    // would ALSO have been enough for "b" to fully enter and exit its own (non-blocking) callback,
+    // since its permit was released before "a"'s callback even started.
+    await new Promise((r) => setImmediate(r));
+
+    expect(aEntered, "the first prompt's onResult must have started").toBe(true);
     expect(
-      bothInFlight.timedOutWith(),
-      "the barrier must not have timed out (its message names what never happened)",
-    ).toBeUndefined();
-    expect(timeline.slice(0, 2).sort(), "both callbacks must start before either finishes").toEqual(
-      ["enter:a", "enter:b"],
-    );
-    expect(timeline.slice(2).sort(), "and both must then finish").toEqual(["exit:a", "exit:b"]);
+      bEntered,
+      "the second onResult must NOT run while the first is still inside its callback — " +
+        "concurrency:1 must bound onResult, not just the underlying agent work",
+    ).toBe(false);
+
+    releaseA();
+    await batch;
+
+    expect(bEntered, "and must run once the first callback finishes").toBe(true);
   });
 
   it("EC-B: the batch does not resolve until every onResult callback has finished", async () => {
@@ -467,47 +480,3 @@ describe("batchImpl (T2.1)", () => {
     expect(results.length, "with every prompt accounted for").toBe(2);
   });
 });
-
-/**
- * Resolves once `n` callers have arrived, so a callback can be held until its siblings are also
- * in flight. Rejects — naming what never happened — if that never becomes true.
- *
- * B-023. Overlap is only *observable* if the observer can hold both participants at once; a sleep
- * makes overlap probable, a barrier makes it required. The deadline exists so a serialised
- * implementation fails with a sentence instead of hanging until the suite timeout.
- */
-function barrier(
-  n: number,
-  description: string,
-  timeoutMs = 5_000,
-): { arrive: () => Promise<void>; timedOutWith: () => Error | undefined } {
-  let arrived = 0;
-  let timedOutWith: Error | undefined;
-  let open!: () => void;
-  let fail!: (err: Error) => void;
-  const gate = new Promise<void>((resolve, reject) => {
-    open = resolve;
-    fail = reject;
-  });
-  const timer = setTimeout(() => {
-    timedOutWith = new Error(`timed out after ${timeoutMs}ms waiting for: ${description}`);
-    fail(timedOutWith);
-  }, timeoutMs);
-  timer.unref();
-  return {
-    arrive: async (): Promise<void> => {
-      arrived += 1;
-      if (arrived === n) {
-        clearTimeout(timer);
-        open();
-      }
-      return gate;
-    },
-    // The timeout is ALSO recorded, not just thrown, because this barrier is awaited inside an
-    // `onResult` callback and `safeCallResult` (batch.ts:300-311) deliberately swallows whatever a
-    // user callback throws. Without this the sentence naming what never happened would reach only
-    // stderr, and the visible failure would be a bare empty-array diff. The sibling copy in
-    // parallel-dispatch.test.ts needs no such accessor — nothing swallows it there.
-    timedOutWith: (): Error | undefined => timedOutWith,
-  };
-}

@@ -182,8 +182,10 @@ describe("Agent management contract", () => {
     const run = await agent.send("Summarize fixture for listRuns.");
     await run.wait();
 
+    // B-115: `runtime` used to be accepted here too, but a single `agentId` already pins exactly
+    // one runtime — filtering an already-single-agent's runs by runtime filtered nothing, and was
+    // removed from `ListRunsOptions`.
     const listedRuns = await Agent.listRuns(agent.agentId, {
-      runtime: "local",
       cwd: workspace.cwd,
       limit: 10,
     });

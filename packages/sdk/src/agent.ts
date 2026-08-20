@@ -1,6 +1,7 @@
 import { AgentBuilder } from "./agent-builder.js";
 import {
   getRegisteredAgentOrThrow,
+  paginateByKey,
   rehydrateExistingAgent,
   resolveAgentPersistenceCwd,
   runCreateUnderSpan,
@@ -350,36 +351,58 @@ export class Agent {
   }
 
   /**
-   * List agents (local or cloud). M107 — `cwd` is READ now, not ignored;
-   * `limit`/`cursor` still are not (see `tests/agent-list-cwd.test.ts`).
+   * List agents (local or cloud). M107 — `cwd` is READ, not ignored. B-115 (2026-08-19) —
+   * `includeArchived` and `limit`/`cursor` are READ too now; see `ListAgentsOptions`'s doc for the
+   * pagination contract and why the unlimited (no `limit`) case is unaffected.
    *
    * @public
    */
   static async list(options: ListAgentsOptions = {}): Promise<ListResult<SDKAgentInfo>> {
     const cwd = ("cwd" in options ? options.cwd : undefined) ?? process.cwd();
     await hydrateRegistryFromDisk(cwd);
-    const items = listRegisteredAgents(options.runtime, cwd).map((agent) => toAgentInfo(agent));
-    return { items };
+    const includeArchived =
+      "includeArchived" in options ? (options.includeArchived ?? false) : false;
+    const agents = listRegisteredAgents(options.runtime, cwd, includeArchived);
+    const { items, nextCursor } = paginateByKey(
+      agents,
+      (agent) => agent.agentId,
+      options.limit,
+      options.cursor,
+      /* sortByKey */ true,
+    );
+    return {
+      items: items.map((agent) => toAgentInfo(agent)),
+      ...(nextCursor !== undefined ? { nextCursor } : {}),
+    };
   }
 
   /**
-   * Get metadata for a single agent.
+   * Get metadata for a single agent. B-115 (2026-08-19) — `cwd` is READ now (see
+   * `GetAgentOptions`'s doc); it used to be accepted and silently ignored.
    *
    * @public
    */
-  static async get(agentId: string, _options: GetAgentOptions = {}): Promise<SDKAgentInfo> {
-    const agent = await getRegisteredAgentOrThrow(agentId);
+  static async get(agentId: string, options: GetAgentOptions = {}): Promise<SDKAgentInfo> {
+    const agent = await getRegisteredAgentOrThrow(agentId, options.cwd);
     return toAgentInfo(agent);
   }
 
   /**
-   * List runs for an agent.
+   * List runs for an agent. B-115 (2026-08-19) — `cwd` and `limit`/`cursor` are READ now (see
+   * `ListRunsOptions`'s doc); they used to be accepted and silently ignored.
    *
    * @public
    */
-  static async listRuns(agentId: string, _options: ListRunsOptions = {}): Promise<ListResult<Run>> {
-    await getRegisteredAgentOrThrow(agentId);
-    return { items: listRunsByAgent(agentId) };
+  static async listRuns(agentId: string, options: ListRunsOptions = {}): Promise<ListResult<Run>> {
+    await getRegisteredAgentOrThrow(agentId, options.cwd);
+    const { items, nextCursor } = paginateByKey(
+      listRunsByAgent(agentId),
+      (run) => run.id,
+      options.limit,
+      options.cursor,
+      /* sortByKey */ false,
+    );
+    return { items, ...(nextCursor !== undefined ? { nextCursor } : {}) };
   }
 
   /**

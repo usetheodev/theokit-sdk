@@ -749,6 +749,12 @@ export interface AgentDescription {
 /**
  * Options for `Agent.list()`.
  *
+ * `limit`/`cursor` paginate (B-115): a `limit` bounds the page and, when more agents remain,
+ * `ListResult.nextCursor` is set — pass it back as `cursor` for the next page. Omitting `limit`
+ * returns every matching agent in one page, unpaginated, exactly as before (M107 declared imposing
+ * pagination order unconditionally a breaking change to every caller's observed order; pagination
+ * here is opt-in and only reorders the page it returns, never the unlimited default).
+ *
  * @public
  */
 export type ListAgentsOptions = {
@@ -759,7 +765,15 @@ export type ListAgentsOptions = {
   | { runtime: "local"; cwd?: string }
   | {
       runtime: "cloud";
-      prUrl?: string;
+      // B-115 — `prUrl` removed 2026-08-19. Filtering by a repo's PR URL would need the registry
+      // to retain `prUrl` per repo across process restarts, which the on-disk schema
+      // (`agent-registry-store.ts`) does not today — a persistence/migration change, not an
+      // option-wiring fix. `prUrl` was accepted and silently ignored before this — removed rather
+      // than left half-implemented (parsimony ladder rung 1). Re-add when the registry retains it.
+      /**
+       * Hide archived agents unless `true`. Default `false` (hidden) — B-115, this used to be
+       * accepted and silently ignored; every archived agent was always included.
+       */
       includeArchived?: boolean;
       apiKey?: string;
     }
@@ -767,6 +781,9 @@ export type ListAgentsOptions = {
 
 /**
  * Options for `Agent.get()`.
+ *
+ * `cwd` (default `process.cwd()`) selects which workspace's on-disk registry to hydrate before the
+ * lookup — same rule `Agent.list` uses (B-115; this used to be accepted and silently ignored).
  *
  * @public
  */
@@ -778,12 +795,22 @@ export interface GetAgentOptions {
 /**
  * Options for `Agent.listRuns()`.
  *
+ * `cwd` (default `process.cwd()`) hydrates that workspace's registry before validating the agent
+ * exists — same rule as `Agent.get` (B-115). `limit`/`cursor` paginate the SAME way as
+ * `Agent.list` — see its doc — except no reordering is ever needed: a single agent's runs are
+ * already returned in the stable order they were created.
+ *
+ * B-115 — `runtime` removed 2026-08-19. A single `agentId` already pins exactly one runtime;
+ * filtering an already-single-agent's runs by runtime filtered nothing and was never checked.
+ *
  * @public
  */
-export type ListRunsOptions = {
+export interface ListRunsOptions {
+  cwd?: string;
+  apiKey?: string;
   limit?: number;
   cursor?: string;
-} & ({ runtime?: "local"; cwd?: string } | { runtime: "cloud"; apiKey?: string });
+}
 
 /**
  * Options for `Agent.getRun()`. Cloud requires the parent `agentId`.
