@@ -90,7 +90,11 @@ describe("safePathJoin (T1.1)", () => {
     // The root has nothing above it: `..` normalizes back to the root, which IS inside base.
     expect(safePathJoin(sep, "..")).toBe(resolve(sep));
     // A NUL byte is still rejected at the boundary, root base or not.
-    expect(() => safePathJoin(sep, "a\u0000b")).toThrow();
+    // B-079 — was bare `.toThrow()`.
+    expect(() => safePathJoin(sep, "a\u0000b")).toThrow(PathTraversalError);
+    expect(() => safePathJoin(sep, "a\u0000b")).toThrow(
+      expect.objectContaining({ code: "path_traversal" }),
+    );
   });
 
   it("EC-4: case-sensitive prefix check (syntactic, not semantic)", () => {

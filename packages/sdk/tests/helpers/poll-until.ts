@@ -22,14 +22,22 @@
  */
 export async function pollUntil(
   condition: () => boolean | Promise<boolean>,
-  opts: { deadlineMs?: number; intervalMs?: number; message?: string } = {},
+  opts: {
+    deadlineMs?: number;
+    intervalMs?: number;
+    message?: string | (() => string | Promise<string>);
+  } = {},
 ): Promise<void> {
   const deadlineMs = opts.deadlineMs ?? 5_000;
   const intervalMs = opts.intervalMs ?? 10;
   const deadline = Date.now() + deadlineMs;
   while (!(await condition())) {
     if (Date.now() >= deadline) {
-      throw new Error(opts.message ?? `pollUntil: condition not met within ${deadlineMs}ms`);
+      // A wait that can only report ITSELF ("never reached X", "timeout") does not say what broke;
+      // one that reports the OBSERVED value against the expected one does. `message` may therefore
+      // be a function, evaluated at failure time so it can read the state the poll actually saw.
+      const detail = typeof opts.message === "function" ? await opts.message() : opts.message;
+      throw new Error(detail ?? `pollUntil: condition not met within ${deadlineMs}ms`);
     }
     await new Promise((r) => setTimeout(r, intervalMs));
   }

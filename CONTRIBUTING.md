@@ -68,6 +68,55 @@ nothing a reader doesn't already have, and the churn isn't worth it. Write new t
 blank line between each part; comment markers are optional and add little once the blank line does
 the separating.
 
+## What a wait must be
+
+A test that waits — for a state, a frame, a file — must wait on a signal **the intermediate state
+cannot satisfy**, taken from the source the code under test itself consumes.
+
+A fixed sleep fails this: it is satisfied by the passage of time, which the code does not control. So
+does a substring that was already present before the change. So does an independent probe of the same
+state — that is a second opinion, not the same fact, and it moves the problem one level along.
+
+**Read the message the wait produces when it fails.** If it names only the wait — "never reached X",
+"timeout" — the instrument does not know what broke. If it names the value observed against the value
+expected, it does:
+
+```
+task 1f3c… never reached error          <- reports the wait
+task 1f3c… was "finished" — expected error   <- reports the defect
+```
+
+The second is the one to write. `tests/helpers/poll-until.ts` accepts a function for its message so it
+can be built at failure time from the state the poll actually saw.
+
+## Verify before you remove
+
+A premise that only justifies **keeping** something can be wrong and survive. One that justifies a
+**deletion** cannot. So the rule is not "check your claims" — it is: *check the claim that is about to
+delete something.*
+
+This is checkable while you read, which is what makes it usable. "Is this claim too strong?" is only
+answerable after you have already checked it.
+
+Three removals in this repository were argued from a premise that turned out to be false. Two were
+caught; one was not:
+
+| Claim | Reality |
+|---|---|
+| "`plugins.paths` is undeclarable, so the guard is unreachable" | A contract test supplies it by cast. The guard was deleted and the pre-push gate caught the regression. |
+| "the barrel test duplicates four build gates" | None of the four reaches that package. Deleting it would have removed the only coverage of that surface. |
+| "this helper has zero in-repo callers" | It had four. |
+
+The mechanism behind all three is worth stating, because it explains why review does not catch them:
+**a claim stronger than the argument needs passes unaudited precisely because it is doing no work.**
+Nobody re-derives a premise the conclusion does not rest on. "Zero callers" and "four gates already
+cover this" both sound settled, and neither was load-bearing until someone reached for the delete key.
+
+One corollary, since it is the most common case here: **the type system is not a runtime.** "The type
+forbids it" says a TypeScript caller cannot express the value. A JavaScript caller, a JSON config, or
+an `as` cast can. A reachability argument is admissible for an internal call shape and inadmissible
+for a boundary check — boundary checks exist for the callers you have not met.
+
 ## Quality gates
 
 The push is gated locally by `.githooks/pre-push`, and again in CI. Every gate is one tool, and the rule is **fix the code, not the threshold**:

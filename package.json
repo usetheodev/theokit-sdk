@@ -13,6 +13,7 @@
     "test": "npx turbo run test --filter='./packages/*'",
     "test:watch": "pnpm --filter=./packages/* run test:watch",
     "test:roadmap": "pnpm --filter=@theokit/sdk exec vitest run --config vitest.roadmap.config.ts",
+    "test:order-shuffle": "pnpm --filter=@theokit/sdk exec vitest run --config vitest.shuffle.config.ts",
     "eval": "pnpm --filter=@theokit/sdk run eval",
     "typecheck": "npx turbo run typecheck --filter='./packages/*'",
     "check": "git ls-files -z | xargs -0 biome check && pnpm run check:sdk-subentries",

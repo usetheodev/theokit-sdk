@@ -265,13 +265,19 @@ describe("assertSecureModes — a platform without POSIX modes is not an insecur
     const { writeFileSync } = await import("node:fs");
     writeFileSync(file, "{}", { mode: 0o666 });
 
-    const { assertSecureModes } = await import("../src/auth/index.js");
+    const { assertSecureModes, CredentialError } = await import("../src/auth/index.js");
     // Sanity: on POSIX this same input IS refused, which is what makes the win32 case a platform
     // decision rather than the gate being toothless.
     if (POSIX) {
+      // B-079 — was bare `.toThrow()`. `assertSecureModes` throws `CredentialError`
+      // (src/internal/auth/credential-store.ts); that throw site sets no explicit
+      // `.code`, so a class assertion is the strongest typed check available here.
+      // `CredentialError` MUST come from this SAME dynamic `import()` — the module
+      // was `vi.resetModules()`-ed in `beforeEach`, so a statically-imported class
+      // reference is a different identity and `toThrow(Class)` fails on `instanceof`.
       expect(() => {
         assertSecureModes(dir, file);
-      }).toThrow();
+      }).toThrow(CredentialError);
     }
 
     vi.spyOn(process, "platform", "get").mockReturnValue("win32");

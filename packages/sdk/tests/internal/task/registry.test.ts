@@ -36,7 +36,15 @@ function nextTick(): Promise<void> {
  */
 async function waitForState(id: string, ...states: readonly TaskState[]): Promise<void> {
   await pollUntil(async () => states.includes((await get(id))?.state as TaskState), {
-    message: `task ${id} never reached ${states.join(" | ")}`,
+    // Names the state OBSERVED, not just the one awaited. A message that reports only the wait
+    // ("never reached error") tells you the instrument gave up; one that reports "was 'finished'"
+    // tells you what the code did instead, which is the thing under test.
+    message: async () => {
+      const handle = await get(id);
+      return handle === undefined
+        ? `task ${id} was never registered (expected it to reach ${states.join(" | ")})`
+        : `task ${id} was "${handle.state}" — expected ${states.join(" | ")}`;
+    },
   });
 }
 

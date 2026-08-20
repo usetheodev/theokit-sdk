@@ -1,0 +1,57 @@
+name: SDK order-shuffle probe
+
+# B-059 — the default `packages/sdk` gate runs `fileParallelism: false` +
+# `maxConcurrency: 1` (see `packages/sdk/vitest.config.ts`), which buys test-order
+# safety by never exercising a different order or any concurrency at all. That is a
+# real mitigation, not negligence, but it means an isolation leak reintroduced later
+# is invisible until someone manually re-enables parallelism — nothing in the push/PR
+# gate would catch it.
+#
+# This job runs the SAME suite with `pnpm --filter=@theokit/sdk test:order-shuffle`
+# (file-level parallelism restored, execution order shuffled, intra-file concurrency
+# restored to vitest's default — see `packages/sdk/vitest.shuffle.config.ts` for the
+# 2026-08-20 measurement that motivated it). It is scheduled, not push/PR-triggered,
+# so a red run here NEVER blocks a merge — it surfaces a leak for a human to look at,
+# which is the whole point: leaks suppressed by strict serial execution stay
+# suppressed forever unless something periodically turns serialization back off.
+on:
+  schedule:
+    # Weekly, off peak. Cron is UTC.
+    - cron: '17 4 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  order-shuffle:
+    name: order-shuffle (packages/sdk)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack + pin pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Rebuild native bindings (better-sqlite3 ABI guard)
+        run: pnpm rebuild better-sqlite3 || echo "::warning::native rebuild failed — preflight will surface details at test time"
+
+      # Advisory only — this step's exit code IS allowed to fail the job (so it shows
+      # red in the Actions tab and can page whoever watches scheduled runs), but the
+      # workflow is never in anyone's required-checks list, so it cannot block a PR.
+      - name: Run SDK suite with parallelism + order shuffle restored
+        run: pnpm run test:order-shuffle

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { mapWithConcurrency, Semaphore } from "../src/concurrency.js";
+import { ConfigurationError } from "../src/errors.js";
 
 /**
  * M0-2 (plan m0-foundation-expose-primitives, T3.1) — `@theokit/sdk/concurrency`.
@@ -109,9 +110,21 @@ describe("mapWithConcurrency", () => {
   });
 
   it("test_mapWithConcurrency_throws_on_invalid_concurrency", async () => {
-    await expect(mapWithConcurrency([1], 0, async (n) => n)).rejects.toThrow();
-    await expect(mapWithConcurrency([1], -1, async (n) => n)).rejects.toThrow();
-    await expect(mapWithConcurrency([1], 1.5, async (n) => n)).rejects.toThrow();
+    // B-079 — was a bare `.rejects.toThrow()`. `createSemaphore` (the actual
+    // validator behind `mapWithConcurrency`) throws `ConfigurationError` with
+    // `code: "invalid_concurrency"` (src/internal/runtime/concurrency/async-semaphore.ts).
+    await expect(mapWithConcurrency([1], 0, async (n) => n)).rejects.toThrow(ConfigurationError);
+    await expect(mapWithConcurrency([1], 0, async (n) => n)).rejects.toMatchObject({
+      code: "invalid_concurrency",
+    });
+    await expect(mapWithConcurrency([1], -1, async (n) => n)).rejects.toThrow(ConfigurationError);
+    await expect(mapWithConcurrency([1], -1, async (n) => n)).rejects.toMatchObject({
+      code: "invalid_concurrency",
+    });
+    await expect(mapWithConcurrency([1], 1.5, async (n) => n)).rejects.toThrow(ConfigurationError);
+    await expect(mapWithConcurrency([1], 1.5, async (n) => n)).rejects.toMatchObject({
+      code: "invalid_concurrency",
+    });
   });
 
   it("test_mapWithConcurrency_rejects_on_first_error", async () => {

@@ -13,6 +13,7 @@
 import {
   isForbiddenPath as canonical,
   safePathJoin as joinCanonico,
+  PathTraversalError,
 } from "@theokit/sdk/path-safety";
 import { describe, expect, it } from "vitest";
 
@@ -54,11 +55,24 @@ describe("#150 — path-guard with no fork of the canonical one", () => {
 
   it("test_it_rejects_nul_and_control_chars_like_the_canonical_one", () => {
     // T5.5 — present in the canonical guard at 6 call sites, absent in the fork.
+    // B-079 — was bare `.toThrow()`. Both `joinCanonico` and this package's re-export
+    // (`safePathJoin`, see `src/internal/path-guard.ts`) throw the SAME `PathTraversalError`
+    // (code "path_traversal") from `@theokit/sdk/path-safety` — that identity IS the parity
+    // this file exists to lock.
     const NUL = String.fromCharCode(0);
     const CONTROL = String.fromCharCode(0x1f);
-    expect(() => joinCanonico("/tmp", `a${NUL}b`)).toThrow();
-    expect(() => safePathJoin("/tmp", `a${NUL}b`)).toThrow();
-    expect(() => safePathJoin("/tmp", `a${CONTROL}b`)).toThrow();
+    expect(() => joinCanonico("/tmp", `a${NUL}b`)).toThrow(PathTraversalError);
+    expect(() => joinCanonico("/tmp", `a${NUL}b`)).toThrow(
+      expect.objectContaining({ code: "path_traversal" }),
+    );
+    expect(() => safePathJoin("/tmp", `a${NUL}b`)).toThrow(PathTraversalError);
+    expect(() => safePathJoin("/tmp", `a${NUL}b`)).toThrow(
+      expect.objectContaining({ code: "path_traversal" }),
+    );
+    expect(() => safePathJoin("/tmp", `a${CONTROL}b`)).toThrow(PathTraversalError);
+    expect(() => safePathJoin("/tmp", `a${CONTROL}b`)).toThrow(
+      expect.objectContaining({ code: "path_traversal" }),
+    );
   });
 
   it("test_a_filesystem_root_base_accepts_a_path", () => {
@@ -68,7 +82,14 @@ describe("#150 — path-guard with no fork of the canonical one", () => {
 
   it("test_it_keeps_refusing_a_directory_escape", () => {
     // The anti-loosening anchor: parity must not have come from turning the defense off.
-    expect(() => safePathJoin("/tmp/base", "..", "etc", "passwd")).toThrow();
-    expect(() => joinCanonico("/tmp/base", "..", "etc", "passwd")).toThrow();
+    // B-079 — was bare `.toThrow()`.
+    expect(() => safePathJoin("/tmp/base", "..", "etc", "passwd")).toThrow(PathTraversalError);
+    expect(() => safePathJoin("/tmp/base", "..", "etc", "passwd")).toThrow(
+      expect.objectContaining({ code: "path_traversal" }),
+    );
+    expect(() => joinCanonico("/tmp/base", "..", "etc", "passwd")).toThrow(PathTraversalError);
+    expect(() => joinCanonico("/tmp/base", "..", "etc", "passwd")).toThrow(
+      expect.objectContaining({ code: "path_traversal" }),
+    );
   });
 });
