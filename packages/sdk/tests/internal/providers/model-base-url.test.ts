@@ -46,6 +46,21 @@ async function requestedUrl(options: { primary: string; baseUrl?: string }): Pro
   }
 }
 
+/**
+ * Resolves TWO chains in ONE process and returns the URL each actually hit.
+ *
+ * The single-chain tests above cannot see the defect this issue is titled after. Every one of them
+ * resolves one chain, so a base URL memoised per provider — resolved once and reused — satisfies all
+ * five and still makes "two local servers in one app" impossible, which is the sentence the issue
+ * opens with. The oracle has to hold both answers at once.
+ */
+async function requestedUrlPair(
+  first: { primary: string; baseUrl?: string },
+  second: { primary: string; baseUrl?: string },
+): Promise<{ first: string; second: string }> {
+  return { first: await requestedUrl(first), second: await requestedUrl(second) };
+}
+
 const TRACKED = ["OLLAMA_HOST", "OLLAMA_API_KEY", "LMSTUDIO_API_KEY"];
 const ORIG: Record<string, string | undefined> = {};
 
@@ -112,5 +127,48 @@ describe("the public shape carries it (#332)", () => {
     const selection: ModelSelection = { id: "ollama/qwen2.5:3b" };
 
     expect(selection.url).toBeUndefined();
+  });
+});
+
+describe("two local servers in one app (#332) — the sentence the issue opens with", () => {
+  it("keeps each model on its own host when both resolve in the same process", async () => {
+    // Arrange/Act — the issue's own repro, at the layer that decides:
+    //   const fast = Agent.create({ model: "ollama/qwen2.5:3b" })   -> localhost
+    //   const big  = Agent.create({ model: "ollama/llama3.3:70b" }) -> gpu-box
+    const { first, second } = await requestedUrlPair(
+      { primary: "ollama", baseUrl: "http://localhost:11434" },
+      { primary: "ollama", baseUrl: "http://gpu-box:11434" },
+    );
+
+    // Assert — both, and neither leaking into the other. A per-provider memo of the first URL
+    // passes every single-chain test in this file and fails right here.
+    expect(first).toContain("localhost:11434");
+    expect(first).not.toContain("gpu-box");
+    expect(second).toContain("gpu-box:11434");
+    expect(second).not.toContain("localhost");
+  });
+
+  it("keeps one model pinned while the other takes the env var", async () => {
+    // The mixed case, which is how this actually gets used: one model pinned to a box, everything
+    // else left on whatever OLLAMA_HOST says.
+    process.env.OLLAMA_HOST = "http://from-env:11434";
+
+    const { first, second } = await requestedUrlPair(
+      { primary: "ollama", baseUrl: "http://gpu-box:11434" },
+      { primary: "ollama" },
+    );
+
+    expect(first).toContain("gpu-box:11434");
+    expect(second).toContain("from-env:11434");
+  });
+
+  it("keeps two DIFFERENT OpenAI-compatible servers apart", async () => {
+    const { first, second } = await requestedUrlPair(
+      { primary: "lmstudio", baseUrl: "http://box-a:1234" },
+      { primary: "lmstudio", baseUrl: "http://box-b:1234" },
+    );
+
+    expect(first).toContain("box-a:1234");
+    expect(second).toContain("box-b:1234");
   });
 });
