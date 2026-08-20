@@ -13,7 +13,13 @@ pnpm install
 pnpm validate                             # build + typecheck + test + lint + quality gates
 ```
 
-`pnpm validate` is what CI runs. If it is green locally it is usually green in CI — with one caveat worth knowing: turbo caches test results per package, and a change to a **root** file (`package.json`, the lockfile) does not invalidate that cache. After touching a root dependency, force a real run:
+`pnpm validate` runs the same gates CI runs. It is **not** the same verdict — see
+[The gate you run is not the gate that decides](#the-gate-you-run-is-not-the-gate-that-decides)
+before you read a green local run as a green build.
+
+One caveat is worth knowing up front: turbo caches test results per package, and a change to a
+**root** file (`package.json`, the lockfile) does not invalidate that cache. After touching a root
+dependency, force a real run:
 
 ```bash
 npx turbo run test --filter='./packages/*' --force
@@ -343,6 +349,37 @@ Two corollaries this repo now follows:
 - **A gate that skips must say so on success.** `knip` exits 0 and prints nothing, which reads
   identically whether it swept 527 files or two. `tools/report-dead-code-scope.mjs` prints the scope
   after a passing run for that reason — see [Quality gates](#quality-gates).
+
+## The gate you run is not the gate that decides
+
+A green `pnpm validate` says the gates passed **in your working tree**. CI says they passed in a
+fresh clone. Those are different claims, and the gap between them is not exotic — it is made of the
+two things your tree has that a clone does not: files git is not tracking, and build output you
+produced earlier.
+
+Measured here on 2026-08-20: **twenty consecutive commits landed against a green local gate while CI
+was red the entire time.** Nobody looked. Two independent causes, neither in test logic:
+
+| Cause | Why local could not see it |
+|---|---|
+| `.gitignore` had `.theokit/` unanchored, so it matched at **any** depth — including the test fixture repos under `packages/sdk/tests/fixtures/repos/*/.theokit/`. Those fixtures were never committed. | The files are on your disk. The suite reads them and passes. A clone has no fixtures and the suite fails. |
+| The `coverage floors` CI job had no build step, while `validate` did. | Your `dist/` is already there from the last build. |
+
+Both are the same shape: **the local run consumed something the repository does not contain.** A
+suite that passes only where someone has already worked is not passing.
+
+So, as discipline:
+
+- **Read the run.** `gh run list --repo <owner>/<repo> --branch <branch> --limit 5` after a push, and
+  actually wait for it. A push whose CI you did not read is a change whose status you do not know.
+- **A green local gate is evidence, not a verdict.** It is the fast check that catches most things,
+  which is exactly why it is easy to mistake for the decision.
+- **When local and CI disagree, CI is right by construction.** It is the one running against what you
+  actually shipped. The question is never "why is CI wrong", it is "what does my tree have that the
+  clone does not".
+- **Adding a file to a fixture? Confirm git tracks it** — `git check-ignore -v <path>` names the rule
+  and line that would swallow it. An unanchored pattern in `.gitignore` matches at every depth, and
+  the failure is silent in the only direction that matters.
 
 ## Quality gates
 

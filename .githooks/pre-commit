@@ -74,14 +74,37 @@ if [ "$selected_count" = "-1" ]; then
   exit 1
 fi
 
+# A zero selection has two causes and they need opposite responses, so the two are
+# separated by asking what is actually staged rather than by trusting the filter.
+#
+# Measured 2026-08-20: a CONTRIBUTING.md-only commit hit the branch below and had no
+# way through. The message named "a genuinely no-op change (rare)" as legitimate and
+# then offered no in-band path for it, so the only way to land docs was --no-verify —
+# which skips G0, the one gate whose failure cannot be repaired after the fact. A guard
+# whose sole escape is weaker than the guard is worse than the case it was protecting
+# against.
+staged_typescript=$(git diff --cached --name-only --diff-filter=ACMR \
+  | grep -E '\.(ts|tsx|mts|cts)$' || true)
+
+if [ "$selected_count" -eq 0 ] && [ -z "$staged_typescript" ]; then
+  # Honest zero: nothing staged is TypeScript, so a typecheck has nothing to read.
+  # Reported rather than passed silently — same discipline the dead-code gate follows
+  # (see CONTRIBUTING "A blanket suppression is a claim about the tool"): a gate that
+  # skips must say it skipped, or it is indistinguishable from one that found nothing.
+  echo "→ G1: SKIPPED — no TypeScript staged, so there is nothing to typecheck."
+  echo "✓ pre-commit gates passed"
+  exit 0
+fi
+
 if [ "$selected_count" -eq 0 ]; then
   echo ""
   echo "✗ G1 (typecheck) failed: the diff-scoped filter selected 0 packages against"
-  echo "  origin/workspace. This gate does not pass silently on zero — either this is a"
-  echo "  genuinely no-op change (rare) or, the case this guard exists for, a"
-  echo "  stale/missing/freshly-pushed ref hiding a real diff. Run 'git fetch origin"
-  echo "  workspace' and retry, or run 'pnpm -w run typecheck' manually if the change"
-  echo "  really does touch no package."
+  echo "  origin/workspace, but TypeScript IS staged:"
+  echo "$staged_typescript" | sed 's/^/      /'
+  echo ""
+  echo "  That combination is the case this guard exists for — a stale, missing, or"
+  echo "  freshly-pushed ref hiding a real diff. Run 'git fetch origin workspace' and"
+  echo "  retry, or run 'pnpm -w run typecheck' manually to check the full monorepo."
   exit 1
 fi
 
