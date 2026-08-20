@@ -206,7 +206,19 @@ interface BasePlugin {
  * as `ConfigurationError(code: "plugin_factory_failed")` (EC-F) — never
  * an unhandled rejection.
  *
- * @internal
+ * PUBLIC, deliberately (#335). This type is the shape a consumer must satisfy
+ * to write a memory plugin: it is named by the PUBLIC `Plugin` union below, in
+ * the `createProvider` position. It used to carry the internal-visibility JSDoc
+ * tag, which made `stripInternal` delete the declaration while the union went
+ * on referencing it — so the published `.d.ts` named a type it did not declare.
+ * Invisible under `skipLibCheck`, and an `error`-typed graph for any consumer
+ * running type-aware lint. A type reachable from a public signature is public
+ * whatever the tag says; the tag was the thing that was wrong.
+ *
+ * Do NOT write that tag's literal spelling anywhere in this comment. It is
+ * matched as text, so a JSDoc block that merely MENTIONS it is stripped exactly
+ * as if it had declared it — which is how the first attempt at this fix failed,
+ * with a build error naming a symbol whose own explanation had re-hidden it.
  */
 export type MemoryProviderFactory = (cwd: string) => MemoryAdapter | Promise<MemoryAdapter>;
 

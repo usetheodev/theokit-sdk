@@ -22,9 +22,16 @@ import type { DeclaredAction } from "./blast-radius.js";
  * `JSON.stringify` both ignore symbol keys, so a tool serialised on its way to the model carries
  * none of it. A string key would also risk colliding with a property the tool already has.
  *
- * @internal
+ * Exported because the `@public` `WithBlastRadius<T>` below uses it as a COMPUTED
+ * KEY. A computed key is part of the type it keys, so the emitted declaration
+ * names this const — and a name the declaration file does not carry is a broken
+ * reference (#335). `Symbol.for` keeps it a registry symbol, so an exported
+ * binding does not weaken the property-hiding this comment describes: the value
+ * was always retrievable by any code that knows the string.
+ *
+ * @public
  */
-const DECLARED = Symbol.for("@theokit/sdk.blastRadius");
+export const DECLARED: unique symbol = Symbol.for("@theokit/sdk.blastRadius") as typeof DECLARED;
 
 /** @public */
 export type WithBlastRadius<T> = T & { readonly [DECLARED]?: DeclaredAction };

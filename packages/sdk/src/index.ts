@@ -151,6 +151,11 @@ export { withCwdMutex } from "./internal/persistence/cwd-mutex.js";
 // .asPlugin() factories without reaching into ./internal/plugins sub-path.
 export {
   type HookName,
+  // #335 — named here because the PUBLIC `Plugin` union references it in the
+  // `createProvider` position. The DTS rollup emits an exported type's body but
+  // treeshakes a non-exported type that body names, so leaving this out of the
+  // barrel published a declaration referring to a type it never declared.
+  type MemoryProviderFactory,
   Plugin,
   type PluginContext,
   type PostAssistantReplyContext,

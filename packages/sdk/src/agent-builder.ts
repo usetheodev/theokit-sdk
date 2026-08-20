@@ -19,9 +19,17 @@ import type { PluginsSettings, ProviderRoutingSettings } from "./types/providers
  * `agent-builder.ts` does NOT need a static import of `Agent` — keeps the
  * dependency graph acyclic (G6).
  *
- * @internal
+ * Exported, and NOT carrying the internal-visibility JSDoc tag, because
+ * `AgentBuilder` is `@public` and so is its constructor: `new AgentBuilder(deps)`
+ * is callable by anyone, which makes this parameter's type part of the published
+ * contract whether or not we intended it. Hiding it did not make it private — it
+ * made the emitted `.d.ts` say `constructor(deps?: AgentBuilderDeps)` with no such
+ * type in the file (#335). Prefer `Agent.builder()`, which injects these for you;
+ * this is the seam it uses, not an argument callers are expected to construct.
+ *
+ * @public
  */
-interface AgentBuilderDeps {
+export interface AgentBuilderDeps {
   create: (options: AgentOptions) => Promise<SDKAgent>;
   getOrCreate: (agentId: string, options: AgentOptions) => Promise<SDKAgent>;
 }
