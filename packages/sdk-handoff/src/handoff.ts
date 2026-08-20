@@ -27,7 +27,7 @@
  * @public
  */
 
-import { Plugin, type PluginContext, type SDKAgent } from "@theokit/sdk";
+import { ConfigurationError, Plugin, type PluginContext, type SDKAgent } from "@theokit/sdk";
 import type { ZodType } from "zod";
 import type { HandoffDescriptor, HandoffOptions } from "./types/handoff.js";
 
@@ -55,10 +55,18 @@ export class Handoff {
     options: HandoffOptions<TInput> = {} as HandoffOptions<TInput>,
   ): HandoffDescriptor<TInput> {
     if (target === undefined || target === null) {
-      throw new Error("Handoff.create: target agent is required");
+      // B-135: typed rather than bare, because `Handoff.create` is `@public` and a caller could
+      // otherwise only distinguish these two refusals by matching the message string — which is not
+      // a contract. Additive, not breaking: `ConfigurationError extends TheokitAgentError extends
+      // Error`, and the messages are unchanged.
+      throw new ConfigurationError("Handoff.create: target agent is required", {
+        code: "handoff_target_required",
+      });
     }
     if (typeof target.send !== "function") {
-      throw new Error("Handoff.create: target must be an SDKAgent instance");
+      throw new ConfigurationError("Handoff.create: target must be an SDKAgent instance", {
+        code: "handoff_target_invalid",
+      });
     }
     const resolvedToolName = options.toolName ?? `transfer_to_${slugifyName(target)}`;
     return {

@@ -2,7 +2,7 @@
  * Public Handoff.create() factory + RECOMMENDED_HANDOFF_PROMPT_PREFIX.
  */
 
-import type { SDKAgent } from "@theokit/sdk";
+import { ConfigurationError, type SDKAgent } from "@theokit/sdk";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { Handoff, RECOMMENDED_HANDOFF_PROMPT_PREFIX } from "../src/handoff.js";
@@ -75,5 +75,48 @@ describe("RECOMMENDED_HANDOFF_PROMPT_PREFIX", () => {
     expect(typeof RECOMMENDED_HANDOFF_PROMPT_PREFIX).toBe("string");
     expect(RECOMMENDED_HANDOFF_PROMPT_PREFIX.length).toBeGreaterThan(50);
     expect(RECOMMENDED_HANDOFF_PROMPT_PREFIX).toMatch(/transfer_to_/);
+  });
+});
+
+describe("Handoff.create — typed refusals (B-135)", () => {
+  // B-135: both guards raised a bare `new Error`, so a caller could only tell them apart by matching
+  // the message string — which is not a contract: it changes whenever someone improves the wording,
+  // and nothing tells them a consumer broke. `Handoff.create` is `@public`, which is what separates
+  // these two from the other untyped throws in this repo that were deliberately left alone.
+  //
+  // Typing is ADDITIVE rather than breaking: `ConfigurationError extends TheokitAgentError extends
+  // Error`, so anyone catching `Error` still catches it, and the messages are preserved verbatim.
+
+  const refusalOf = (run: () => unknown): ConfigurationError => {
+    try {
+      run();
+    } catch (err) {
+      return err as ConfigurationError;
+    }
+    throw new Error("expected Handoff.create to refuse, but it returned");
+  };
+
+  it("test_a_missing_target_is_refused_with_handoff_target_required", () => {
+    const err = refusalOf(() => Handoff.create(undefined as unknown as SDKAgent));
+
+    expect(err).toBeInstanceOf(ConfigurationError);
+    expect(err.code).toBe("handoff_target_required");
+    expect(err.message).toContain("target agent is required");
+  });
+
+  it("test_a_non_agent_target_is_refused_with_a_DIFFERENT_code", () => {
+    // The codes must differ, or the typing bought nothing over the bare Error it replaced.
+    const err = refusalOf(() => Handoff.create({} as unknown as SDKAgent));
+
+    expect(err).toBeInstanceOf(ConfigurationError);
+    expect(err.code).toBe("handoff_target_invalid");
+    expect(err.message).toContain("must be an SDKAgent instance");
+  });
+
+  it("test_a_caller_catching_plain_Error_still_catches_it", () => {
+    // The compatibility half. Typing must not move these out of reach of existing consumers.
+    const err = refusalOf(() => Handoff.create(null as unknown as SDKAgent));
+
+    expect(err).toBeInstanceOf(Error);
   });
 });
