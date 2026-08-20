@@ -22,7 +22,7 @@
     "validate:publint": "pnpm --filter=@theokit/sdk exec publint",
     "validate:attw": "pnpm --filter=@theokit/sdk exec attw --pack . --ignore-rules no-resolution",
     "validate:naming": "ls-lint",
-    "quality:dead": "knip",
+    "quality:dead": "knip && node tools/report-dead-code-scope.mjs",
     "quality:cycles": "node tools/check-cycles.mjs",
     "quality:depcruise": "depcruise --config .dependency-cruiser.cjs packages/sdk/src packages/sdk/tests",
     "quality:loc": "node tools/check-loc.mjs",
