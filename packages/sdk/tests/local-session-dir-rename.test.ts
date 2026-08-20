@@ -35,7 +35,11 @@ describe("local.sessionDir (#301)", () => {
   /** The transcript root the agent resolved, however it was configured. */
   async function resolvedDir(local: Record<string, unknown>): Promise<string> {
     const agent = await Agent.create({
-      apiKey: "test-key",
+      // B-130: this was a short placeholder key against a named `openai/` model. It passed only
+      // because the strict shape check was unreachable for every input; with that fixed it is
+      // correctly refused as malformed. Switched to the repo's fixture-key convention, which is
+      // what this suite always meant — it tests session directories, not authentication.
+      apiKey: "theo_test_fixture_key",
       model: { id: "openai/gpt-4o-mini" },
       local: { cwd: workspace, ...local },
     });

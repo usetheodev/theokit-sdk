@@ -8,11 +8,7 @@ import { httpRequest } from "./internal/http.js";
 import { isLocalAgentId } from "./internal/ids.js";
 import { LocalAgent } from "./internal/local-agent/index.js";
 import { discoverProviderPlugins } from "./internal/providers/discovery.js";
-import {
-  getConfiguredBaseUrl,
-  isFixtureApiKey,
-  shouldUseRealLocalRuntime,
-} from "./internal/runtime/fixtures/fixture-mode.js";
+import { getConfiguredBaseUrl, isFixtureApiKey } from "./internal/runtime/fixtures/fixture-mode.js";
 import { normalizeModel } from "./internal/runtime/model-selection.js";
 import {
   flushRegistrySaves,
@@ -22,6 +18,7 @@ import {
 } from "./internal/runtime/registry/agent-registry.js";
 import { validateAgentOptions } from "./internal/runtime/validation/validate-agent-options.js";
 import type { OTelSpan } from "./internal/telemetry/tracer.js";
+import { getProviderProfile } from "./providers.js";
 import type { AgentOptions, CustomTool, SDKAgent, SDKAgentInfo } from "./types/agent.js";
 
 // ───── agent creation helpers ─────────────────────────────────────────
@@ -121,32 +118,50 @@ async function maybeInjectHandoffTools(options: AgentOptions): Promise<AgentOpti
   };
 }
 
+/**
+ * Does this key actually reach a provider that authenticates with it?
+ *
+ * B-130 — this used to be `!isFixtureApiKey(key) && !shouldUseRealLocalRuntime(key)`, which conflated
+ * two unrelated questions: *is a local runtime available?* and *is this key destined for a named
+ * remote provider?* They shared `shouldUseRealLocalRuntime`, whose `isLocalNoAuthProviderAvailable()`
+ * arm is a hardcoded `return true` because the SDK ships Ollama as a builtin. So the expression was
+ * FALSE FOR EVERY INPUT, the strict branch of `validateApiKeyShape` was unreachable, and a malformed
+ * key for a named provider was accepted here and failed later, wherever it was first used.
+ *
+ * The two questions are now answered by the two things that own them: dispatch still asks
+ * `shouldUseRealLocalRuntime` (`local-agent-dispatch.ts`), and this asks the provider's own
+ * `authType`.
+ *
+ * Conservative on both unknowns, deliberately. An unrecognised model shape or an unregistered
+ * provider yields `false`, so strictness never fires on a key we cannot attribute: rejecting a VALID
+ * key blocks a user outright, while accepting a malformed one for an unknown provider merely restores
+ * the previous behaviour for that case. The asymmetry decides the default.
+ */
+function keyWillFlowToProvider(apiKey: string, provider: string | undefined): boolean {
+  if (isFixtureApiKey(apiKey)) return false;
+  if (getConfiguredBaseUrl() !== undefined) return false;
+  if (provider === undefined) return false;
+  const profile = getProviderProfile(provider);
+  if (profile === undefined) return false;
+  return profile.authType !== "none";
+}
+
 async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
   const apiKey = resolveApiKey(options.apiKey);
   if (apiKey === undefined) {
     throw new AuthenticationError("Missing API key", { code: "missing_api_key" });
   }
-  const willFlowToProvider = !isFixtureApiKey(apiKey) && !shouldUseRealLocalRuntime(apiKey);
+  const provider = providerFromModelId(normalizeModel(options.model)?.id);
+  const willFlowToProvider = keyWillFlowToProvider(apiKey, provider);
   const shape = validateApiKeyShape(apiKey, {
     strict: willFlowToProvider,
     // `options.model` is already normalized by `runCreateUnderSpan`; `normalizeModel`
     // here is the idempotent narrowing of the widened public type (`{id}` passes
     // through by reference) — cleaner than an `as` cast.
-    ...(willFlowToProvider
-      ? { provider: providerFromModelId(normalizeModel(options.model)?.id) }
-      : {}),
+    ...(willFlowToProvider ? { provider } : {}),
   });
   if (shape.malformed) {
     throw new AuthenticationError(shape.message, { code: "malformed_api_key" });
-  }
-  if (
-    !isFixtureApiKey(apiKey) &&
-    getConfiguredBaseUrl() === undefined &&
-    !shouldUseRealLocalRuntime(apiKey)
-  ) {
-    throw new AuthenticationError("Invalid API key", {
-      code: "authentication_error",
-    });
   }
   const agent = new LocalAgent(options);
   await agent.initialize();
