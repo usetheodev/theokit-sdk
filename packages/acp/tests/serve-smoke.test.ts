@@ -20,6 +20,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ACP_ERR } from "../src/lifecycle.js";
 
 const BIN = join(import.meta.dirname, "..", "bin", "theokit-acp.mjs");
 
@@ -30,6 +31,19 @@ interface JsonRpcMessage {
   params?: unknown;
   result?: unknown;
   error?: { code: number; message: string };
+}
+
+/** Preserves the JSON-RPC error's `code` as a typed field (B-138) — the string-concatenated
+ *  `Error(\`${code} ${message}\`)` this replaced could only be re-parsed with a regex, which is
+ *  exactly the kind of fragile assertion `testing.md § 4.1` asks negative cases to avoid. */
+class AcpRpcError extends Error {
+  constructor(
+    readonly code: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "AcpRpcError";
+  }
 }
 
 class StdioClient {
@@ -82,7 +96,7 @@ class StdioClient {
       this.pending.set(id, (response) => {
         clearTimeout(timer);
         if (response.error !== undefined) {
-          reject(new Error(`${response.error.code} ${response.error.message}`));
+          reject(new AcpRpcError(response.error.code, response.error.message));
         } else {
           resolve(response.result as T);
         }
@@ -97,6 +111,45 @@ class StdioClient {
 
   collectedNotifications(): JsonRpcMessage[] {
     return [...this.notifications];
+  }
+}
+
+/**
+ * Spawns `theokit-acp` against `entryPath` and returns a connected client plus a `teardown`
+ * that closes stdin and waits for exit (falling back to `kill` after 5s), mirroring the
+ * shutdown sequence the original smoke test performs inline.
+ */
+function spawnAcpClient(entryPath: string): { client: StdioClient; teardown: () => Promise<void> } {
+  const child = spawn("node", [BIN, "--entry", entryPath, "--permission", "auto"], {
+    cwd: process.cwd(),
+    stdio: ["pipe", "pipe", "pipe"],
+    env: { ...process.env, SKIP_OLLAMA_E2E: "1" },
+  });
+  const client = new StdioClient(child.stdin, child.stdout);
+  const teardown = async (): Promise<void> => {
+    child.stdin.end();
+    await new Promise<void>((resolve) => {
+      child.once("exit", () => resolve());
+      setTimeout(() => {
+        child.kill();
+        resolve();
+      }, 5000);
+    });
+  };
+  return { client, teardown };
+}
+
+/** Awaits `promise`, asserting it rejects with an `AcpRpcError` — never merely "it threw"
+ *  (`testing.md § 4.1`) — and returns the error so callers assert its `code` and `message`. */
+async function expectAcpError(promise: Promise<unknown>): Promise<AcpRpcError> {
+  try {
+    const result = await promise;
+    throw new Error(
+      `expected a JSON-RPC error, but the call succeeded with: ${JSON.stringify(result)}`,
+    );
+  } catch (err) {
+    if (err instanceof AcpRpcError) return err;
+    throw err;
   }
 }
 
@@ -229,5 +282,181 @@ export default async (sessionId) => {
       child.once("exit", (c) => resolve(c ?? -1));
     });
     expect(code).toBe(2);
+  });
+});
+
+/**
+ * B-138 — the wire-level smoke test above drives `initialize` → `session/new` →
+ * `session/prompt` → `session/cancel` → `session/list`, which V8 coverage on the spawned
+ * child (parsed by byte offset against `dist/index.js`, same technique the B-137 refutation
+ * used) showed executing. The same dump showed `authenticate`, `loadSession` and
+ * `unstable_forkSession` never running at all, and the error branch inside `newSession` and
+ * `prompt` (the `if ("error" in result) throw new acp.RequestError(...)` block) never running
+ * either — the exact mechanism that reports a failed run to the client, which is why B-125
+ * (a failure silently reported as `end_turn`) is a defect this file's own error-reporting path
+ * could have shipped for a while unnoticed.
+ *
+ * `unstable_forkSession` (`session/fork` on the wire — established below by reading
+ * `@agentclientprotocol/sdk`'s method table) is a deliberate v0.1 placeholder per the inline
+ * comment in `lifecycle.ts`'s `handleForkSession`: the SDK's `agent.fork()` is a one-shot
+ * sub-run, not a session split, so v0.1 always rejects the operation until v0.2 lands proper
+ * forking. That does NOT make it untestable — the parent-session lookup ahead of the deferred
+ * rejection is real guard logic with a real accept/reject split (`store.get(sessionId)` found
+ * vs not found), so both branches are driven below and each asserts its own distinct error
+ * code/message. What is NOT tested is "forking succeeds" — that behavior does not exist yet,
+ * and asserting it would be asserting a stub returns a stub.
+ */
+describe("unexercised RPC surface (B-138)", () => {
+  let workDir: string;
+  let entryPath: string;
+
+  beforeEach(() => {
+    workDir = mkdtempSync(join(tmpdir(), "acp-smoke-b138-"));
+    entryPath = join(import.meta.dirname, "_smoke-entry-b138.mjs");
+    // Same fixture-mode entry shape as the describe block above — kept separate so a failure
+    // here can't be blamed on file contention with the other describe's beforeEach/afterEach.
+    writeFileSync(
+      entryPath,
+      `
+import { Agent } from "@theokit/sdk";
+
+export default async (sessionId) => {
+  return Agent.create({
+    apiKey: "theo_test_acp_smoke",
+    model: { id: "openai/gpt-4o-mini" },
+    local: { cwd: ${JSON.stringify(workDir)} },
+    name: \`acp-smoke-b138-\${sessionId}\`,
+  });
+};
+`,
+    );
+  });
+
+  afterEach(() => {
+    rmSync(workDir, { recursive: true, force: true });
+    rmSync(entryPath, { force: true });
+  });
+
+  it("authenticate — the real handler runs and returns the empty success ACP expects", async () => {
+    const { client, teardown } = spawnAcpClient(entryPath);
+    try {
+      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
+      // D350: auth is deferred to v0.2, so every methodId is accepted the same way. Asserting
+      // the exact empty-object response (not merely "it didn't throw") is what a mutant that
+      // changed the shape or added a thrown error would fail.
+      const result = await client.request("authenticate", { methodId: "none" });
+      expect(result).toEqual({});
+    } finally {
+      await teardown();
+    }
+  });
+
+  it("session/new — an unresolvable cwd drives the newSession error branch, and the client receives the specific JSON-RPC error", async () => {
+    const { client, teardown } = spawnAcpClient(entryPath);
+    try {
+      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
+      const missingCwd = join(workDir, "does-not-exist");
+      const err = await expectAcpError(
+        client.request("session/new", { cwd: missingCwd, mcpServers: [] }),
+      );
+      expect(err.code).toBe(ACP_ERR.INVALID_REQUEST);
+      expect(err.message).toBe(`cwd not found: ${missingCwd}`);
+    } finally {
+      await teardown();
+    }
+  });
+
+  it("session/prompt — an unknown sessionId drives the prompt error branch, and the client receives the specific JSON-RPC error", async () => {
+    const { client, teardown } = spawnAcpClient(entryPath);
+    try {
+      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
+      const err = await expectAcpError(
+        client.request("session/prompt", {
+          sessionId: "no-such-session",
+          prompt: [{ type: "text", text: "hello" }],
+        }),
+      );
+      expect(err.code).toBe(ACP_ERR.INVALID_SESSION);
+      expect(err.message).toBe("unknown session: no-such-session");
+    } finally {
+      await teardown();
+    }
+  });
+
+  it("session/load — a sessionId already open in this process rejects on the store guard (accepted by the cwd guard first)", async () => {
+    const { client, teardown } = spawnAcpClient(entryPath);
+    try {
+      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
+      const session = await client.request<{ sessionId: string }>("session/new", {
+        cwd: workDir,
+        mcpServers: [],
+      });
+      const err = await expectAcpError(
+        client.request("session/load", {
+          sessionId: session.sessionId,
+          cwd: workDir,
+          mcpServers: [],
+        }),
+      );
+      expect(err.code).toBe(ACP_ERR.INVALID_REQUEST);
+      expect(err.message).toBe(`session ${session.sessionId} already loaded`);
+    } finally {
+      await teardown();
+    }
+  });
+
+  it("session/load — a sessionId this process never created passes the store guard and fails at Agent.resume, with the serverless hint attached", async () => {
+    const { client, teardown } = spawnAcpClient(entryPath);
+    try {
+      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
+      const unknownId = "11111111-1111-4111-8111-111111111111";
+      const err = await expectAcpError(
+        client.request("session/load", { sessionId: unknownId, cwd: workDir, mcpServers: [] }),
+      );
+      expect(err.code).toBe(ACP_ERR.INVALID_SESSION);
+      expect(err.message).toBe(
+        `session not found: ${unknownId} — if running on serverless/multi-host infra, pass ` +
+          "conversationStorage to Agent.create (see docs/recipes/conversation-storage-postgres.md)",
+      );
+    } finally {
+      await teardown();
+    }
+  });
+
+  it("session/fork — a parent never loaded in this process rejects on the lookup guard", async () => {
+    const { client, teardown } = spawnAcpClient(entryPath);
+    try {
+      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
+      const unknownId = "22222222-2222-4222-8222-222222222222";
+      const err = await expectAcpError(
+        client.request("session/fork", { sessionId: unknownId, cwd: workDir }),
+      );
+      expect(err.code).toBe(ACP_ERR.INVALID_SESSION);
+      expect(err.message).toBe(`parent session not loaded: ${unknownId}`);
+    } finally {
+      await teardown();
+    }
+  });
+
+  it("session/fork — a real parent PASSES the lookup guard, landing on the documented v0.2 deferral instead of the lookup error", async () => {
+    const { client, teardown } = spawnAcpClient(entryPath);
+    try {
+      await client.request("initialize", { protocolVersion: 1, clientCapabilities: {} });
+      const session = await client.request<{ sessionId: string }>("session/new", {
+        cwd: workDir,
+        mcpServers: [],
+      });
+      const err = await expectAcpError(
+        client.request("session/fork", { sessionId: session.sessionId, cwd: workDir }),
+      );
+      // Distinct from the previous test's INVALID_SESSION: proves the guard let this input
+      // through rather than rejecting every input the same way (testing.md § 4.2).
+      expect(err.code).toBe(ACP_ERR.INVALID_REQUEST);
+      expect(err.message).toBe(
+        "session/fork is deferred to @theokit/acp v0.2 — current SDK fork is a one-shot sub-run, not a session split",
+      );
+    } finally {
+      await teardown();
+    }
   });
 });
