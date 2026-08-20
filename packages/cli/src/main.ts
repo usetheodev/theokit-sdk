@@ -35,13 +35,20 @@ import {
   type TasksInspectOptions,
   type TasksListOptions,
 } from "./commands/tasks.js";
+import { TEMPLATES } from "./init/templates.js";
 import { CLI_VERSION, SDK_VERSION } from "./version.js";
 
 function registerSubcommands(program: Command, setExit: (n: number) => void): void {
   program
     .command("init [project-name]")
     .description("Scaffold a new agent project from a bundled template.")
-    .option("-t, --template <name>", "Template name: minimal | ollama-local | telegram-bot")
+    .option(
+      "-t, --template <name>",
+      // Derived from the registry, not restated. This line named three templates while the
+      // registry held seven — a help text that lists options is a second copy of the list, and
+      // the copy is the one that goes stale.
+      `Template name: ${TEMPLATES.map((t) => t.name).join(" | ")}`,
+    )
     .option("-f, --force", "Overwrite a non-empty destination directory")
     .option("--here", "Scaffold into the current directory")
     .option("-y, --yes", "Skip interactive prompts (CI mode)")

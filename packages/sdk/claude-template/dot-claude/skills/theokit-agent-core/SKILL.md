@@ -39,7 +39,8 @@ Returns an `SDKAgent`. Local agents get `agent-<uuid>` IDs; cloud agents get `bc
 | `tools` | `CustomTool[]` | Inline custom tools (local only). |
 | `memory` | `MemoryOptions` | Durable memory config. |
 | `handoffs` | `Array<SDKAgent \| Handoff>` | Peer-to-peer agent handoffs. |
-| `conversationStorage` | `ConversationStorageAdapter` | Pluggable persistence. |
+| `local.sessionDir` | `string` | Where session transcripts are written. Default `~/.theokit`; `~/.claude` for Claude Code `--continue` interop. |
+| `local.sessionStore` | `SessionStore` | Inject an external store (Postgres / Redis / KV) as the primary session store and resume source, for ephemeral or multi-host filesystems. |
 
 ## Agent.prompt (one-shot)
 

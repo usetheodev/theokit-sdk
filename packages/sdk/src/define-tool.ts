@@ -12,7 +12,7 @@ import type { CustomTool } from "./types/agent.js";
 import type { ToolResultContentBlock } from "./types/content-blocks.js";
 
 /**
- * Spec accepted by {@link defineTool}. `inputSchema` is a Zod schema; the
+ * Spec accepted by {@link Tool.create}. `inputSchema` is a Zod schema; the
  * `handler` argument type is inferred via `z.infer<T>` — no `as` casts.
  *
  * @public

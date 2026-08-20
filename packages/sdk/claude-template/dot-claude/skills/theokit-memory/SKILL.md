@@ -160,17 +160,53 @@ Active recall queries memory during `agent.send` to inject relevant facts into t
 
 Memory is durable by `{ namespace, userId, scope }`, not by process. Recreating or resuming an agent with the same memory config can recall durable facts. Inline secrets and MCP servers are NOT persisted through memory.
 
-## Conversation storage (pluggable persistence)
+## Session persistence
+
+Persistence is ON by default -- there is nothing to wire. Every finished turn is
+appended to a native Claude-shaped transcript, and `Agent.getOrCreate(agentId)`
+resumes from it.
+
+`local.sessionDir` chooses WHERE (default `~/.theokit`). Point it at `~/.claude`
+to write sessions the Claude Code CLI can `--continue`:
 
 ```typescript
-import { Agent, InMemoryConversationStorage } from "@theokit/sdk";
+import { Agent } from "@theokit/sdk";
 
 const agent = await Agent.create({
-  apiKey, model,
-  conversationStorage: new InMemoryConversationStorage(),
+  apiKey,
+  model,
+  local: { cwd: process.cwd(), sessionDir: "~/.claude" },
 });
 ```
 
-Built-in adapters: `FileSystemConversationStorage`, `InMemoryConversationStorage`. Custom adapters implement `ConversationStorageAdapter`.
+For serverless or multi-pod deployments, where the local filesystem is ephemeral
+or unshared, inject a store instead. `SessionStore` is an interface you
+implement (Postgres / Redis / KV / a durable object) -- it becomes the primary
+store and the resume source:
 
-When using custom storage, `Agent.resume` requires the adapter to be passed again -- silent FS fallback is rejected with `ConfigurationError(code: "conversation_storage_required")`.
+```typescript
+import { Agent } from "@theokit/sdk";
+import type { SessionStore } from "@theokit/sdk";
+
+const store: SessionStore = {
+  async readRecords(agentId) {
+    /* MUST resolve to [] for an unknown agent, and THROW when the backing
+       store is unreachable -- a silent [] reads as "no history" and drops the
+       conversation. */
+    return [];
+  },
+  async appendRecords(agentId, records) {
+    /* Append-only; MUST preserve order. Writes are fire-and-forget so `send()`
+       is never blocked, so durability guarantees belong inside this method. */
+  },
+};
+
+const agent = await Agent.create({
+  apiKey,
+  model,
+  local: { cwd: process.cwd(), sessionStore: store },
+});
+```
+
+Records keep the native shape either way, so `--continue` interop survives a
+custom store.

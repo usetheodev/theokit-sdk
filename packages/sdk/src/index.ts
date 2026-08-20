@@ -395,3 +395,26 @@ export {
   type WiredEntity,
   type WiringRecordInput,
 } from "./wiring-record.js";
+/**
+ * Workflow, exported from the ROOT and not only from `@theokit/sdk/workflow`.
+ *
+ * `CronCreateOptions.workflow` types against the `Workflow` that lands in the shared cron chunk,
+ * while the `./workflow` subpath entry emits a STANDALONE re-declaration of the same class. Two
+ * declarations of one class with a private field are nominally distinct, so a consumer following
+ * the documented path —
+ *
+ *     import { Workflow } from "@theokit/sdk/workflow";
+ *     import { Cron } from "@theokit/sdk";
+ *     await Cron.create({ cron: "@hourly", workflow: pipeline });
+ *
+ * — was rejected with "types have separate declarations of a private property '_options'". SE35's
+ * workflow-per-fire target was unreachable from outside the package. Measured 2026-08-20 while
+ * rewriting the workflow template, which is how it surfaced: nothing in-tree crosses that boundary,
+ * because in-tree code imports from `src/`.
+ *
+ * Exporting here puts `Workflow` and `Cron` on ONE identity for anyone importing both from the root,
+ * which is the combination the API is for. The subpath still works standalone and still produces the
+ * incompatible type when mixed with root `Cron` — that is a build-layout defect, not something this
+ * line can close.
+ */
+export { agentStep, fn, Workflow } from "./workflow.js";

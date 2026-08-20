@@ -15,7 +15,7 @@ providers to measure quality, latency, and cost before shipping.
 ## Quick start
 
 ```typescript
-import { Eval, Scorers } from "@theokit/sdk";
+import { Eval, Scorers } from "@theokit/sdk/eval";
 
 const run = await Eval.create({
   name: "qa-smoke",

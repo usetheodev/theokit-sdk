@@ -15,7 +15,7 @@ export interface DefineProviderOptions {
 }
 
 /**
- * Canonical factory for a custom LLM provider, mirroring {@link defineTool} and
+ * Canonical factory for a custom LLM provider, mirroring {@link Tool.create} and
  * {@link definePlugin} (Inviolable Rule 9 — every agentic capability ships as a
  * factory function).
  *

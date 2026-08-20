@@ -10,8 +10,13 @@
 
 import type { Agent } from "@theokit/sdk";
 
-/** Outcome of a single scoring decision. */
-interface Score {
+/**
+ * Outcome of a single scoring decision.
+ *
+ * Exported because `Scorer` — which IS public — returns it: a user writing a scorer could not name
+ * its return type. Same shape as the `MemoryProviderFactory` defect in #335, one level down.
+ */
+export interface Score {
   /** Numeric score in [0, 1]. Use 1.0 for "pass", 0.0 for "fail". */
   readonly score: number;
   /** Optional human-readable reason for the score (shown in the report). */

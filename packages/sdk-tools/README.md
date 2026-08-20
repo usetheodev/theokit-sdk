@@ -57,7 +57,7 @@ Sub-shell tools (`subprocess`, `git-diff`, `run-vitest`) use timeout + AbortCont
 
 ## How it fits with `@theokit/sdk`
 
-- **Foundation:** `defineTool` and `CustomTool` types come from `@theokit/sdk`.
+- **Foundation:** `Tool.create` and the `CustomTool` type come from `@theokit/sdk`.
 - **No kernel coupling:** sdk-tools never imports from `@theokit/sdk/internal/runtime` or the agent loop.
 - **Path-guard inline:** the small `isForbiddenPath` helper is inlined here (rather than importing from `@theokit/sdk/internal/security`) so sdk-tools is self-contained for the security-critical check.
 

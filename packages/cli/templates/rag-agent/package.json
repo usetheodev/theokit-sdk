@@ -9,9 +9,6 @@
   },
   "dependencies": {
     "@theokit/sdk": "^{{sdkVersion}}",
-    "@theokit/gateway": "^0.5.0",
-    "@theokit/gateway-telegram": "^0.1.0",
-    "grammy": "^1.30.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
