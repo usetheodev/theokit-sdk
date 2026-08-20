@@ -172,7 +172,7 @@ jobs:
           }
 
           if ! install_bwrap; then
-            echo "::error::bubblewrap could not be installed — every Ubuntu mirror path was exhausted inside its time budget. This is an infrastructure failure, not a code defect: re-run the job. Background: BACKLOG.md B-119."
+            echo "::error::bubblewrap could not be installed — every Ubuntu mirror path was exhausted inside its time budget. This is an infrastructure failure, not a code defect: re-run the job. Measured 2026-08-20: a fallback mirror dribbled ~9 MB of apt indexes at 1008 B/s for 1689s and hit the 30-minute job cap, so this step fetches the pinned .deb directly and bounds every call twice."
             exit 1
           fi
 
@@ -317,7 +317,7 @@ jobs:
           }
 
           if ! install_bwrap; then
-            echo "::error::bubblewrap could not be installed — every Ubuntu mirror path was exhausted inside its time budget. This is an infrastructure failure, not a code defect: re-run the job. Background: BACKLOG.md B-119."
+            echo "::error::bubblewrap could not be installed — every Ubuntu mirror path was exhausted inside its time budget. This is an infrastructure failure, not a code defect: re-run the job. Measured 2026-08-20: a fallback mirror dribbled ~9 MB of apt indexes at 1008 B/s for 1689s and hit the 30-minute job cap, so this step fetches the pinned .deb directly and bounds every call twice."
             exit 1
           fi
 

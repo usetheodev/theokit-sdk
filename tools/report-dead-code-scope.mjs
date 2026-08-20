@@ -32,4 +32,8 @@ console.log(
     ? "[knip] no paths ignored"
     : `[knip] ${ignored.length} ignored path(s), NOT examined: ${ignored.join(", ")}`,
 );
-console.log("[knip] scope caveats and the measured cost of the ignores: BACKLOG.md B-134");
+console.log(
+  "[knip] measured 2026-08-20: dropping the src/internal/** ignore surfaces 85 unused exports " +
+    "+ 184 unused exported types (269). That tree holds 527 of this repo's source files, so a pass " +
+    "here examines the public barrel and little else.",
+);

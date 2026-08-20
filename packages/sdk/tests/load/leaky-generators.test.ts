@@ -35,7 +35,9 @@
  * subscribers a task currently has. That count is the deterministic signal: no timers, no GC, no
  * window.
  *
- * Mutation-verified rather than argued — see the demonstration recorded on B-105 in BACKLOG.md:
+ * Mutation-verified rather than argued. Deleting the cleanup from `TaskIterator.return()` gives
+ * 3 failed | 2 passed — and the ABANDONED case stays green under that same mutant, which is what
+ * proves the oracle reads cleanup rather than merely iteration. Restored: 5 passed.
  * deleting `TaskIterator.return()` turns the break case RED while leaving the abandon case green,
  * which is exactly the asymmetry that proves the oracle reads cleanup and not merely iteration.
  */

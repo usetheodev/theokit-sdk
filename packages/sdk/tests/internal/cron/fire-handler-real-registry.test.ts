@@ -23,7 +23,10 @@
  * still read 1 and stay green. Waiting for terminal is what lets the second call be observed.
  *
  * Verified to fail on the mutation it exists to catch — see the mutant demonstration recorded on
- * B-118 in BACKLOG.md.
+ * a throw injected immediately after the fire-and-forget IIFE in `task/registry.ts`. Under it this
+ * file reports 2 failed ("expected 1 times, but got 2 times") while the pre-existing cron surface —
+ * fire-handler + run-job-errors + cron-workflow — stays GREEN at 17 passed, through a genuine double
+ * execution. Restored: 64 passed.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
