@@ -308,13 +308,31 @@ async function* streamToAsyncIterable(
   stream: ReadableStream<Uint8Array>,
 ): AsyncIterable<Uint8Array> {
   const reader = stream.getReader();
+  let finishedNaturally = false;
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) return;
+      if (done) {
+        finishedNaturally = true;
+        return;
+      }
       if (value !== undefined) yield value;
     }
   } finally {
+    // B-131: `releaseLock()` alone detaches the reader WITHOUT canceling the stream (WHATWG
+    // Streams spec) — the underlying `fetch` response body, and its socket, stays open until
+    // something else cancels it or reads it to completion. A consumer that breaks out of the
+    // subscription mid-stream (the ordinary shape: `for await ... break`) used to leave that
+    // connection dangling. `cancel()` is a no-op once the stream is already closed, so it is safe
+    // to call unconditionally on the early-exit path; skip it on natural completion, where the
+    // stream is already done and canceling only risks surfacing a spurious rejection.
+    if (!finishedNaturally) {
+      try {
+        await reader.cancel();
+      } catch {
+        /* best-effort cleanup — the caller's own error (if any) already takes precedence */
+      }
+    }
     reader.releaseLock();
   }
 }

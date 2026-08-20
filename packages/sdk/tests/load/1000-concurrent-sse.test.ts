@@ -1,13 +1,29 @@
 /**
  * T0.3 — Load test: 1000 concurrent SSE clients against an in-process
  * fixture server. Validates that the SDK's SSE wire format (T3.1 hardening
- * lands later) sustains 1000 connections with p95 < 200ms and zero socket
- * CLOSE_WAIT leak (Linux-only assertion).
+ * lands later) sustains 1000 connections with p95 < 200ms.
  *
  * This iter ships a scaffold that EXERCISES the SSE driver harness with a
  * smaller smoke (100 connections) so CI runners without 4GB RAM still cover
  * the wire. T6.2 (load test 1000 conn p95 < 200ms) ratchets concurrency
  * to 1000 + asserts the perf budget.
+ *
+ * B-131 — the "zero CLOSE_WAIT leak" claim this file used to make is WITHDRAWN. Measured: deleting
+ * the driver's own `client.socket.destroy()` entirely (`_harness/sse-driver.ts`) left CLOSE_WAIT at
+ * 0 at both 100 and 1000 concurrency, on two separate runs (the original measurement and the re-run
+ * below). Node's `net.Socket` defaults to `allowHalfOpen: false` (completes the FIN handshake on its
+ * own) and the fixture server's `keepAliveTimeout` closes idle sockets — neither depends on any code
+ * this repo owns, and this scenario has no `src/` production code in it at all (raw `node:http` /
+ * `node:net`). The assertion had zero power to detect a leak in anything this repo ships.
+ *
+ * The real leak-detection duty now lives in `tests/subscription/theokit-subscribe-leak.test.ts`,
+ * which drives `Theokit.subscribe`'s actual SSE/WS transports (the SDK path that genuinely owns
+ * connection lifetime) with fetch/WebSocket injected — no network, no `ss`, no OS auto-close
+ * semantics to hide behind — and is mutation-verified. See `tests/load/README.md`.
+ *
+ * The CLOSE_WAIT check below is kept as a harness smoke check ONLY: it still confirms the driver and
+ * `socket-monitor.ts` cooperate without exploding, which is worth knowing, but it proves nothing
+ * about SDK correctness and must not be read as a regression guard.
  */
 
 import { createServer, type Server } from "node:http";
@@ -62,7 +78,12 @@ describe.skipIf(SKIP_LOAD)(`T0.3 load smoke — ${CONCURRENCY} concurrent SSE cl
     expect(result.errorCount).toBeLessThan(Math.ceil(CONCURRENCY * 0.1));
   }, 60_000);
 
-  it("does not leak CLOSE_WAIT sockets (Linux-only)", async (ctx) => {
+  it("harness smoke — driver + socket-monitor cooperate without exploding (NOT a leak detector, see B-131)", async (ctx) => {
+    // B-131: this assertion is KNOWN to have zero power to detect a client-side socket leak — see
+    // the file docblock. It is kept only as a smoke check that the driver and `socket-monitor.ts`
+    // (whose own logic is unit-tested in `tests/socket-monitor.test.ts`) run together without
+    // erroring. The real leak-detection duty is `tests/subscription/theokit-subscribe-leak.test.ts`.
+    //
     // B-022: polls the real count instead of sleeping a fixed 500ms — the OS decides teardown
     // timing, not the test process.
     //
@@ -74,12 +95,6 @@ describe.skipIf(SKIP_LOAD)(`T0.3 load smoke — ${CONCURRENCY} concurrent SSE cl
     // concurrency: CLOSE_WAIT drains to 0 within the same tick the driver finishes, so 5 is not
     // tight. If CI hardware makes 5 flake where 25 did not, that is new evidence the loose budget was
     // hiding — raise it with a recorded reason, never silently.
-    //
-    // ⚠ READ B-131 BEFORE TRUSTING THIS TEST. It is now honest about what it cannot measure, and it
-    // still has no power to detect a real client-side leak: Node's `allowHalfOpen: false` completes
-    // the FIN handshake and the fixture server's keepAliveTimeout closes idle sockets, both without
-    // any help from this repo. Measured — removing the driver's own `socket.destroy()` entirely left
-    // CLOSE_WAIT at 0 at both concurrencies.
     const result = await waitForCloseWaitBelow(5, { deadlineMs: 3_000 });
     if (!result.available) {
       ctx.skip(result.reason);
