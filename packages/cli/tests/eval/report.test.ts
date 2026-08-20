@@ -46,6 +46,19 @@ function makeResult(
   };
 }
 
+/**
+ * True when `s` contains no unpaired surrogate — i.e. every code unit in D800-DBFF is followed by
+ * one in DC00-DFFF, and vice versa.
+ *
+ * `String.prototype.isWellFormed` answers exactly this and exists on Node 22, but it is typed under
+ * `lib: es2024` and this package targets lower. Raising the whole package's lib for one test helper
+ * changes typing everywhere to fix it in one place, so the predicate is spelled out here instead.
+ */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+function isWellFormed(s: string): boolean {
+  return !LONE_SURROGATE.test(s);
+}
+
 /** The data rows of the markdown table, excluding header and separator. */
 function dataRows(report: string): string[] {
   return report.split("\n").filter((line) => line.startsWith("| ") && !line.startsWith("| # |"));
@@ -277,5 +290,105 @@ describe("formatReport — sparse rows", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toContain("| 1 | first |");
     expect(rows[1]).toContain("| 3 | third |");
+  });
+});
+
+describe("formatReport — truncation and Unicode (#342)", () => {
+  it("does not leave a lone surrogate when an emoji straddles the input cut", () => {
+    // Arrange — 31 glyphs is 62 UTF-16 code units, past the 60-unit input budget, and the
+    // cut at 59 lands between the halves of the 30th emoji.
+    const input = "\u{1F600}".repeat(31);
+
+    // Act
+    const report = formatReport(makeResult([makeRow({ input })]));
+
+    // Assert — `isWellFormed` is exactly this question: does the string contain a surrogate
+    // without its pair? A lone surrogate is not a Unicode scalar value, so it has no UTF-8
+    // encoding; a writer downstream either substitutes U+FFFD or rejects the file.
+    expect(isWellFormed(report)).toBe(true);
+  });
+
+  it("does not leave a lone surrogate when an emoji straddles the output cut", () => {
+    // Arrange — the output budget is 80 code units, so 41 glyphs (82 units) straddles it.
+    const output = "\u{1F600}".repeat(41);
+
+    // Act
+    const report = formatReport(makeResult([makeRow({ output })]));
+
+    // Assert
+    expect(isWellFormed(report)).toBe(true);
+  });
+
+  it("truncates on whole characters, so the cell is shorter in units than the budget", () => {
+    // Arrange
+    const input = "\u{1F600}".repeat(31);
+
+    // Act
+    const cell = dataRows(formatReport(makeResult([makeRow({ input })])))[0] ?? "";
+
+    // Assert — the point is not the exact length but that a whole emoji was dropped rather
+    // than halved: 29 glyphs (58 units) plus the ellipsis, never 29.5.
+    expect(cell).toContain("…");
+    expect(isWellFormed(cell)).toBe(true);
+    expect([...cell].every((ch) => ch !== "\uD83D")).toBe(true);
+  });
+
+  it("leaves a string already inside the budget untouched", () => {
+    // Arrange — 3 glyphs, 6 code units, far below 60.
+    const input = "\u{1F600}\u{1F600}\u{1F600}";
+
+    // Act
+    const cell = dataRows(formatReport(makeResult([makeRow({ input })])))[0] ?? "";
+
+    // Assert — the accepted case. Without it, a truncate() that returned "…" for every
+    // input would pass every assertion above.
+    expect(cell).toContain(input);
+    expect(cell).not.toContain("…");
+  });
+});
+
+describe("formatReport — truncation is a prefix (#342)", () => {
+  it("stops at the first character that does not fit instead of skipping it", () => {
+    // Arrange — 29 emoji (58 units) fill the budget to 58 of 59; the 30th emoji needs 2 more
+    // and does not fit, but the trailing "ab" would. A truncation that SKIPPED the emoji and
+    // took "ab" would still be well-formed and still be short enough — and would silently
+    // reorder the text, which is what makes this worth pinning separately.
+    const input = `${"\u{1F600}".repeat(30)}ab`;
+
+    // Act — the INPUT cell only. Asserting over the whole row is the wrong instrument: it also
+    // carries `exact=1.00`, so a naive `not.toContain("a")` fails on the scorer's name rather
+    // than on the truncation, and reads as the defect it was meant to catch.
+    const row = dataRows(formatReport(makeResult([makeRow({ input })])))[0] ?? "";
+    const inputCell = row.split(" | ")[1] ?? "";
+
+    // Assert — the result must be a PREFIX of the original: no character from beyond the cut
+    // may appear. `a`/`b` live only after the emoji that did not fit.
+    expect(inputCell).not.toContain("a");
+    expect(inputCell).not.toContain("b");
+    expect(isWellFormed(inputCell)).toBe(true);
+  });
+});
+
+describe("isWellFormed — the oracle the truncation tests rest on", () => {
+  // Without these, a helper that always returned `true` would satisfy every surrogate
+  // assertion in this file, and the tests above would be measuring nothing. The rejecting
+  // cases prove it fires; the accepting ones prove it is not simply refusing everything
+  // (rules/testing.md § 4.2).
+  it("rejects a lone high surrogate, including the exact shape the old truncate produced", () => {
+    expect(isWellFormed("\uD83D")).toBe(false);
+    expect(isWellFormed("\uD83D…")).toBe(false);
+    expect(isWellFormed(`${"\u{1F600}"}\uD83D…`)).toBe(false);
+  });
+
+  it("rejects a lone low surrogate", () => {
+    expect(isWellFormed("\uDE00")).toBe(false);
+    expect(isWellFormed("a\uDE00b")).toBe(false);
+  });
+
+  it("accepts well-formed text, whether or not it contains astral characters", () => {
+    expect(isWellFormed("hello")).toBe(true);
+    expect(isWellFormed("\u{1F600}")).toBe(true);
+    expect(isWellFormed("😀")).toBe(true);
+    expect(isWellFormed("")).toBe(true);
   });
 });
