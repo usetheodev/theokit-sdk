@@ -103,7 +103,6 @@ export class Handoff {
         if (maxDepth === 0 || targets.length === 0) return;
         // Lazy import — keeps cold path lean if asPlugin is constructed but
         // its register hook is never invoked (e.g., disabled by config).
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         void (async () => {
           const { normalizeHandoffs, buildHandoffTool } = await import(
             "./internal/tool-injector.js"

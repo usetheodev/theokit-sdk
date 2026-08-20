@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { spawnAndCollect } from "../../src/internal/runtime/lifecycle/spawn-collect.js";
+import { pollUntil } from "../helpers/poll-until.js";
 
 /**
  * `spawnAndCollect` is the shared spawn wrapper behind the hooks executor and
@@ -181,11 +182,33 @@ describe("spawnAndCollect — failure paths", () => {
     });
     expect(result.timedOut).toBe(true);
 
-    // `child.kill()` only SENDS the signal — the promise resolves before the
-    // kernel has reaped the process, so a still-scheduled callback can append
-    // once more. Settle first, then measure; otherwise this races under load.
-    await new Promise((r) => setTimeout(r, 300));
-    const sizeAfterKill = (await readFile(marker, "utf8")).length;
+    // `child.kill()` only SENDS the signal — the promise resolves before the kernel has reaped the
+    // process, so a still-scheduled callback can append once more. That settle used to be a fixed
+    // `setTimeout(300)`, and 300ms stops being enough when the machine is busy: measured
+    // 2026-08-20, this test failed once inside a full parallel `turbo run test` and passed 3/3 in
+    // isolation and 4/4 under 12-core saturation — the signature of a wall-clock wait, not a defect
+    // (rules/testing.md § 6 lists exactly this as an anti-pattern).
+    //
+    // So wait on the SIGNAL instead: the file stops growing precisely when the child is gone. Two
+    // equal reads across a gap longer than the child's own 30ms append interval mean it is dead —
+    // a live child cannot produce that. The deadline is a safety net, not the signal, so a passing
+    // run is no slower than the sleep it replaces.
+    const sizeOf = async (): Promise<number> => (await readFile(marker, "utf8")).length;
+    let settled = await sizeOf();
+    await pollUntil(
+      async () => {
+        const before = settled;
+        await new Promise((r) => setTimeout(r, 100));
+        settled = await sizeOf();
+        return settled === before;
+      },
+      {
+        deadlineMs: 10_000,
+        intervalMs: 0,
+        message: async () => `child still appending after 10s — last size ${await sizeOf()}`,
+      },
+    );
+    const sizeAfterKill = settled;
     await new Promise((r) => setTimeout(r, 600));
     const sizeLater = (await readFile(marker, "utf8")).length;
 

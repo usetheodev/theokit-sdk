@@ -48,14 +48,15 @@ const CHUNK = /-[A-Za-z0-9_-]{8}\.js$/;
  * source and confirmed the intent is correct — not a way to quiet the gate.
  */
 const KNOWN = new Map([
-  [
-    "index.d.ts:LiveAgentRegistry",
-    "src/index.ts exports it under `export type { ... }` with a comment saying so — the " +
-      "runtime singleton is reached via `Agent.registry`, deliberately. rollup-plugin-dts " +
-      "drops the `type` modifier when it flattens the bundle and emits `declare class`, so " +
-      "the published .d.ts offers a constructor the runtime never exports. Fixing it means " +
-      "post-processing the bundled .d.ts or changing DTS generators; the source is not wrong.",
-  ],
+  // EMPTY, and that is the goal state. Its one entry was `index.d.ts:LiveAgentRegistry`: the source
+  // exports it inside `export type { … }`, the rollup emitted `declare class` and re-exported it as
+  // a VALUE, and `dist/index.js` never exported it — so `new LiveAgentRegistry()` typechecked and
+  // failed at runtime. That is DIRECTION 2 exactly, the defect this gate was written for, parked in
+  // its own exception list because the note said fixing it "means post-processing the bundled .d.ts".
+  //
+  // `tools/repair-dts-imports.mjs` now does that post-processing, driven by the source barrel rather
+  // than a heuristic: it restores the `type` modifier on names the barrel exports type-only. Removed
+  // 2026-08-20 after confirming this gate passes with the entry gone — fixed, not suppressed.
 ]);
 
 /** Names a `.d.ts` declares locally. */

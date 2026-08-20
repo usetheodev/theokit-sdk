@@ -102,7 +102,17 @@ describe("theokit#155 — initialize() after a failed handshake", () => {
       type: "stdio" as const,
       command: "node",
       args: ["-e", silentThenHealthyServer(counterFile)],
-      requestTimeoutMs: 400, // short: the first handshake must TIME OUT, not hang the suite
+      // Turn 1's server is SILENT by construction, so this value does not decide WHETHER the
+      // handshake fails — only how long that takes. It was 400ms, and the same budget then applied
+      // to the two operations that must SUCCEED: turn 2's handshake and the `listTools()` below.
+      // Measured 2026-08-20: that raced under a full parallel `turbo run test`, failing at
+      // `listTools()` with `mcp_timeout` while passing 3/3 in isolation — a timing flake, not a
+      // defect (rules/testing.md § 3). Node spawn alone measured 20-52ms here, so the failure was
+      // the whole loaded machine, not the child.
+      //
+      // 3s keeps the failing turn bounded well inside this test's 20s budget while leaving the
+      // succeeding turns two orders of magnitude of headroom over their idle cost.
+      requestTimeoutMs: 3_000,
     };
     // The pooled client: the SAME object is handed to both turns, as under `mcpLifecycle: 'session'`.
     const client = track(createMcpClient("flaky", cfg));

@@ -26,7 +26,6 @@ const rate429 = (): RateLimitError =>
 /** A transport that only fails. No credential and no provider are required. */
 const alwaysFails = (error: unknown): LlmClient => ({
   name: "fake",
-  // eslint-disable-next-line @typescript-eslint/require-await
   // biome-ignore lint/correctness/useYield: a transport that ONLY fails — not emitting is the point
   async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
     throw error;
@@ -121,7 +120,6 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
 
     const ok: LlmClient = {
       name: "fake",
-      // eslint-disable-next-line @typescript-eslint/require-await
       // biome-ignore lint/correctness/useYield: returns without emitting an event
       async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
         return { stopReason: "stop", text: "", toolCalls: [] } as unknown as LlmFinish;

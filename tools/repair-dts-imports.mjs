@@ -163,6 +163,55 @@ function bindReExportedName(source, name) {
 // diagnostics in place and printed not one line. A tool that finds nothing to do must be
 // distinguishable from one that was never asked (CONTRIBUTING, "A silent gate reports absence it
 // never checked") — hence the announcements below as well.
+/**
+ * Restores the `type` modifier the DTS rollup drops from a type-only export of a CLASS.
+ *
+ * `src/index.ts` exports `LiveAgentRegistry` inside an `export type { … }` block, with a comment
+ * saying the runtime singleton is reached via `Agent.registry` instead. The rollup emits
+ * `declare class LiveAgentRegistry` and re-exports it as a VALUE, so the published declaration
+ * offers a constructor that `dist/index.js` does not export at all. A consumer writing
+ * `new LiveAgentRegistry()` typechecks and fails at runtime — the exact class `check-dts-exports.mjs`
+ * was built for (#279), sitting in that gate's own known-exceptions list because the note there said
+ * fixing it "means post-processing the bundled .d.ts". This is that post-processing.
+ *
+ * The SOURCE is the authority, not a heuristic: a name is only converted when the package's own
+ * barrel exports it under `export type {`. Nothing is inferred from the runtime's exports, because a
+ * name missing there can equally be a real defect that SHOULD fail the gate rather than be quietly
+ * reclassified.
+ */
+function restoreTypeOnlyExports(source, typeOnlyNames) {
+  let out = source;
+  let fixed = 0;
+  for (const name of typeOnlyNames) {
+    const specifier = new RegExp(String.raw`([{,]\s*)${name}(\s*[,}])`, "g");
+    out = out.replace(specifier, (match, lead, tail) => {
+      // Already `type X`, or `X as Y` — leave both alone.
+      if (/\btype\s*$/.test(lead)) return match;
+      fixed += 1;
+      return `${lead}type ${name}${tail}`;
+    });
+  }
+  return fixed === 0 ? undefined : { source: out, fixed };
+}
+
+/** Names the package barrel exports under `export type { … }`. */
+function typeOnlyExportNames(pkgDir) {
+  const barrel = join(pkgDir, "src", "index.ts");
+  if (!existsSync(barrel)) return [];
+  const text = readFileSync(barrel, "utf8");
+  const names = new Set();
+  for (const match of text.matchAll(/export\s+type\s*\{([^}]*)\}/g)) {
+    for (const raw of match[1].split(",")) {
+      const name = raw
+        .trim()
+        .split(/\s+as\s+/)[0]
+        ?.trim();
+      if (name && /^[A-Za-z_$][\w$]*$/.test(name)) names.add(name);
+    }
+  }
+  return [...names];
+}
+
 const target = process.argv[2] ?? ".";
 const pkgDir = resolve(process.cwd(), target);
 const manifestPath = join(pkgDir, "package.json");
@@ -186,6 +235,22 @@ if (!existsSync(entryPath)) {
   process.exit(1);
 }
 
+// Pass 1 — restore `type` modifiers the rollup dropped. Independent of the compiler diagnostics
+// below: an over-broad export typechecks fine, it just promises a value the runtime never ships.
+const typeOnly = typeOnlyExportNames(pkgDir);
+if (typeOnly.length > 0) {
+  const entrySource = readFileSync(entryPath, "utf8");
+  const restored = restoreTypeOnlyExports(entrySource, typeOnly);
+  if (restored !== undefined) {
+    writeFileSync(entryPath, restored.source);
+    console.log(
+      `[dts-repair] ${manifest.name}: restored the \`type\` modifier on ${restored.fixed} export(s) ` +
+        "the rollup emitted as values (#279 class).",
+    );
+  }
+}
+
+// Pass 2 — bind names the rollup re-exported without importing (#345).
 const before = typecheck(entryPath);
 const unresolved = unresolvedByFile(before);
 if (unresolved.size === 0) {

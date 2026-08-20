@@ -66,7 +66,6 @@ export async function serveAcp(options: AcpServerOptions): Promise<void> {
   });
 
   // Construct connection. The agentBuilder is invoked synchronously by the SDK.
-  // eslint-disable-next-line no-new
   new acp.AgentSideConnection((conn) => {
     return {
       initialize: async (params) =>

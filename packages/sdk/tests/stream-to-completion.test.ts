@@ -39,7 +39,6 @@ function fakeAgent(rounds: Array<{ events: SDKMessage[]; result: RunResult }>) {
       };
       i += 1;
       return Promise.resolve({
-        // eslint-disable-next-line require-yield
         stream: async function* () {
           for (const e of round.events) yield e;
         },
