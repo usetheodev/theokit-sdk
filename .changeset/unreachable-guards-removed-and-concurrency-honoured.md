@@ -19,9 +19,7 @@ opt-in so the default ordering is unchanged. Two options are removed rather than
 which is redundant once an `agentId` pins the runtime. Silently discarding a documented option is
 worse than not offering it, because the caller has no way to detect it.
 
-**Two unreachable guards are deleted.** The Vertex client's fetch wrapper branched on `URL` and
+**One unreachable guard is deleted.** The Vertex client's fetch wrapper branched on `URL` and
 `Request` input forms its only caller never produces, and on a URL condition that caller always
-satisfies. Separately, `plugins.paths` was validated in two places while being undeclarable in the
-option type, so nothing could ever supply it. Both are removed rather than annotated: a defensive
-branch nothing can reach is a decoy that reads like working machinery, and this project has now spent
-real time on three of them.
+satisfies. It is removed rather than annotated: a defensive branch nothing can reach is a decoy that
+reads like working machinery, and this project has spent real time on several of them.

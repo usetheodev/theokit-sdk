@@ -100,6 +100,8 @@ export function bootstrapSubmanagers(args: {
       // here preserves "no filter / load all file-discovered plugins".
       asPluginsSettings(args.options.plugins)?.enabled,
       args.settingSourcesIncludePlugins,
+      false,
+      undefined,
     );
     const localPlugins = out.pluginsManager;
     out.plugins = { list: () => localPlugins.list() };

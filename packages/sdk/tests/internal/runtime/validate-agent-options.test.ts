@@ -98,23 +98,20 @@ describe("cloud options — refusals on the cloud path", () => {
     expect(err.message, "the offending server must be named").toContain("local_fs");
   });
 
-  it("test_plugins_paths_is_not_validated_the_guard_was_removed_as_dead_code", () => {
-    // B-107 (measured 2026-08-19): this test used to assert `cloud_plugin_path_rejected` fired for
-    // `plugins: { paths: [...] }` on a cloud agent. Review found that assertion could only be
-    // exercised via an `as unknown as AgentOptions` cast — `plugins.paths` was never part of the
-    // public option surface. `PluginsSettings` (types/providers.ts) declares only
-    // `enabled?: string[]`, and `paths` appeared nowhere in `src/` outside the removed validator's
-    // own cast (confirmed with `tsc --noEmit --strict`: TS2353, unknown property). No supported
-    // caller could ever trip the guard, so it — and its sibling in `plugins-manager.ts`
-    // (`assertCloudRules`) — were removed rather than kept as untested defensive code (parsimony
-    // ladder rung 1).
+  it("test_local_plugin_paths_are_rejected_for_cloud_agents", () => {
+    // The item believed this one was already tested — a grep found the code string in
+    // tests/golden/agent/cloud-tool-parity.golden.test.ts. It is at that file's line 12, inside a DOC
+    // COMMENT listing codes. lcov: line 76, count 0. The string appears in prose; the throw never fired.
     //
-    // This is the accept-side regression for that removal: a `plugins.paths` cast-in property is
-    // simply ignored now, not rejected. Cloud agents still validate cleanly with a real (enabled-list)
-    // plugins config — see the cloud-agent + plugins coverage elsewhere in this file/suite.
-    expect(() =>
-      validateAgentOptions(options({ cloud: {}, plugins: { paths: ["./local-plugin"] } })),
-    ).not.toThrow();
+    // Scoped honestly, per review: `plugins.paths` is NOT part of the public option surface —
+    // `PluginsSettings` (types/providers.ts:78) declares only `enabled?: string[]`, and `paths`
+    // appears nowhere in src outside this validator's own cast. So no supported configuration reaches
+    // this guard, and the `as unknown as AgentOptions` cast is what makes the test possible at all.
+    // It exercises the guard as written; it does not prove a caller can trip it. Filed as B-107.
+    expectRefusal(
+      () => validateAgentOptions(options({ cloud: {}, plugins: { paths: ["./local-plugin"] } })),
+      "cloud_plugin_path_rejected",
+    );
   });
 });
 

@@ -10,10 +10,8 @@ import type { CloudAgent } from "../../../src/internal/cloud-agent/cloud-agent.j
  * Coverage of existing validations:
  *   - `programmatic_hooks_rejected` (universal — covers EC-4 hook closures)
  *   - `runtime_exclusive` (local + cloud both set; existing code)
+ *   - `cloud_plugin_path_rejected`
  *   - `cloud_stdio_cwd_rejected`
- *
- * (`cloud_plugin_path_rejected` was removed — B-107 — it guarded a `plugins.paths` config no
- * caller could ever express through the public option types.)
  *
  * New codes added by `validateCloudToolParity`:
  *   - `cloud_incompatible_mcp_stdio_local` — stdio command on local FS path

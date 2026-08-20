@@ -40,13 +40,7 @@ export function validateAgentOptions(options: AgentOptions): void {
   validateMcpServers(options);
   validateSubagents(options.agents);
   validateMemory(options);
-  // B-107 (measured 2026-08-19): a `validatePlugins` guard used to live here, checking
-  // `plugins.paths` for cloud agents. `paths` was never part of the public option surface —
-  // `PluginsSettings` (types/providers.ts) declares only `enabled?: string[]`, and `paths`
-  // appeared nowhere in `src/` outside that guard's own `as` cast (confirmed with
-  // `tsc --noEmit --strict` on a probe: TS2353, unknown property). No supported caller could
-  // ever trip it, so it was removed rather than kept as untested defensive code (parsimony
-  // ladder rung 1). The sibling guard in `plugins-manager.ts` was removed for the same reason.
+  validatePlugins(options);
   validateCustomTools(options);
   validateCredentialPoolShape(options);
 }
@@ -73,6 +67,17 @@ function validateCredentialPoolShape(options: AgentOptions): void {
       "OR `apiKeys: { provider: [...] }` (multi-key pool), not both.",
     { code: "credential_pool_ambiguous" },
   );
+}
+
+function validatePlugins(options: AgentOptions): void {
+  const plugins = (options as { plugins?: { paths?: string[] } }).plugins;
+  if (plugins?.paths === undefined) return;
+  if (options.cloud !== undefined && plugins.paths.length > 0) {
+    throw new ConfigurationError(
+      "Cloud agents require committed plugin manifests; local plugin paths are not supported",
+      { code: "cloud_plugin_path_rejected" },
+    );
+  }
 }
 
 function ensureRuntimeShape(options: AgentOptions): void {
