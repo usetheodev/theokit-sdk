@@ -51,9 +51,29 @@ export type SettingSource = "project" | "user" | "team" | "mdm" | "plugins" | "a
 /**
  * Local agent configuration.
  *
+ * TWO THINGS A LOCAL AGENT DOES BY DEFAULT, both reported as surprises (#338):
+ *
+ * 1. **A `shell` tool is always registered**, including when you pass `tools: []`. Every local
+ *    agent can therefore read any file reachable from {@link LocalOptions.cwd}. One report describes
+ *    an evaluation invalidated this way: the working directory held the benchmark's answer key, and
+ *    two transcripts show the model citing it. Deny it explicitly if that matters —
+ *    `{ tool: "shell", action: "deny" }` on a {@link PermissionEngine} rule is terminal under every
+ *    permission mode, including `bypass`. Note the tool still appears in the advertised catalog, so
+ *    the model may attempt it and be refused, rather than never seeing it.
+ *
+ * 2. **Finished runs write a transcript to disk**, at `.theokit/memory/sessions/<runId>.md` under
+ *    the workspace `cwd`, with the full prompt and reply. This happens with no `memory` config and
+ *    with `settingSources: []` — it is what `memory_search({ corpus: "sessions" })` reads. It is not
+ *    currently opt-out. If the workspace is a git repository, add `.theokit/` to `.gitignore`: one
+ *    report describes a transcript reaching a public repo before it was noticed.
+ *
  * @public
  */
 export interface LocalOptions {
+  /**
+   * Workspace root(s). Also the reach of the always-present `shell` tool — see the note on
+   * {@link LocalOptions}, and the transcript written under `.theokit/memory/sessions/` here.
+   */
   cwd?: string | string[];
   settingSources?: SettingSource[];
   sandboxOptions?: { enabled: boolean };

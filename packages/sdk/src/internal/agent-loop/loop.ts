@@ -130,6 +130,25 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       ctx.finalText === ""
     ) {
       ctx.finalStatus = "error";
+      // #338 item 4 — say WHY. Without this the run reported `status: "error"`, an empty result and
+      // nothing else: byte-for-byte the shape a provider rejection produces, so a caller could not
+      // tell "the model ran out of turns" from "the provider refused the request". The report
+      // describes hours spent separating exactly those two. `stoppedAtIterationLimit` is set too and
+      // remains the structured signal, but it is a second field a reader has to know to check, and a
+      // run that reports an error owes its explanation where errors are read
+      // (`rules/error-handling.md` § 2-3 — fail clear, with enough context to act).
+      //
+      // Set-once, like every other writer of `ctx.error`: a real failure that already registered
+      // itself keeps its own cause, and exhaustion never overwrites it.
+      if (ctx.error === undefined) {
+        ctx.error = {
+          message:
+            `Run stopped after ${budget.total} iteration(s) without producing a reply — the model ` +
+            "was still calling tools when the budget ran out. Raise `SendOptions.maxIterations` " +
+            "(default 8), or inspect `RunResult.stoppedAtIterationLimit` to continue the run.",
+          code: "iteration_limit_reached",
+        };
+      }
     }
     sendSpan?.setAttribute("status", ctx.finalStatus);
     // Observability: a doom-loop stop reports finalStatus "finished" (a controlled stop), so
