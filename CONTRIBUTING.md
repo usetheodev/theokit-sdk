@@ -109,10 +109,32 @@ Two real incidents, and the second is the dangerous one:
   knowing when the mutant was applied, those two lines would have confirmed a flakiness claim using
   noise from the measuring instrument itself.
 
+There is a third form, and it is the one that ships a lie. Closing the window with
+`git restore <file>` **discards the fix along with the mutant** when both live in the same uncommitted
+file. The gates then run green against a tree with no fix in it. In the observed case the only thing
+that caught it was `git commit` answering *"nothing to commit"* — a different commit message, or a
+`git add` first, and an empty commit would have shipped declaring the bug fixed.
+
+| # | shape | what it produces |
+|---|---|---|
+| 1 | a snapshot inside the window captures the mutant | a 1268-file patch |
+| 2 | a concurrent **reader** harvests the mutant | two runs of `1 failed \| 1688 passed` |
+| 3 | the restore that closes the window discards the **fix** | green gates over no fix at all |
+
+**One rule covers all three, and it is simpler than any of them: commit the fix BEFORE you measure
+it.** Then the window contains exactly one uncommitted thing — the mutant — and `git restore` can
+only undo that. There is a second, independent reason: a mutant measured against uncommitted code is
+measuring something that does not yet exist anywhere.
+
 So: **declare the window, do not merely observe it.** Write down "mutant applied 02:11, restored
 02:13" *before* applying, so contamination is attributable immediately rather than reconstructed
 later. Discipline only helps while you remember you are inside a window, and the person who wrote
 this rule violated it within the hour, having written it.
+
+**And when judging whether a past result survives a contaminant, ask what it REMOVES as well as what
+it adds.** A mutant only adds failures, so a "zero failures" claim is robust to one. A mis-scoped
+restore removes a fix, so the same claim is *fragile* to that — it pushes the number green. The two
+contaminants push opposite ways and only one of them is intuitive.
 
 Prefer a worktree for anything that mutates. A worktree has its own `src/`, so nothing else on the
 machine can read through your window.
