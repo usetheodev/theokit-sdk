@@ -40,37 +40,19 @@ const PACKAGES = join(ROOT, "packages");
 const MAX_SHOWN = 12;
 
 /**
- * Names the DTS rollup RE-EXPORTS from a chunk but omits from the matching `import` in the same
- * emitted file, while a local declaration in that file uses the bare name. Measured 2026-08-20 on
- * `packages/sdk/dist/index.d.ts`:
+ * Names this gate tolerates unresolved. **Empty, and it should stay that way.**
  *
- *   line 5:  import { R as RunResult, M as ModelSelection, … } from './run-DsX-Lx_l.js';   ← no TokenUsage
- *   line 6:  export { …, k as CostBreakdown, …, aw as TokenUsage, … } from './run-DsX-Lx_l.js';
- *   line 985:    readonly usage: TokenUsage;                                                ← unbound
+ * It held seven for a few hours on 2026-08-20, while the tsup/rollup-plugin-dts defect behind #345
+ * had no fix: the rollup emits a symbol as a RE-EXPORT from a chunk and omits it from that chunk's
+ * `import`, so a local declaration using the bare name has nothing bound. 51 diagnostics, 10 of 12
+ * published packages. `tools/repair-dts-imports.mjs` now binds those names at build time, driven by
+ * the compiler's own diagnostics, so there is nothing left to waive.
  *
- * An `export … from` clause does not bind a name locally, so the reference dangles. This is a tsup /
- * rollup-plugin-dts defect, not a mistake in our source: the source imports and exports these types
- * correctly, and `tsc -p packages/sdk` is clean. tsup 8.5.1 is `latest` as of that date — there is no
- * released version to move to.
- *
- * Three OTHER names failed the same way here and were OUR bugs, now fixed (#335):
- * `MemoryProviderFactory`, `AgentBuilderDeps` and `DECLARED` each carried the internal-visibility
- * JSDoc tag while a public declaration named them, so `stripInternal` deleted the declaration and the
- * rollup treeshook what remained. Those are gone from this list because the source was wrong and the
- * source was fixed — which is the only way an entry should ever leave it.
- *
- * The list is meant to SHRINK. Adding a name requires proving the same shape (exported from a chunk,
- * absent from that chunk's import, used bare locally) and that our source is not at fault.
+ * Adding a name here means shipping a declaration that does not compile for a consumer running
+ * type-aware lint. It requires proving the same shape AND that the repair cannot bind it — and it
+ * is a regression to be removed, not a threshold to be tuned.
  */
-const KNOWN_UPSTREAM_UNBOUND = new Set([
-  "TokenUsage",
-  "CostBreakdown",
-  "BudgetOptions",
-  "BudgetHandle",
-  "BudgetWindow",
-  "BudgetSnapshot",
-  "BudgetMode",
-]);
+const KNOWN_UPSTREAM_UNBOUND = new Set([]);
 
 /** `… error TS2304: Cannot find name 'X'.` / `TS2552: Cannot find name 'X'. Did you mean …` */
 const MISSING_NAME = /Cannot find name '([^']+)'/;
