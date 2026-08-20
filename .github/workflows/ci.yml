@@ -249,6 +249,17 @@ jobs:
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
+      # B-139: this job ran the sdk suite against an UNBUILT tree. The suite includes
+      # `tests/sdk-2-0-npm-publish-readiness.test.ts`, which asserts every extracted package
+      # emits `dist/index.js` — so it failed with "missing dist/index.js — run 'pnpm build'"
+      # for sdk-cache, sdk-tools and the rest, on every run since this job became required.
+      #
+      # The `validate` job has always built before testing. This one was written for parity of
+      # WHAT RUNS (see the bubblewrap comment below, which says exactly that) and the build was
+      # the one step the parity missed. Same command, same reason.
+      - name: Build
+        run: pnpm build
+
       # Same ABI guard as the validate job: the preflight in vitest setup fails fast under
       # CI=true instead of rebuilding, so the rebuild happens here or not at all.
       - name: Rebuild native bindings (better-sqlite3 ABI guard)
