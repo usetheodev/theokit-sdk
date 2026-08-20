@@ -458,3 +458,107 @@ describe("createRealCloudRun — cancellation and status notification", () => {
     expect(seen).toEqual(["running", "finished"]);
   });
 });
+
+describe("createRealCloudRun — server status normalisation (#341)", () => {
+  /** Drives a full stream and returns both the live run status and the settled result. */
+  async function statusesFor(sse: string): Promise<{ run: RunStatus; result: RunStatus }> {
+    vi.stubEnv("THEOKIT_API_BASE_URL", BASE);
+    const run = makeRun({ apiKey: "k", fetch: sseFetch(sse, []) });
+    const result = await run.wait();
+    return { run: run.status, result: result.status };
+  }
+
+  it("maps the documented UPPERCASE terminal token onto RunStatus", async () => {
+    // Arrange — this module's own contract comment says the server sends
+    // "CREATING|RUNNING|FINISHED|ERROR". `RunStatus` is lowercase.
+    const sse = 'event: result\ndata: {"result":"x","status":"FINISHED"}\n\n';
+
+    // Act
+    const { run, result } = await statusesFor(sse);
+
+    // Assert — a consumer writing `if (result.status === "finished")` must see it fire.
+    expect(result).toBe("finished");
+    expect(run).toBe("finished");
+  });
+
+  it("maps UPPERCASE ERROR so throwOnError and error branches can fire", async () => {
+    const sse = 'event: result\ndata: {"result":"","status":"ERROR"}\n\n';
+    const { run, result } = await statusesFor(sse);
+    expect(result).toBe("error");
+    expect(run).toBe("error");
+  });
+
+  it("maps CANCELLED and treats EXPIRED as an error", async () => {
+    const cancelled = await statusesFor('event: result\ndata: {"status":"CANCELLED"}\n\n');
+    expect(cancelled.result).toBe("cancelled");
+    // EXPIRED is a member of the wire-level status union but has no RunStatus of its own.
+    // A run that expired did not finish, so it settles as an error rather than silently
+    // reading as success.
+    const expired = await statusesFor('event: result\ndata: {"status":"EXPIRED"}\n\n');
+    expect(expired.result).toBe("error");
+  });
+
+  it("still accepts the lowercase token, which is what the server actually sent before", async () => {
+    // The accepted case in the other direction: normalisation must not break the shape the
+    // existing suite already pinned.
+    const { result } = await statusesFor(
+      'event: result\ndata: {"result":"x","status":"finished"}\n\n',
+    );
+    expect(result).toBe("finished");
+  });
+
+  it("fails the run with an actionable message when the token is not a status at all", async () => {
+    // Fail-fast at the boundary (rules/error-handling.md § 2): an unrecognised token is not
+    // silently coerced to "finished", which would report a run of unknown outcome as success.
+    vi.stubEnv("THEOKIT_API_BASE_URL", BASE);
+    const sse = 'event: result\ndata: {"result":"x","status":"IMPOSSIBLE"}\n\n';
+    const run = makeRun({ apiKey: "k", fetch: sseFetch(sse, []) });
+
+    const result = await run.wait();
+
+    expect(result.status).toBe("error");
+    expect(result.error?.message ?? "").toContain("IMPOSSIBLE");
+  });
+
+  it("leaves the wire-level status EVENT uppercase, which is its declared union", async () => {
+    // SDKStatusMessage.status is "CREATING"|"RUNNING"|"FINISHED"|... by contract. Normalising
+    // that too would be a different bug; this pins the boundary between the two.
+    vi.stubEnv("THEOKIT_API_BASE_URL", BASE);
+    const sse =
+      'event: status\ndata: {"status":"RUNNING"}\n\nevent: result\ndata: {"result":"x","status":"FINISHED"}\n\n';
+    const run = makeRun({ apiKey: "k", fetch: sseFetch(sse, []) });
+    const seen: string[] = [];
+    for await (const message of run.stream()) {
+      if (message.type === "status") seen.push(message.status);
+    }
+    expect(seen).toContain("RUNNING");
+  });
+});
+
+describe("createRealCloudRun — the wire-level status event is validated too (#341)", () => {
+  it("normalises the event token's case without leaving the uppercase union", async () => {
+    vi.stubEnv("THEOKIT_API_BASE_URL", BASE);
+    const sse =
+      'event: status\ndata: {"status":"running"}\n\nevent: result\ndata: {"result":"x","status":"FINISHED"}\n\n';
+    const run = makeRun({ apiKey: "k", fetch: sseFetch(sse, []) });
+    const seen: string[] = [];
+    for await (const message of run.stream()) {
+      if (message.type === "status") seen.push(message.status);
+    }
+    // A lowercase token from the server still lands in the union the SDK publishes.
+    expect(seen).toContain("RUNNING");
+  });
+
+  it("fails the run when the status EVENT carries a token outside the union", async () => {
+    // The other cast the issue named. Left alone, `status as SDKStatusMessage["status"]` put an
+    // arbitrary server string into a closed union that consumers switch on.
+    vi.stubEnv("THEOKIT_API_BASE_URL", BASE);
+    const sse = 'event: status\ndata: {"status":"WAT"}\n\n';
+    const run = makeRun({ apiKey: "k", fetch: sseFetch(sse, []) });
+
+    const result = await run.wait();
+
+    expect(result.status).toBe("error");
+    expect(result.error?.message ?? "").toContain("WAT");
+  });
+});
