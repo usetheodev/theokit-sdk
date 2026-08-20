@@ -44,6 +44,30 @@ The flow is `workspace → develop → main`.
 - [ ] A **changeset** (`pnpm changeset`) if the change is user-visible. Changelogs are generated per package by Changesets under `packages/*/CHANGELOG.md`; there is no root changelog to edit.
 - [ ] Lint + format clean (`pnpm check` — Biome).
 
+## Test structure
+
+Structure every test as **Arrange → Act → Assert**, separated by a blank line, no comment markers required:
+
+```ts
+it("enters plan mode", () => {
+  const tool = createPlanModeTool();
+
+  const result = JSON.parse(tool.handler({ action: "enter" }));
+
+  expect(result.ok).toBe(true);
+  expect(result.mode).toBe("plan");
+});
+```
+
+That is the suite's de-facto style today — measured across all 817 test files, 2.2% carry explicit
+`// Arrange` / `// Act` / `// Assert` comments or a `Given/When/Then` test name, but a sampled read
+found the same three-part shape present and readable in unmarked files too, just without the labels.
+This declares the convention `rules/testing.md` § 3 asks every repo to pick, without demanding a
+rewrite: existing files named in `Given/When/Then` style stay as they are — converting them buys
+nothing a reader doesn't already have, and the churn isn't worth it. Write new tests as AAA with a
+blank line between each part; comment markers are optional and add little once the blank line does
+the separating.
+
 ## Quality gates
 
 The push is gated locally by `.githooks/pre-push`, and again in CI. Every gate is one tool, and the rule is **fix the code, not the threshold**:
