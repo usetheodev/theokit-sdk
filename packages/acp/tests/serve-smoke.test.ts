@@ -55,6 +55,15 @@ class StdioClient {
   constructor(
     private stdin: NodeJS.WritableStream,
     stdout: NodeJS.ReadableStream,
+    /**
+     * What the child said on stderr and how it exited, sampled when a request times out.
+     *
+     * Without it a timeout reports `timeout waiting for initialize` and DISCARDS everything the
+     * child wrote — so a child that died on an import error, a missing entry or a bad `--permission`
+     * is indistinguishable from one that was merely slow, and every one of those reads as
+     * "the handshake is flaky". The bin writes all five of its startup failures to stderr.
+     */
+    private diagnostics: () => string = () => "",
   ) {
     stdout.on("data", (chunk: Buffer) => {
       this.buffer += chunk.toString("utf-8");
@@ -91,7 +100,9 @@ class StdioClient {
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`timeout waiting for ${method}`));
+        reject(
+          new Error(`timeout waiting for ${method} after ${timeoutMs}ms${this.diagnostics()}`),
+        );
       }, timeoutMs);
       this.pending.set(id, (response) => {
         clearTimeout(timer);
@@ -125,7 +136,22 @@ function spawnAcpClient(entryPath: string): { client: StdioClient; teardown: () 
     stdio: ["pipe", "pipe", "pipe"],
     env: { ...process.env, SKIP_OLLAMA_E2E: "1" },
   });
-  const client = new StdioClient(child.stdin, child.stdout);
+  let stderr = "";
+  child.stderr.on("data", (chunk: Buffer) => {
+    stderr += chunk.toString("utf-8");
+  });
+  let exit: string | undefined;
+  child.on("exit", (code, signal) => {
+    exit = signal === null ? `code ${code}` : `signal ${signal}`;
+  });
+
+  const client = new StdioClient(child.stdin, child.stdout, () => {
+    const parts: string[] = [];
+    if (exit !== undefined) parts.push(`child already exited with ${exit}`);
+    const tail = stderr.trim();
+    if (tail.length > 0) parts.push(`child stderr: ${tail.slice(-600)}`);
+    return parts.length === 0 ? " (child still running, stderr empty)" : ` — ${parts.join("; ")}`;
+  });
   const teardown = async (): Promise<void> => {
     child.stdin.end();
     await new Promise<void>((resolve) => {
@@ -144,15 +170,22 @@ function spawnAcpClient(entryPath: string): { client: StdioClient; teardown: () 
  * cold start — `node` booting plus the ACP entry importing its whole module graph, `@theokit/sdk`
  * included — before a single byte of JSON-RPC is answered.
  *
- * Measured 2026-08-20. On an idle machine the handshake completes comfortably inside the 5s
- * per-request default; under `turbo run test` across twelve packages in parallel it exceeded it and
- * failed as "timeout waiting for initialize", while the same file passed 3/3 in isolation. A test
- * that passes alone and fails in the suite is a flaky test, and `rules/testing.md` § 3 calls that a
- * bug rather than a nuisance.
+ * **The number is deliberately far above the measured cost, and the reason is that the cost is not
+ * what made it fail.** Measured 2026-08-20 against the same fixture shape this file writes:
+ * 121-136 ms on a loaded-but-not-saturated machine, and 295-340 ms with 24 CPU-burning processes on
+ * 12 cores. The 5000 ms per-request default was already 15-37x the cold start, so the one observed
+ * failure under `turbo run test` across twelve packages — "timeout waiting for initialize", while
+ * this file passed 3/3 in isolation — is NOT explained by CPU contention, and no explanation
+ * measurement supports has been found yet.
  *
- * Raising the per-request default would have slackened every other assertion in this file, most of
- * which assert that a call fails FAST. Only this one call waits on a process starting, so only this
- * one gets the larger budget.
+ * So this budget is a hedge, not a diagnosis, and it is paired with one: a timed-out request now
+ * reports the child's stderr and exit status (see `StdioClient`'s `diagnostics` parameter). The bin
+ * writes all five of its startup failures to stderr, and the previous message discarded every one
+ * of them — a child that died on a bad entry read exactly like a child that was slow. The next
+ * occurrence will name its own cause instead of costing another investigation.
+ *
+ * Raising the per-request default instead would have slackened every other assertion in this file,
+ * most of which assert that a call fails FAST. Only this one call waits on a process starting.
  */
 const HANDSHAKE_TIMEOUT_MS = 20_000;
 
