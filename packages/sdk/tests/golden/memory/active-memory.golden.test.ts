@@ -1,14 +1,14 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { runActiveMemory } from "../../../src/internal/memory/active-memory.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
 import { SystemPromptPipeline } from "../../../src/internal/runtime/system-prompt/pipeline.js";
 import { ActiveMemoryPromptProvider } from "../../../src/internal/runtime/system-prompt/sources/active-memory-provider.js";
 import type { SystemPromptAssemblyContext } from "../../../src/internal/runtime/system-prompt/types.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Phase 7 T7.1 — Active Memory blocking recall + system-prompt provider.
@@ -20,6 +20,10 @@ describe("runActiveMemory", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-active-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await mkdir(join(cwd, ".theokit", "memory"), { recursive: true });
     await writeFile(
       memoryMdPath(cwd),

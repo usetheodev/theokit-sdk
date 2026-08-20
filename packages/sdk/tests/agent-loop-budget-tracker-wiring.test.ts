@@ -28,14 +28,14 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { runAgentLoop } from "../src/internal/agent-loop/loop.js";
 import { createCounterBudgetTracker } from "../src/internal/budget/tracker/budget-tracker-counter.js";
 import type { LlmClient, LlmEvent, LlmFinish } from "../src/internal/llm/types.js";
 import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
 import type { ModelSelection } from "../src/types/agent.js";
 import type { BudgetTracker } from "../src/types/budget-tracker.js";
+import { removeTempDirRobust } from "./helpers/temp-workspace.js";
 
 /** A one-round LLM that reports the token counts the wiring is supposed to forward. */
 function clientReporting(inputTokens?: number, outputTokens?: number): LlmClient {
@@ -59,6 +59,10 @@ describe("BudgetTracker.track() wiring, against the production runIteration", ()
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-budget-wiring-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
   });
 
   /** Runs one turn through the real loop with the given tracker and token report. */

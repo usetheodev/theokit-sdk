@@ -14,20 +14,27 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 import {
   acquireSessionWriter,
   HEARTBEAT_WINDOW_MS,
   SessionBusyError,
   sessionHasWriter,
 } from "../src/internal/persistence/session-writer.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 const acquired: Array<{ release: () => Promise<void> }> = [];
 afterEach(async () => {
   for (const l of acquired.splice(0)) await l.release();
 });
 
-const newPath = (): string => join(mkdtempSync(join(tmpdir(), "m95-lease-")), "s.jsonl");
+const newPath = (): string => {
+  const d = mkdtempSync(join(tmpdir(), "m95-lease-"));
+  onTestFinished(() => {
+    removeTempDirRobustSync(d);
+  });
+  return join(d, "s.jsonl");
+};
 
 /** Writes a `.lock` with an arbitrary owner, simulating a process that died. */
 function lockOwnedBy(path: string, owner: { pid: number; hostname: string; mtime: number }): void {

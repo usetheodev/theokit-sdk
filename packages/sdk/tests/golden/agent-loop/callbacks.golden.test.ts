@@ -2,11 +2,11 @@ import { mkdtemp } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { Agent } from "../../../src/index.js";
 import type { ConversationStep } from "../../../src/types/conversation.js";
 import type { InteractionUpdate } from "../../../src/types/updates.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Behaviour gate proving `SendOptions.onStep` / `onDelta` fire in the real
@@ -106,6 +106,10 @@ describe("real-runtime callbacks (SendOptions.onStep / onDelta)", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-callbacks-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
   });
 
   afterEach(async () => {

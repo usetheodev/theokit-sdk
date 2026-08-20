@@ -2,9 +2,9 @@ import { mkdtemp } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { Agent, ConfigurationError, type CustomTool } from "../../../src/index.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Golden tests for the public `AgentOptions.tools` surface (inline custom
@@ -108,6 +108,10 @@ describe("custom inline tools (AgentOptions.tools)", () => {
   let server: Server | undefined;
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-custom-tools-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
   });
   afterEach(async () => {
     cwd = undefined;

@@ -21,8 +21,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { runAgentLoop } from "../src/internal/agent-loop/loop.js";
 import type { LlmClient, LlmEvent, LlmFinish } from "../src/internal/llm/types.js";
 import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
@@ -32,6 +31,7 @@ import type {
   MemoryProviderInitOptions,
 } from "../src/internal/runtime/memory/memory-provider.js";
 import type { MemoryAdapter } from "../src/types/memory-adapter.js";
+import { removeTempDirRobust } from "./helpers/temp-workspace.js";
 
 /** A MemoryAdapter satisfying the public contract; the handle's payload, nothing more. */
 function stubAdapter(): MemoryAdapter {
@@ -92,6 +92,10 @@ describe("MemoryProvider init + dispose, against the production runAgentLoop", (
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-mem-lifecycle-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
   });
 
   async function drive(

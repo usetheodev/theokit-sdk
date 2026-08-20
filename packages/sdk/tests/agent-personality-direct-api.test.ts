@@ -9,13 +9,17 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { Agent } from "../src/agent.js";
 import { ConfigurationError } from "../src/errors.js";
+import { removeTempDirRobust } from "./helpers/temp-workspace.js";
 
 async function buildWorkspace(presets: Record<string, string> = {}): Promise<string> {
   const cwd = await mkdtemp(join(tmpdir(), "theokit-personality-api-"));
+  const __cwdCleanup1 = cwd;
+  onTestFinished(async () => {
+    await removeTempDirRobust(__cwdCleanup1);
+  });
   const dir = join(cwd, ".theokit/personalities");
   await mkdir(dir, { recursive: true });
   for (const [name, body] of Object.entries(presets)) {

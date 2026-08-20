@@ -3,9 +3,9 @@ import type { IncomingMessage } from "node:http";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { Agent } from "../../../src/index.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Behaviour gate for `AgentOptions.systemPrompt` and
@@ -164,6 +164,10 @@ describe("systemPrompt routing", () => {
   it("injects loaded context as a <context> block when context manager is active", async () => {
     const captured = await withAnthropic();
     const cwd = await mkdtemp(join(tmpdir(), "theokit-ctx-inj-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await mkdir(join(cwd, ".theokit"), { recursive: true });
     await writeFile(join(cwd, "facts.md"), "The magic-number is 8675309.\n");
     await writeFile(
@@ -186,6 +190,10 @@ describe("systemPrompt routing", () => {
   it("injects loaded skills as a <skills> block", async () => {
     const captured = await withAnthropic();
     const cwd = await mkdtemp(join(tmpdir(), "theokit-skills-inj-"));
+    const __cwdCleanup2 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup2);
+    });
     await mkdir(join(cwd, ".theokit", "skills", "code-review"), { recursive: true });
     await mkdir(join(cwd, ".theokit", "skills", "doc-writer"), { recursive: true });
     await writeFile(
@@ -211,6 +219,10 @@ describe("systemPrompt routing", () => {
   it("places <skills> before the resolver-produced base prompt", async () => {
     const captured = await withAnthropic();
     const cwd = await mkdtemp(join(tmpdir(), "theokit-skills-resolver-"));
+    const __cwdCleanup3 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup3);
+    });
     await mkdir(join(cwd, ".theokit", "skills", "doc-writer"), { recursive: true });
     await writeFile(
       join(cwd, ".theokit", "skills", "doc-writer", "SKILL.md"),
@@ -233,6 +245,10 @@ describe("systemPrompt routing", () => {
   it("injects persisted memory facts as a <memory> block", async () => {
     const captured = await withAnthropic();
     const cwd = await mkdtemp(join(tmpdir(), "theokit-mem-inj-"));
+    const __cwdCleanup4 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup4);
+    });
     await mkdir(join(cwd, ".theokit", "memory", "default"), { recursive: true });
     await writeFile(
       join(cwd, ".theokit", "memory", "default", "agent-default.json"),
@@ -253,6 +269,10 @@ describe("systemPrompt routing", () => {
   it("recovers from a corrupt memory file with no memory block (EC-4)", async () => {
     const captured = await withAnthropic();
     const cwd = await mkdtemp(join(tmpdir(), "theokit-mem-corrupt-"));
+    const __cwdCleanup5 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup5);
+    });
     await mkdir(join(cwd, ".theokit", "memory", "default"), { recursive: true });
     await writeFile(
       join(cwd, ".theokit", "memory", "default", "agent-default.json"),

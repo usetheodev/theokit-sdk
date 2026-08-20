@@ -19,7 +19,7 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
 
-export interface SocketSnapshot {
+interface SocketSnapshot {
   pid: number;
   closeWaitCount: number;
   timeWaitCount: number;
@@ -27,7 +27,7 @@ export interface SocketSnapshot {
 }
 
 /** A real measurement, or a stated reason none could be taken. Never both, never neither. */
-export type ProbeResult =
+type ProbeResult =
   | { readonly available: true; readonly snapshot: SocketSnapshot }
   | { readonly available: false; readonly reason: string };
 

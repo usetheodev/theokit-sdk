@@ -1,9 +1,9 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { Agent } from "../../../src/index.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Behaviour gate proving the real local runtime activates when a non-fixture
@@ -66,6 +66,10 @@ describe("real local runtime", () => {
   let server: Server | undefined;
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-real-local-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await writeFile(join(cwd, "data.txt"), "answer-is-42\n");
   });
   afterEach(async () => {

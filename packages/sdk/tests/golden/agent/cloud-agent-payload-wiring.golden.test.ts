@@ -1,10 +1,10 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-
+import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 import { Agent } from "../../../src/index.js";
 import type { CloudAgent } from "../../../src/internal/cloud-agent/cloud-agent.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * ADR D15 + EC-6 — CloudAgent threads cloudPayload through `send()` AND
@@ -67,6 +67,10 @@ describe("CloudAgent — reload re-serializes (EC-6)", () => {
 
   it("reload() rebuilds cloudPayload from current options", async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-cloud-reload-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await mkdir(join(cwd, ".theokit", "skills", "deploy"), { recursive: true });
     await writeFile(
       join(cwd, ".theokit", "skills", "deploy", "SKILL.md"),

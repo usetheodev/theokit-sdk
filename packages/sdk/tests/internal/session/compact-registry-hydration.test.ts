@@ -8,6 +8,7 @@ import {
   clearAgentRegistry,
   invalidateRegistryHydration,
 } from "../../../src/internal/runtime/registry/agent-registry.js";
+import { withMockedCwd } from "../../helpers/with-cwd.js";
 
 /**
  * B-016 — regression cover for cc1c3f7e, the fourth of the four provider-resolution fixes that
@@ -17,8 +18,8 @@ import {
  * The scenario is a fresh process — a TUI `/compact` issued before any turn has run, so nothing has
  * populated the in-memory Map. Without the hydration step the call throws `UnknownAgentError` for an
  * agent that is sitting on disk. `Agent.compact` reads `process.cwd()` (it has no cwd option), so the
- * test chdirs into its own tmpdir for the duration, following
- * `tests/golden/runtime/agent-registry-persistence.golden.test.ts`.
+ * test mocks it for the duration via `withMockedCwd` (B-093 — a real `process.chdir()` is an OS
+ * syscall vitest's `threads` pool does not support; see that helper's doc comment).
  */
 describe("Agent.compact — registry hydration on a miss (D21, cc1c3f7e)", () => {
   let cwd: string;
@@ -48,9 +49,7 @@ describe("Agent.compact — registry hydration on a miss (D21, cc1c3f7e)", () =>
     clearAgentRegistry();
     invalidateRegistryHydration();
 
-    const previousCwd = process.cwd();
-    process.chdir(cwd);
-    try {
+    await withMockedCwd(cwd, async () => {
       const result = await Agent.compact(agentId, {
         trigger: "manual",
         summarize: async () => "a deterministic summary",
@@ -59,25 +58,19 @@ describe("Agent.compact — registry hydration on a miss (D21, cc1c3f7e)", () =>
         preTokens: expect.any(Number),
         postTokens: expect.any(Number),
       });
-    } finally {
-      process.chdir(previousCwd);
-    }
+    });
   });
 
   // The accepting half above proves hydration happens; this one proves it is a LOOKUP and not an
   // unconditional success — an agent absent from memory AND from disk must still fail fast.
   it("still throws UnknownAgentError when the agent is on neither the map nor the disk", async () => {
-    const previousCwd = process.cwd();
-    process.chdir(cwd);
-    try {
+    await withMockedCwd(cwd, async () => {
       await expect(
         Agent.compact("agent-never-created-b016", {
           trigger: "manual",
           summarize: async () => "unused",
         }),
       ).rejects.toBeInstanceOf(UnknownAgentError);
-    } finally {
-      process.chdir(previousCwd);
-    }
+    });
   });
 });

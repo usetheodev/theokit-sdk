@@ -23,8 +23,9 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 import { createMcpClient, type McpClient } from "../../src/internal/mcp/client.js";
+import { removeTempDirRobustSync } from "../helpers/temp-workspace.js";
 
 const opened: McpClient[] = [];
 
@@ -91,6 +92,10 @@ const ALIVE_SERVER = `
 describe("theokit#155 — initialize() after a failed handshake", () => {
   it("test_a_second_turn_RETRIES_when_the_first_handshake_failed", async () => {
     const dir = mkdtempSync(join(tmpdir(), "mcp-handshake-"));
+    const __dirCleanup1 = dir;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__dirCleanup1);
+    });
     const counterFile = join(dir, "count");
     writeFileSync(counterFile, "0");
     const cfg = {

@@ -18,7 +18,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
 import { buildAssistantTurn } from "../../../src/internal/agent-loop/message-builders.js";
 import { toAnthropicWireMessage } from "../../../src/internal/llm/anthropic-shared.js";
@@ -33,6 +33,7 @@ import {
   SessionTranscript,
 } from "../../../src/internal/persistence/session-transcript.js";
 import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 const SIGNATURE = "ErUBCkYIBBgCIkAxyz+/opaque==";
 
@@ -58,6 +59,10 @@ describe("theokit#122 — the thinking block is scoped to its own round", () => 
     // that HAS its own block, so a leak there is masked by the overwrite. This one leaves round 2
     // empty, which is the only arrangement where a leaked block has nowhere to hide.
     const cwd = await mkdtemp(join(tmpdir(), "theokit-thinking-scope-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     const hooks = new HooksExecutor(cwd);
     await hooks.initialize(false);
 

@@ -5,13 +5,13 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import {
   DEFAULT_MAX_BYTES_PER_FILE,
   loadPlainMarkdown,
   truncateWithMarker,
 } from "../../../src/internal/runtime/context/context-loaders.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 describe("truncateWithMarker (T1.2)", () => {
   it("content under max returns verbatim", () => {
@@ -89,6 +89,10 @@ describe("loadPlainMarkdown (T1.2)", () => {
   let tmp: string;
   beforeEach(async () => {
     tmp = await mkdtemp(join(tmpdir(), "theokit-ctx-load-"));
+    const __tmpCleanup1 = tmp;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__tmpCleanup1);
+    });
     delete (globalThis as Record<string, unknown>).__theokit_tracer;
   });
   afterEach(() => {

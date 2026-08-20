@@ -21,13 +21,17 @@ import { mkdtempSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
-
+import { describe, expect, it, onTestFinished } from "vitest";
 import { appendJsonl } from "../src/internal/persistence/jsonl.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 describe("appendJsonl — the directory is as private as the file", () => {
   it("test_the_created_directory_is_not_group_or_world_writable", () => {
     const base = mkdtempSync(join(tmpdir(), "transcript-mode-"));
+    const __baseCleanup1 = base;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__baseCleanup1);
+    });
     const path = join(base, "nested", "projects", "session.jsonl");
 
     appendJsonl(path, { type: "user" });
@@ -43,6 +47,10 @@ describe("appendJsonl — the directory is as private as the file", () => {
   it("test_the_file_mode_is_unchanged_by_this_fix", () => {
     // The M93 guarantee must survive: this task hardens the directory, it does not touch the file.
     const base = mkdtempSync(join(tmpdir(), "transcript-mode-"));
+    const __baseCleanup2 = base;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__baseCleanup2);
+    });
     const path = join(base, "session.jsonl");
     appendJsonl(path, { type: "user" });
     expect(statSync(path).mode & 0o777).toBe(0o600);
@@ -52,6 +60,10 @@ describe("appendJsonl — the directory is as private as the file", () => {
     // `mkdirSync` with a mode is a no-op on an existing directory. Appending must not start failing
     // because of that — the fix is about how a NEW directory is born.
     const base = mkdtempSync(join(tmpdir(), "transcript-mode-"));
+    const __baseCleanup3 = base;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__baseCleanup3);
+    });
     const path = join(base, "session.jsonl");
     appendJsonl(path, { type: "user", i: 1 });
     expect(() => {

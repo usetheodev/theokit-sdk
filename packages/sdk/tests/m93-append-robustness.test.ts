@@ -9,11 +9,18 @@
 import { appendFileSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { appendJsonl } from "../src/internal/persistence/jsonl.js";
 import { readTranscript } from "../src/internal/persistence/session-transcript.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
-const dir = (): string => mkdtempSync(join(tmpdir(), "m93-append-"));
+const dir = (): string => {
+  const d = mkdtempSync(join(tmpdir(), "m93-append-"));
+  onTestFinished(() => {
+    removeTempDirRobustSync(d);
+  });
+  return d;
+};
 
 describe("M93/H1 — the transcript is born 0600", () => {
   it("a new file is NOT readable by others, whatever the umask", () => {

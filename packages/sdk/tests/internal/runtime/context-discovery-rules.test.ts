@@ -6,10 +6,10 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
-
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { runDiscovery } from "../../../src/internal/runtime/context/context-discovery-runner.js";
 import { DEFAULT_MAX_BYTES_PER_FILE } from "../../../src/internal/runtime/context/context-loaders.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 const SPEC_ID = "theokit-rules";
 
@@ -17,6 +17,10 @@ describe("discovery — .theokit/rules/*.md (T2)", () => {
   let tmp: string;
   beforeEach(async () => {
     tmp = await mkdtemp(join(tmpdir(), "theokit-rules-disc-"));
+    const __tmpCleanup1 = tmp;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__tmpCleanup1);
+    });
     await mkdir(join(tmp, ".git"), { recursive: true });
     await mkdir(join(tmp, ".theokit", "rules"), { recursive: true });
     await writeFile(

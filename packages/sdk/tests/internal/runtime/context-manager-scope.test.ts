@@ -8,9 +8,9 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
-
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { FileContextManager } from "../../../src/internal/runtime/context/context-manager.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 const hasFile = (paths: Array<string | undefined>, file: string): boolean =>
   paths.some((p) => (p ?? "").endsWith(file));
@@ -19,6 +19,10 @@ describe("FileContextManager.applyScope (T3)", () => {
   let tmp: string;
   beforeEach(async () => {
     tmp = await mkdtemp(join(tmpdir(), "theokit-rules-scope-"));
+    const __tmpCleanup1 = tmp;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__tmpCleanup1);
+    });
     await mkdir(join(tmp, ".git"), { recursive: true });
     await mkdir(join(tmp, ".theokit", "rules"), { recursive: true });
     await writeFile(
