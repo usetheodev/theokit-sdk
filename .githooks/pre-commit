@@ -30,7 +30,64 @@ fi
 # build+typecheck for the whole monorepo on every commit to produce a verdict that was
 # green by construction. Capturing also means a real failure prints the type errors
 # instead of the last three lines of turbo's summary.
-if ! typecheck_out=$(pnpm -w run typecheck 2>&1); then
+#
+# B-127 — `pnpm -w run typecheck` (= `turbo run typecheck --filter='./packages/*'`)
+# unconditionally selects EVERY package. Measured 2026-08-19: 30 tasks (15 build + 15
+# typecheck) on a tree with a single-file change under packages/sdk/src, because every
+# package depends on @theokit/sdk#build via `^build`. `main`/`develop` gained required
+# status checks the same day (validate on both node legs, TruffleHog, CodeQL), so CI
+# already re-checks everyone before merge — this hook only needs to be a fast, HONEST
+# local signal, not the last line of defence.
+#
+# `--filter='...[origin/workspace]'` scopes to packages changed since the last promoted
+# ref (the leading `...` also pulls in dependents, so a change to a package others import
+# still typechecks those importers). But a stale, missing, or freshly-pushed
+# `origin/workspace` can make the filter select ZERO packages, and turbo exits 0 on an
+# empty selection — MEASURED for real: `turbo run typecheck --filter='[HEAD]'` on a clean
+# tree reports "Packages in scope: " / "Running typecheck in 0 packages" and exits 0.
+# Swapping the expensive-but-honest unscoped gate for a filter that can silently select
+# nothing reproduces the exact defect dd1cf860 fixed, one filter over — a green hook that
+# checked nothing. The guard below (selected_count) is not optional; it is this item's DoD.
+selected_json=$(npx turbo run typecheck --filter='...[origin/workspace]' --dry=json 2>/dev/null) || selected_json=""
+selected_count=$(printf '%s' "$selected_json" | node -e '
+let data = "";
+process.stdin.on("data", (chunk) => { data += chunk; });
+process.stdin.on("end", () => {
+  try {
+    const parsed = JSON.parse(data);
+    const packages = (parsed.packages || []).filter((name) => name !== "//");
+    process.stdout.write(String(packages.length));
+  } catch {
+    // Unparseable/empty stdout means the dry-run itself failed (e.g. `origin/workspace`
+    // does not resolve). Treated identically to a zero selection below: fail loudly.
+    process.stdout.write("-1");
+  }
+});
+')
+
+if [ "$selected_count" = "-1" ]; then
+  echo ""
+  echo "✗ G1 (typecheck) failed: could not compute the diff-scoped package selection"
+  echo "  against origin/workspace (turbo --dry=json produced no parseable output —"
+  echo "  the ref may not resolve locally). Run 'git fetch origin workspace' and retry,"
+  echo "  or run 'pnpm -w run typecheck' manually to check the full monorepo."
+  exit 1
+fi
+
+if [ "$selected_count" -eq 0 ]; then
+  echo ""
+  echo "✗ G1 (typecheck) failed: the diff-scoped filter selected 0 packages against"
+  echo "  origin/workspace. This gate does not pass silently on zero — either this is a"
+  echo "  genuinely no-op change (rare) or, the case this guard exists for, a"
+  echo "  stale/missing/freshly-pushed ref hiding a real diff. Run 'git fetch origin"
+  echo "  workspace' and retry, or run 'pnpm -w run typecheck' manually if the change"
+  echo "  really does touch no package."
+  exit 1
+fi
+
+echo "→ G1: typecheck scoped to ${selected_count} package(s) changed since origin/workspace"
+
+if ! typecheck_out=$(npx turbo run typecheck --filter='...[origin/workspace]' 2>&1); then
   echo ""
   echo "$typecheck_out" | tail -30
   echo ""

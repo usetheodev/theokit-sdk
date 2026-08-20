@@ -7,8 +7,13 @@
  *
  * theokit-sdk-biome-cleanup 2026-05-30 — `poolMatchGlobs` is deprecated in
  * vitest 3.x. The whole SDK suite now runs in the forks pool via top-level
- * `pool: "forks"` + `poolOptions.forks.singleFork: true` + `fileParallelism:
- * false`. The deprecated `poolMatchGlobs` is kept for backward visibility.
+ * `pool: "forks"` + `fileParallelism: false`.
+ *
+ * B-104, 2026-08-19 — Vitest 4 removed `test.poolOptions` entirely
+ * (`singleFork`/`minForks`/`maxForks` do not exist anywhere in its dist;
+ * see vitest.config.ts for the measurement). The `singleFork: false` pin
+ * below was replaced with its actual top-level Vitest 4 successor,
+ * `isolate: true` — both mean "each test file gets its own subprocess".
  */
 
 import { resolve } from "node:path";
@@ -31,16 +36,26 @@ describe("vitest config — pool configuration (T3.1)", () => {
     expect(config.test?.pool).toBe("forks");
   });
 
-  it("declares singleFork: false for per-file process isolation", async () => {
+  it("declares isolate: true for per-file process isolation", async () => {
     const mod = await import(resolve(__dirname, "../../vitest.config.ts"));
     const config = mod.default as {
-      test?: { poolOptions?: { forks?: { singleFork?: boolean } } };
+      test?: { isolate?: boolean };
     };
-    // theokit-sdk-biome-cleanup 2026-05-30 — flipped from `true` to `false`
-    // so each test file gets its own subprocess. This is the only reliable
+    // B-104, 2026-08-19 — top-level `isolate: true` is Vitest 4's
+    // replacement for the removed `poolOptions.forks.singleFork: false`.
+    // Each test file gets its own subprocess, which is the only reliable
     // way to isolate `process.env.HOME` mutations across files. The whole
     // suite still runs in the forks pool (separate from threads).
-    expect(config.test?.poolOptions?.forks?.singleFork).toBe(false);
+    expect(config.test?.isolate).toBe(true);
+  });
+
+  it("does not declare poolOptions (removed in Vitest 4, dead since B-104)", async () => {
+    const mod = await import(resolve(__dirname, "../../vitest.config.ts"));
+    const config = mod.default as { test?: { poolOptions?: unknown } };
+    // Vitest 4 only reads `poolOptions` to log a DEPRECATED warning — nothing
+    // inside it takes effect. Declaring it here would silently resurrect the
+    // dead config this item removed.
+    expect(config.test?.poolOptions).toBeUndefined();
   });
 
   it("declares fileParallelism: false for strict file-level serial execution", async () => {

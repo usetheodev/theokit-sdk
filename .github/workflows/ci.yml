@@ -83,8 +83,8 @@ jobs:
       - name: Rebuild native bindings (better-sqlite3 ABI guard)
         run: pnpm rebuild better-sqlite3 || echo "::warning::native rebuild failed — preflight will surface details at test time"
 
-      # M75 — os 10 itLive de tests/linux-sandbox-integration.test.ts provam confinamento REAL de
-      # kernel (blocks writes outside the workspace, blocks network, seccomp blocks ptrace and AF_INET).
+      # M75 — the 10 itLive cases in tests/linux-sandbox-integration.test.ts prove REAL kernel
+      # confinement (blocks writes outside the workspace, blocks network, seccomp blocks ptrace and AF_INET).
       # Without bwrap they SKIP, and a skipped test is reported green: the M75 review proved by mutation
       # that, without this step, swapping buildSeccompFilter for a filter denying NOTHING passed.
       #

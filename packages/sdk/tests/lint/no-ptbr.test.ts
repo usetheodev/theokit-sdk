@@ -33,10 +33,14 @@
  * @internal
  */
 
-import type { Dirent } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
-import { describe, expect, it } from "vitest";
+import { promisify } from "node:util";
+import { afterEach, describe, expect, it } from "vitest";
+
+const execFileAsync = promisify(execFile);
 
 const REPO_ROOT = join(__dirname, "..", "..", "..", "..");
 
@@ -293,43 +297,54 @@ interface Offender {
 const SCANNED_EXT = /\.(?:ts|mts|cts|js|mjs|cjs|md)$/;
 
 /**
- * Directories that hold build output, dependencies or local runtime state — never source we own.
+ * B-128, 2026-08-19 — the traversal is driven from `git ls-files`, NOT a `readdir` walk.
  *
- * Dot-directories are skipped wholesale: inside a package they are tool or runtime state
- * (`.theokit/memory/sessions/` holds real conversation transcripts, which are Portuguese because
- * the user writes Portuguese). Linting a session transcript would be linting the user.
+ * Two independent defects came from `readdir` walking the real filesystem instead of asking git
+ * what it tracks:
+ *
+ * - It scanned files CI never sees. `BACKLOG.md` is gitignored (`.gitignore:124`) but sits on disk
+ *   in every local checkout; a Portuguese `progress:` note there failed this gate locally while CI
+ *   — which never has the file — stayed green. Measured 2026-08-19: `1 failed | 12 passed` locally.
+ * - It skipped tracked files CI DOES see. The old walk excluded every directory whose name starts
+ *   with `.` (see the retired `isSkippedDir`), which was the right call for `.theokit/memory/
+ *   sessions/` (gitignored runtime state, real conversation transcripts, Portuguese because the
+ *   user writes Portuguese) but wrongly also hid `.github/`, `.changeset/`, and every other
+ *   TRACKED dot-directory. `.github/workflows/ci.yml` carried Portuguese in a comment for as long
+ *   as the gate existed, invisible because dot-directories were skipped wholesale.
+ *
+ * `git ls-files` is exactly the fix for both, for the same reason: it lists what CI receives.
+ * Untracked files (including everything gitignored — `.theokit/`, `BACKLOG.md`, `node_modules`,
+ * `dist`, `coverage`) are absent by construction, no skip-list needed. Tracked dot-directories are
+ * present, no dot-directory carve-out needed. The old `SKIP_DIRS` allowlist and `isSkippedDir`
+ * dot-directory rule are gone because `git ls-files` makes both redundant — coverage is exactly
+ * "what git tracks", not "what a hand-maintained skip list remembered to exclude".
  */
-const SKIP_DIRS = new Set(["node_modules", "dist", "coverage", "docs-json"]);
-
-const isSkippedDir = (name: string): boolean => name.startsWith(".") || SKIP_DIRS.has(name);
-
-/**
- * `withFileTypes` matters here, not as a micro-optimization: the first version called `stat` once
- * per entry while walking the whole monorepo, and the test blew a 20 s timeout. A gate slow enough
- * to time out is a gate someone disables.
- */
-async function walk(dir: string, out: string[] = []): Promise<string[]> {
-  // `Dirent[]` and NOT `Awaited<ReturnType<typeof readdir>>`: `readdir` is overloaded, and the type
-  // query collapses to ONE overload — the buffer one — so the annotation contradicted the call every
-  // time. `Dirent` defaults its name type to `string`, which is what a string path actually yields.
-  let entries: Dirent[];
+// `repoRoot` defaults to the real repository and is overridable so the traversal itself — "is this
+// driven by git, does it honour .gitignore, does a tracked file surface" — can be proven against a
+// disposable scratch git repo instead of mutating this one. See the "traversal" describe block below.
+async function listTrackedFiles(root: string, repoRoot: string = REPO_ROOT): Promise<string[]> {
+  let stdout: string;
   try {
-    entries = await readdir(dir, { withFileTypes: true });
+    stdout = await new Promise<string>((resolvePromise, reject) => {
+      execFile(
+        "git",
+        ["ls-files", "-z", "--", root],
+        { cwd: repoRoot, maxBuffer: 64 * 1024 * 1024 },
+        (error, out) => {
+          if (error) reject(error);
+          else resolvePromise(out);
+        },
+      );
+    });
   } catch {
-    // A scan root that does not exist is not a violation — packages come and go.
-    return out;
+    // A scan root outside a git-tracked path (or git unavailable) is not a violation.
+    return [];
   }
-  const subdirs: string[] = [];
-  for (const entry of entries) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (!isSkippedDir(entry.name)) subdirs.push(full);
-    } else if (SCANNED_EXT.test(full) && !full.endsWith(".d.ts")) {
-      out.push(full);
-    }
-  }
-  await Promise.all(subdirs.map((d) => walk(d, out)));
-  return out;
+  return stdout
+    .split("\0")
+    .filter((rel) => rel.length > 0)
+    .map((rel) => join(repoRoot, rel))
+    .filter((full) => SCANNED_EXT.test(full) && !full.endsWith(".d.ts"));
 }
 
 /**
@@ -410,7 +425,7 @@ async function scanFile(file: string): Promise<Offender[]> {
 
 async function collectOffenders(): Promise<Offender[]> {
   const files: string[] = [];
-  for (const root of SCAN_ROOTS) files.push(...(await walk(join(REPO_ROOT, root))));
+  for (const root of SCAN_ROOTS) files.push(...(await listTrackedFiles(root)));
   const perFile = await Promise.all(files.map(scanFile));
   return perFile.flat();
 }
@@ -430,4 +445,62 @@ describe("codebase is English-only (no PT-BR)", () => {
     },
     SWEEP_TIMEOUT_MS,
   );
+});
+
+/**
+ * B-128 regression — proves the traversal itself, on a disposable scratch git repo rather than on
+ * this repository. Two claims, one per test:
+ *
+ *  1. A file excluded by `.gitignore` is not scanned (the defect: it used to be, via `readdir`).
+ *  2. The exact same content, once `git add`-ed, IS scanned and flagged (the traversal is a
+ *     coverage fix, not a new blind spot — `git ls-files` was not swapped in to hide MORE files).
+ */
+describe("traversal is git-ls-files-driven (B-128)", () => {
+  const scratchDirs: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(
+      scratchDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
+    );
+  });
+
+  async function makeScratchRepo(): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "no-ptbr-traversal-"));
+    scratchDirs.push(dir);
+    await execFileAsync("git", ["init", "--quiet"], { cwd: dir });
+    return dir;
+  }
+
+  // A Portuguese sentence carrying a tier-2 lexicon word (`nao`) — same detection tier the lint
+  // itself would use once the file is actually scanned via `scanFile`/`classifyLine`.
+  const PORTUGUESE_LINE = "// isso nao deveria ser escaneado\n";
+
+  it("does not list a file excluded by .gitignore", async () => {
+    const repo = await makeScratchRepo();
+    await writeFile(join(repo, ".gitignore"), "ignored.md\n");
+    await writeFile(join(repo, "ignored.md"), PORTUGUESE_LINE);
+
+    const files = await listTrackedFiles(".", repo);
+
+    expect(files).toEqual([]);
+  });
+
+  it("lists the same file, and the lint flags it, once it is tracked", async () => {
+    const repo = await makeScratchRepo();
+    await writeFile(join(repo, ".gitignore"), "ignored.md\n");
+    await writeFile(join(repo, "ignored.md"), PORTUGUESE_LINE);
+    // Force-add: the file matches .gitignore, so tracking it requires bypassing the ignore rule —
+    // exactly what "the path becomes tracked" means for a gitignored file.
+    await execFileAsync("git", ["add", "-f", "ignored.md"], { cwd: repo });
+
+    const files = await listTrackedFiles(".", repo);
+    expect(files).toEqual([join(repo, "ignored.md")]);
+
+    const [trackedFile] = files;
+    if (trackedFile === undefined) throw new Error("expected exactly one tracked file");
+    const offenders = await scanFile(trackedFile);
+    expect(offenders).toHaveLength(1);
+    expect(offenders[0]?.tier).toBe("lexicon");
+    expect(offenders[0]?.words).toContain("nao");
+  });
 });

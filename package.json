@@ -15,7 +15,7 @@
     "test:roadmap": "pnpm --filter=@theokit/sdk exec vitest run --config vitest.roadmap.config.ts",
     "eval": "pnpm --filter=@theokit/sdk run eval",
     "typecheck": "npx turbo run typecheck --filter='./packages/*'",
-    "check": "biome check .",
+    "check": "git ls-files -z | xargs -0 biome check",
     "check:fix": "biome check --write .",
     "validate:publint": "pnpm --filter=@theokit/sdk exec publint",
     "validate:attw": "pnpm --filter=@theokit/sdk exec attw --pack . --ignore-rules no-resolution",

@@ -1,11 +1,5 @@
 import { defineConfig } from "vitest/config";
 
-// Upper bound on concurrent test subprocesses. Each fork re-runs the native-bindings
-// preflight + imports the full SDK (~1.5GB RSS), so 4 forks can OOM a memory-constrained
-// machine or CI runner. `SDK_TEST_MAX_FORKS` lets those environments dial it down without
-// editing this file (default 4 preserves local wall-time). Floor of 1 keeps it always valid.
-const MAX_FORKS = Math.max(1, Number(process.env.SDK_TEST_MAX_FORKS) || 4);
-
 /**
  * The ONLY suites the default `pnpm test` gate does not run, each with the reason it is
  * out and a sunset by which that reason must be gone or re-measured.
@@ -85,9 +79,8 @@ export const SHARED_TEST_OPTIONS = {
   // (T6.1, ADR D60). Tests never write to the developer's real state.
   // Also runs native-bindings preflight (T1.1, dogfood-regressions-fix v1.1).
   setupFiles: ["./vitest.setup.ts"],
-  // theokit-sdk-biome-cleanup 2026-05-30 — ALL SDK tests run in the
-  // forks pool with `singleFork: true` so the entire suite executes in
-  // ONE subprocess sequentially. Reasons:
+  // theokit-sdk-biome-cleanup 2026-05-30 — ALL SDK tests run in the forks
+  // pool, each file in its OWN subprocess. Reasons:
   //
   // 1. process.env.HOME race: tests in `internal/providers/discovery.test.ts`,
   //    `internal/runtime/context-import-resolver.test.ts`,
@@ -108,46 +101,48 @@ export const SHARED_TEST_OPTIONS = {
   //
   // EC-7 DOCUMENT: any new test must be process-isolation-tolerant
   // (no shared in-process state, no module cache observation, no
-  // thread-only vitest mocks). singleFork=true serializes file-level,
-  // so cross-file pollution can still happen if a test mutates module
-  // state without resetting it in its own afterEach.
+  // thread-only vitest mocks). Per-file subprocesses avoid the HOME race,
+  // but cross-file pollution inside ONE file's process can still happen if
+  // a test mutates module state without resetting it in its own afterEach.
   pool: "forks" as const,
-  // This block used to carry `@ts-expect-error vitest 4.x InlineConfig type may not
-  // expose poolOptions directly; runtime config IS accepted per documented schema`.
-  // The directive is gone because this is now a plain object literal and tsc reports
-  // it as unused — and the claim it made is contradicted by vitest itself.
+  // B-104, MEASURED 2026-08-19: the `poolOptions.forks.{singleFork,minForks,
+  // maxForks}` block that used to live here is 100% dead in Vitest 4. Two
+  // independent facts, both confirmed by reading node_modules/vitest/dist:
   //
-  // MEASURED 2026-08-19: every run of this config prints
-  //   "DEPRECATED `test.poolOptions` was removed in Vitest 4. All previous
-  //    poolOptions are now top-level options."
-  // Whether the compat shim still honours `SDK_TEST_MAX_FORKS` was NOT measured:
-  // `fileParallelism: false` below forces file-level serial execution, which makes the
-  // fork count unobservable from wall-time. Left as-is deliberately rather than migrated
-  // blind — changing how the whole suite is scheduled is not part of B-048.
-  poolOptions: {
-    forks: {
-      // singleFork=false → each test file runs in its OWN subprocess. This
-      // gives true env isolation: tests that mutate `process.env.HOME` in
-      // beforeEach (discovery, context-import-resolver, personality/*) can
-      // no longer race each other because each file has an independent
-      // env. integration/* tests already accept this (D182 Ollama,
-      // dogfood-regressions T3.1).
-      singleFork: false,
-      // Allow multiple subprocesses so the suite finishes in reasonable
-      // wall-time. Each fork is its own env, so no HOME race.
-      minForks: 1,
-      maxForks: MAX_FORKS,
-    },
-  },
-  // Force file-level serial execution. `singleFork: true` only guarantees
-  // one subprocess; vitest can still parallelize test FILES inside it via
-  // async scheduling. `fileParallelism: false` disables that and gives
-  // strict file-level serialization, which is what the HOME-race fix
-  // requires.
+  // 1. `"poolOptions" in resolved` only triggers the DEPRECATED log
+  //    ("`test.poolOptions` was removed in Vitest 4. All previous
+  //    `poolOptions` are now top-level options.") — nothing reads the keys
+  //    inside it. `singleFork`/`minForks`/`maxForks` do not exist ANYWHERE
+  //    in the v4 dist (grepped, zero matches outside type comments); they
+  //    were renamed, not merely relocated.
+  // 2. Their top-level replacements are `isolate` (subprocess-per-file vs.
+  //    shared subprocess — the `singleFork` axis) and `maxWorkers`/
+  //    `minWorkers` (the `*Forks` axis). But `fileParallelism: false` below
+  //    forces `resolved.maxWorkers = 1` UNCONDITIONALLY (vitest ignores any
+  //    configured `maxWorkers` when file parallelism is off) — so even
+  //    migrated to top level, a fork-count knob could never have any effect
+  //    while file parallelism stays disabled. `SDK_TEST_MAX_FORKS` and its
+  //    `MAX_FORKS` constant were deleted rather than migrated: keeping a
+  //    documented env var that cannot act would be worse than having none.
+  //
+  // What DOES still take effect, and is kept: `isolate: true` (Vitest 4's
+  // default, made explicit here) is the direct replacement for the old
+  // `singleFork: false` — each test file runs in its own fresh subprocess,
+  // so `process.env.HOME` mutations in one file's `beforeEach` cannot race
+  // another file's. Do NOT flip this or `fileParallelism` to re-enable
+  // concurrency: file-level serialization is load-bearing for the HOME-race
+  // fix above, independent of this item's scope.
+  isolate: true,
+  // Force file-level serial execution. Vitest can otherwise parallelize
+  // test FILES via async scheduling even inside one worker. `fileParallelism:
+  // false` disables that and gives strict file-level serialization, which
+  // the HOME-race fix requires — and, per the measurement above, it is ALSO
+  // what pins concurrency to 1 process at a time regardless of `isolate` or
+  // any worker-count setting.
   fileParallelism: false,
   // Hard cap on test concurrency within a file. Defaults to 5 in vitest 3.x.
-  // Combined with `fileParallelism: false` + `pool: forks` + `singleFork: true`
-  // this should yield strict serial execution.
+  // Combined with `fileParallelism: false` + `pool: "forks"` + `isolate: true`
+  // this yields strict serial execution, one file per subprocess.
   maxConcurrency: 1,
 };
 
