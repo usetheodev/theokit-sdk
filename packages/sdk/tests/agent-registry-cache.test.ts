@@ -21,6 +21,7 @@ import {
   invalidateRegistryHydration,
 } from "../src/internal/runtime/registry/agent-registry.js";
 import { clearAllSessions } from "../src/internal/session/agent-session.js";
+import { pollUntil } from "./helpers/poll-until.js";
 
 const FIXTURE_KEY = "theo_test_registry_cache";
 const MODEL = { id: "openai/gpt-4o-mini" };
@@ -178,10 +179,13 @@ describe("Agent.getOrCreate — cache integration (T2.6)", () => {
     // Raising the number only moves the threshold. Waiting for the CONDITION with a deadline removes the
     // timing assumption without weakening the assertion: the test still requires `aid` to be evicted, and fails
     // the same way if that never happens.
-    const deadline = Date.now() + 5_000;
-    while (!evicted.includes(aid) && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 10));
-    }
+    //
+    // B-056: this inline loop was the proof-of-concept; `pollUntil` (tests/helpers/poll-until.ts)
+    // is the same loop extracted into a shared util so other sleep-as-sync sites can adopt it.
+    await pollUntil(() => evicted.includes(aid), {
+      deadlineMs: 5_000,
+      message: `agent-registry-cache: "${aid}" was never evicted within 5s`,
+    });
     expect(evicted).toContain(aid);
   });
 });

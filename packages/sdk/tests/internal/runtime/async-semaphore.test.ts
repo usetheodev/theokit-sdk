@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { ConfigurationError } from "../../../src/errors.js";
 import { createSemaphore } from "../../../src/internal/runtime/concurrency/async-semaphore.js";
+import { pollUntil } from "../../helpers/poll-until.js";
 
 describe("AsyncSemaphore (T1.1)", () => {
   it("one permit serializes two acquires", async () => {
@@ -17,8 +18,13 @@ describe("AsyncSemaphore (T1.1)", () => {
       order.push(2);
       r2();
     })();
-    // Wait a tick to ensure p2 is queued.
-    await new Promise((r) => setTimeout(r, 5));
+    // Wait for p2 to actually be queued — `pending()` is the real signal
+    // (1 held by r1 + 1 queued by p2), not a fixed tick that merely tends
+    // to be enough time (B-056).
+    await pollUntil(() => sem.pending() === 2, {
+      deadlineMs: 1_000,
+      message: "p2 never reached the queue (sem.pending() stayed below 2)",
+    });
     order.push(1);
     r1();
     await p2;
@@ -56,7 +62,10 @@ describe("AsyncSemaphore (T1.1)", () => {
       order.push(4);
       r();
     })();
-    await new Promise((r) => setTimeout(r, 5));
+    await pollUntil(() => sem.pending() === 4, {
+      deadlineMs: 1_000,
+      message: "p2/p3/p4 never all reached the queue (sem.pending() stayed below 4)",
+    });
     r1();
     await Promise.all([p2, p3, p4]);
     expect(order).toEqual([2, 3, 4]);
@@ -100,8 +109,8 @@ describe("AsyncSemaphore (T1.1)", () => {
     const r1 = await sem.acquire();
     // Queue 3 waiters
     const ps = [sem.acquire(), sem.acquire(), sem.acquire()];
-    // Wait so all 3 are queued
-    await new Promise((res) => setTimeout(res, 5));
+    // Wait for all 3 to be queued — poll the real state instead of a fixed sleep.
+    await pollUntil(() => sem.pending() === 4, { deadlineMs: 1_000 });
     expect(sem.pending()).toBe(4); // 1 active + 3 waiting
     r1();
     await Promise.all(ps.map((p) => p.then((rel) => rel())));
