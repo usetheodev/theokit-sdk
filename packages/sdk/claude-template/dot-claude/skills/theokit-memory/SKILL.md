@@ -72,23 +72,28 @@ The agent uses memory during runs automatically. Public management APIs are narr
 ```typescript
 import { Memory } from "@theokit/sdk";
 
-const memory = await Memory.create({
+// SQLite with full-text search — the default, and no native dependency.
+const index = await Memory.openIndex({ cwd: process.cwd() });
+
+// Add an embedding runtime for hybrid (text + vector) recall.
+const hybrid = await Memory.openIndex({
   cwd: process.cwd(),
-  index: {
-    backend: "sqlite-vec",  // default
-    embedding: { provider: "openai", model: "text-embedding-3-small" },
-  },
+  embedding: { provider: "openai", model: "text-embedding-3-small" },
 });
 
-// Or use LanceDB for >100k facts:
-const memory = await Memory.create({
+// LanceDB for large corpora. `backend: "lance"` REQUIRES `embedding` and the
+// `@lancedb/lancedb` peer dependency; a typo like "lancedb" raises
+// ConfigurationError({ code: "invalid_memory_backend" }).
+const lance = await Memory.openIndex({
   cwd: process.cwd(),
-  index: {
-    backend: "lance",
-    embedding: { provider: "openai", model: "text-embedding-3-small" },
-  },
+  backend: "lance",
+  embedding: { provider: "openai", model: "text-embedding-3-small" },
 });
 ```
+
+`backend` and `embedding` sit at the TOP level of the options, not under an
+`index` key. The handle exposes `sync()`, `search(query, opts?)`, `status()` and
+`close()`.
 
 - `@lancedb/lancedb` is an optional peer dep. If missing with `backend: "lance"`, throws `ConfigurationError(code: "lance_backend_unavailable")`.
 - Embedding dimension validated when opening existing index. Mismatch throws `ConfigurationError(code: "embedding_dimension_mismatch")`.

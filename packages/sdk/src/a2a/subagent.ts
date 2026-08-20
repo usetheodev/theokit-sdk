@@ -416,7 +416,10 @@ export class SubAgent {
  * Convert a parent's declarative `agents` map ({@link AgentDefinition} per key)
  * into delegation tools for the LOCAL runtime — the counterpart of the
  * cloud/fixture subagent wiring. Each child inherits the parent's `apiKey`/model
- * via {@link inheritSubAgentCredentials}; `def.model` overrides the model
+ * from the CALL, not from the tool object: `inheritSubAgentCredentials` used to
+ * attach them to the tool, and any layer that rebuilt that object dropped them —
+ * including the SDK's own rebuild (theokit#148). Credentials now ride the
+ * dispatch, so a rebuilt tool cannot lose them. `def.model` overrides the model
  * (`"inherit"` keeps the parent's), and `def.tools` scopes the child to that
  * subset of the parent's tools (absent → the parent's full toolset, per the
  * `AgentDefinition.tools` contract).

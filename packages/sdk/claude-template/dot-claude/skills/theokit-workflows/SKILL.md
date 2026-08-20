@@ -19,8 +19,13 @@ import { Agent, Workflow, fn, agentStep } from "@theokit/sdk";
 const classifier = await Agent.create({ /* ... */ });
 const billingExpert = await Agent.create({ /* ... */ });
 
-const wf = Workflow.create<{ claim: string }, string>({ name: "refund-pipeline" })
-  .then(fn("validate", (input) => {
+type Claim = { claim: string };
+
+// `fn` carries its OWN input/output generics — the workflow's `TInput` does not
+// flow into a step's callback. Without `fn<Claim, Claim>`, `input` is `unknown`
+// and `input.claim` does not compile.
+const wf = Workflow.create<Claim, string>({ name: "refund-pipeline" })
+  .then(fn<Claim, Claim>("validate", (input) => {
     if (!input.claim) throw new Error("missing claim");
     return input;
   }))
