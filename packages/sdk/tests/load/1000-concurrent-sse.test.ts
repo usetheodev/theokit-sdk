@@ -69,4 +69,8 @@ describe.skipIf(SKIP_LOAD)(`T0.3 load smoke — ${CONCURRENCY} concurrent SSE cl
     // On non-Linux this is a no-op pass.
     assertNoLingeringCloseWait(snapshot, /* threshold */ 25);
   });
+
+  it.todo(
+    "the SDK SSE wire sustains 1000 connections at p95 < 200ms — owner B-037, sunset 2026-11-19 (T6.2)",
+  );
 });

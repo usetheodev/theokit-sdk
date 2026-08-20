@@ -53,4 +53,8 @@ describe.skipIf(SKIP_CHAOS)("T0.3 partition-fs chaos scaffold", () => {
     expect(caught).toBeDefined();
     expect(caught?.code).toMatch(/EACCES|EPERM/);
   });
+
+  it.todo(
+    "an unwritable .theokit/memory surfaces a typed error and moves the corrupt file aside — owner B-037, sunset 2026-11-19 (T6.4)",
+  );
 });
