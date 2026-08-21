@@ -1,3 +1,4 @@
+import { cpus } from "node:os";
 import { defineConfig } from "vitest/config";
 
 /**
@@ -126,8 +127,8 @@ export const SHARED_TEST_OPTIONS = {
   //    were deleted rather than migrated: keeping a documented env var that
   //    cannot act would be worse than having none. `fileParallelism` was
   //    flipped to `true` by B-059 (below); a `maxWorkers` knob would now be
-  //    able to act, but nothing has reintroduced one — `maxConcurrency`
-  //    (also below) is the only concurrency knob this file sets.
+  //    able to act, and one was reintroduced immediately after
+  //    `fileParallelism` below — this time in the spelling Vitest 4 reads.
   //
   // What DOES still take effect, and is kept: `isolate: true` (Vitest 4's
   // default, made explicit here) is the direct replacement for the old
@@ -164,6 +165,14 @@ export const SHARED_TEST_OPTIONS = {
   // above), so cross-file mutable state must be genuinely absent — not
   // merely lucky under serial scheduling — for a file to pass here.
   fileParallelism: true,
+  // The knob B-104 said could now act. With `fileParallelism: true` above,
+  // vitest no longer forces `maxWorkers` to 1, so the default applies:
+  // os.availableParallelism(), one fork per core. This repo's `test` script
+  // is `turbo run test --filter='./packages/*'`, so that default is paid once
+  // per package, concurrently — nproc forks times turbo's concurrency, on
+  // nproc cores. Leaving 4 cores free costs no wall-clock; the parallelism
+  // above this point was already noise when measured.
+  maxWorkers: Math.max(2, cpus().length - 4),
   // Hard cap on test concurrency WITHIN a file. Kept at 1 even though
   // `fileParallelism` is now `true` above: the measurement that justifies
   // this file's default gate is the twice-validated `fileParallelism: true`
