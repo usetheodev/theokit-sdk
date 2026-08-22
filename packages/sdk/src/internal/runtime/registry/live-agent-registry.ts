@@ -23,6 +23,20 @@ import { diag } from "../../diagnostics.js";
 
 export type EvictReason = "lru" | "idle" | "explicit";
 
+/**
+ * Knobs for {@link LiveAgentRegistry.configure}.
+ *
+ * The three numeric fields are a partial reconfigure — one left out keeps its current value.
+ * `onEvict` is NOT: it is assigned on every call, so `configure({ maxAgents: 200 })` clears a
+ * listener registered earlier. Re-pass the listener whenever you reconfigure.
+ *
+ * Two values are load-bearing zeroes. `maxAgents: 0` disables caching entirely, so every lookup
+ * misses and every agent is rebuilt; `idleTimeoutMs: 0` keeps the cache but leaves LRU as the only
+ * eviction, because the sweep is not started at all below that threshold. Negative numbers are
+ * clamped rather than rejected — up to 1000ms for `sweepIntervalMs`, up to 0 for the other two.
+ *
+ * @public
+ */
 export interface AgentRegistryOptions {
   /**
    * Maximum number of agents kept alive simultaneously. LRU eviction when
@@ -62,6 +76,29 @@ const DEFAULT_MAX_AGENTS = 100;
 const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const DEFAULT_SWEEP_INTERVAL_MS = 60_000;
 
+/**
+ * An LRU-plus-idle cache of live `SDKAgent` instances, reached through `Agent.registry`.
+ *
+ * It exists for long-running servers that would otherwise build a fresh agent per conversation and
+ * never release one. Do not confuse it with the metadata registry in `agent-registry.ts`, which
+ * persists `RegisteredAgent` records to disk: that one is the address book, this one is the live
+ * cache, and they share nothing.
+ *
+ * The lifecycle rule that matters to callers: eviction — by LRU, by idle timeout, or by an explicit
+ * `evict` — calls `dispose()` on the agent. A reference you held onto before eviction is a disposed
+ * agent, not a detached one. `get` counts as a use and refreshes the entry's timestamp, so polling
+ * for an agent keeps it alive indefinitely.
+ *
+ * Idle eviction depends on a background sweep that only `configure` starts. A registry nobody
+ * configured caches with the documented defaults but evicts by LRU alone, so entries can sit past
+ * `idleTimeoutMs` indefinitely; call `configure` — even with no changes — to arm the sweep.
+ *
+ * Failures on the eviction path are swallowed and reported to the diagnostics channel — a throwing
+ * `dispose()` or a throwing `onEvict` listener must not stop the sweep. Configuration is
+ * process-wide and last-call-wins.
+ *
+ * @public
+ */
 export class LiveAgentRegistry {
   readonly #agents = new Map<string, CacheEntry>();
   #maxAgents = DEFAULT_MAX_AGENTS;

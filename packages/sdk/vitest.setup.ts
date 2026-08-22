@@ -1,7 +1,7 @@
 /**
  * Vitest autouse setup (T6.1, ADR D60; secret-redaction-discipline EC-3 fix).
  *
- * Three responsibilities:
+ * Four responsibilities:
  *
  * 0. **Top-level (once per worker):** Run native bindings preflight
  *    (`dogfood-regressions-fix-plan` T1.1). Detects NODE_MODULE_VERSION
@@ -20,6 +20,18 @@
  *    `Security.addPattern(...)` would pollute every subsequent test in the
  *    same vitest worker; a test that disables redaction would leak the
  *    disabled state into siblings.
+ *
+ * 3. (beforeEach) B-117 — clears the process-wide agent registry (a `Map`
+ *    keyed by `agentId`, module-level state in
+ *    `src/internal/runtime/registry/agent-registry.ts`). `THEOKIT_HOME`
+ *    isolation does NOT touch this Map: it lives for the life of the worker
+ *    process, so an agent registered by one test was still enumerable by the
+ *    next `Agent.list()` in the same file — a probe measured 5 → 8 agents
+ *    across tests in one file before this reset existed. Individual test
+ *    files used to call `clearAgentRegistry()` by hand in their own
+ *    `beforeEach`/`afterEach`, which only isolates the files that remembered
+ *    to. This makes it unconditional, the same way THEOKIT_HOME isolation
+ *    already is (responsibility 1 above) — one seam, not N per-file opt-ins.
  *
  * @internal
  */
@@ -41,6 +53,26 @@ import { ensureNativeBindings } from "../../tools/preflight-native-bindings.mjs"
 // between setup and tests when path-resolvers normalize differently.
 import { setDiagnosticsSink } from "./src/internal/diagnostics.js";
 import { _resetForTests } from "./src/internal/security/redact.js";
+
+// B-117 — `agent-registry.js` is imported LAZILY: the `import()` call itself
+// lives INSIDE the `beforeEach` callback below, not at this file's top level —
+// a `const p = import(...)` assigned here would start loading just as eagerly
+// as a static `import` statement, since evaluation begins the moment `import()`
+// is called, not when its promise is awaited.
+//
+// A static (or eagerly-called) import here pulls in `agent-registry-store.js`
+// -> `schema-version.js` -> `atomic-write.js` -> `node:crypto`, and evaluates
+// that chain as part of THIS setup file's own top-level load — which runs
+// before a test file's `vi.mock("node:crypto", ...)` has a chance to intercept
+// it. `atomic-write.ts` then caches the REAL `randomBytes`, and any test that
+// mocks crypto to make its temp-file suffix predictable
+// (`tests/internal/persistence/atomic-write-exclusive.test.ts`) silently stops
+// matching production's actual temp path. Measured: with an eager import here
+// (static, or a top-level `import()` call), that file's two residue-collision
+// tests both broke — one resolved instead of rejecting, the other left a
+// leftover `.tmp` file — while passing in isolation on every other
+// configuration. Calling `import()` only once `beforeEach` actually runs defers
+// the chain until after the test file's own mock hoisting has been registered.
 
 await ensureNativeBindings();
 
@@ -66,7 +98,7 @@ interface SetupBackup {
 }
 const backupByTask = new Map<string, SetupBackup>();
 
-beforeEach((ctx) => {
+beforeEach(async (ctx) => {
   const tempHome = mkdtempSync(join(tmpdir(), "theokit-test-"));
   backupByTask.set(ctx.task.id, {
     tempHome,
@@ -74,8 +106,27 @@ beforeEach((ctx) => {
     originalHome: process.env.HOME,
   });
   process.env.THEOKIT_HOME = tempHome;
+  // B-120 — HOME was backed up (see `originalHome` above and the restore in
+  // `afterEach` below) but never actually SET, so any module that reads
+  // `process.env.HOME` / `os.homedir()` directly instead of consulting
+  // `THEOKIT_HOME` resolved to the developer's REAL `~`. Measured 2026-08-19:
+  // `~/.theokit/mcp-tokens.json` held 6 fixture keys and its mtime advanced
+  // twice during one afternoon of test runs. B-090 fixed the one module that
+  // exploited this (the MCP token store); this closes the gap itself so the
+  // NEXT home-anchored module — present or future — cannot repeat it. Reuses
+  // the same `tempHome` as THEOKIT_HOME rather than a second tmpdir: nothing
+  // needs HOME and THEOKIT_HOME to diverge, and one sandbox root per test is
+  // simpler to reason about than two.
+  process.env.HOME = tempHome;
   // Secret-redaction EC-3: clear user-added patterns + force ON.
   _resetForTests({ enabled: true, clearExtras: true });
+  // B-117: process-wide agent registry Map does not follow THEOKIT_HOME — reset it too.
+  // Imported here (lazily) rather than at file top level — see the comment above.
+  const { clearAgentRegistry, invalidateRegistryHydration } = await import(
+    "./src/internal/runtime/registry/agent-registry.js"
+  );
+  clearAgentRegistry();
+  invalidateRegistryHydration();
   // theokit#147 — diagnostics are SILENT by default in production. 36 test files assert a given
   // condition emits a warning by spying on `process.stderr.write`, and that contract is real. This
   // forwards the channel to stderr for the duration of each test so those assertions keep testing

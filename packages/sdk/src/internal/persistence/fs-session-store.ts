@@ -35,11 +35,6 @@ export interface FsSessionStoreOptions {
 }
 
 /**
- * The default `SessionStore` — reads/append-writes the native `.jsonl` transcript.
- *
- * @internal
- */
-/**
  * Reference-counted leases, shared per path.
  *
  * `acquireSessionWriter` is STRICT on purpose: two concurrent acquisitions of the same path, and
@@ -94,6 +89,9 @@ function createProxy(path: string): SessionWriterLease {
   };
 }
 
+/**
+ * The default `SessionStore` — reads/append-writes the native `.jsonl` transcript.
+ */
 export class FsSessionStore implements SessionStore {
   readonly #baseDir: string;
   readonly #cwd: string;

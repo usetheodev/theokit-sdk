@@ -170,12 +170,17 @@ async function runBatch(
           } else {
             results[index] = await runOne(item, index, options, deps);
           }
+          if (results[index].ok) counters.completed += 1;
+          else counters.failed += 1;
+          // B-110 (measured 2026-08-19): `onResult` used to run AFTER `release()`, so a caller who
+          // asked for `concurrency: 1` still got overlapping `onResult` invocations — the permit was
+          // already returned before the callback ran. `concurrency` is documented (`types/batch.ts`)
+          // to bound the whole per-item lifecycle, callback included, so the permit is now held
+          // until `onResult` finishes: this call moved inside the `try` the `finally` below wraps.
+          await safeCallResult(options.onResult, results[index]);
         } finally {
           release();
         }
-        if (results[index].ok) counters.completed += 1;
-        else counters.failed += 1;
-        await safeCallResult(options.onResult, results[index]);
         safeCallProgress(options.onProgress, {
           total: items.length,
           completed: counters.completed,

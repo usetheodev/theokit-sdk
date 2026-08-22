@@ -16,8 +16,12 @@ import { deepPhase, lightPhase, remPhase } from "./dreaming-phases.js";
  *   3. **deep** — write a `notes/dreamed-<ts>.md` per sweep with consolidated
  *                  clusters; append a diary entry.
  *
- * All file writes go through `replaceFileAtomic` (EC-3) and the entire sweep
- * holds the per-cwd mutex so a `Remember:` append can't race it.
+ * All file writes go through `replaceFileAtomic` (EC-3). The sweep holds a
+ * mutex for the whole run, so two sweeps over the same workspace serialize.
+ * Note the key is `dream:<cwd>`, while `appendFactToMarkdown` locks on the
+ * memory directory — different keys, so a concurrent `Remember:` append is NOT
+ * excluded by this lock. It cannot corrupt a file (each write is atomic), but a
+ * fact appended after the sweep read `MEMORY.md` is simply not in the sweep.
  *
  * Iter 60 (Stage 3 source-move #17): hybrid copy from sdk-core's
  * `internal/memory/dreaming/run.ts`. sdk-core retains its copy for
@@ -46,6 +50,18 @@ export interface DreamingOptions {
   now?: () => number;
 }
 
+/**
+ * What one sweep did. `skipped` means `MEMORY.md` held no facts; `error` means
+ * the sweep threw and the counts are all zero.
+ *
+ * `factsAfter` is the count that survived in-memory deduplication, not a new
+ * size for `MEMORY.md` — the sweep does not rewrite it, so the duplicates it
+ * counted are still on disk and will be counted again next time. `notesWritten`
+ * is 0 or 1: one consolidated note per sweep, holding every cluster.
+ *
+ * `diaryEntryHash` is currently always `undefined`, on every path including
+ * success, even though the diary entry itself is written with a hash.
+ */
 export interface DreamingResult {
   status: "ok" | "skipped" | "error";
   factsBefore: number;
@@ -56,6 +72,22 @@ export interface DreamingResult {
   diaryEntryHash: string | undefined;
 }
 
+/**
+ * Run one consolidation sweep over `MEMORY.md`: drop near-duplicate facts,
+ * cluster what is left, write a consolidated note under `notes/`, and append a
+ * diary entry.
+ *
+ * Every fact is embedded on each sweep, and clustering compares every pair, so
+ * cost grows with the square of the corpus. That is why the REM phase looks at
+ * the first 500 facts only.
+ *
+ * Never rejects: a failure is written to stderr and reported as
+ * `status: "error"`, so a sweep scheduled inside an agent run cannot break it.
+ *
+ * The sweep is read-only with respect to `MEMORY.md`. It produces a note beside
+ * it and leaves the fact list untouched, which means running it twice produces
+ * two notes over the same facts.
+ */
 export function runDreamingSweep(options: DreamingOptions): Promise<DreamingResult> {
   return withCwdMutex(`dream:${options.cwd}`, () => runInner(options));
 }

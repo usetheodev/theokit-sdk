@@ -68,6 +68,28 @@ export interface CreateShellToolOptions {
   sandbox?: SandboxProvider;
 }
 
+/**
+ * Build the `shell_exec` tool: run a command through `/bin/sh -c` with `projectRoot` as the working
+ * directory.
+ *
+ * Reserve it for what has no dedicated tool — tests, git, package managers, build steps. Reading,
+ * writing, editing and searching files each have a path-checked tool in this package, and routing
+ * them through a shell gives up every one of those checks.
+ *
+ * The model's `timeout_ms` and `defaultTimeoutMs` (30s) are both clamped to a 5-minute ceiling that
+ * is not configurable. On expiry the process group is killed and the result is
+ * `{ ok: false, error: "timeout" }`. stdout and stderr are capped at 5 MB each and cut silently at
+ * the cap — there is no truncation flag, so a command producing more looks like one that produced
+ * exactly 5 MB.
+ *
+ * A non-zero exit is `{ ok: true, ..., exit_code }`, not an error: `ok` reports that the command ran,
+ * `exit_code` reports whether it worked.
+ *
+ * The catastrophic-command screen runs before either execution path and refuses on a heuristic match
+ * over the command string. It is a guardrail, not a sandbox, and `allowCatastrophic: true` removes it
+ * outright. For real confinement pass `sandbox`, which routes execution through the backend — the
+ * 5 MB output caps belong to the local path and do not apply there.
+ */
 export function createShellTool(opts: CreateShellToolOptions): CustomTool {
   const {
     projectRoot,

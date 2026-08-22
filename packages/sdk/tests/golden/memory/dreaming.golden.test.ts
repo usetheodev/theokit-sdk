@@ -2,16 +2,14 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
-
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { diaryPath } from "../../../src/internal/memory/dreaming/diary.js";
 import { runDreamingSweep } from "../../../src/internal/memory/dreaming/run.js";
 import type { EmbeddingRuntime } from "../../../src/internal/memory/embedding-adapter.js";
 import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
-/**
- * Phase 9 T9.1 — dreaming/REM consolidation (deterministic mode).
- */
+// Phase 9 T9.1 — dreaming/REM consolidation (deterministic mode).
 
 /**
  * Deterministic embedding: encodes a text as a sparse-ish vector based on a
@@ -55,6 +53,10 @@ describe("dreaming sweep", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-dream-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await mkdir(memoryDir(cwd), { recursive: true });
   });
 

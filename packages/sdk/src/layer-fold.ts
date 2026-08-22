@@ -22,14 +22,31 @@ export class LayerOrderError extends TheokitAgentError {
   override readonly name = "LayerOrderError";
 }
 
-/** @public */
+/**
+ * One named layer in a precedence chain.
+ *
+ * `precedence` is optional and the two usages do not mix well: omit it everywhere to say "this
+ * array is already in order", or supply it everywhere you want `verifyLayerOrdering` to check.
+ * Entries without it are SKIPPED by that check rather than treated as zero, so a chain where only
+ * some entries declare a number is verified only between those.
+ *
+ * @public
+ */
 export interface DeclaredLayer {
   readonly layer: string;
   /** Higher wins. Optional — omit it to mean "this array is already the order". */
   readonly precedence?: number;
 }
 
-/** @public */
+/**
+ * A declared layer together with the values it supplies.
+ *
+ * `foldLayers` consumes these in array order, so a later entry wins for the keys it mentions. A key
+ * a layer does not mention — or mentions with `undefined` — leaves the earlier value standing;
+ * there is no way for a layer to erase a key another layer set.
+ *
+ * @public
+ */
 export interface LayerValues extends DeclaredLayer {
   readonly values: Readonly<Record<string, unknown>>;
 }

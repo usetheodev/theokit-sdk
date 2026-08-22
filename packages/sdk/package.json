@@ -1,7 +1,7 @@
 {
   "name": "@theokit/sdk",
   "version": "4.53.1",
-  "description": "TypeScript SDK for the Theo agent harness \u2014 same surface, local or cloud.",
+  "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
   "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
@@ -353,13 +353,12 @@
   "files": [
     "dist",
     "bin",
-    "claude-template",
+    "docs",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
   "bin": {
-    "theokit-init-claude": "./bin/init-claude.mjs",
     "theokit-migrate-config": "./bin/theokit-migrate-config.mjs",
     "theokit-migrate-memory": "./bin/theokit-migrate-memory.mjs"
   },
@@ -369,7 +368,7 @@
     "**/agent.cjs"
   ],
   "scripts": {
-    "build": "tsup && cp src/internal/providers/provider-catalog.json dist/provider-catalog.json",
+    "build": "tsup && cp src/internal/providers/provider-catalog.json dist/provider-catalog.json && node ../../tools/repair-dts-imports.mjs .",
     "test": "vitest run --no-file-parallelism",
     "test:watch": "vitest",
     "eval": "vitest run --no-file-parallelism tests/eval/suites",
@@ -381,6 +380,7 @@
   },
   "peerDependencies": {
     "@lancedb/lancedb": "^0.30.0",
+    "@opentelemetry/api": "^1.9.0",
     "@types/ws": ">=8.0.0",
     "better-sqlite3": "^12.0.0",
     "proper-lockfile": "^4.1.2",
@@ -390,6 +390,9 @@
   },
   "peerDependenciesMeta": {
     "@lancedb/lancedb": {
+      "optional": true
+    },
+    "@opentelemetry/api": {
       "optional": true
     },
     "@types/ws": {
@@ -412,6 +415,7 @@
     }
   },
   "publishConfig": {
+    "provenance": true,
     "access": "public"
   },
   "keywords": [

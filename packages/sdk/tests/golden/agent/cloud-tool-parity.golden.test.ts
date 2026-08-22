@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Agent, ConfigurationError } from "../../../src/index.js";
+import type { CloudAgent } from "../../../src/internal/cloud-agent/cloud-agent.js";
 
 /**
  * ADR D15 + D16 + EC-3/EC-4/EC-5 — cloud tool parity validator rejects
@@ -20,6 +21,26 @@ import { Agent, ConfigurationError } from "../../../src/index.js";
 const FIXTURE_KEY = "theo_test_cloud_tool_parity";
 const MODEL = { id: "google/gemini-2.0-flash-001" };
 const REPOS = [{ url: "https://github.com/usetheo/example" }];
+
+/**
+ * B-072. Every accept-path test below used to assert only `expect(agent.agentId).toBeDefined()`.
+ * An id exists for any agent the validator lets through, so the oracle was "did not throw" — which
+ * cannot see the failure mode this validator actually has: accepting a field and then silently
+ * DROPPING it on the way to PaaS. The accepted value has to be observed where it matters, and the
+ * place it matters is `cloudPayload` — the canonical JSON contract (ADR D15) that PaaS receives,
+ * documented on `CloudAgent` as public precisely so contract tests can inspect what would be sent.
+ *
+ * Same cast the existing cloud-agent-payload-wiring golden uses: `Agent.create` is typed to the
+ * public `SDKAgent`, and `cloudPayload` is a CloudAgent field.
+ *
+ * The `expect(agent.agentId).toBeDefined()` line is gone from all seven rather than kept beside
+ * the new assertion: it is the "did not throw" oracle this item exists to remove, and reading the
+ * payload already fails if creation did not produce an agent. Keeping it would leave the smell in
+ * the file next to its own fix.
+ */
+function payloadOf(agent: unknown): CloudAgent["cloudPayload"] {
+  return (agent as CloudAgent).cloudPayload;
+}
 
 describe("validateCloudToolParity (ADR D15/D16)", () => {
   describe("rejections — function-based systemPrompt (cloud_incompatible_function_resolver)", () => {
@@ -50,7 +71,11 @@ describe("validateCloudToolParity (ADR D15/D16)", () => {
         cloud: { repos: REPOS },
         systemPrompt: "You are a helpful assistant.",
       });
-      expect(agent.agentId).toBeDefined();
+
+      expect(
+        payloadOf(agent).systemPrompt,
+        "the accepted systemPrompt must reach the cloud payload verbatim",
+      ).toBe("You are a helpful assistant.");
       await agent.dispose();
     });
 
@@ -60,7 +85,10 @@ describe("validateCloudToolParity (ADR D15/D16)", () => {
         model: MODEL,
         cloud: { repos: REPOS },
       });
-      expect(agent.agentId).toBeDefined();
+
+      // Absent must serialize as absent — not as an empty string and not as an invented default.
+      // The key itself is asserted, so a `systemPrompt: ""` would fail too.
+      expect(payloadOf(agent)).not.toHaveProperty("systemPrompt");
       await agent.dispose();
     });
   });
@@ -84,7 +112,11 @@ describe("validateCloudToolParity (ADR D15/D16)", () => {
         cloud: { repos: REPOS },
         skills: { enabled: ["code-review"] },
       });
-      expect(agent.agentId).toBeDefined();
+
+      expect(
+        payloadOf(agent).skills,
+        "the accepted static skills object must reach the cloud payload",
+      ).toEqual({ enabled: ["code-review"] });
       await agent.dispose();
     });
   });
@@ -167,7 +199,14 @@ describe("validateCloudToolParity (ADR D15/D16)", () => {
           search: { type: "stdio", command: "npx", args: ["-y", "@some/mcp-server"] },
         },
       });
-      expect(agent.agentId).toBeDefined();
+
+      // Accepting the bare command is only half the contract — PaaS cannot install the server
+      // unless the command AND its args survive serialization.
+      expect(payloadOf(agent).mcpServers?.search).toEqual({
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "@some/mcp-server"],
+      });
       await agent.dispose();
     });
 
@@ -178,7 +217,12 @@ describe("validateCloudToolParity (ADR D15/D16)", () => {
         cloud: { repos: REPOS },
         mcpServers: { search: { type: "stdio", command: "uvx", args: ["mcp-server-x"] } },
       });
-      expect(agent.agentId).toBeDefined();
+
+      expect(payloadOf(agent).mcpServers?.search).toEqual({
+        type: "stdio",
+        command: "uvx",
+        args: ["mcp-server-x"],
+      });
       await agent.dispose();
     });
 
@@ -189,7 +233,12 @@ describe("validateCloudToolParity (ADR D15/D16)", () => {
         cloud: { repos: REPOS },
         mcpServers: { search: { type: "stdio", command: "node", args: ["server.js"] } },
       });
-      expect(agent.agentId).toBeDefined();
+
+      expect(payloadOf(agent).mcpServers?.search).toEqual({
+        type: "stdio",
+        command: "node",
+        args: ["server.js"],
+      });
       await agent.dispose();
     });
   });
@@ -235,7 +284,15 @@ describe("validateCloudToolParity (ADR D15/D16)", () => {
           stdio: { type: "stdio", command: "npx", args: ["-y", "@x/mcp"] },
         },
       });
-      expect(agent.agentId).toBeDefined();
+
+      const payload = payloadOf(agent);
+      expect(payload.systemPrompt).toBe("ship the change");
+      expect(payload.cloud).toMatchObject({ autoCreatePR: true });
+      // Both transports have to survive together: an http entry and a stdio entry in one map.
+      expect(payload.mcpServers).toEqual({
+        http: { type: "http", url: "https://mcp.example.com" },
+        stdio: { type: "stdio", command: "npx", args: ["-y", "@x/mcp"] },
+      });
       await agent.dispose();
     });
   });

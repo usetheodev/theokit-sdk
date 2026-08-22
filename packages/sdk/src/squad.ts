@@ -72,13 +72,6 @@ export interface Squad {
 }
 
 /**
- * Build a sequential agent team. The returned {@link Squad} composes a
- * `Workflow` of `agentStep`s under the hood — all orchestration is delegated
- * to the workflow engine.
- *
- * @public
- */
-/**
  * M81 — an `SDKAgent` is recognised by having `send`; an `AgentDefinition` is plain data.
  *
  * Structural, not `instanceof`: the definition crosses package boundaries as data (that is the whole
@@ -108,6 +101,11 @@ async function materialize(def: AgentDefinition, index: number): Promise<SDKAgen
   });
 }
 
+/**
+ * Build a sequential agent team. The returned {@link Squad} composes a
+ * `Workflow` of `agentStep`s under the hood — all orchestration is delegated
+ * to the workflow engine.
+ */
 function createSquad(options: SquadOptions): Squad {
   const { agents } = options;
   if (!Array.isArray(agents) || agents.length === 0) {

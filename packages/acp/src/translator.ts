@@ -2,9 +2,15 @@
  * Stream translator: AsyncGenerator<SDKMessage> → ACP `sessionUpdate` notifications
  * (D353, T3.2).
  *
- * Exhaustive switch on `SDKMessage.type` with `never` check. AbortSignal honored
- * between yields. `sessionUpdate` errors are logged + counted; bail after
- * MAX_CONSECUTIVE_SEND_FAILURES (SHOULD-TEST EC-10).
+ * Exhaustive switch on `SDKMessage.type` with a `never` check, so a new SDK message variant fails
+ * the build here rather than being dropped at runtime. Only `assistant`, `thinking` and `tool_call`
+ * have an ACP equivalent; `system`, `user`, `status`, `task`, `request` and `object_delta` are
+ * deliberate no-ops.
+ *
+ * The abort signal is checked BETWEEN messages, never mid-message: a cancel takes effect at the next
+ * yield, so the update already being sent still goes out. `sessionUpdate` failures are logged and
+ * counted, and the translator stops after MAX_CONSECUTIVE_SEND_FAILURES consecutive ones
+ * (SHOULD-TEST EC-10) — a run of failures usually means the host is gone.
  *
  * @internal
  */
@@ -24,7 +30,11 @@ interface TranslateStreamArgs {
 }
 
 /**
- * Map known tool names to ACP `ToolKind` for nicer UI affordances.
+ * Map a tool name to the ACP `ToolKind` a host uses to pick an icon and an affordance.
+ *
+ * Case-insensitive exact match against a fixed list of names hard-coded here. Anything not on it —
+ * including every custom tool a consumer registers — is `"other"`, which is cosmetic and never
+ * affects whether the tool runs.
  */
 export function toolKind(name: string): acp.ToolKind {
   const n = name.toLowerCase();
@@ -147,8 +157,15 @@ async function handleThinking(
 }
 
 /**
- * Translate the SDK stream into ACP `sessionUpdate` notifications.
- * Exhaustive over `SDKMessage.type` — adding a new variant fails compile.
+ * Drain `args.messages` and push each translatable message to the host as a `sessionUpdate`.
+ *
+ * Resolves when the generator is exhausted, when `args.signal` is already aborted at a message
+ * boundary, or when the send-failure budget is spent. It swallows notification failures by design
+ * (a dead host must not turn into an exception mid-run) and therefore does NOT report how much of
+ * the stream actually reached the host — the caller's stop reason comes from the run, not from here.
+ *
+ * Set `suppressThinking` to keep reasoning chunks out of the host UI; it does not stop the agent
+ * from producing them.
  */
 export async function translateStream(args: TranslateStreamArgs): Promise<void> {
   const state: SafeSendState = { consecutiveFailures: 0, bailed: false };

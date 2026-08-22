@@ -195,15 +195,15 @@ describe("M71 T1.1 — per-process memoization", () => {
     expect(realRuns, "the memoized probe must run ONCE").toBe(1);
   });
 
-  it("test_the_second_call_is_practically_free", () => {
-    resetBwrapMemo();
-    const probes = { which: () => "/usr/bin/bwrap", helpText: () => "--perms", userns: () => true };
-    detectBwrapMemoized(probes);
-    const t = performance.now();
-    for (let i = 0; i < 100; i++) detectBwrapMemoized(probes);
-    const ms = (performance.now() - t) / 100;
-    expect(ms, `the second call cost ${ms.toFixed(3)}ms`).toBeLessThan(1);
-  });
+  // B-024. A `test_the_second_call_is_practically_free` sat here and asserted the memoized call cost
+  // under 1ms/call, averaged over 100 iterations of `performance.now()` — the only performance.now()
+  // pair in the whole suite. It was removed rather than relaxed, because it could not fail
+  // informatively: the property it claimed to protect ("the memo avoids re-probing") is already
+  // asserted deterministically by the call-count assertion directly above, and by
+  // `test_the_memo_preserves_the_negative_result` below. What the 1ms budget actually measured was
+  // the host — a GC pause or one scheduling slice inside those 100 iterations reddens it while the
+  // memo is perfectly correct, and no reader of that failure learns anything about the code.
+  // A genuine cost budget belongs in a benchmark suite, outside the correctness gate.
 
   it("test_the_memo_preserves_the_negative_result", () => {
     // Failing closed is a result too: a host WITHOUT bwrap must not re-probe every turn just because

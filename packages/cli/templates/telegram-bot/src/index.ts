@@ -7,7 +7,7 @@
 
 import { GatewayRunner } from "@theokit/gateway";
 import { TelegramAdapter } from "@theokit/gateway-telegram";
-import { createAgentFactory } from "@theokit/sdk";
+import { AgentFactory } from "@theokit/sdk";
 import { Bot } from "grammy";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -21,7 +21,7 @@ if (TELEGRAM_BOT_TOKEN === undefined || TELEGRAM_BOT_TOKEN.length === 0) {
 const API_KEY = process.env.THEOKIT_API_KEY ?? "local";
 const MODEL = process.env.AGENT_MODEL ?? "anthropic/claude-3-5-sonnet-latest";
 
-const factory = createAgentFactory({
+const factory = AgentFactory.create({
   apiKey: API_KEY,
   model: { id: MODEL },
   local: { cwd: process.cwd() },

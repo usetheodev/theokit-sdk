@@ -300,7 +300,59 @@ describe("PoolAwareLlmClient (T3.1)", () => {
       },
     });
     const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
-    await expect(drain(client.stream({} as LlmRequest, controller.signal))).rejects.toThrow();
+    // B-079 — was bare `.rejects.toThrow()`. Measured (not inferred): the
+    // rejection here is `abortError(signal)` (pool-aware-client.ts:267)
+    // echoing `signal.reason` verbatim — which is THIS TEST'S OWN
+    // `new Error("user cancelled")` passed to `controller.abort()`, not a
+    // production-owned error. The message is deterministic because we control
+    // the abort reason, and it is the one signal that distinguishes "aborted"
+    // from "the RateLimitError propagated instead" (the sibling test above).
+    // Production DOES have a genuinely untyped fallback one line away —
+    // `new Error("AbortError")` when `signal.reason` is not an `Error` — but no
+    // test in this file drives that branch; flagged, not fixed here.
+    await expect(drain(client.stream({} as LlmRequest, controller.signal))).rejects.toThrow(
+      /user cancelled/,
+    );
+  });
+
+  it("test_an_abort_with_a_non_Error_reason_falls_back_to_a_generic_AbortError", async () => {
+    // B-136 — the branch the test above flagged and did not drive. `abortError()` echoes
+    // `signal.reason` when it is an `Error` and otherwise raises `new Error("AbortError")`.
+    //
+    // Reaching it needs a non-`Error` reason, and that is a real caller shape rather than a
+    // contrivance: `AbortController.abort()` accepts ANY value. Measured on Node 22 — a bare
+    // `abort()` does NOT reach here, because its `DOMException` reason IS `instanceof Error` and is
+    // echoed verbatim. A string reason is what falls through.
+    const pool = poolOf(["k1", "k2"]);
+    const controller = new AbortController();
+    const factory = buildFakeFactory({
+      onCall: (key) => {
+        if (key === "k1") {
+          controller.abort("cancelled by the host application");
+          return new RateLimitError("429", {
+            metadata: {
+              provider: "openrouter",
+              endpoint: "/v1",
+              code: "rate_limit",
+              statusCode: 429,
+            },
+          });
+        }
+        return "ok";
+      },
+    });
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
+
+    const err = await drain(client.stream({} as LlmRequest, controller.signal)).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+
+    // The distinguishing assertion: the caller's string is NOT echoed, and the RateLimitError did
+    // not propagate instead — either would mean this branch was not the one taken.
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe("AbortError");
+    expect(err).not.toBeInstanceOf(RateLimitError);
   });
 
   it("CredentialPoolExhaustedError has metadata", async () => {

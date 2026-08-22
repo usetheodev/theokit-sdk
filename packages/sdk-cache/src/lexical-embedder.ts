@@ -17,6 +17,26 @@
 
 import type { CacheEmbedderRuntime } from "./types/cache.js";
 
+/**
+ * Build the built-in lexical embedder — a zero-dependency, zero-cost `CacheEmbedderRuntime`.
+ *
+ * ```ts
+ * const cache = Cache.semantic({ embedder: createLexicalEmbedder() });
+ * ```
+ *
+ * Matches on SHARED WORDS, not on meaning. "What is the capital of France?" and "Tell me the
+ * capital of France" land close together; "capital of France" and "French capital" do not. If you
+ * need paraphrase-level hits, wrap a real embedding API instead — that is what
+ * `CacheEmbedderRuntime` is for.
+ *
+ * `dimension` (default 256) is the number of hash buckets. Raising it reduces collisions between
+ * unrelated words, which is the failure mode here: a collision makes two unrelated prompts look
+ * similar and can serve a wrong cached answer. It is also baked into the returned `id`
+ * (`theokit-lexical-v1-d<dimension>`), so CHANGING IT INVALIDATES every entry already stored — the
+ * cache keys on the embedder id and skips vectors of a different length.
+ *
+ * Never rejects, and never calls the network.
+ */
 export function createLexicalEmbedder(dimension = 256): CacheEmbedderRuntime {
   return {
     id: `theokit-lexical-v1-d${dimension}`,

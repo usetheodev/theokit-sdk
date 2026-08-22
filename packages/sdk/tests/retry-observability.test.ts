@@ -26,7 +26,6 @@ const rate429 = (): RateLimitError =>
 /** A transport that only fails. No credential and no provider are required. */
 const alwaysFails = (error: unknown): LlmClient => ({
   name: "fake",
-  // eslint-disable-next-line @typescript-eslint/require-await
   // biome-ignore lint/correctness/useYield: a transport that ONLY fails — not emitting is the point
   async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
     throw error;
@@ -62,7 +61,11 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
     setDiagnosticsSink((m) => seen.push(m));
 
     const client = new RetryingLlmClient(alwaysFails(rate429()), { rng: () => 0 });
-    await expect(drain(client)).rejects.toThrow();
+    // B-079 — was bare `.rejects.toThrow()`. The mock always fails with the
+    // typed `RateLimitError` this file constructs (`rate429()`); the exhausted
+    // client re-throws it verbatim, so class + code are stable identifiers.
+    await expect(drain(client)).rejects.toThrow(RateLimitError);
+    await expect(drain(client)).rejects.toMatchObject({ code: "openai_rate_limit" });
 
     const first = seen.find((m) => m.includes("retry"));
     expect(first, "no retry diagnostic was emitted").toBeDefined();
@@ -98,7 +101,8 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
 
     try {
       const client = new RetryingLlmClient(alwaysFails(rate429()), { rng: () => 0 });
-      await expect(drain(client)).rejects.toThrow();
+      // B-079 — was bare `.rejects.toThrow()`. Same typed `RateLimitError` as above.
+      await expect(drain(client)).rejects.toThrow(RateLimitError);
 
       expect(
         writes,
@@ -116,7 +120,6 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
 
     const ok: LlmClient = {
       name: "fake",
-      // eslint-disable-next-line @typescript-eslint/require-await
       // biome-ignore lint/correctness/useYield: returns without emitting an event
       async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
         return { stopReason: "stop", text: "", toolCalls: [] } as unknown as LlmFinish;

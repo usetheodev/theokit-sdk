@@ -1,3 +1,6 @@
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
 import { InteractiveUnavailableError, NoSuchSessionError } from "@theokit/sdk/interactive";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -14,9 +17,30 @@ const probe = new PtyInteractiveBackend();
 const hasPty = probe.available();
 const d = hasPty ? describe : describe.skip;
 
+// `kill(-pid)` addresses a process GROUP, which is a POSIX concept; on win32 it throws EINVAL and
+// the backend falls back to `pty.kill()`. The group-kill case below is guarded rather than left to
+// fail there, and CI runs ubuntu only.
+const POSIX = process.platform !== "win32";
+
 let backend: PtyInteractiveBackend;
+
+/**
+ * Pids spawned OUTSIDE the backend's bookkeeping — a grandchild that deliberately survives the PTY
+ * hangup is, by construction, one `killAll()` cannot be relied on to reap. Registered here so the
+ * FAILURE path cleans up too: the test that registers it fails precisely when the process is still
+ * alive, which is exactly when leaking it would cost something.
+ */
+const escapedPids: number[] = [];
+
 afterEach(() => {
   backend?.killAll();
+  for (const pid of escapedPids.splice(0)) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // already reaped — the expected case when the test passed
+    }
+  }
 });
 
 d("PtyInteractiveBackend (real PTY)", () => {
@@ -44,21 +68,73 @@ d("PtyInteractiveBackend (real PTY)", () => {
     );
   });
 
-  it("kill reaps a DETACHED grandchild (process-group kill, not just the shell)", async () => {
-    backend = new PtyInteractiveBackend();
-    const { sessionId, output } = await backend.startInteractive("sleep 300 & echo PID=$!; wait", {
-      yieldMs: 600,
-    });
-    const gpid = Number(/PID=(\d+)/.exec(output)?.[1] ?? 0);
-    expect(gpid).toBeGreaterThan(0);
-    expect(() => process.kill(gpid, 0)).not.toThrow(); // alive before kill
-    backend.kill(sessionId);
+  /**
+   * B-100. This test replaces one named `kill reaps a DETACHED grandchild (process-group kill, not
+   * just the shell)` whose grandchild was a plain `sleep 300 &`. That name claimed the minus sign in
+   * `process.kill(-session.pty.pid, "SIGKILL")` was the mechanism, and the oracle did not constrain
+   * it. Measured, three mutants of that line:
+   *
+   * | Mutant | Old test |
+   * |---|---|
+   * | `process.kill(session.pty.pid, …)` — drop the `-`, kill the leader only | **passed** |
+   * | `session.pty.kill()` — node-pty's own kill, `SIGHUP` to the leader | **passed** |
+   * | remove the kill entirely | failed |
+   *
+   * A plain background child dies whichever way the leader is killed, because closing the PTY master
+   * hangs up the terminal and the kernel sends `SIGHUP` to the foreground process group. So the old
+   * test proved the grandchild was gone and nothing about WHY — the group kill was doing no work the
+   * hangup was not already doing. That is also environment-shaped: on a platform whose teardown does
+   * not hang up, the same green would have been hiding a real leak.
+   *
+   * Isolating the property needs a grandchild that survives everything EXCEPT the group kill.
+   * `(trap '' HUP; exec sleep 300) &` is that: the subshell sets `SIGHUP` to ignore and then `exec`s
+   * in place, and POSIX keeps ignored dispositions across `exec` (only caught ones reset), so the
+   * `sleep` is immune to the hangup while keeping the pid `$!` reported. It stays in the SHELL's
+   * process group — `sh -c` runs without job control, so a background job is not given a group of
+   * its own — which is what makes `kill(-pid)` reach it and `kill(pid)` miss it.
+   *
+   * The old test is replaced rather than kept alongside: what it protected was the kernel's hangup
+   * behaviour, not a line of ours, and a suite is not better for holding a test whose green is
+   * independent of the code it names.
+   */
+  it.skipIf(!canReadProcessGroup)(
+    "kill reaps a SIGHUP-immune grandchild — only the process-GROUP kill can reach it",
+    async () => {
+      backend = new PtyInteractiveBackend();
+      const { sessionId, output } = await backend.startInteractive(
+        "(trap '' HUP; exec sleep 300) & echo PID=$!; echo LEADER=$$; wait",
+        { yieldMs: 600 },
+      );
+      const grandchild = Number(/PID=(\d+)/.exec(output)?.[1] ?? 0);
+      const leader = Number(/LEADER=(\d+)/.exec(output)?.[1] ?? 0);
+      expect(grandchild, "the shell must report the backgrounded pid").toBeGreaterThan(0);
+      expect(leader, "the shell must report its own pid").toBeGreaterThan(0);
+      escapedPids.push(grandchild);
+      expect(isReaped(grandchild), "the grandchild must be alive before the kill").toBe(false);
 
-    // B-020. Was a flat 300ms bet that the kernel had reaped the group by then.
-    await waitUntil(() => isReaped(gpid), `the detached grandchild (pid ${gpid}) to be reaped`);
+      // The arrange assertion that NAMES the mechanism. `kill(-leader)` reaches this process for one
+      // reason only: it shares the PTY leader's process group. If a future change gave the
+      // grandchild a session of its own, the group kill would stop being why it dies and this test
+      // would quietly start measuring something else — so the premise is asserted, not assumed.
+      expect(
+        processGroupOf(grandchild),
+        "the grandchild must sit in the PTY leader's process group — that is what kill(-pid) reaches",
+      ).toBe(leader);
 
-    expect(() => process.kill(gpid, 0), "the whole process group must be gone").toThrow();
-  });
+      backend.kill(sessionId);
+
+      // B-020. Was a flat 300ms bet that the kernel had reaped the group by then.
+      await waitUntil(
+        () => isReaped(grandchild),
+        `the SIGHUP-immune grandchild (pid ${grandchild}) to be reaped by the process-group kill`,
+      );
+
+      expect(
+        isReaped(grandchild),
+        "a SIGHUP-immune grandchild survives killing the leader and the PTY hangup; only kill(-pid) on the GROUP reaps it",
+      ).toBe(true);
+    },
+  );
 
   it("an idle session is reaped by its TTL", async () => {
     backend = new PtyInteractiveBackend();
@@ -126,6 +202,62 @@ async function waitUntil(
     }
     await new Promise((r) => setTimeout(r, everyMs));
   }
+}
+
+/**
+ * The process group of `pid`, as the OS reports it.
+ *
+ * Deliberately an OS read rather than an inference: the assertion that uses it exists to establish
+ * that the grandchild's GROUP membership is what makes the group kill reach it, and deriving that
+ * membership from the same assumption the test is checking would assert nothing.
+ *
+ * `/proc/<pid>/stat` is tried first because on Linux — where CI runs — it needs no external binary,
+ * so the test does not acquire a dependency on `procps` merely to state its own premise. `ps` is the
+ * fallback for platforms without `/proc` (macOS, the BSDs).
+ *
+ * A first version used `ps` alone and let a missing binary FAIL the case, reasoning that a test
+ * unable to establish its premise must not slide past it. That reasoning is sound in isolation and
+ * wrong in context: it invents a second policy for absent tooling inside a file whose very first
+ * decision is `const d = hasPty ? describe : describe.skip` — an environmental capability that is
+ * missing SKIPS here, visibly. A red that is not a defect is the thing that teaches people to ignore
+ * reds. {@link canReadProcessGroup} probes the capability once, the same shape and for the same
+ * reason.
+ */
+function readProcessGroup(pid: number): number | undefined {
+  try {
+    const stat = readFileSync(`/proc/${String(pid)}/stat`, "utf8");
+    // `comm` is parenthesised and may itself contain spaces or ')', so the numeric fields are
+    // counted from the LAST ')': [state, ppid, pgrp, …]. `pgrp` is the third.
+    const fields = stat
+      .slice(stat.lastIndexOf(")") + 1)
+      .trim()
+      .split(/\s+/);
+    const fromProc = Number(fields[2]);
+    if (Number.isInteger(fromProc) && fromProc > 0) return fromProc;
+  } catch {
+    // No `/proc` (macOS/BSD), or the process was reaped between the check and the read. Both are
+    // handled by the `ps` fallback below rather than by guessing.
+  }
+  try {
+    const raw = execFileSync("ps", ["-o", "pgid=", "-p", String(pid)], { encoding: "utf8" }).trim();
+    const fromPs = Number(raw);
+    if (Number.isInteger(fromPs) && fromPs > 0) return fromPs;
+  } catch {
+    // `ps` absent (a slim container without procps) — reported as an absent capability, not a value.
+  }
+  return undefined;
+}
+
+/** Whether this machine can report a process group at all — probed once, like `hasPty` above. */
+const canReadProcessGroup = POSIX && readProcessGroup(process.pid) !== undefined;
+
+/** {@link readProcessGroup}, as a value or a failure. Used only where the capability was gated on. */
+function processGroupOf(pid: number): number {
+  const pgid = readProcessGroup(pid);
+  if (pgid === undefined) {
+    throw new Error(`neither /proc nor ps could report a process group for pid ${String(pid)}`);
+  }
+  return pgid;
 }
 
 /** True once `pid` is gone — `kill(pid, 0)` throws ESRCH for a reaped process. */

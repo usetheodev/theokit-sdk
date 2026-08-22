@@ -23,6 +23,20 @@ import { globalEmbeddingCache } from "../embedding-cache.js";
 const MAX_BATCH = 100;
 const MAX_RETRIES = 2;
 
+/**
+ * What one provider adapter tells {@link createOpenAiCompatibleRuntime} about
+ * its wire: where to POST, which environment variables carry the key and the
+ * base URL, which model to use by default, and how wide each model's vectors
+ * are.
+ *
+ * `id` is the provider id that ends up on errors and on
+ * `EmbeddingRuntime.id`, and is also the identity the SQLite vector index stores
+ * — changing it invalidates the vectors already on disk.
+ *
+ * `apiKeyEnv` is required, `baseUrlEnv` is not: a provider that declares no
+ * base-URL variable can only be redirected by passing `baseUrl` explicitly.
+ * Leave `dialect` unset for anything that speaks the OpenAI embedding wire.
+ */
 export interface OpenAiCompatibleConfig {
   id: string;
   defaultBaseUrl: string;
@@ -74,6 +88,37 @@ export interface EmbeddingDialect {
   vectors?: (json: unknown) => number[][] | undefined;
 }
 
+/**
+ * Build an {@link EmbeddingRuntime} for a provider that speaks the OpenAI
+ * embedding wire — or, through `cfg.dialect`, one that deviates from it in a
+ * known way. Every adapter in the memory catalog is a thin call to this.
+ *
+ * Resolution order for each setting is explicit option, then environment
+ * variable, then the config default. Two things are checked before any request
+ * is sent, so a misconfiguration fails at creation rather than at first search:
+ * a missing or empty key rejects with an `AuthenticationError` carrying
+ * `embedding_missing_api_key`, and a model absent from `dimensionByModel`
+ * rejects with a `ConfigurationError` carrying `embedding_unknown_model`. The
+ * second check exists because the vector index is created at a fixed width — an
+ * unknown dimension would surface much later as a vec0 mismatch.
+ *
+ * `{model}` in `embeddingsPath` is replaced with the URL-encoded model, which is
+ * how Azure addresses a deployment in the path. `embeddingsPath` replaces the
+ * default `/v1/embeddings` rather than being appended to it.
+ *
+ * The returned `embed` batches at 100 texts per request and runs at most 3
+ * requests concurrently, preserving input order. Whitespace-only inputs never
+ * reach the network and come back as an all-zero vector. Results are cached by
+ * model and text; the cache defaults to a process-wide LRU of 5000 entries, so
+ * pass `options.cache` when runtimes must not share entries.
+ *
+ * Failed requests retry up to twice on 429 and 5xx with a 50ms-per-attempt
+ * linear backoff. Anything else, and a retry budget that runs out, throws the
+ * typed error the OpenAI-compatible mapper builds from the status and body. A
+ * response that parses but carries no vectors throws a `NetworkError` with
+ * `embedding_invalid_response`. There is no request timeout here — cancellation
+ * is the caller's to impose.
+ */
 export async function createOpenAiCompatibleRuntime(
   cfg: OpenAiCompatibleConfig,
   options: CreateAdapterOptions,

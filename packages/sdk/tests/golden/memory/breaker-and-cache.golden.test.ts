@@ -2,13 +2,13 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
-
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { runActiveMemory } from "../../../src/internal/memory/active-memory.js";
 import { ActiveMemoryCache } from "../../../src/internal/memory/active-memory-cache.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
 import { CircuitBreaker } from "../../../src/internal/resilience/circuit-breaker.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Phase 8 T8.1 — Circuit breaker + cache + transcripts.
@@ -160,6 +160,10 @@ describe("transcript persistence", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-transcript-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await mkdir(join(cwd, ".theokit", "memory"), { recursive: true });
     await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- magic 8675309.\n", "utf8");
   });

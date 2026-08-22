@@ -7,7 +7,7 @@
  * apiMode.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   _resetNoAuthApiKeyWarnings,
@@ -22,6 +22,7 @@ import {
   getProviderProfile,
   listProviders,
 } from "../../../src/internal/providers/registry.js";
+import { captureRequest } from "../../helpers/capture-request.js";
 
 const ORIG_ENV: Record<string, string | undefined> = {};
 const TRACKED_ENV = [
@@ -52,37 +53,6 @@ afterEach(() => {
   _resetProvidersForTests();
   _resetBuiltinsRegistered();
 });
-
-/**
- * Same behavioural route as `ollama.test.ts` — see the note there. The `_HOST` overrides are applied
- * when the transport is built and `LlmClient` exposes only `name` and `stream`, so the request is
- * where the configuration becomes observable.
- */
-async function captureRequestUrl(primary: string): Promise<string> {
-  let url = "";
-  vi.stubGlobal("fetch", (async (u: unknown) => {
-    url = String(u);
-    return new Response('data: {"choices":[{"delta":{"content":"hi"}}]}\n\ndata: [DONE]\n\n', {
-      status: 200,
-      headers: { "content-type": "text/event-stream" },
-    });
-  }) as unknown as typeof fetch);
-  try {
-    const [client] = resolveProviderChain({ primary });
-    if (client === undefined) throw new Error(`no client resolved for primary="${primary}"`);
-    const gen = (
-      client as unknown as { stream: (r: unknown, s: AbortSignal) => AsyncGenerator }
-    ).stream(
-      { model: "m", messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }] },
-      new AbortController().signal,
-    );
-    let r = await gen.next();
-    while (!r.done) r = await gen.next();
-    return url;
-  } finally {
-    vi.unstubAllGlobals();
-  }
-}
 
 describe("LM Studio profile (D188)", () => {
   it("registered as builtin with authType: none", () => {
@@ -117,7 +87,7 @@ describe("LM Studio profile (D188)", () => {
     expect(chain).toHaveLength(1);
 
     expect(
-      await captureRequestUrl("lmstudio"),
+      (await captureRequest({ primary: "lmstudio" })).url,
       "zero configuration must resolve the lmstudio profile, not merely some client",
     ).toMatch(/^http:\/\/localhost:1234\//);
   });
@@ -128,7 +98,7 @@ describe("LM Studio profile (D188)", () => {
     process.env.LMSTUDIO_HOST = "http://192.168.1.50:1234";
 
     expect(
-      await captureRequestUrl("lmstudio"),
+      (await captureRequest({ primary: "lmstudio" })).url,
       "the request must go to the host LMSTUDIO_HOST names",
     ).toMatch(/^http:\/\/192\.168\.1\.50:1234\//);
   });
@@ -155,7 +125,7 @@ describe("llama.cpp profile (D189)", () => {
     expect(chain).toHaveLength(1);
 
     expect(
-      await captureRequestUrl("llamacpp"),
+      (await captureRequest({ primary: "llamacpp" })).url,
       "zero configuration must resolve the llamacpp profile, not merely some client",
     ).toMatch(/^http:\/\/localhost:8080\//);
   });
@@ -165,7 +135,7 @@ describe("llama.cpp profile (D189)", () => {
     process.env.LLAMACPP_HOST = "http://192.168.1.50:8080";
 
     expect(
-      await captureRequestUrl("llamacpp"),
+      (await captureRequest({ primary: "llamacpp" })).url,
       "the request must go to the host LLAMACPP_HOST names",
     ).toMatch(/^http:\/\/192\.168\.1\.50:8080\//);
   });

@@ -22,10 +22,26 @@
 /** What the operator chose for everything not decided per tool. @public */
 export type ApprovalMode = "ask" | "never-ask" | "refuse-all";
 
-/** @public */
+/**
+ * The three answers a policy can give: proceed, put the call in front of a human, or stop it.
+ *
+ * `ask` is not a softer `deny`. A surface with no way to reach a human must treat it as a refusal,
+ * because treating it as permission is how an unattended run approves everything it was meant to
+ * pause on.
+ *
+ * @public
+ */
 export type ApprovalOutcome = "allow" | "ask" | "deny";
 
-/** @public */
+/**
+ * Which rule produced the outcome.
+ *
+ * The `explicitly-` pair means a per-tool list decided it; the `mode-` triple means no list named
+ * the tool and the operator's mode decided instead. Worth rendering alongside the outcome: "you
+ * denied this tool" and "your mode refuses everything" send the operator to different settings.
+ *
+ * @public
+ */
 export type ApprovalReason =
   | "explicitly-allowed"
   | "explicitly-denied"
@@ -33,7 +49,15 @@ export type ApprovalReason =
   | "mode-never-ask"
   | "mode-refuse-all";
 
-/** @public */
+/**
+ * One tool call to decide on, plus the operator's configuration.
+ *
+ * `tool` is matched against `denied` and `allowed` by exact string equality — there is no pattern
+ * or prefix rule. Both lists default to empty, so with neither supplied every call is decided by
+ * `mode` alone.
+ *
+ * @public
+ */
 export interface ApprovalInput {
   readonly tool: string;
   readonly mode: ApprovalMode;
@@ -43,7 +67,11 @@ export interface ApprovalInput {
   readonly denied?: readonly string[];
 }
 
-/** @public */
+/**
+ * The answer, the rule that produced it, and the tool it was about.
+ *
+ * @public
+ */
 export interface ApprovalDecision {
   readonly outcome: ApprovalOutcome;
   readonly reason: ApprovalReason;
@@ -60,6 +88,17 @@ const BY_MODE: Readonly<
 };
 
 /**
+ * Decide one tool call against the operator's lists and mode.
+ *
+ * The precedence is fixed and each step short-circuits: `denied` is consulted first, then
+ * `allowed`, then `mode`. A tool named in BOTH lists is therefore denied — a contradictory config
+ * is read restrictively, because the usual cause is an allow-entry that outlived the denial meant
+ * to replace it.
+ *
+ * This answers only who said yes. What the call REACHES is a separate question with a separate
+ * policy — `evaluateBlastRadius` — and neither consults the other, so a product that wants both
+ * gates calls both and combines the outcomes itself.
+ *
  * @returns the outcome, why it was reached, and the tool it was about.
  * @public
  */

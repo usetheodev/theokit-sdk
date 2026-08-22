@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { AuthenticationError } from "../../../src/errors.js";
 import { buildResponsesBody, ResponsesApiClient } from "../../../src/internal/llm/responses.js";
 import type { LlmEvent, LlmRequest, LlmToolCallPart } from "../../../src/internal/llm/types.js";
 
@@ -134,13 +135,19 @@ describe("M40 — ResponsesApiClient (golden SSE fixtures)", () => {
           status: 401,
         })) as typeof fetch,
     });
-    await expect(async () => {
+    // B-079 — was bare `.rejects.toThrowError()`, ironic given the test's own
+    // name ("...to a typed provider error"): `mapOpenAICompatibleError` maps
+    // 401 → typed `AuthenticationError` (openai-compatible.ts:51) with code
+    // `openai_auth_failed`; only the assertion was not pinning it.
+    const drainStream = async (): Promise<void> => {
       const gen = client.stream(
         { model: "gpt-5.5", messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }] },
         new AbortController().signal,
       );
       let r = await gen.next();
       while (!r.done) r = await gen.next();
-    }).rejects.toThrowError();
+    };
+    await expect(drainStream()).rejects.toThrow(AuthenticationError);
+    await expect(drainStream()).rejects.toMatchObject({ code: "openai_auth_failed" });
   });
 });

@@ -12,6 +12,15 @@
  * @public
  */
 
+/**
+ * The two rates needed to price one model, in USD per 1,000,000 tokens.
+ *
+ * List prices only — this package models no cached-input discount, no batch tier and no negotiated
+ * rate, so a cost computed here is an upper bound for anyone on a discount and simply wrong for a
+ * provider that bills per request.
+ *
+ * @public
+ */
 export interface ModelPricing {
   /** USD per 1,000,000 input tokens. */
   readonly inputPerMillionUsd: number;
@@ -19,7 +28,21 @@ export interface ModelPricing {
   readonly outputPerMillionUsd: number;
 }
 
-/** Built-in pricing table — exhaustive enough for v0.1; users supply overrides for niche models. */
+/**
+ * The nine models this package prices out of the box, keyed by the exact `model` string a
+ * `BudgetUsageEvent` carries: four OpenAI, three Anthropic, two Google.
+ *
+ * Lookup is exact-match. No prefix stripping, no aliasing, no fuzzy fallback — `"gpt-4o"` and
+ * `"openrouter/openai/gpt-4o"` both MISS the `"openai/gpt-4o"` entry, and a miss means unknown
+ * cost, which under a `maxUsd` cap denies the run. Pass overrides through
+ * `createUsdBudgetTracker({ pricing })` rather than expecting a match.
+ *
+ * Prices are a dated snapshot (verified 2026-06) of public list prices and DRIFT — treat a total
+ * derived from them as an estimate, not as a bill. `Object.freeze` here is shallow: the map cannot
+ * gain keys, but the `ModelPricing` objects inside it are mutable.
+ *
+ * @public
+ */
 export const BUILTIN_PRICING: Readonly<Record<string, ModelPricing>> = Object.freeze({
   // OpenAI / OpenRouter aliases
   "openai/gpt-4o": { inputPerMillionUsd: 2.5, outputPerMillionUsd: 10 },

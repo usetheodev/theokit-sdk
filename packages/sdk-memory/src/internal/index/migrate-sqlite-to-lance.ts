@@ -33,6 +33,18 @@ export interface MigrateOptions {
   logger?: (msg: string) => void;
 }
 
+/**
+ * Outcome of {@link migrateSqliteToLance}.
+ *
+ * Read `committed` first: it is `false` for a dry run and for a failed
+ * validation, and only `true` when the staging directory was promoted to
+ * `lance/`. `validated` reports whether the counts matched and the sampled facts
+ * compared equal; `sampleComparisons` holds up to ten of those comparisons so a
+ * failure can be inspected rather than merely counted.
+ *
+ * The SQLite database is left in place either way — this migration copies, it
+ * does not move.
+ */
 export interface MigrateResult {
   countSqlite: number;
   countLance: number;

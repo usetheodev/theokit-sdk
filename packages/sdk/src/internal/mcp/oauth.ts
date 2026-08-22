@@ -1,3 +1,9 @@
+/**
+ * OAuth 2.1 PKCE flow runner for MCP HTTP servers. See ADR D41.
+ *
+ * @internal
+ */
+
 import { createHash, randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createInterface } from "node:readline/promises";
@@ -6,12 +12,6 @@ import { ConfigurationError } from "../../errors.js";
 import type { McpOAuthConfig } from "../../types/mcp.js";
 import { diag } from "../diagnostics.js";
 import { type OAuthTokens, setTokens } from "./token-storage.js";
-
-/**
- * OAuth 2.1 PKCE flow runner for MCP HTTP servers. See ADR D41.
- *
- * @internal
- */
 
 /**
  * Generate a random base64url-encoded string. Used for both code_verifier

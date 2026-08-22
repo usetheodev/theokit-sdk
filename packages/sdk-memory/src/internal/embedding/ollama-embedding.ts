@@ -41,6 +41,11 @@ import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
 
 // Iter 74 rollup-plugin-dts workaround: see openai-embedding.ts header.
 
+/**
+ * Model used when the caller names none: `nomic-embed-text`, 768 dimensions,
+ * roughly 274MB to pull. `all-minilm` is the smaller alternative at 384
+ * dimensions and roughly 45MB.
+ */
 export const DEFAULT_OLLAMA_EMBEDDING_MODEL = "nomic-embed-text";
 
 /** Sentinel forwarded as Bearer token; Ollama local ignores Authorization. */
@@ -63,6 +68,22 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "mxbai-embed-large:latest": 1024,
 };
 
+/**
+ * Embeddings from a local Ollama instance — the only adapter in the catalog with
+ * `transport: "local"`, and the one to choose when the corpus must not leave the
+ * machine or when there is no API key to spend.
+ *
+ * It needs an Ollama server reachable at `OLLAMA_HOST` (default
+ * `http://localhost:11434`) with the chosen embedding model already pulled;
+ * nothing here starts a server or downloads a model, so a missing model surfaces
+ * as an HTTP error from Ollama rather than a configuration error.
+ *
+ * No credential is required: a sentinel key is sent and local Ollama ignores it.
+ * Set `OLLAMA_API_KEY` for Ollama Cloud or an authenticating reverse proxy.
+ *
+ * Auto-select priority is 10, the lowest in the catalog, so a configured remote
+ * provider wins over it. Request it explicitly to prefer local.
+ */
 export const ollamaMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "ollama",
   defaultModel: DEFAULT_OLLAMA_EMBEDDING_MODEL,

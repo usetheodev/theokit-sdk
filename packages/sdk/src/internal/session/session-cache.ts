@@ -22,6 +22,11 @@ export function transcriptKey(cwd: string, agentId: string): string {
   return `${cwd}::${agentId}`;
 }
 
+/**
+ * M50 review F1 — drop BOTH the message cache and the hydration marker so the NEXT send re-hydrates
+ * from disk. Without this, a compaction only helps after a process restart: the live process keeps
+ * sending the full pre-compact history (the cache is read synchronously by every send).
+ */
 export function invalidateSessionCache(cwd: string, agentId: string): void {
   sessions.delete(agentId);
   hydratedKeys.delete(transcriptKey(cwd, agentId));

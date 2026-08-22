@@ -72,7 +72,14 @@ describe("createBraveWebSearchAdapter — mapping", () => {
 
 describe("createBraveWebSearchAdapter — endpoint validation", () => {
   it("throws at creation on a malformed endpoint (fail-early)", () => {
-    expect(() => createBraveWebSearchAdapter({ apiKey: KEY, endpoint: "not a url" })).toThrow();
+    // B-079 — was bare `.toThrow()`. Reclassified during triage: this guard is
+    // `new URL(endpoint)` (web-search-brave.ts:52) — the WHATWG URL parser's own
+    // `TypeError [ERR_INVALID_URL]`, not our own code. Pinning a platform
+    // built-in's class buys nothing (same rationale as the Zod/Node-stdlib
+    // carve-out); the message is the only thing worth asserting.
+    expect(() => createBraveWebSearchAdapter({ apiKey: KEY, endpoint: "not a url" })).toThrow(
+      /Invalid URL/,
+    );
   });
 });
 
@@ -110,15 +117,24 @@ describe("createBraveWebSearchAdapter — env + auth", () => {
 
 describe("createBraveWebSearchAdapter — error propagation", () => {
   it("throws on a non-ok HTTP response", async () => {
+    // B-079 — was bare `.rejects.toThrow()`. `createBraveWebSearchAdapter`'s
+    // request path throws a plain `Error` on `!res.ok` (web-search-brave.ts:61)
+    // — genuinely untyped in our own code. The message embeds the status code,
+    // so it is distinctive enough to identify the guard without a class.
     const { fetchImpl } = stubFetch({}, { ok: false, status: 401 });
     const adapter = createBraveWebSearchAdapter({ apiKey: KEY, fetchImpl });
-    await expect(adapter("q", 5)).rejects.toThrow();
+    await expect(adapter("q", 5)).rejects.toThrow(/brave_search_failed: HTTP 401/);
   });
 
   it("propagates a malformed-JSON-body rejection (EC-1)", async () => {
+    // B-079 — was bare `.rejects.toThrow()`. The adapter does not catch
+    // `res.json()` failures at all (fail-loud pass-through); the thrown error
+    // here is the test's own stub (`new Error("malformed body")`, this file's
+    // `stubFetch`), not a production error. Asserting the message proves the
+    // rejection is propagated unmodified rather than swallowed or reshaped.
     const { fetchImpl } = stubFetch({}, { ok: true, jsonThrows: true });
     const adapter = createBraveWebSearchAdapter({ apiKey: KEY, fetchImpl });
-    await expect(adapter("q", 5)).rejects.toThrow();
+    await expect(adapter("q", 5)).rejects.toThrow(/malformed body/);
   });
 
   it("composes with createWebSearchTool: error → search_failed (tool untouched)", async () => {

@@ -100,6 +100,24 @@ interface MapOpenAiErrorArgs {
   endpoint: string;
 }
 
+/**
+ * Turn a failed OpenAI-shaped HTTP response into the typed error the SDK throws.
+ * Builds the error, it does not throw it.
+ *
+ * The HTTP status picks the class: 401 and 403 give an `AuthenticationError`,
+ * 429 a `RateLimitError`, 400 a `ConfigurationError`, 408 and 5xx a
+ * `NetworkError`, and anything else an `UnknownAgentError`.
+ *
+ * The `code` on the metadata is finer than the class and is read from
+ * `body.error.code` (or `.type`) first, so a 400 that names a context-window
+ * problem carries `context_too_long` rather than `invalid_request`. A body code
+ * naming an exhausted quota, and HTTP 402, both map to `quota_exceeded` — note
+ * that a 402 keeps that code while still producing an `UnknownAgentError`,
+ * because no status branch claims it.
+ *
+ * The raw body rides along on the metadata, truncated to about 2KB and passed
+ * through secret redaction, so it is safe to log.
+ */
 export function mapOpenAICompatibleError(args: MapOpenAiErrorArgs): TheokitAgentError {
   const { providerId, status, body, headers, endpoint } = args;
   const code = mapOpenAiStatusToCode(status, body);

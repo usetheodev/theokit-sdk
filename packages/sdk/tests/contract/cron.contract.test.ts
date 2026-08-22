@@ -48,7 +48,13 @@ describe("Cron contract", () => {
     expect(normalizeForGolden(job)).toEqual(cloudJobGolden);
   });
 
-  it("validates invalid cron, invalid timezone, and mutually exclusive agent inputs", async () => {
+  // B-044. These three were one `it` named "validates invalid cron, invalid timezone, and
+  // mutually exclusive agent inputs". Each clause is an awaited rejection assertion, so the
+  // first regression short-circuited the other two: a broken timezone validator was invisible
+  // while the cron validator was also broken, and one reported failure stood for three
+  // independent rules. rules/testing.md § 4.1 treats them as three negative cases — each has to
+  // be able to go red on its own, naming the rule that broke.
+  it("rejects a cron expression that is not a valid POSIX/@shorthand schedule", async () => {
     await expectCronConfigurationError(
       Cron.create({
         cron: "not a cron",
@@ -57,7 +63,9 @@ describe("Cron contract", () => {
       }),
       /invalid cron|cron expression/i,
     );
+  });
 
+  it("rejects a timezone that is not a known IANA zone", async () => {
     await expectCronConfigurationError(
       Cron.create({
         cron: "@daily",
@@ -67,7 +75,9 @@ describe("Cron contract", () => {
       }),
       /timezone|IANA/i,
     );
+  });
 
+  it("rejects agent and agentId supplied together — the targets are mutually exclusive", async () => {
     await expectCronConfigurationError(
       Cron.create({
         cron: "@daily",

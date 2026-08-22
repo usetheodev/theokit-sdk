@@ -23,6 +23,12 @@ import type { WebSearchCallback, WebSearchResult } from "./web-search.js";
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
+/**
+ * Options for {@link createGenericHttpSearchAdapter}. Unlike the Brave adapter, an absent `apiKey` or
+ * `endpoint` is not an error — the callback is still built and simply returns no results — so if you
+ * need to know whether search is actually configured, check both here rather than waiting for an
+ * empty result set to tell you.
+ */
 export interface CreateGenericHttpSearchAdapterOptions {
   /** Bearer token. Defaults to `process.env.THEOKIT_SEARCH_API_KEY`. */
   apiKey?: string;

@@ -1,9 +1,11 @@
 /**
  * In-memory circuit breaker for Mem0Adapter (T5.1, EC-K).
  *
- * Trips after `threshold` consecutive 5xx-class failures. 429 / 401 /
- * 404 / invalid_input do NOT count toward the threshold — rate limits
- * are a caller-pace signal, not a provider-down signal (EC-K).
+ * Trips after `threshold` consecutive failures that `Mem0Adapter#translateError`
+ * decides are provider-down signals: an HTTP 5xx, or a status-less error whose
+ * message contains "network". 429 / 401 / 403 / 404 / invalid_input do NOT count
+ * toward the threshold — rate limits are a caller-pace signal, not a
+ * provider-down signal (EC-K).
  *
  * @internal
  */
@@ -12,8 +14,35 @@ import { MemoryAdapterError } from "@theokit/sdk";
 
 const ADAPTER_ID = "mem0";
 
+/**
+ * Tuning for the Mem0 adapter's circuit breaker, passed as `mem0Memory({ breaker })`.
+ *
+ * @public
+ */
 export interface CircuitBreakerOptions {
+  /**
+   * Failures required to open the breaker. Default `5`.
+   *
+   * TWO kinds of failure count, not one: an HTTP 5xx, and a status-less error whose message
+   * contains the substring `network` (case-insensitive) — that substring match is the only way a
+   * transport failure is recognised, so a DNS/connection error surfacing as `"fetch failed"` maps
+   * to `code: "unknown"` and does NOT count. 429 / 401 / 403 / 404 / `invalid_input` never count.
+   *
+   * Size it for transport flakiness as well as for Mem0 outages: with `threshold: 5`, five
+   * consecutive `network`-shaped errors open the breaker exactly as five 500s would, and the
+   * resulting error says `rate_limited`, which is not what caused it.
+   *
+   * A single success resets the counter to zero, so this is effectively "consecutive counted
+   * failures" — 4 failures followed by a success followed by 4 more never trips a default breaker.
+   */
   threshold?: number;
+  /**
+   * How long the breaker stays open, in milliseconds. Default `120000` (2 minutes).
+   *
+   * While open, every call fails immediately with `MemoryAdapterError(code: "rate_limited")`
+   * without touching the network. There is no half-open probe: the breaker simply closes when the
+   * cooldown elapses and the next call goes through for real.
+   */
   cooldownMs?: number;
 }
 
@@ -39,7 +68,7 @@ export class CircuitBreaker {
     }
   }
 
-  /** Increment failure counter. Trips when threshold reached. Only call for 5xx-class errors. */
+  /** Increment failure counter. Trips when threshold reached. Call only for provider-down errors. */
   recordFailure(): void {
     this.#failures += 1;
     if (this.#failures >= this.threshold) {

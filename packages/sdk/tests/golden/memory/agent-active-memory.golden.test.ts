@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { Agent } from "../../../src/index.js";
 import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Increment B — when `memory.activeRecall.enabled === true`, the SDK must
@@ -73,6 +73,10 @@ describe("Active Memory wired through Agent.send", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-activewire-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await mkdir(memoryDir(cwd), { recursive: true });
     await writeFile(
       memoryMdPath(cwd),

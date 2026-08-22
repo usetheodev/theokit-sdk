@@ -70,7 +70,13 @@ const indexState = globalSingleton("theokit-sdk.providers.model-info-loaded", ()
   loaded: false,
 }));
 
-/** Look up per-model catalog data by `provider/model` key. @internal */
+/**
+ * Look up per-model catalog data by `provider/model` key.
+ *
+ * Semver-exempt: not declared in `package.json` `exports`, but re-exported by
+ * `catalog-source-models-dev.ts`, whose declaration is reachable from published entries — so it
+ * must be EMITTED.
+ */
 export function getCatalogModelInfo(key: string): CatalogModel | undefined {
   ensureModelIndexLoaded();
   return modelInfoIndex.get(key);

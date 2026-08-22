@@ -11,14 +11,18 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { migrateSqliteToLance } from "../../../src/internal/memory/migrate-sqlite-to-lance.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 describe("migrate-sqlite-to-lance T1.4 — logger redaction", () => {
   let cwd: string;
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-migrate-redact-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
   });
   afterEach(() => {
     /* OS-level tmpdir cleanup */

@@ -154,18 +154,26 @@ describe("loadMarkdownEntities — nested pattern (plugins)", () => {
   });
 });
 
+/** Root bypasses directory-mode permission bits, so chmod 0o000 does not produce EACCES. */
+const RUNNING_AS_ROOT = process.getuid?.() === 0;
+
 describe("loadMarkdownEntities — EACCES distinguished from ENOENT (EC-11)", () => {
-  it("EACCES (chmod 000) throws ConfigurationError with code <prefix>_dir_read_error", async () => {
-    // Skip on root since chmod doesn't restrict root.
-    if (process.getuid?.() === 0) return;
-    chmodSync(dir, 0o000);
-    try {
-      const promise = loadMarkdownEntities({ dir, schema: HookSchema, errorCodePrefix: "hook" });
-      await expect(promise).rejects.toMatchObject({
-        code: "hook_dir_read_error",
-      });
-    } finally {
-      chmodSync(dir, 0o755);
-    }
-  });
+  // B-126: this was `if (process.getuid?.() === 0) return;` inside the test body, which reports PASS
+  // on a root runner having asserted nothing — an environment where chmod cannot restrict access was
+  // indistinguishable from one where the guard fired correctly. Gated at collection time instead, the
+  // same shape `tests/chaos/partition-fs.test.ts` already uses for the identical root problem.
+  it.skipIf(RUNNING_AS_ROOT)(
+    "EACCES (chmod 000) throws ConfigurationError with code <prefix>_dir_read_error",
+    async () => {
+      chmodSync(dir, 0o000);
+      try {
+        const promise = loadMarkdownEntities({ dir, schema: HookSchema, errorCodePrefix: "hook" });
+        await expect(promise).rejects.toMatchObject({
+          code: "hook_dir_read_error",
+        });
+      } finally {
+        chmodSync(dir, 0o755);
+      }
+    },
+  );
 });

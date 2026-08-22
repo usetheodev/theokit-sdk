@@ -5,12 +5,16 @@
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { PersonalityStore } from "../../../src/internal/personality/store.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 async function buildHome(): Promise<{ cwd: string; home: string; file: string }> {
   const cwd = await mkdtemp(join(tmpdir(), "theokit-personality-store-"));
+  const __cwdCleanup1 = cwd;
+  onTestFinished(async () => {
+    await removeTempDirRobust(__cwdCleanup1);
+  });
   const home = join(cwd, ".theokit");
   return { cwd, home, file: join(home, "personality.json") };
 }

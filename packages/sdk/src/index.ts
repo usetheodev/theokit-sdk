@@ -151,6 +151,11 @@ export { withCwdMutex } from "./internal/persistence/cwd-mutex.js";
 // .asPlugin() factories without reaching into ./internal/plugins sub-path.
 export {
   type HookName,
+  // #335 — named here because the PUBLIC `Plugin` union references it in the
+  // `createProvider` position. The DTS rollup emits an exported type's body but
+  // treeshakes a non-exported type that body names, so leaving this out of the
+  // barrel published a declaration referring to a type it never declared.
+  type MemoryProviderFactory,
   Plugin,
   type PluginContext,
   type PostAssistantReplyContext,
@@ -390,3 +395,26 @@ export {
   type WiredEntity,
   type WiringRecordInput,
 } from "./wiring-record.js";
+/**
+ * Workflow, exported from the ROOT and not only from `@theokit/sdk/workflow`.
+ *
+ * `CronCreateOptions.workflow` types against the `Workflow` that lands in the shared cron chunk,
+ * while the `./workflow` subpath entry emits a STANDALONE re-declaration of the same class. Two
+ * declarations of one class with a private field are nominally distinct, so a consumer following
+ * the documented path —
+ *
+ *     import { Workflow } from "@theokit/sdk/workflow";
+ *     import { Cron } from "@theokit/sdk";
+ *     await Cron.create({ cron: "@hourly", workflow: pipeline });
+ *
+ * — was rejected with "types have separate declarations of a private property '_options'". SE35's
+ * workflow-per-fire target was unreachable from outside the package. Measured 2026-08-20 while
+ * rewriting the workflow template, which is how it surfaced: nothing in-tree crosses that boundary,
+ * because in-tree code imports from `src/`.
+ *
+ * Exporting here puts `Workflow` and `Cron` on ONE identity for anyone importing both from the root,
+ * which is the combination the API is for. The subpath still works standalone and still produces the
+ * incompatible type when mixed with root `Cron` — that is a build-layout defect, not something this
+ * line can close.
+ */
+export { agentStep, fn, Workflow } from "./workflow.js";

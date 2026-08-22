@@ -14,22 +14,34 @@
  */
 
 /**
- * Returns `true` if the name is valid for use as the `name` field in
- * `package.json` (npm-compatible).
+ * The shape an npm package name may take: an optional `@scope/` prefix, then a name starting with a
+ * lowercase letter or digit and continuing with those plus `.`, `-`, `_`.
  *
- * Pattern derived from npm's own `validate-npm-package-name` rules
- * (simplified — we cover the common 99% case, not every edge of npm's
- * legacy compat).
+ * Derived from npm's own `validate-npm-package-name` rules and deliberately simplified — it covers
+ * the common case, not every corner of npm's legacy compatibility. It rejects uppercase, spaces and
+ * a leading `.`/`_`/`-`; it does NOT check npm's core-module or URL-safety rules.
  */
 const NPM_NAME_RE = /^(?:@[a-z0-9-][a-z0-9._-]{0,213}\/)?[a-z0-9][a-z0-9._-]{0,213}$/;
 
 const RESERVED_NAMES = new Set(["node_modules", "favicon.ico", "..", "."]);
 
+/** `reason` is present only when `ok` is false, and is written to be shown to the user verbatim. */
 interface NameValidation {
   ok: boolean;
   reason?: string;
 }
 
+/**
+ * Check a project name against npm's rules BEFORE anything is written to disk (EC-A) — otherwise the
+ * onboarding flow breaks on the user's first `pnpm install`, with an npm error that does not say
+ * whether the CLI or the input was at fault.
+ *
+ * Never throws; a rejection is `{ ok: false, reason }`. Rejects an empty name, `node_modules`,
+ * `favicon.ico`, `.`, `..`, anything over 214 characters, and anything the npm name pattern refuses.
+ *
+ * It validates the NAME, not the destination: a scoped name like `@scope/my-bot` passes here and
+ * then scaffolds into a nested `@scope/my-bot/` directory.
+ */
 export function validateProjectName(name: string): NameValidation {
   if (typeof name !== "string" || name.length === 0) {
     return { ok: false, reason: "Project name is required." };

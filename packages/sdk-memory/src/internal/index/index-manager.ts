@@ -93,6 +93,35 @@ interface OpenIndexOptions {
   backend?: "sqlite-vec" | "lance";
 }
 
+/**
+ * The default memory index: SQLite for storage, FTS5 for text matching, and
+ * sqlite-vec for vectors when an embedding runtime is supplied.
+ *
+ * Open it with the static `open`, which is also the dispatch point for
+ * `backend: "lance"` — that overload returns a `LanceMemoryAdapter`, not an
+ * `IndexManager`, so hold the result as {@link MemoryIndex} unless you need this
+ * class specifically.
+ *
+ * Storage needs `better-sqlite3` unless the running Node exposes `node:sqlite`,
+ * and vectors additionally need `sqlite-vec`. Both are optional peer
+ * dependencies of this package. Without an embedding runtime the index opens
+ * text-only and reports `backend: "fts-only"`; no vector table is created and
+ * search degrades to BM25 rather than failing.
+ *
+ * `sync()` crawls the markdown corpus — `MEMORY.md`, `notes/`, `wiki/` and
+ * `sessions/` — skipping files whose content hash has not moved, and re-chunking
+ * the rest. Nothing is indexed until it runs.
+ *
+ * If the embedding provider, model or dimension differs from what the database
+ * recorded, opening drops the whole vector table so the next `sync()` re-embeds
+ * from scratch. Switching embedding models is therefore safe but not cheap.
+ *
+ * `search()` runs both halves and blends them per chunk, so a chunk found only
+ * by vector still appears with a text score of 0 and the other way round.
+ * `close()` releases the database handle; it is synchronous here, unlike the
+ * Lance adapter's, so a caller holding the {@link MemoryIndex} type must await
+ * it either way.
+ */
 export class IndexManager implements MemoryIndex {
   private lastSyncMs: number | undefined;
   private vectorReady = false;

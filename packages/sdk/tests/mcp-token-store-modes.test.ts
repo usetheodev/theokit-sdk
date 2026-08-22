@@ -29,7 +29,7 @@
  * reads the right variable. Both could have been written to pass vacuously, so both were
  * verified to FAIL against a reverted source rather than merely to pass against the current one.
  */
-import { chmodSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -45,6 +45,12 @@ beforeEach(() => {
   home = join(tmpdir(), `theokit-mcp-tokens-${String(process.hrtime.bigint())}`);
   mkdirSync(home, { recursive: true, mode: 0o700 });
   process.env.HOME = home;
+  // B-090 — `vitest.setup.ts` points `THEOKIT_HOME` at a per-test tmpdir for EVERY test in this
+  // package, and since B-090 that variable WINS over the home. The cases below pin the
+  // home-anchored FALLBACK, so the absence of the override is part of their arrange and has to be
+  // stated rather than inherited from a setup file. `vitest.setup.ts`'s own `afterEach` restores
+  // the original value unconditionally, so this delete cannot leak into a sibling test.
+  delete process.env.THEOKIT_HOME;
   vi.resetModules();
 });
 
@@ -259,18 +265,192 @@ describe("assertSecureModes — a platform without POSIX modes is not an insecur
     const { writeFileSync } = await import("node:fs");
     writeFileSync(file, "{}", { mode: 0o666 });
 
-    const { assertSecureModes } = await import("../src/auth/index.js");
+    const { assertSecureModes, CredentialError } = await import("../src/auth/index.js");
     // Sanity: on POSIX this same input IS refused, which is what makes the win32 case a platform
     // decision rather than the gate being toothless.
     if (POSIX) {
+      // B-079 — was bare `.toThrow()`. `assertSecureModes` throws `CredentialError`
+      // (src/internal/auth/credential-store.ts); that throw site sets no explicit
+      // `.code`, so a class assertion is the strongest typed check available here.
+      // `CredentialError` MUST come from this SAME dynamic `import()` — the module
+      // was `vi.resetModules()`-ed in `beforeEach`, so a statically-imported class
+      // reference is a different identity and `toThrow(Class)` fails on `instanceof`.
       expect(() => {
         assertSecureModes(dir, file);
-      }).toThrow();
+      }).toThrow(CredentialError);
     }
 
     vi.spyOn(process, "platform", "get").mockReturnValue("win32");
     expect(() => {
       assertSecureModes(dir, file);
     }).not.toThrow();
+  });
+});
+
+/**
+ * B-090 — the store used to ignore `THEOKIT_HOME`, which is the variable this repo isolates tests
+ * with. The consequence was not theoretical and not confined to tests: `vitest.setup.ts:74` backs
+ * up `process.env.HOME` and never sets it, isolating only `THEOKIT_HOME` — so a home-anchored
+ * module that ignored that variable resolved to the developer's real `~`. A default-config run of
+ * this package deposited four refresh-token entries (`test-srv`, `srv-2`, `srv-race`,
+ * `srv-roundtrip`) into the real `~/.theokit/mcp-tokens.json`, written by
+ * `tests/golden/mcp/oauth.golden.test.ts`. A suite that believes it is isolated and is not is a
+ * false green about isolation itself, which is worse than a red.
+ *
+ * The resolver adopted is `transcriptRoot()`'s, not `paths.ts`'s `getTheokitHome(cwd)`: the
+ * transcript solves the identical problem for identically-shaped state — home-anchored default with
+ * a `THEOKIT_HOME` override, trimmed, empty-guarded — and its docstring records that before M94 it
+ * ignored the variable and "whoever set it had their state split in two silently", which is exactly
+ * this defect. `getTheokitHome(cwd)` falls back to `<cwd>/.theokit`, and adopting it would move the
+ * token file of everyone who does NOT set the variable — a migration nobody asked for, on a
+ * credential.
+ *
+ * Both halves are pinned, per `rules/testing.md § 4.2`: the override case (the store follows it)
+ * AND the fallthrough cases (empty / whitespace-only leave the home default in place). A resolver
+ * tested only on the override cannot tell a correct precedence from one that always takes the env
+ * branch, including when the value is unusable.
+ */
+describe("MCP OAuth token store — THEOKIT_HOME is the isolation variable (B-090)", () => {
+  it("test_THEOKIT_HOME_redirects_the_token_file_away_from_the_home_default", async () => {
+    const isolated = join(home, "isolated-state");
+    process.env.THEOKIT_HOME = isolated;
+    const store = await loadStore();
+
+    await store.setTokens("srv-isolated", TOKENS);
+
+    expect(
+      existsSync(join(isolated, "mcp-tokens.json")),
+      "the store must write under THEOKIT_HOME when it is set",
+    ).toBe(true);
+    expect(
+      existsSync(join(home, ".theokit", "mcp-tokens.json")),
+      "a test that sets THEOKIT_HOME must not deposit a refresh token in the real home",
+    ).toBe(false);
+  });
+
+  it("test_THEOKIT_HOME_is_also_where_the_read_path_looks", async () => {
+    // The store is NOT used to create this file. A roundtrip through `setTokens` would pass
+    // whatever path the module picked, correct or not — it only proves the two halves agree with
+    // each other. Placing the file by hand at the location the override names is what makes the
+    // read path answerable.
+    const isolated = join(home, "isolated-read");
+    mkdirSync(isolated, { recursive: true, mode: 0o700 });
+    const file = join(isolated, "mcp-tokens.json");
+    writeFileSync(file, JSON.stringify({ "srv-read": TOKENS }), { mode: 0o600 });
+    chmodSync(file, 0o600);
+    process.env.THEOKIT_HOME = isolated;
+
+    const store = await loadStore();
+
+    await expect(store.getTokens("srv-read")).resolves.toEqual(TOKENS);
+  });
+
+  it("test_the_keytar_fallback_warning_names_the_resolved_store_path", async () => {
+    // The warning used to spell `~/.theokit/mcp-tokens.json` as a literal. Once THEOKIT_HOME wins,
+    // that literal sends anyone who sets the variable to look at a file the store no longer writes.
+    // A diagnostic that names the wrong location is worse than one that names none, because the
+    // reader stops looking after they find it empty.
+    const isolated = join(home, "isolated-diag");
+    process.env.THEOKIT_HOME = isolated;
+    const store = await loadStore();
+    store._resetForTests(); // clear the once-only warned flag left by a sibling test
+
+    const emitted: string[] = [];
+    vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown): boolean => {
+      emitted.push(String(chunk));
+      return true;
+    });
+
+    await store.setTokens("srv-diag", TOKENS);
+
+    const warning = emitted.find((line) => line.includes("keytar not installed"));
+    expect(warning, "the keytar-absent fallback must warn").toBeDefined();
+    expect(warning, "the warning must name the store path actually in use").toContain(
+      join(isolated, "mcp-tokens.json"),
+    );
+  });
+
+  /**
+   * N2 — the fix reached further than the path. `ensurePrivateStoreDir` chmods the store directory
+   * 0700 UNCONDITIONALLY, and before B-090 that directory was always `~/.theokit`. Once
+   * `THEOKIT_HOME` wins it is the operator's root, shared with sessions, transcripts, personality and
+   * the credential pool — and `paths.ts:5-7` names "multi-tenant deployments" as a use case for the
+   * variable. No other consumer of it imposes a mode. Silently demoting someone's 0775 root to 0700
+   * is changing a permission we were never asked to manage.
+   *
+   * The retro-fix keeps its population (`<home>/.theokit`, see the sibling test above) and loses the
+   * one it never had.
+   */
+  it.skipIf(!POSIX)(
+    "test_a_pre_existing_THEOKIT_HOME_is_not_re_permissioned_by_a_write",
+    async () => {
+      const isolated = join(home, "operator-root");
+      mkdirSync(isolated, { recursive: true });
+      chmodSync(isolated, 0o775); // explicit: `mkdir`'s mode argument is masked by the umask
+      process.env.THEOKIT_HOME = isolated;
+      const store = await loadStore();
+
+      await store.setTokens("srv-mode", TOKENS);
+
+      expect(
+        (statSync(isolated).mode & 0o777).toString(8),
+        "a THEOKIT_HOME root we did not create must keep the mode its operator chose",
+      ).toBe("775");
+    },
+  );
+
+  // The other half (§ 4.2): declining to re-permission an existing root must not become declining to
+  // protect one we create. A directory born from our own `mkdir` is ours, wherever it points.
+  it.skipIf(!POSIX)("test_a_THEOKIT_HOME_we_create_ourselves_is_born_private", async () => {
+    const isolated = join(home, "created-by-us");
+    process.env.THEOKIT_HOME = isolated;
+    const store = await loadStore();
+
+    await store.setTokens("srv-new", TOKENS);
+
+    expect(
+      statSync(isolated).mode & 0o077,
+      "a store directory we create must never be group- or world-accessible",
+    ).toBe(0);
+  });
+
+  /**
+   * The consequence of NOT repairing the operator's root, asserted rather than left to be discovered
+   * in production. `assertSecureModes` sits outside `getTokens`'s catch on purpose: a refresh token
+   * in a directory any local user can replace files in may already have been swapped, and returning
+   * it would hand the caller an attacker's credential. Refusing loudly, with the `chmod 700` remedy
+   * in the message, is the only outcome that neither mutates someone else's directory nor lies about
+   * what it read.
+   */
+  it.skipIf(!POSIX)(
+    "test_a_group_writable_THEOKIT_HOME_is_refused_on_read_rather_than_silently_repaired",
+    async () => {
+      const isolated = join(home, "loose-root");
+      mkdirSync(isolated, { recursive: true });
+      chmodSync(isolated, 0o777);
+      process.env.THEOKIT_HOME = isolated;
+      const store = await loadStore();
+      await store.setTokens("srv-loose", TOKENS);
+
+      await expect(store.getTokens("srv-loose")).rejects.toThrow(/writable by other users/i);
+    },
+  );
+
+  // The accepted-input half of the guard (§ 4.2). Without these, a resolver that took the env
+  // branch for ANY value — including one it cannot use — passes the override test above and
+  // resolves the store to a CWD-relative `mcp-tokens.json`, or to a whitespace-named directory.
+  it.each([
+    ["empty", ""],
+    ["whitespace-only", "   "],
+  ])("test_an_unusable_THEOKIT_HOME_falls_through_to_the_home_anchored_default_%s", async (_label, value) => {
+    process.env.THEOKIT_HOME = value;
+    const store = await loadStore();
+
+    await store.setTokens("srv-fallback", TOKENS);
+
+    expect(
+      existsSync(join(home, ".theokit", "mcp-tokens.json")),
+      "an unusable THEOKIT_HOME must leave the home-anchored default in place",
+    ).toBe(true);
   });
 });

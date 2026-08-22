@@ -65,7 +65,25 @@ function stripDateSuffix(model: string): string {
 
 function normalizeAnthropicDots(model: string): string {
   // EC-2: claude-opus-4.7 → claude-opus-4-7
-  return model.replace(/(\d+)\.(\d+)/g, "$1-$2");
+  //
+  // Lookarounds rather than captured `\d+` runs, and the difference is not stylistic. The old
+  // `/(\d+)\.(\d+)/g` consumed digits to the end of the string at every start position and then
+  // backtracked looking for a dot that was not there — quadratic in a value the CALLER supplies
+  // (CodeQL js/polynomial-redos #5). Measured on a run of digits with no dot:
+  //
+  //     12_500 ->     762 ms        50_000 ->  11_960 ms
+  //     25_000 ->   2_995 ms       200_000 -> 154_383 ms
+  //
+  // Two and a half minutes of pinned CPU from one model id, inside an SDK built to run in a
+  // server serving other people. The lookaround form matches a single dot and cannot backtrack:
+  // the same 200_000 characters take about 4 ms.
+  //
+  // One behaviour difference, checked rather than assumed: an id with TWO dots between digits
+  // ("1.2.3") normalised to "1-2.3" before and "1-2-3" now, because the old pattern consumed the
+  // middle digit into its first match. No id in the provider catalog has two — measured across
+  // all 34, of which 14 have exactly one — and normalising every dot is the more consistent
+  // reading of what this function is for.
+  return model.replace(/(?<=\d)\.(?=\d)/g, "-");
 }
 
 function stripOpenRouterPrefix(modelId: string): string {

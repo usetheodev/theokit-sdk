@@ -4,7 +4,7 @@ import type { Plugin } from "../src/internal/plugins/types.js";
 import { PermissionEngine } from "../src/permission-engine.js";
 import { type PermissionGateDecision, PermissionPlugin } from "../src/permission-plugin.js";
 
-/**
+/*
  * SE1 — `PermissionPlugin` gains a `mode` + an enriched async `canUseTool`
  * gate that receives `(toolName, input, ctx)` (vs the old `onAsk(toolName)`), and
  * resolves the `ask` verdict to allow/deny. Fail-closed: an absent gate, a

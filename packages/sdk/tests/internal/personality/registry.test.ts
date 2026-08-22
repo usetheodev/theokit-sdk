@@ -5,16 +5,20 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ConfigurationError } from "../../../src/errors.js";
 import { PersonalityRegistry } from "../../../src/internal/personality/registry.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 const PROJECT_REL = ".theokit/personalities";
 const USER_REL = ".theokit/personalities";
 
 async function buildProjectDir(): Promise<{ tmp: string; projectDir: string }> {
   const tmp = await mkdtemp(join(tmpdir(), "theokit-personality-"));
+  const __tmpCleanup1 = tmp;
+  onTestFinished(async () => {
+    await removeTempDirRobust(__tmpCleanup1);
+  });
   const projectDir = join(tmp, PROJECT_REL);
   await mkdir(projectDir, { recursive: true });
   return { tmp, projectDir };
@@ -22,6 +26,10 @@ async function buildProjectDir(): Promise<{ tmp: string; projectDir: string }> {
 
 async function buildUserDir(): Promise<{ userHome: string; userDir: string }> {
   const userHome = await mkdtemp(join(tmpdir(), "theokit-home-"));
+  const __userHomeCleanup2 = userHome;
+  onTestFinished(async () => {
+    await removeTempDirRobust(__userHomeCleanup2);
+  });
   const userDir = join(userHome, USER_REL);
   await mkdir(userDir, { recursive: true });
   return { userHome, userDir };

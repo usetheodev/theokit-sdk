@@ -108,8 +108,11 @@ describe("sdk-memory vec-index (iter 67)", () => {
       await rm(cwd, { recursive: true, force: true });
     });
 
-    it("test_identity_roundtrip_meta_table", async () => {
-      if (!(await hasNativeStack())) return;
+    it("test_identity_roundtrip_meta_table", async (ctx) => {
+      // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+      // having asserted nothing, so a machine without the capability looked identical to one
+      // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+      if (!(await hasNativeStack())) ctx.skip();
       const db = await openMemoryDb({ filePath: join(cwd, "id.sqlite") });
 
       expect(readEmbeddingIdentity(db)).toBeUndefined();
@@ -135,8 +138,11 @@ describe("sdk-memory vec-index (iter 67)", () => {
       db.close();
     });
 
-    it("test_create_drop_upsert_search_vec_roundtrip", async () => {
-      if (!(await hasNativeStack())) return;
+    it("test_create_drop_upsert_search_vec_roundtrip", async (ctx) => {
+      // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+      // having asserted nothing, so a machine without the capability looked identical to one
+      // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+      if (!(await hasNativeStack())) ctx.skip();
       const db = await openMemoryDb({ filePath: join(cwd, "vec.sqlite") });
       await loadSqliteVecExtension(db);
 
@@ -181,8 +187,11 @@ describe("sdk-memory vec-index (iter 67)", () => {
       db.close();
     });
 
-    it("test_embedMissingChunks_only_embeds_chunks_without_vectors", async () => {
-      if (!(await hasNativeStack())) return;
+    it("test_embedMissingChunks_only_embeds_chunks_without_vectors", async (ctx) => {
+      // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+      // having asserted nothing, so a machine without the capability looked identical to one
+      // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+      if (!(await hasNativeStack())) ctx.skip();
       const db = await openMemoryDb({ filePath: join(cwd, "missing.sqlite") });
       await loadSqliteVecExtension(db);
       createVectorIndex(db, 3);

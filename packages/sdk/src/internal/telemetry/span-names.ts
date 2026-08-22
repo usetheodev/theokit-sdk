@@ -10,9 +10,13 @@
  * - `llm.call`             — per provider HTTP turn (T3.*).
  *
  * Using a closed `as const` map (NOT `string`) means downstream span emitters
- * cannot drift names; the `SpanName` literal union is exhaustive and the
- * `(string & {})` discipline from T1.1 applies. ADR D438 anticipates the
+ * cannot drift names: they read a key off `SPAN_NAMES`, so a typo is a compile
+ * error rather than a silently divergent span. ADR D438 anticipates the
  * "no string-literal escape hatch in public unions" rule for SDK internals.
+ *
+ * B-140: a derived `SpanName` literal union was exported here and consumed by
+ * nothing — every emitter reaches for the const, not the type. Removed rather
+ * than left advertising a second way in that no caller had ever taken.
  *
  * @internal
  */
@@ -31,8 +35,6 @@ export const SPAN_NAMES = {
   TOOL_CALL: "tool.call",
   LLM_CALL: "llm.call",
 } as const;
-
-export type SpanName = (typeof SPAN_NAMES)[keyof typeof SPAN_NAMES];
 
 /** Histogram names emitted by the SDK. M3 #64 closes the wiring-triad pillar-c
  * gap: tool/LLM durations + LLM token throughput were measured but never emitted. */

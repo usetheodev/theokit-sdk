@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import { AuthenticationError, ConfigurationError, UnknownAgentError } from "./errors.js";
 import { validateApiKeyShape } from "./internal/auth/api-key-validator.js";
 import { CloudAgent, validateCloudToolParity } from "./internal/cloud-agent/index.js";
-import { resolveApiKey } from "./internal/env.js";
+import { API_KEY_ENV_VAR, resolveApiKey } from "./internal/env.js";
 import { httpRequest } from "./internal/http.js";
 import { isLocalAgentId } from "./internal/ids.js";
 import { LocalAgent } from "./internal/local-agent/index.js";
@@ -11,7 +11,7 @@ import { discoverProviderPlugins } from "./internal/providers/discovery.js";
 import {
   getConfiguredBaseUrl,
   isFixtureApiKey,
-  shouldUseRealLocalRuntime,
+  presentProviderCredentialEnvVars,
 } from "./internal/runtime/fixtures/fixture-mode.js";
 import { normalizeModel } from "./internal/runtime/model-selection.js";
 import {
@@ -22,6 +22,7 @@ import {
 } from "./internal/runtime/registry/agent-registry.js";
 import { validateAgentOptions } from "./internal/runtime/validation/validate-agent-options.js";
 import type { OTelSpan } from "./internal/telemetry/tracer.js";
+import { getProviderProfile } from "./providers.js";
 import type { AgentOptions, CustomTool, SDKAgent, SDKAgentInfo } from "./types/agent.js";
 
 // ───── agent creation helpers ─────────────────────────────────────────
@@ -121,32 +122,77 @@ async function maybeInjectHandoffTools(options: AgentOptions): Promise<AgentOpti
   };
 }
 
+/**
+ * Does this key actually reach a provider that authenticates with it?
+ *
+ * B-130 — this used to be `!isFixtureApiKey(key) && !shouldUseRealLocalRuntime(key)`, which conflated
+ * two unrelated questions: *is a local runtime available?* and *is this key destined for a named
+ * remote provider?* They shared `shouldUseRealLocalRuntime`, whose `isLocalNoAuthProviderAvailable()`
+ * arm is a hardcoded `return true` because the SDK ships Ollama as a builtin. So the expression was
+ * FALSE FOR EVERY INPUT, the strict branch of `validateApiKeyShape` was unreachable, and a malformed
+ * key for a named provider was accepted here and failed later, wherever it was first used.
+ *
+ * The two questions are now answered by the two things that own them: dispatch still asks
+ * `shouldUseRealLocalRuntime` (`local-agent-dispatch.ts`), and this asks the provider's own
+ * `authType`.
+ *
+ * Conservative on both unknowns, deliberately. An unrecognised model shape or an unregistered
+ * provider yields `false`, so strictness never fires on a key we cannot attribute: rejecting a VALID
+ * key blocks a user outright, while accepting a malformed one for an unknown provider merely restores
+ * the previous behaviour for that case. The asymmetry decides the default.
+ */
+function keyWillFlowToProvider(apiKey: string, provider: string | undefined): boolean {
+  if (isFixtureApiKey(apiKey)) return false;
+  if (getConfiguredBaseUrl() !== undefined) return false;
+  if (provider === undefined) return false;
+  const profile = getProviderProfile(provider);
+  if (profile === undefined) return false;
+  return profile.authType !== "none";
+}
+
+/**
+ * The "Missing API key" refusal, told from the caller's environment rather than from ours (#338).
+ *
+ * The message used to be the three words alone. A caller with `OPENROUTER_API_KEY` exported and no
+ * `THEOKIT_API_KEY` met it while looking at a shell that, to them, plainly had a key in it — and the
+ * SDK consults that exact variable a moment later, in `shouldUseRealLocalRuntime`, to decide whether
+ * to drive a real runtime. Reported as three hours of diagnosis on the wrong cause.
+ *
+ * So when a provider credential IS present, the message names it and says where to put it. It does
+ * NOT quietly adopt it: `resolveApiKey` reading provider variables would make the SDK pick a
+ * credential by ambient scan, and with two of them exported there is no non-arbitrary answer to
+ * which one it meant. Keeping resolution explicit and the diagnosis specific is the trade this
+ * takes — fail fast, fail CLEAR (`rules/error-handling.md` § 2-3), not fail helpfully-and-wrongly.
+ *
+ * Names the variables, never their values.
+ */
+function missingApiKeyMessage(): string {
+  const present = presentProviderCredentialEnvVars();
+  const base = `Missing API key — set ${API_KEY_ENV_VAR}, or pass \`apiKey\` to Agent.create()`;
+  if (present.length === 0) return `${base}.`;
+  return (
+    `${base}. ${present.join(" and ")} ${present.length === 1 ? "is" : "are"} set, but a provider ` +
+    "credential is not read from the environment automatically — pass it explicitly, e.g. " +
+    `\`Agent.create({ apiKey: process.env.${present[0]}, ... })\`.`
+  );
+}
+
 async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
   const apiKey = resolveApiKey(options.apiKey);
   if (apiKey === undefined) {
-    throw new AuthenticationError("Missing API key", { code: "missing_api_key" });
+    throw new AuthenticationError(missingApiKeyMessage(), { code: "missing_api_key" });
   }
-  const willFlowToProvider = !isFixtureApiKey(apiKey) && !shouldUseRealLocalRuntime(apiKey);
+  const provider = providerFromModelId(normalizeModel(options.model)?.id);
+  const willFlowToProvider = keyWillFlowToProvider(apiKey, provider);
   const shape = validateApiKeyShape(apiKey, {
     strict: willFlowToProvider,
     // `options.model` is already normalized by `runCreateUnderSpan`; `normalizeModel`
     // here is the idempotent narrowing of the widened public type (`{id}` passes
     // through by reference) — cleaner than an `as` cast.
-    ...(willFlowToProvider
-      ? { provider: providerFromModelId(normalizeModel(options.model)?.id) }
-      : {}),
+    ...(willFlowToProvider ? { provider } : {}),
   });
   if (shape.malformed) {
     throw new AuthenticationError(shape.message, { code: "malformed_api_key" });
-  }
-  if (
-    !isFixtureApiKey(apiKey) &&
-    getConfiguredBaseUrl() === undefined &&
-    !shouldUseRealLocalRuntime(apiKey)
-  ) {
-    throw new AuthenticationError("Invalid API key", {
-      code: "authentication_error",
-    });
   }
   const agent = new LocalAgent(options);
   await agent.initialize();
@@ -312,15 +358,73 @@ export async function setAgentName(agentId: string, name: string): Promise<void>
   await flushRegistrySaves();
 }
 
-/** @internal */
-export async function getRegisteredAgentOrThrow(agentId: string): Promise<RegisteredAgent> {
+/**
+ * B-115 (measured 2026-08-19): `cwd` used to be silently dropped by every caller of this helper —
+ * `Agent.get({ cwd })` compiled and did nothing, because hydration always targeted
+ * `process.cwd()` regardless. Mirrors `Agent.list`'s own `cwd` handling (`agent.ts`): the caller's
+ * `cwd` (default `process.cwd()`) is what gets hydrated before the lookup.
+ *
+ * @internal
+ */
+export async function getRegisteredAgentOrThrow(
+  agentId: string,
+  cwd: string = process.cwd(),
+): Promise<RegisteredAgent> {
   let agent = getRegisteredAgent(agentId);
   if (agent === undefined) {
-    await hydrateRegistryFromDisk(process.cwd());
+    await hydrateRegistryFromDisk(cwd);
     agent = getRegisteredAgent(agentId);
   }
   if (agent === undefined) {
     throw new UnknownAgentError(`Agent ${agentId} not found`, { code: "unknown_agent" });
   }
   return agent;
+}
+
+/**
+ * B-115 (measured 2026-08-19): shared `limit`/`cursor` pagination for `Agent.list` and
+ * `Agent.listRuns`, which used to accept both and silently return everything unpaginated.
+ *
+ * `limit === undefined` returns `all` completely unchanged — same order, same items — so a caller
+ * that never asks for a page sees no behaviour change at all (M107 declared, for `Agent.list`
+ * specifically, that imposing a stable sort UNCONDITIONALLY would change the order observed by
+ * every current caller; this keeps that promise by only ever reordering the page it hands back,
+ * never the default listing).
+ *
+ * `sortByKey`: `Agent.list` sorts by `agentId` so a `cursor` is meaningful across separate calls —
+ * the underlying registry's order depends on which cwds have been hydrated into the process so far
+ * and is not itself stable. `Agent.listRuns` does NOT sort — a single agent's runs are already
+ * returned in the stable, append-only order they were created in, and re-sorting by `id` (opaque,
+ * non-chronological) would scramble that.
+ *
+ * A `cursor` naming an item that no longer exists (e.g. removed between pages) restarts from the
+ * beginning rather than throwing — cursor invalidation across paginated reads of a live, mutable
+ * registry is an ordinary occurrence, not a caller error worth failing the whole read over.
+ *
+ * @internal
+ */
+export function paginateByKey<T>(
+  all: readonly T[],
+  keyOf: (item: T) => string,
+  limit: number | undefined,
+  cursor: string | undefined,
+  sortByKey: boolean,
+): { items: T[]; nextCursor?: string } {
+  if (limit === undefined) return { items: [...all] };
+  const ordered = sortByKey
+    ? [...all].sort((a, b) => {
+        const ka = keyOf(a);
+        const kb = keyOf(b);
+        return ka < kb ? -1 : ka > kb ? 1 : 0;
+      })
+    : [...all];
+  const startIndex =
+    cursor === undefined ? 0 : ordered.findIndex((item) => keyOf(item) === cursor) + 1;
+  const page = ordered.slice(startIndex, startIndex + limit);
+  const hasMore = startIndex + limit < ordered.length;
+  const last = page[page.length - 1];
+  return {
+    items: page,
+    ...(hasMore && last !== undefined ? { nextCursor: keyOf(last) } : {}),
+  };
 }

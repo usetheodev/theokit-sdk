@@ -9,14 +9,18 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { FileContextManager } from "../../../src/internal/runtime/context/context-manager.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 describe("Backward compat: .theokit/context/*.md (T6.1)", () => {
   let tmp: string;
   beforeEach(async () => {
     tmp = await mkdtemp(join(tmpdir(), "theokit-ctx-compat-"));
+    const __tmpCleanup1 = tmp;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__tmpCleanup1);
+    });
     await mkdir(join(tmp, ".git"), { recursive: true });
     await mkdir(join(tmp, ".theokit", "context"), { recursive: true });
   });

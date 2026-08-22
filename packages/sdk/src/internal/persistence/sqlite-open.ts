@@ -30,6 +30,20 @@ export interface ResilientSqliteDb {
   close(): void;
 }
 
+/**
+ * Input to {@link openSqliteResilient}.
+ *
+ * The trap is `recoverCorrupt`, whose default is ON. When the driver reports a corrupt or encrypted
+ * database, the file is renamed aside and a FRESH one is opened — so the call SUCCEEDS and hands
+ * back an EMPTY database. The old bytes survive on disk under the renamed path, but a caller that
+ * treats a resolved promise as "my data is here" is wrong exactly when it matters. Pass
+ * `recoverCorrupt: false` to get the corruption error thrown instead.
+ *
+ * Semver-exempt: reachable via the '@theokit/sdk/internal/persistence' sub-path, which the package
+ * declares in 'exports' but does NOT cover with its semver contract.
+ *
+ * @typeParam T - the concrete DB handle the driver returns; defaults to {@link ResilientSqliteDb}
+ */
 export interface OpenSqliteResilientOptions<T extends ResilientSqliteDb> {
   /** Absolute path to the SQLite file. Parent directories are created. */
   filePath: string;

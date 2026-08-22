@@ -31,7 +31,7 @@
  *   - `{ ok: false, error: "path_traversal" | "not_found" | "unsupported_image_type" | "image_too_large", … }`
  */
 
-import { readFileSync, statSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readFileSync } from "node:fs";
 import { extname } from "node:path";
 
 import type { CustomTool, ToolResultContentBlock } from "@theokit/sdk";
@@ -64,6 +64,11 @@ const MEDIA_TYPES = new Map<string, string>([
  */
 export const DEFAULT_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
+/**
+ * Options for {@link createViewImageTool}. `maxBytes` is measured on disk, before base64 inflates the
+ * payload by roughly a third on its way into the model's context — so the real context cost of a file
+ * at the limit is about 6.7 MB of text, not 5 MB.
+ */
 export interface CreateViewImageToolOptions {
   /** Root the tool reads from. Every path is resolved inside it. */
   projectRoot: string;
@@ -141,31 +146,15 @@ export function createViewImageTool(options: CreateViewImageToolOptions): Custom
 
       const absolute = safePathJoin(projectRoot, input.path);
 
-      let bytes: number;
-      try {
-        bytes = statSync(absolute).size;
-      } catch {
-        return json({ ok: false, error: "not_found", path: input.path });
-      }
-
-      // `>` and not `>=`: a file of exactly the limit fits. Off by one here refuses an image the
-      // operator deliberately sized to the cap.
-      if (bytes > maxBytes) {
-        return json({
-          ok: false,
-          error: "image_too_large",
-          path: input.path,
-          bytes,
-          limit_bytes: maxBytes,
-        });
-      }
+      const outcome = readWithinBudget(absolute, maxBytes);
+      if (!outcome.ok) return json(failureFor(outcome, input.path, maxBytes));
 
       return json({
         ok: true,
         path: input.path,
         media_type: mediaType,
-        bytes,
-        data: readFileSync(absolute).toString("base64"),
+        bytes: outcome.bytes,
+        data: outcome.data,
       } satisfies ViewImageOk);
     },
     /**
@@ -193,4 +182,68 @@ export function createViewImageTool(options: CreateViewImageToolOptions): Custom
       ];
     },
   }) as unknown as CustomTool;
+}
+
+/** Outcome of {@link readWithinBudget} — a read that succeeded, or the reason it did not. */
+type ReadOutcome =
+  | { readonly ok: true; readonly bytes: number; readonly data: string }
+  | { readonly ok: false; readonly error: "not_found" }
+  | { readonly ok: false; readonly error: "too_large"; readonly bytes: number };
+
+/**
+ * Sizes and reads one file through a single descriptor, refusing anything over `maxBytes`.
+ *
+ * Its own function for two reasons. It has one responsibility — get the bytes, or say why not —
+ * which the tool handler above does not share; and inlining it pushed the handler past the
+ * repository's cognitive-complexity budget, which is the gate asking for exactly this split
+ * rather than for a suppression.
+ *
+ * The single descriptor is the point (CodeQL js/file-system-race #22). `statSync(path)` followed
+ * by `readFileSync(path)` is two lookups of one name, and the size cap — the only thing keeping an
+ * unbudgeted image out of an LLM's context — described a file that need not be the one returned.
+ * An fd cannot be swapped.
+ */
+function readWithinBudget(absolute: string, maxBytes: number): ReadOutcome {
+  let fd: number;
+  try {
+    fd = openSync(absolute, "r");
+  } catch {
+    return { ok: false, error: "not_found" };
+  }
+
+  try {
+    const bytes = fstatSync(fd).size;
+    // `>` and not `>=`: a file of exactly the limit fits. Off by one here refuses an image the
+    // operator deliberately sized to the cap.
+    if (bytes > maxBytes) return { ok: false, error: "too_large", bytes };
+    return { ok: true, bytes, data: readFileSync(fd).toString("base64") };
+  } finally {
+    // Always — the early return on the size cap must not leak the descriptor.
+    closeSync(fd);
+  }
+}
+
+/**
+ * Turns a refused read into the tool's failure envelope.
+ *
+ * Separate from the handler because it is a mapping, not a decision the handler makes — and
+ * because keeping it inline held the handler one point above the cognitive-complexity budget.
+ */
+function failureFor(
+  outcome: {
+    readonly ok: false;
+    readonly error: "not_found" | "too_large";
+    readonly bytes?: number;
+  },
+  path: string,
+  maxBytes: number,
+): ViewImageFailure {
+  if (outcome.error === "not_found") return { ok: false, error: "not_found", path };
+  return {
+    ok: false,
+    error: "image_too_large",
+    path,
+    bytes: outcome.bytes,
+    limit_bytes: maxBytes,
+  };
 }

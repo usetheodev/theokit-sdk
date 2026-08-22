@@ -151,9 +151,24 @@ export function __TESTING__resetFileLockCache(): void {
 }
 
 /**
- * Options for `withFileLock`.
+ * Retry and staleness tuning for `withFileLock`.
  *
- * @internal
+ * Every field is optional and the defaults are applied per call, so `undefined` means the default
+ * rather than "no limit". They are handed to `proper-lockfile` and have NO effect on the fallback
+ * path: when that package is absent, `withFileLock` degrades to the in-process mutex, which
+ * queues indefinitely and never goes stale.
+ *
+ * `stale` (default 30000 ms) is how old a lock file must be before it is treated as abandoned by a
+ * dead process and broken. Setting it below the longest a legitimate holder can run is what turns
+ * a slow operation into two concurrent ones.
+ *
+ * `retries` (default 5) is the number of acquisition attempts AFTER the first, and `retryFactor`
+ * (default 1.5) the backoff multiplier between them. The per-attempt wait is clamped to
+ * 100–5000 ms, which the caller cannot change. Exhausting the retries rejects — it does not fall
+ * through to running `fn` unlocked.
+ *
+ * @public — re-exported from the semver-protected `@theokit/sdk/persistence` barrel, and (for
+ * back-compat) from the semver-exempt `@theokit/sdk/internal/persistence` alias.
  */
 export interface FileLockOptions {
   /** Stale lock timeout in ms. Default 30_000 (30s). */

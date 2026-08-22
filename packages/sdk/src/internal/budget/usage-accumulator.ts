@@ -20,6 +20,21 @@ interface StepUsage {
   reasoningTokens?: number;
 }
 
+/**
+ * Sums the per-step token counts of a multi-step run into one `TokenUsage`.
+ *
+ * Call `add` once per LLM finish, in any order, then `toTokenUsage` to read the total. The instance
+ * is a running sum, not a snapshot: `toTokenUsage` may be called repeatedly and reflects everything
+ * added so far, and there is no reset — start a new accumulator per run.
+ *
+ * Two shaping rules to expect in the output. The optional counters (cache read, cache write,
+ * reasoning) are omitted entirely when they sum to zero rather than reported as `0`. And the
+ * per-step `requests` array appears only when at least TWO steps were added, so a single-step run
+ * carries totals alone.
+ *
+ * `totalTokens` is input plus output only — cache and reasoning counts are reported separately and
+ * are not folded into it.
+ */
 export class UsageAccumulator {
   private input = 0;
   private output = 0;

@@ -18,10 +18,34 @@ import {
   submit,
   subscribe,
 } from "../../../src/internal/task/registry.js";
-import type { TaskEvent } from "../../../src/types/task.js";
+import type { TaskEvent, TaskState } from "../../../src/types/task.js";
+import { pollUntil } from "../../helpers/poll-until.js";
 
 function nextTick(): Promise<void> {
   return new Promise((r) => setImmediate(r));
+}
+
+/**
+ * B-056 — every wait in this file used to be a fixed sleep between 10ms and 200ms, chosen to be
+ * "long enough" for the registry's fire-and-forget work to reach a state. The state IS observable
+ * (`get(id).state`), so the sleep was guessing at something the test could simply ask for. Under
+ * load those guesses stop being long enough, which is the flake `rules/testing.md` § 6 names.
+ *
+ * A passing run is now never slower than the sleep it replaced, and a state that genuinely never
+ * arrives fails with the state it was waiting for rather than an assertion on stale data.
+ */
+async function waitForState(id: string, ...states: readonly TaskState[]): Promise<void> {
+  await pollUntil(async () => states.includes((await get(id))?.state as TaskState), {
+    // Names the state OBSERVED, not just the one awaited. A message that reports only the wait
+    // ("never reached error") tells you the instrument gave up; one that reports "was 'finished'"
+    // tells you what the code did instead, which is the thing under test.
+    message: async () => {
+      const handle = await get(id);
+      return handle === undefined
+        ? `task ${id} was never registered (expected it to reach ${states.join(" | ")})`
+        : `task ${id} was "${handle.state}" — expected ${states.join(" | ")}`;
+    },
+  });
 }
 
 describe("TaskRegistry — submit lifecycle", () => {
@@ -83,7 +107,7 @@ describe("TaskRegistry — submit lifecycle", () => {
         throw new Error("sync boom");
       },
     });
-    await new Promise((r) => setTimeout(r, 50));
+    await waitForState(handle.id, "error");
     const final = await get(handle.id);
     expect(final?.state).toBe("error");
     expect(final?.error?.message).toContain("sync boom");
@@ -122,7 +146,7 @@ describe("TaskRegistry — cancel", () => {
     const result = await cancel("long");
     expect(result.alreadyTerminal).toBe(false);
     expect(result.cancelled).toBe(true);
-    await new Promise((r) => setTimeout(r, 20));
+    await waitForState(handle.id, "cancelled");
     const final = await get(handle.id);
     expect(final?.state).toBe("cancelled");
   });
@@ -140,16 +164,17 @@ describe("TaskRegistry — cancel", () => {
           });
         }),
     });
-    await new Promise((r) => setTimeout(r, 10));
+    await waitForState(handle.id, "running");
     await cancel(handle.id);
-    await new Promise((r) => setTimeout(r, 30));
+    await waitForState(handle.id, "cancelled");
+    await pollUntil(() => aborted, { message: "work fn never observed the abort" });
     expect(aborted).toBe(true);
     expect((await get(handle.id))?.state).toBe("cancelled");
   });
 
   it("cancel idempotent — second call returns alreadyTerminal", async () => {
     const handle = await submit({ kind: "custom", work: async () => "x" });
-    await new Promise((r) => setTimeout(r, 30));
+    await waitForState(handle.id, "finished");
     await cancel(handle.id);
     const second = await cancel(handle.id);
     expect(second.alreadyTerminal).toBe(true);
@@ -167,7 +192,7 @@ describe("TaskRegistry — subscribe", () => {
 
   it("drains ring buffer for late attach", async () => {
     const handle = await submit({ kind: "custom", work: async () => "done" });
-    await new Promise((r) => setTimeout(r, 50));
+    await waitForState(handle.id, "finished");
     const sub = subscribe(handle.id);
     const out: TaskEvent[] = [];
     for await (const ev of sub) out.push(ev);
@@ -185,7 +210,7 @@ describe("TaskRegistry — subscribe", () => {
       work: () => new Promise(() => {}),
       id: "leak-test",
     });
-    await new Promise((r) => setTimeout(r, 10));
+    await waitForState(handle.id, "running");
     const it = subscribe(handle.id)[Symbol.asyncIterator]();
     // Pull one event then close.
     void it.next();
@@ -201,14 +226,16 @@ describe("TaskRegistry — list + filter", () => {
   it("list returns submitted tasks", async () => {
     await submit({ kind: "custom", work: async () => "a", id: "first" });
     await submit({ kind: "custom", work: async () => "b", id: "second" });
-    await new Promise((r) => setTimeout(r, 30));
+    await pollUntil(async () => (await list({})).length >= 2, {
+      message: "both submitted tasks never appeared in list()",
+    });
     const all = await list({});
     expect(all.length).toBeGreaterThanOrEqual(2);
   });
 
   it("list filters by state", async () => {
-    await submit({ kind: "custom", work: async () => "a" });
-    await new Promise((r) => setTimeout(r, 50));
+    const handle = await submit({ kind: "custom", work: async () => "a" });
+    await waitForState(handle.id, "finished");
     const finished = await list({ state: "finished" });
     expect(finished.every((h) => h.state === "finished")).toBe(true);
   });
@@ -256,7 +283,9 @@ describe("TaskRegistry — concurrency throttle (D369)", () => {
       submit({ kind: "custom", work }),
       submit({ kind: "custom", work }),
     ]);
-    await new Promise((r) => setTimeout(r, 200));
+    await pollUntil(async () => (await list({ state: "finished" })).length >= 4, {
+      message: "the four tasks never all finished",
+    });
     expect(peak).toBeLessThanOrEqual(2);
   });
 });
@@ -274,19 +303,14 @@ describe("TaskRegistry — EC-11 reentrant submit no-deadlock", () => {
           kind: "custom",
           work: async () => "inner-done",
         });
-        // Poll inner till finished
-        for (let i = 0; i < 100; i++) {
-          const h = await get(inner.id);
-          if (h?.state === "finished") {
-            innerResults.push(h.result as string);
-            break;
-          }
-          await new Promise((r) => setTimeout(r, 10));
-        }
+        await pollUntil(async () => (await get(inner.id))?.state === "finished", {
+          message: "reentrant inner task never finished — this is the deadlock the test exists for",
+        });
+        innerResults.push((await get(inner.id))?.result as string);
         return "outer-done";
       },
     });
-    await new Promise((r) => setTimeout(r, 200));
+    await waitForState(outer.id, "finished");
     const finalOuter = await get(outer.id);
     expect(finalOuter?.state).toBe("finished");
     expect(innerResults).toEqual(["inner-done"]);

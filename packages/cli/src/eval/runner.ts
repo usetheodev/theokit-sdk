@@ -15,6 +15,19 @@ import { Eval, type EvalRun, type Scorer as SdkScorer } from "@theokit/sdk/eval"
 
 import type { EvalConfig, EvalRowResult, EvalRunResult } from "./types.js";
 
+/**
+ * Run the suite through the SDK's `Eval.create().run()` and narrow the result to the CLI's shape.
+ *
+ * An empty `dataset` short-circuits: no agent is constructed, no provider is contacted, and a
+ * zero-row result comes back with every aggregate at 0 (`meanScore: 0` there means "nothing ran",
+ * not "everything scored 0").
+ *
+ * Each run gets a fresh `theokit-eval-<8 hex>` name for telemetry correlation (D213), so two runs of
+ * the same config are never conflated. The SDK's richer per-run fields (latency percentiles, token
+ * counts) are dropped here — the markdown report consumes the simple shape.
+ *
+ * Rejects if the underlying run rejects; `theokit eval` turns that into exit 1.
+ */
 export async function runEvalSuite(config: EvalConfig): Promise<EvalRunResult> {
   if (config.dataset.length === 0) {
     return {

@@ -1,10 +1,11 @@
 /**
  * Normalize `serveAcp({ agent })` into a uniform `AgentFactory` (D351).
  *
- * - Function input → passed through as-is.
- * - SDKAgent instance → wrapped in a memoized factory + one-time stderr warning
- *   (single shared agent defeats per-session isolation).
- * - Anything else → ConfigurationError thrown synchronously.
+ * - Function input → passed through as-is. NOT duck-tested: any function is accepted, and a bad
+ *   return value only surfaces when the first session is created.
+ * - SDKAgent-shaped object → wrapped in a factory that returns that same instance for every session,
+ *   plus a one-time warning through `log` (a shared agent defeats per-session isolation).
+ * - Anything else → `InvalidAgentError` thrown synchronously.
  *
  * @internal
  */
@@ -21,6 +22,7 @@ function looksLikeSDKAgent(value: unknown): value is SDKAgent {
   );
 }
 
+/** Thrown when `serveAcp({ agent })` is neither a function nor an object with `agentId` + `send`. */
 export class InvalidAgentError extends Error {
   override readonly name = "InvalidAgentError";
 }
@@ -29,6 +31,15 @@ interface ResolverOptions {
   log?: (msg: string) => void;
 }
 
+/**
+ * Normalize `agent` into a factory, or throw before any protocol runs.
+ *
+ * The warning for the shared-instance case fires once per resolver, on the FIRST session — so a
+ * single session is enough to see it, and only a host that opens NO session never does. It is
+ * emitted from the returned factory, not from this call: resolving is silent.
+ *
+ * @throws InvalidAgentError when `input` is neither a function nor SDKAgent-shaped.
+ */
 export function resolveAgentFactory(
   input: AgentOrFactory,
   options: ResolverOptions = {},

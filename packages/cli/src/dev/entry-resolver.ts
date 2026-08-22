@@ -7,7 +7,11 @@
  *  3. `src/index.ts` (or `.js` / `.mjs` / `.tsx`).
  *  4. `index.ts` at cwd root.
  *
- * Throws `entry_not_found` when nothing matches.
+ * Note the order: `package.json` `main` beats `src/index.ts`. In a project whose `main` points at a
+ * BUILT file (`dist/index.js`), `theokit dev` watches the build output rather than the source, which
+ * looks like hot-reload silently not working.
+ *
+ * Throws an `Error` whose `code` is `entry_not_found` when nothing matches.
  *
  * @internal
  */
@@ -60,6 +64,18 @@ function resolveFromCandidates(cwd: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Resolve the file `theokit dev` / `theokit acp` should load, as an absolute path.
+ *
+ * Existence is the only test — the file is not parsed and its extension is not checked, so a
+ * `--entry` pointing at a `.json` resolves happily and fails later at import.
+ *
+ * A `package.json` that cannot be parsed is not an error: it is skipped and the fallback candidates
+ * are tried. Same for a `main` that points at a missing file.
+ *
+ * @throws Error with `code === "entry_not_found"` — for an explicit path that does not exist, or
+ * when no candidate matched.
+ */
 export function resolveEntry(cwd: string, explicit?: string): string {
   if (explicit !== undefined && explicit.length > 0) return resolveFromExplicit(cwd, explicit);
   const fromPkg = resolveFromPackageJson(cwd);

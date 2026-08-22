@@ -1,10 +1,10 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { Agent } from "../../../src/index.js";
 import { parseSkillFrontmatter } from "../../../src/internal/runtime/skills/skill-frontmatter.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * ADR D10 + EC-5 — strict frontmatter schema for skills, malformed YAML
@@ -67,6 +67,10 @@ describe("SkillsManager — broken skills are skipped, not fatal (EC-5)", () => 
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-skills-strict-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
   });
 
   it("logs and excludes a malformed skill; the good skill remains listed", async () => {

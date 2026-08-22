@@ -25,6 +25,15 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "embedding-001": 768,
 };
 
+/**
+ * Google Gemini embeddings through Google's OpenAI-compatible surface at
+ * `/v1beta/openai/embeddings`. Gemini's native embedding endpoint
+ * (`/v1beta/models/{model}:embedContent`) has a different shape and is
+ * deliberately not used, so this composes with the shared runtime like the rest.
+ *
+ * Both known models are 768 dimensions. Reads `GEMINI_API_KEY`; no base-URL
+ * environment override is declared. Priority 30.
+ */
 export const geminiMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "gemini",
   defaultModel: DEFAULT_GEMINI_EMBEDDING_MODEL,

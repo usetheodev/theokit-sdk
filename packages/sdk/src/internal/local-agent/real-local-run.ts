@@ -26,7 +26,11 @@ import { registerRun } from "../runtime/registry/run-registry.js";
 import type { SessionMessage } from "../session/index.js";
 import { createTelemetry } from "../telemetry/tracer.js";
 import { McpClientPool } from "./mcp-pool.js";
-import { detectPrimaryProvider, inferProviderFromApiKey } from "./real-local-run-provider.js";
+import {
+  detectPrimaryProvider,
+  inferProviderFromApiKey,
+  warnProviderPrecedenceOnce,
+} from "./real-local-run-provider.js";
 import { buildCustomToolsInput, resolveInheritedCredentials } from "./real-local-run-tools.js";
 
 /**
@@ -162,6 +166,11 @@ export function resolveRunProvider(options: CreateRealLocalRunOptions): {
     keyInferredProvider ??
     modelInferredProvider ??
     detectPrimaryProvider();
+  // The precedence above is deliberate, but it used to be silent: a caller writing
+  // `model: { id: "e2elocal/gpt-4o-mini" }` and receiving `openai API error: auth_failed` had no
+  // way to learn their prefix had been overruled, because the error names only the winner
+  // (B-156). `error-handling.md` § 2 asks that a substitution be visible.
+  warnProviderPrecedenceOnce(modelInferredProvider, primary);
   // Strip the vendor prefix ONLY when the model's own prefix names the resolved
   // primary (anthropic/claude → claude for the anthropic provider). When primary
   // is an aggregator (openrouter) whose slug legitimately embeds a `vendor/`
@@ -343,15 +352,6 @@ function buildLoopInputs(
       : {}),
   };
 }
-
-/**
- * Resolve the effective custom-tool catalog for this run.
- *
- * Precedence (matches the mcpServers semantics — "fully replaces, not merged"):
- *  - `sendOptions.tools === undefined` → fall back to `agentOptions.tools`
- *  - `sendOptions.tools = []`         → explicitly clear (no custom tools)
- *  - `sendOptions.tools = [t1, ...]`  → use exactly these for this run
- */
 
 /**
  * M77 — the process-wide pool backing `mcpLifecycle: 'session'`.

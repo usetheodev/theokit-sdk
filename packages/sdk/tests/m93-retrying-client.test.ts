@@ -23,7 +23,6 @@ const failingClient = (errors: unknown[]): { client: LlmClient; attempts: () => 
   let n = 0;
   const client: LlmClient = {
     name: "fake",
-    // eslint-disable-next-line @typescript-eslint/require-await
     // biome-ignore lint/correctness/useYield: a transport that ONLY fails — not emitting is the point
     async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
       const error = errors[n];

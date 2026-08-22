@@ -26,7 +26,16 @@ import { TheokitAgentError } from "./errors.js";
 /** Why the destruction was refused. @public */
 export type LiveSessionReason = "session-is-live" | "liveness-undetermined";
 
-/** @public */
+/**
+ * Raised by `guardSessionDestruction` instead of letting a session be destroyed.
+ *
+ * Read `reason` rather than the message when deciding what to do: `"session-is-live"` is fixed by
+ * closing the other session, `"liveness-undetermined"` is fixed by making the liveness check work
+ * again, and telling a user to close a session when nothing could be read sends them to close
+ * nothing. `sessionId` carries the session the refusal was about.
+ *
+ * @public
+ */
 export class LiveSessionError extends TheokitAgentError {
   override readonly name = "LiveSessionError";
   readonly sessionId: string;

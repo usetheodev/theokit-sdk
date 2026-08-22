@@ -42,6 +42,12 @@ import type { IndexStatus, MemorySearchHit, SearchOptions } from "./index-manage
 // (rollup#4860-class pattern). Internal sdk-memory consumers should
 // import these types directly from `./index-manager-contract.js`.
 
+/**
+ * What one `sync()` did. `filesScanned` counts every markdown file discovered,
+ * including the unchanged ones; `filesUpdated` counts only those whose content
+ * hash moved. `chunksEmbedded` is 0 on an index with no embedding runtime, and
+ * also on a hybrid index where every chunk already had a vector.
+ */
 export interface SyncResult {
   filesScanned: number;
   filesUpdated: number;
@@ -65,6 +71,15 @@ export function parseSearchOptions(options: SearchOptions = {}): {
   };
 }
 
+/**
+ * The four operations both backends implement, and the type every consumer
+ * should hold. `IndexManager.open` returns this rather than a concrete class
+ * precisely so `backend: "lance"` can be swapped in without changing the caller.
+ *
+ * The two backends differ in what they can honour, and the differences are
+ * visible in the results rather than in the types — see `sync` and `search`
+ * below, and `LanceMemoryAdapter` for the full list.
+ */
 export interface MemoryIndex {
   /**
    * Walk the memory corpus + reindex changed files. Lance backend has no
@@ -75,8 +90,8 @@ export interface MemoryIndex {
 
   /**
    * Semantic + textual search over the indexed corpus. Both backends
-   * return the same `MemorySearchHit[]` shape; Lance leaves `textScore`
-   * undefined (vector-only — no FTS5 layer).
+   * return the same `MemorySearchHit[]` shape; Lance reports `textScore` as 0
+   * on every hit, because it is vector-only and has no FTS5 layer.
    */
   search(query: string, options?: SearchOptions): Promise<MemorySearchHit[]>;
 

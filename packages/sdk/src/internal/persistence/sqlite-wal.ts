@@ -1,5 +1,3 @@
-import { diag } from "../diagnostics.js";
-
 /**
  * SQLite WAL mode helper with NFS/SMB/FUSE fallback to DELETE (ADR D63).
  *
@@ -7,17 +5,38 @@ import { diag } from "../diagnostics.js";
  * network/FUSE filesystems. Try WAL; if the pragma returns something else
  * or throws, fall back to DELETE journal mode. Warn one time per label.
  *
- * @internal
+ * This block is the MODULE header and must stay at offset 0. Sitting below the import it became a
+ * leading comment of the first declaration instead, which is how its tag deleted `PragmaCapable`
+ * from the emitted `.d.ts` while `applyWalWithFallback` — which names it — survived.
  */
 
+import { diag } from "../diagnostics.js";
+
+/**
+ * The narrow slice of a SQLite handle this module needs: anything with a `pragma()` method, which
+ * `better-sqlite3` satisfies without being named here.
+ *
+ * Not exported, but it appears in the signature of `applyWalWithFallback`, so it is emitted into
+ * the published declarations and a consumer can structurally satisfy it.
+ */
 interface PragmaCapable {
   pragma: (statement: string, options?: { simple?: boolean }) => unknown;
 }
 
 /**
- * Result of `applyWalWithFallback`.
+ * What journal mode a connection ended up in after `applyWalWithFallback`.
  *
- * @internal
+ * `mode` is the mode actually in effect, never the one that was requested. `fellBack` is `true`
+ * only when WAL was attempted and refused — either the pragma threw or it reported a mode other
+ * than `wal` — and the connection was put into DELETE instead.
+ *
+ * `fellBack: true` is normal on NFS, SMB and FUSE, where WAL needs shared memory the filesystem
+ * does not provide. It is not an error and nothing further is required of the caller; the
+ * consequence is slower concurrent access, since DELETE mode does not allow readers alongside a
+ * writer. Treat it as a signal about the storage, not about the database.
+ *
+ * @public — re-exported from the semver-protected `@theokit/sdk/persistence` barrel, and (for
+ * back-compat) from the semver-exempt `@theokit/sdk/internal/persistence` alias.
  */
 export interface WalApplyResult {
   /** Final journal_mode actually in effect. */

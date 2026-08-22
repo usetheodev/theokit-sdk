@@ -27,6 +27,20 @@ async function* walkDts(dir) {
   }
 }
 
+// B-101 — `walkDts` above walks INSIDE a listed target (a directory entry recurses through
+// it looking for `.d.ts` files); it is never used to DISCOVER the target list itself. That is
+// deliberate, not an oversight: mirroring every `.d.ts` under `dist/` would include internal
+// declarations no `package.json` `exports` entry points at, and mirroring those is waste, not
+// harm, but waste nobody asked for. The explicit list below is scoped to what is actually
+// published.
+//
+// Because the list is explicit and hand-maintained, nothing forces it to agree with
+// `package.json` `exports` — that was B-101's actual defect (adding a sub-entry here, or to
+// `tsconfig.tools-dts.json`, was silently optional; only `publint` noticed, ~10 minutes into
+// `pnpm -w run validate`). `scripts/check-subentry-consistency.mjs` closes that gap: it derives
+// the expected target set FROM `package.json` `exports` and fails fast (wired into the root
+// `check` script) when this list — or `tsconfig.tools-dts.json`'s `include`, or
+// `tsup.config.ts`'s `entry` — falls out of sync with what is published.
 const targets = [
   // M1-5: SDKMessage readers sub-path.
   join(DIST, "messages.d.ts"),

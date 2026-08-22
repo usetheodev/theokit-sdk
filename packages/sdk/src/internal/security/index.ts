@@ -6,7 +6,9 @@
  * `internal/runtime/agent-session-store.ts`,
  * `internal/memory/migrate-sqlite-to-lance.ts`.
  *
- * @internal
+ * Semver-exempt: the `@theokit/sdk/internal/security` sub-path exists for packages extracted out of
+ * this one and is NOT covered by the package's semver contract. It IS declared in `package.json`
+ * `exports`, so every name below must survive into the published declarations.
  */
 
 export {

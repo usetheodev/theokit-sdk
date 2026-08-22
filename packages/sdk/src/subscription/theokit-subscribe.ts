@@ -37,6 +37,19 @@ export interface SubscribeOptions {
   signal?: AbortSignal;
   /** Additional fetch-style headers (e.g., `Authorization`). */
   headers?: Record<string, string>;
+  /**
+   * Override the SSE transport's `fetch`. Defaults to `globalThis.fetch`.
+   * Lets a consumer supply a proxying agent or instrumented fetch without
+   * mutating the runtime global.
+   */
+  fetch?: typeof globalThis.fetch;
+  /**
+   * Override the WS transport's `WebSocket` constructor. Defaults to
+   * `globalThis.WebSocket`. Lets a consumer polyfill WS on a runtime that
+   * lacks it, or supply an instrumented implementation, without mutating
+   * the runtime global.
+   */
+  WebSocket?: typeof WebSocket;
 }
 
 const defaultRetry = (attempt: number) => Math.min(30_000, 1000 * 2 ** attempt);
@@ -120,7 +133,8 @@ async function* openSse<T>(
   opts: SubscribeOptions,
 ): AsyncIterable<FrameOut<T>> {
   const url = `${stripTrailingSlash(opts.baseUrl)}/api/subscriptions/${encodeURIComponent(name)}?input=${encodeURIComponent(JSON.stringify(input))}`;
-  const res = await fetch(url, {
+  const fetchFn = opts.fetch ?? globalThis.fetch;
+  const res = await fetchFn(url, {
     method: "GET",
     headers: {
       accept: "text/event-stream",
@@ -164,10 +178,10 @@ async function* openWs<T>(
     .replace(/^https:/, "wss:")
     .concat("/api/ws");
 
-  const WS = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
+  const WS = opts.WebSocket ?? (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
   if (WS === undefined) {
     throw new SubscriptionError(
-      "Theokit.subscribe(transport='ws'): no global WebSocket available. Use Node >=22 or install 'ws' as a runtime dep + assign to globalThis.WebSocket.",
+      "Theokit.subscribe(transport='ws'): no global WebSocket available. Use Node >=22 or install 'ws' as a runtime dep + assign to globalThis.WebSocket, or pass opts.WebSocket.",
       { code: "ws_global_missing" },
     );
   }
@@ -257,12 +271,13 @@ async function* openWs<T>(
 async function selectTransport(
   pref: SubscriptionTransport,
   _name: string,
-  _opts: SubscribeOptions,
+  opts: SubscribeOptions,
 ): Promise<"ws" | "sse"> {
   if (pref === "ws") return "ws";
   if (pref === "sse") return "sse";
-  // auto — prefer WS if available, else SSE.
-  if (typeof (globalThis as { WebSocket?: unknown }).WebSocket === "function") {
+  // auto — prefer WS if available (injected or global), else SSE.
+  const WS = opts.WebSocket ?? (globalThis as { WebSocket?: unknown }).WebSocket;
+  if (typeof WS === "function") {
     return "ws";
   }
   return "sse";
@@ -293,13 +308,31 @@ async function* streamToAsyncIterable(
   stream: ReadableStream<Uint8Array>,
 ): AsyncIterable<Uint8Array> {
   const reader = stream.getReader();
+  let finishedNaturally = false;
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) return;
+      if (done) {
+        finishedNaturally = true;
+        return;
+      }
       if (value !== undefined) yield value;
     }
   } finally {
+    // B-131: `releaseLock()` alone detaches the reader WITHOUT canceling the stream (WHATWG
+    // Streams spec) — the underlying `fetch` response body, and its socket, stays open until
+    // something else cancels it or reads it to completion. A consumer that breaks out of the
+    // subscription mid-stream (the ordinary shape: `for await ... break`) used to leave that
+    // connection dangling. `cancel()` is a no-op once the stream is already closed, so it is safe
+    // to call unconditionally on the early-exit path; skip it on natural completion, where the
+    // stream is already done and canceling only risks surfacing a spurious rejection.
+    if (!finishedNaturally) {
+      try {
+        await reader.cancel();
+      } catch {
+        /* best-effort cleanup — the caller's own error (if any) already takes precedence */
+      }
+    }
     reader.releaseLock();
   }
 }

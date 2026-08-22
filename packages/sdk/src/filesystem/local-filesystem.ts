@@ -42,6 +42,24 @@ import {
   type WriteFileOptions,
 } from "./types.js";
 
+/**
+ * {@link FilesystemBackend} over the real filesystem (`node:fs/promises`), with every path resolved
+ * inside `basePath` and escapes rejected.
+ *
+ * ```ts
+ * const fs = new LocalFilesystem({ basePath: "/srv/workspace", readOnly: false });
+ * await fs.writeFile("notes/today.md", "hello");   // /srv/workspace/notes/today.md
+ * await fs.readFile("../../etc/passwd");           // FilesystemSecurityError
+ * ```
+ *
+ * Two things a caller gets wrong. First, the default `basePath` is `process.cwd()` — see
+ * {@link FilesystemConfig}. Second, the security boundary is checked BEFORE the read-only flag, on
+ * purpose: a traversal path against a read-only backend reports the security error, not the
+ * read-only one, so the more serious condition is the one you see.
+ *
+ * Errors are normalised — a missing file, a stale `expectedMtime`, a boundary escape and a write to
+ * a read-only backend each raise their own typed error rather than a raw `ENOENT`-shaped one.
+ */
 export class LocalFilesystem extends FilesystemBackend {
   constructor(config: FilesystemConfig = {}) {
     super(config);

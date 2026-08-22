@@ -4,7 +4,12 @@ import type { EmbeddingCache } from "./embedding-adapter.js";
  * Bounded in-memory LRU cache for embeddings, keyed by `sha256(text)` (or any
  * stable key the caller chooses).
  *
- * @internal
+ * Recency is tracked by Map insertion order: `get` re-inserts the hit so it becomes the newest,
+ * and `set` evicts the oldest key once `capacity` (default 5000) is reached. Nothing here bounds
+ * the size of a single VALUE, so capacity is a count of vectors, not a memory budget.
+ *
+ * Semver-exempt: reachable via the `@theokit/sdk/internal/memory-adapters` sub-path, which the
+ * package declares in `exports` but does NOT cover with its semver contract.
  */
 export class LruEmbeddingCache implements EmbeddingCache {
   private readonly map = new Map<string, number[]>();
@@ -53,7 +58,8 @@ export class LruEmbeddingCache implements EmbeddingCache {
  * and pass it explicitly — the singleton is the DEFAULT, not the
  * only option.
  *
- * @internal
+ * Semver-exempt: reachable via the `@theokit/sdk/internal/memory-adapters` sub-path, which the
+ * package declares in `exports` but does NOT cover with its semver contract.
  */
 export const globalEmbeddingCache: EmbeddingCache = new LruEmbeddingCache();
 

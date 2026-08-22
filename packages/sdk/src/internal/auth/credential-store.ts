@@ -29,7 +29,13 @@ import { AuthenticationError } from "../../errors.js";
  * APP POLICY and deliberately stay UP in the consumer; this module owns only the on-disk store + the
  * `api|oauth` discriminated union. See {@link resolveCredential} (SDK) for the store-read + refresh path.
  *
- * @internal
+ * Re-exported from `@theokit/sdk/auth`, and therefore PUBLIC, under semver.
+ *
+ * NOTE — no internal-visibility tag in this block. `tsconfig.base.json` sets `stripInternal: true`,
+ * and TypeScript scans EVERY leading comment range of the declaration that follows, including the
+ * import right below this one. The tag that used to sit here deleted that import from the emitted
+ * `.d.ts`, leaving the types it binds unresolvable for any consumer running type-aware lint
+ * (usetheodev/theokit-sdk#283 records the same trap on a declaration).
  */
 import type {
   CredentialStoreConfig,
@@ -108,12 +114,6 @@ const oauthFileSchema = z
 const fileSchema = z.union([oauthFileSchema, apiFileSchema]);
 
 /**
- * Read the credential file. Absent ⇒ `undefined` (the normal case). Present-but-wrong is a typed error
- * naming the file: a malformed credential store must not surface as a raw parse crash. Enforces the
- * 0700 dir / 0600 file mode gates (ported verbatim — a writable dir lets an attacker swap the file for a
- * symlink to their own account).
- */
-/**
  * The 0700-dir / 0600-file mode gates (ported verbatim). The DIRECTORY matters as much as the file:
  * `mkdirSync(mode)` applies only at creation, so a pre-existing store dir keeps whatever mode it had, and a
  * writable dir lets an attacker replace the credential file with a symlink to their own 0600 file — the
@@ -183,6 +183,12 @@ function parseStoredFile(raw: string, path: string): StoredCredential {
   }
 }
 
+/**
+ * Read the credential file. Absent ⇒ `undefined` (the normal case). Present-but-wrong is a typed error
+ * naming the file: a malformed credential store must not surface as a raw parse crash. Enforces the
+ * 0700 dir / 0600 file mode gates (ported verbatim — a writable dir lets an attacker swap the file for a
+ * symlink to their own account).
+ */
 export function readAuthFile(
   config: CredentialStoreConfig,
   env: Record<string, string | undefined> = {},
@@ -221,13 +227,6 @@ function isOAuthWrite(
   return "type" in c && c.type === "oauth";
 }
 
-/**
- * Persist a credential atomically at mode `0600`. Ported VERBATIM (ADR D3): write to a random-named temp
- * file in the same directory with `wx` (O_EXCL), fsync, close, chmod, then `rename` (atomic on POSIX) —
- * so a crash mid-write leaves whatever was there untouched, and a pre-planted symlink cannot capture the
- * key. The api variant persists the unchanged `{provider, api_key}` (back-compat, no `type` key); the
- * oauth variant persists `{type:'oauth', provider, access, refresh, expires, account_id?}`.
- */
 /** Build the on-disk JSON payload for the credential variant, validating non-empty tokens. */
 function buildStorePayload(
   cred: { provider: string; apiKey: string } | StoredOAuthCredential,
@@ -253,6 +252,13 @@ function buildStorePayload(
   return { provider: cred.provider, api_key: cred.apiKey };
 }
 
+/**
+ * Persist a credential atomically at mode `0600`. Ported VERBATIM (ADR D3): write to a random-named temp
+ * file in the same directory with `wx` (O_EXCL), fsync, close, chmod, then `rename` (atomic on POSIX) —
+ * so a crash mid-write leaves whatever was there untouched, and a pre-planted symlink cannot capture the
+ * key. The api variant persists the unchanged `{provider, api_key}` (back-compat, no `type` key); the
+ * oauth variant persists `{type:'oauth', provider, access, refresh, expires, account_id?}`.
+ */
 export function writeCredential(
   cred: { provider: string; apiKey: string } | StoredOAuthCredential,
   config: CredentialStoreConfig,

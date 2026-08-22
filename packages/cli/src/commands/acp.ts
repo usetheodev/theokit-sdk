@@ -2,6 +2,13 @@
  * `theokit acp` CLI subcommand — launches an ACP stdio server pointing at
  * the resolved entry file's default-exported `SDKAgent` or factory.
  *
+ * Needs `@theokit/acp` installed in the consuming project (optional peer dependency of this package)
+ * and an entry module whose default export is an `SDKAgent` or `(sessionId) => SDKAgent`.
+ *
+ * Exit codes: `0` when the host disconnects cleanly; `2` for a user error (entry not found, entry
+ * exports the wrong thing, bad `--permission` or `--permission-timeout-ms`); `1` when the entry
+ * throws on import, `@theokit/acp` is missing, or the server itself fails.
+ *
  * ADRs D357 + EC-4 (CJS interop fallback).
  *
  * @internal
@@ -10,10 +17,18 @@
 import { pathToFileURL } from "node:url";
 import { resolveEntry } from "../dev/entry-resolver.js";
 
+/**
+ * Flags for {@link runAcp}. All values arrive as strings from commander — the numeric and enum
+ * checks live in this module, not in the type.
+ */
 export interface AcpOptions {
+  /** Entry module. Defaults to `package.json` `main`, then `src/index.ts` and siblings. */
   entry?: string;
+  /** `ask` (default), `auto`, or `deny`. Anything else exits 2. */
   permission?: "ask" | "auto" | "deny";
+  /** Comma-separated tool names. Effective in `ask` mode ONLY — `deny` blocks these too. */
   trustedTools?: string;
+  /** Positive integer, milliseconds. Anything else exits 2. Only used in `ask` mode. */
   permissionTimeoutMs?: string;
 }
 
@@ -131,6 +146,24 @@ async function importServeAcp(): Promise<
   }
 }
 
+/**
+ * Load the entry's default export and serve it over ACP on stdio, blocking until the host
+ * disconnects.
+ *
+ * Importing the entry EXECUTES it: top-level side effects (a server bound to a port, a `console.log`)
+ * happen before the protocol starts, and anything written to stdout corrupts the JSON-RPC stream.
+ *
+ * The entry is validated by shape, not by type — any function passes, and a bad factory only fails
+ * when the host opens its first session. Note the ordering: the entry is resolved and imported
+ * BEFORE the flags are parsed, so an invalid `--permission` on a project with no entry file reports
+ * the entry problem.
+ *
+ * Only four `AcpServerOptions` fields are wired here (`agent`, `permissionDefault`, `trustedTools`,
+ * `permissionTimeoutMs`); `maxPromptBytes`, `capabilities`, `info` and `log` keep their defaults and
+ * cannot be set from the command line.
+ *
+ * @returns the process exit code (0 / 1 / 2 as described at the top of this file).
+ */
 export async function runAcp(opts: AcpOptions): Promise<number> {
   const agentRes = await loadAgentFromEntry(opts.entry);
   if (!agentRes.ok) return agentRes.exitCode;

@@ -1,3 +1,12 @@
+/**
+ * Real OpenAI Chat Completions client. Streams `/v1/chat/completions` and
+ * translates delta chunks into our provider-agnostic `LlmEvent`s.
+ *
+ * Uses native `fetch` only — no `openai` SDK dependency.
+ *
+ * @internal
+ */
+
 import { NetworkError } from "../../errors.js";
 import { diag } from "../diagnostics.js";
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
@@ -21,15 +30,6 @@ import type {
   LlmStopReason,
   LlmToolCallPart,
 } from "./types.js";
-
-/**
- * Real OpenAI Chat Completions client. Streams `/v1/chat/completions` and
- * translates delta chunks into our provider-agnostic `LlmEvent`s.
- *
- * Uses native `fetch` only — no `openai` SDK dependency.
- *
- * @internal
- */
 
 /**
  * M45 — derive the chat-completions path from the baseUrl: a path already carrying a version segment

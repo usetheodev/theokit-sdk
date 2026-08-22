@@ -9,8 +9,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-
+import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 import { Agent } from "../../../src/index.js";
 import type { SessionRecord } from "../../../src/internal/persistence/session-transcript.js";
 import {
@@ -19,6 +18,7 @@ import {
 } from "../../../src/internal/runtime/registry/agent-registry.js";
 import { clearAllSessions } from "../../../src/internal/session/agent-session.js";
 import type { SessionStore } from "../../../src/types/session-store.js";
+import { removeTempDirRobustSync } from "../../helpers/temp-workspace.js";
 import { resolveRealLlmEnv } from "./_helpers/real-llm-env.js";
 
 class MapSessionStore implements SessionStore {
@@ -46,6 +46,10 @@ describe.skipIf(env.shouldSkip)(
     it("a resumed agent recalls a codeword from the external store (no local FS)", async () => {
       const store = new MapSessionStore();
       const cwd = mkdtempSync(join(tmpdir(), "se41-real-"));
+      const __cwdCleanup1 = cwd;
+      onTestFinished(() => {
+        removeTempDirRobustSync(__cwdCleanup1);
+      });
       const agentId = "agent-se41-real";
       const providers = { routes: [{ capability: "chat" as const, provider: "openrouter" }] };
 

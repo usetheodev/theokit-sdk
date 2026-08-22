@@ -13,12 +13,12 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
-
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
 import type { LlmClient, LlmEvent, LlmFinish } from "../../../src/internal/llm/types.js";
 import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
 import type { ConversationTurn } from "../../../src/types/conversation.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 const SIG_ROUND_1 = "SIGNATURE-FOR-ROUND-ONE";
 const SIG_ROUND_2 = "SIGNATURE-FOR-ROUND-TWO";
@@ -88,6 +88,10 @@ describe("theokit#122 — thinking stays with the round that produced it", () =>
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-thinking-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await writeFile(join(cwd, "data.txt"), "answer-is-42\n");
   });
 

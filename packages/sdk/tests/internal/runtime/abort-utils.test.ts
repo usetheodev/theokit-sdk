@@ -11,8 +11,10 @@ import {
 } from "../../../src/internal/runtime/concurrency/abort-utils.js";
 
 describe("anySignal — native path", () => {
-  it("uses AbortSignal.any when available", () => {
-    if (typeof AbortSignal.any !== "function") return; // Skip on legacy runtimes
+  // B-126: was `if (typeof AbortSignal.any !== "function") return;` inside the body, so a legacy
+  // runtime reported PASS having asserted nothing about the native path. Gated at collection time,
+  // it reports SKIPPED and the count is visible.
+  it.skipIf(typeof AbortSignal.any !== "function")("uses AbortSignal.any when available", () => {
     const c1 = new AbortController();
     const c2 = new AbortController();
     const composed = anySignal([c1.signal, c2.signal]);

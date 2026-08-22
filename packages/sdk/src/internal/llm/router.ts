@@ -74,17 +74,26 @@ function buildChain(options: ProviderRouterOptions): LlmClient[] {
 
   const seen = new Set<string>();
   const clients: LlmClient[] = [];
-  const addClient = (name: ProviderName): void => {
+  // `perCallBaseUrl` reaches ONLY the provider the model id names. It comes from
+  // `ModelSelection.url`, documented above as "the endpoint THIS call should reach" — and a
+  // fallback provider is a different endpoint by definition. Handing it to every client made a
+  // fallback inherit the primary's host, so it could never reach its own: measured at primary 6
+  // requests / fallback 0 (B-151). The irony was on the record — this field exists to stop a
+  // process-wide setting hijacking models it was not meant for, and within a chain it was doing
+  // exactly that itself.
+  const addClient = (name: ProviderName, perCallBaseUrl?: string): void => {
     const lowered = name.toLowerCase();
     if (seen.has(lowered)) return;
     seen.add(lowered);
-    const client = buildClient(lowered, options);
+    const client = buildClient(lowered, options, perCallBaseUrl);
     // D14: wrap every resolved client with the fault-injection decorator.
     // The wrapper is a cheap noop unless `NODE_ENV=test` AND
     // `THEOKIT_TEST_RESPONSE_OVERRIDE` are both set — production is unaffected.
     if (client !== undefined) clients.push(maybeWrapWithFaultInjection(client));
   };
-  addClient(options.primary);
+  addClient(options.primary, options.baseUrl);
+  // No `perCallBaseUrl`: each fallback resolves its own endpoint from its profile and its own
+  // `*_API_BASE_URL`, which is what makes a fallback a different destination rather than a retry.
   for (const fallback of options.fallback ?? []) addClient(fallback);
   if (clients.length === 0) {
     throw new ConfigurationError(
@@ -96,7 +105,11 @@ function buildChain(options: ProviderRouterOptions): LlmClient[] {
   return clients;
 }
 
-function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmClient | undefined {
+function buildClient(
+  name: string,
+  routerOptions: ProviderRouterOptions,
+  perCallBaseUrl?: string,
+): LlmClient | undefined {
   const baseProfile = getProviderProfile(name);
   if (baseProfile === undefined) return undefined;
   // theokit#58 follow-up: per-run route opt-in clones the resolved profile with
@@ -118,16 +131,16 @@ function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmCli
     return new RetryingLlmClient(
       new PoolAwareLlmClient(
         ambient,
-        (apiKey) => selectTransport(profile, apiKey, routerOptions.baseUrl),
+        (apiKey) => selectTransport(profile, apiKey, perCallBaseUrl),
         undefined,
         resilience,
       ),
     );
   }
   const poolKeys = filterPoolKeys(routerOptions.apiKeys?.[name]);
-  const noAuthOverride = maybeBuildNoAuthTransport(profile, poolKeys, routerOptions.baseUrl);
+  const noAuthOverride = maybeBuildNoAuthTransport(profile, poolKeys, perCallBaseUrl);
   if (noAuthOverride !== undefined) return noAuthOverride;
-  return buildPoolOrSingle({ name, profile, poolKeys, routerOptions });
+  return buildPoolOrSingle({ name, profile, poolKeys, routerOptions, perCallBaseUrl });
 }
 
 /**
@@ -155,8 +168,10 @@ function buildPoolOrSingle(args: {
   profile: ProviderProfile;
   poolKeys: string[] | undefined;
   routerOptions: ProviderRouterOptions;
+  /** `ModelSelection.url`, and ONLY for the provider the model id names — see `addClient`. */
+  perCallBaseUrl: string | undefined;
 }): LlmClient | undefined {
-  const { name, profile, poolKeys, routerOptions } = args;
+  const { name, profile, poolKeys, routerOptions, perCallBaseUrl } = args;
   if (poolKeys !== undefined && poolKeys.length >= 2) {
     const strategy = routerOptions.credentialPoolStrategy?.[name] ?? "fill_first";
     const entries = poolKeys.map((accessToken, priority) =>
@@ -171,7 +186,7 @@ function buildPoolOrSingle(args: {
     return new RetryingLlmClient(
       new PoolAwareLlmClient(
         pool,
-        (apiKey) => selectTransport(profile, apiKey, routerOptions.baseUrl),
+        (apiKey) => selectTransport(profile, apiKey, perCallBaseUrl),
         undefined,
         resilience,
       ),
@@ -191,17 +206,23 @@ function buildPoolOrSingle(args: {
   // M93 — the ONE-key arm returned the RAW transport, with no retry at all. A pool of 1 key is a
   // pool of size 1: what changes between 1 and 2 keys is whether there is somewhere to rotate to, not
   // whether resilience exists. The typical consumer resolves exactly one credential and always landed here.
-  return new RetryingLlmClient(selectTransport(profile, apiKey, routerOptions.baseUrl));
+  return new RetryingLlmClient(selectTransport(profile, apiKey, perCallBaseUrl));
 }
 
+/**
+ * Base-URL override read from the environment, for the providers that document one.
+ *
+ * `ollama` is deliberately absent. It never reached this switch: `selectTransport` returns
+ * `OllamaNativeClient` for it before the `chat_completions` body runs, so `OLLAMA_HOST` is read at
+ * that earlier branch instead. The arm that used to sit here was unreachable and read like the
+ * mechanism implementing `OLLAMA_HOST` — a decoy that cost a measurement pass (B-097).
+ */
 function resolveBaseUrlEnvOverride(providerName: string): string | undefined {
   switch (providerName) {
     case "openai":
       return process.env.OPENAI_API_BASE_URL;
     case "openrouter":
       return process.env.OPENROUTER_API_BASE_URL;
-    case "ollama":
-      return process.env.OLLAMA_HOST;
     case "lmstudio":
       return process.env.LMSTUDIO_HOST;
     case "llamacpp":
@@ -390,9 +411,10 @@ function selectTransport(
       opts.organization = process.env.OPENAI_ORGANIZATION;
     }
     // Honor explicit base URL overrides for cloud providers + the local
-    // `authType: "none"` family (D182, D188, D189). All four `_HOST` /
+    // `authType: "none"` family (D188, D189). All four `_HOST` /
     // `_API_BASE_URL` vars are intentionally separate so users can mix
-    // remote-box pointing without disturbing the others.
+    // remote-box pointing without disturbing the others. Ollama is NOT one of
+    // them here — it returns above, and reads `OLLAMA_HOST` on that branch.
     const envOverride = resolveBaseUrlEnvOverride(profile.name);
     if (envOverride !== undefined) opts.baseUrl = envOverride;
     // #332 — last, so the model's own endpoint outranks the process-wide env var above.

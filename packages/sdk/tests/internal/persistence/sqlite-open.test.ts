@@ -50,8 +50,11 @@ afterAll(async () => {
 });
 
 describe.skipIf(!process.env.VITEST || false)("openSqliteResilient", () => {
-  it("test_openSqliteResilient_opens_creates_parents_and_runs_onOpen_after_wal", async () => {
-    if (!available) return;
+  it("test_openSqliteResilient_opens_creates_parents_and_runs_onOpen_after_wal", async (ctx) => {
+    // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+    // having asserted nothing, so a machine without the capability looked identical to one
+    // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+    if (!available) ctx.skip();
     const filePath = join(dir, "nested", "ok.sqlite");
     let onOpenCalls = 0;
     const db = await openSqliteResilient<TestDb>({
@@ -69,8 +72,11 @@ describe.skipIf(!process.env.VITEST || false)("openSqliteResilient", () => {
     db.close();
   });
 
-  it("test_openSqliteResilient_recovers_corrupt_file_renames_aside", async () => {
-    if (!available) return;
+  it("test_openSqliteResilient_recovers_corrupt_file_renames_aside", async (ctx) => {
+    // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+    // having asserted nothing, so a machine without the capability looked identical to one
+    // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+    if (!available) ctx.skip();
     const filePath = join(dir, "corrupt.sqlite");
     await writeFile(filePath, "GARBAGE NOT A SQLITE DATABASE");
     const db = await openSqliteResilient<TestDb>({
@@ -86,8 +92,11 @@ describe.skipIf(!process.env.VITEST || false)("openSqliteResilient", () => {
     expect(entries.some((e) => /corrupt\.sqlite\.corrupt-\d+$/.test(e))).toBe(true);
   });
 
-  it("test_openSqliteResilient_recoverCorrupt_false_propagates", async () => {
-    if (!available) return;
+  it("test_openSqliteResilient_recoverCorrupt_false_propagates", async (ctx) => {
+    // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+    // having asserted nothing, so a machine without the capability looked identical to one
+    // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+    if (!available) ctx.skip();
     const filePath = join(dir, "corrupt-no-recover.sqlite");
     await writeFile(filePath, "GARBAGE");
     await expect(
@@ -99,8 +108,11 @@ describe.skipIf(!process.env.VITEST || false)("openSqliteResilient", () => {
     ).rejects.toBeDefined();
   });
 
-  it("test_openSqliteResilient_onOpen_error_propagates", async () => {
-    if (!available) return;
+  it("test_openSqliteResilient_onOpen_error_propagates", async (ctx) => {
+    // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+    // having asserted nothing, so a machine without the capability looked identical to one
+    // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+    if (!available) ctx.skip();
     const filePath = join(dir, "callback-error.sqlite");
     await expect(
       openSqliteResilient<TestDb>({

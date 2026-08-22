@@ -2,13 +2,13 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { Agent } from "../../../src/index.js";
 import {
   extractMemoryFact,
   isMemoryWritePrompt,
 } from "../../../src/internal/runtime/memory/memory-store.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Behaviour gate for memory auto-write-on-send (ADR D1/D2 of v1-completeness).
@@ -120,6 +120,10 @@ describe("LocalAgent.send memory auto-write", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-memwrite-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
   });
 
   afterEach(async () => {

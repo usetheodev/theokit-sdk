@@ -227,15 +227,26 @@ export async function flushSessionWrites(): Promise<void> {
   }
 }
 
+/**
+ * Drop the in-memory message cache for `agentId` and NOTHING else — the hydration marker in
+ * `hydratedKeys` deliberately stays.
+ *
+ * That asymmetry is the feature, not an oversight, and it is what separates this from
+ * `invalidateSessionCache`, which drops both. The single caller is the personality switch's
+ * `reset: true` path (`internal/personality/switch.ts`): leaving the marker set makes
+ * `hydrateSession` return early, so the next send starts from an EMPTY context instead of
+ * replaying the pre-reset transcript off disk. Clearing the marker here would re-hydrate the
+ * conversation the reset was asked to discard.
+ *
+ * The same shape read as a bug one function up: `forgetBookkeeping` documents an evicted session
+ * coming back empty as "silent amnesia". The difference is intent — eviction wants the transcript
+ * back, a reset does not. Anyone reaching for this to invalidate a cache wants
+ * `invalidateSessionCache(cwd, agentId)` instead.
+ */
 export function clearSession(agentId: string): void {
   sessions.delete(agentId);
 }
 
-/**
- * M50 review F1 — drop BOTH the message cache and the hydration marker so the NEXT send re-hydrates
- * from disk. Without this, a compaction only helps after a process restart: the live process keeps
- * sending the full pre-compact history (the cache is read synchronously by every send).
- */
 /**
  * M50 review F5 — run `fn` serialized on the SAME per-(cwd,agentId) write chain the per-turn
  * persistence uses, so a manual `Agent.compact` can never interleave with an in-flight turn's

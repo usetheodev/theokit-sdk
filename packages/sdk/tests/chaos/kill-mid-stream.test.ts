@@ -27,10 +27,16 @@ describe.skipIf(SKIP_CHAOS)("T0.3 kill-mid-stream chaos scaffold", () => {
       await waitForStdout(child, (l) => l.startsWith("tick "), 5_000);
       const result = await killMidStream(child, 3_000);
       expect(result.signal === "SIGKILL" || result.code !== 0).toBe(true);
-      // Parent (vitest worker) MUST still be functional after this point.
-      expect(typeof process.uptime).toBe("function");
+      // B-037: `expect(typeof process.uptime).toBe("function")` stood here as the "parent survived"
+      // assertion. It cannot fail — if the parent had died there would be no assertion to run at
+      // all. Parent survival is proven by this test reaching its end and by the ones after it, not
+      // by asking Node whether a built-in exists.
     } finally {
       if (!child.child.killed) child.child.kill("SIGKILL");
     }
   }, 30_000);
+
+  it.todo(
+    "SIGKILL mid-tool-loop leaves the agent run recoverable — owner B-037, sunset 2026-11-19 (T6.3)",
+  );
 });

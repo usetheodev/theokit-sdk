@@ -124,28 +124,6 @@ function salvagePartial<T extends ZodType>(schema: T, raw: unknown): unknown {
 }
 
 /**
- * Implementation of `Agent.generateObject`. Receives the `Agent.create`
- * factory as a callback to keep the dependency graph acyclic (mirrors the
- * AgentBuilder pattern in D25 / agent.ts injection).
- *
- * Algorithm:
- *   1. Convert the consumer's Zod schema to JSON Schema.
- *   2. Build a single synthetic `output` CustomTool whose handler captures
- *      the raw input and short-circuits the agent loop. The handler
- *      THROWS a sentinel so the loop terminates immediately without a
- *      second LLM round-trip.
- *   3. Create ONE transient agent (per the entire generateObject call,
- *      not per retry — EC-3). Each retry re-sends through the same agent,
- *      driving fresh LLM rounds.
- *   4. On each attempt, send a wrapper prompt instructing the model to
- *      call the `output` tool. Capture the raw input via the sentinel.
- *   5. Parse the raw input via schema.parse. On success, return typed.
- *      On failure, retry until the budget is exhausted.
- *   6. Always dispose the transient agent in `finally`.
- *
- * @internal
- */
-/**
  * M21 — phase 1: run `options.model` as a plain reasoning agent (no output tool) and return its
  * free-text answer, which phase 2's structuring model then extracts. The transient reasoning agent
  * is disposed + hard-deleted so the registry count stays stable (EC-3, mirrors the phase-2 finally).
@@ -172,6 +150,26 @@ async function runReasoningPhase<T extends ZodType>(
   }
 }
 
+/**
+ * Implementation of `Agent.generateObject`. Receives the `Agent.create`
+ * factory as a callback to keep the dependency graph acyclic (mirrors the
+ * AgentBuilder pattern in D25 / agent.ts injection).
+ *
+ * Algorithm:
+ *   1. Convert the consumer's Zod schema to JSON Schema.
+ *   2. Build a single synthetic `output` CustomTool whose handler captures
+ *      the raw input and short-circuits the agent loop. The handler
+ *      THROWS a sentinel so the loop terminates immediately without a
+ *      second LLM round-trip.
+ *   3. Create ONE transient agent (per the entire generateObject call,
+ *      not per retry — EC-3). Each retry re-sends through the same agent,
+ *      driving fresh LLM rounds.
+ *   4. On each attempt, send a wrapper prompt instructing the model to
+ *      call the `output` tool. Capture the raw input via the sentinel.
+ *   5. Parse the raw input via schema.parse. On success, return typed.
+ *      On failure, retry until the budget is exhausted.
+ *   6. Always dispose the transient agent in `finally`.
+ */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: retry loop + capture sentinel + dispose-and-delete is a single transaction; splitting harms locality and the finally block.
 export async function generateObjectImpl<T extends ZodType>(
   options: GenerateObjectOptions<T>,

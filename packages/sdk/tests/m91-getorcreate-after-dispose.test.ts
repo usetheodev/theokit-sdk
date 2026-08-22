@@ -16,7 +16,11 @@ import { Agent } from "../src/agent.js";
  */
 describe("M91 — getOrCreate after dispose", () => {
   const opts = {
-    apiKey: "sk-test",
+    // B-130: this was a short placeholder key against a named `openai/` model. It passed only
+    // because the strict shape check was unreachable for every input; with that fixed it is
+    // correctly refused as malformed. Switched to the repo's fixture-key convention, which is
+    // what this suite always meant — it tests session directories, not authentication.
+    apiKey: "theo_test_fixture_key",
     model: { id: "openai/gpt-4o-mini" },
     local: { cwd: process.cwd() },
   };

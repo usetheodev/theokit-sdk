@@ -44,6 +44,21 @@ export interface CreateApplyPatchToolOptions {
   projectRoot: string;
 }
 
+/**
+ * Build the `apply_patch` tool over Codex's V4A patch grammar — one call that adds, updates, deletes
+ * and moves several files at once.
+ *
+ * Prefer it to a run of {@link createEditFileTool} calls when a change spans files, because the whole
+ * patch is planned before anything is written: every file read, every new content computed and every
+ * path security-checked first, and any failure aborts with zero writes. A sequence of `edit_file`
+ * calls has no such property — the third can fail with the first two already on disk. The price is
+ * that it leaves no backup, where `edit_file` writes a `.bak`.
+ *
+ * Refusals: `parse_error`, `path_traversal`, `forbidden_path` (checked at every path segment here,
+ * not just the first), `not_found`, `patch_failed` (context did not match), `duplicate_target` (two
+ * hunks touching one file, which would silently lose the earlier edit), `file_exists` (Add over an
+ * existing file) and `io_error` for anything the filesystem raises during the write phase.
+ */
 export function createApplyPatchTool(opts: CreateApplyPatchToolOptions): CustomTool {
   const { projectRoot } = opts;
 

@@ -32,7 +32,16 @@ export class RetentionPolicyError extends TheokitAgentError {
   override readonly name = "RetentionPolicyError";
 }
 
-/** @public */
+/**
+ * One artifact the caller is considering deleting, described well enough to decide about.
+ *
+ * `id` is only ever compared for equality, so any stable identity works — a path, a session id, an
+ * inode. `live` is the tri-state that carries the whole safety property: `"unknown"` means the
+ * caller could not establish liveness, and it is honoured as a third answer rather than folded into
+ * `false`.
+ *
+ * @public
+ */
 export interface ReapableArtifact {
   readonly id: string;
   /** Epoch milliseconds. Compared against an injected `nowMs`, never against a read clock. */
@@ -45,7 +54,16 @@ export interface ReapableArtifact {
   readonly live: boolean | "unknown";
 }
 
-/** @public */
+/**
+ * How long artifacts are kept and how many always survive.
+ *
+ * The two interact as a window plus a FLOOR, not as two independent allowances: `keepLast` rescues
+ * artifacts only when the window and liveness together spared fewer than that many, and rescues
+ * exactly enough to reach the count. Both are refused by `planReaping` rather than clamped when
+ * they are not expressible — see its `@throws`.
+ *
+ * @public
+ */
 export interface RetentionPolicy {
   /** Artifacts strictly older than this are candidates. The boundary itself is kept. */
   readonly maxAgeMs: number;
@@ -64,12 +82,28 @@ export interface RetentionPolicy {
 /** Why an artifact survived. @public */
 export type KeepReason = "live" | "within-retention" | "keep-last";
 
-/** @public */
+/**
+ * An artifact that survived, carrying the reason it did.
+ *
+ * The reason is the one that spared it FIRST, in the order liveness, then the retention window,
+ * then the floor — so a live artifact inside the window reports `"live"`, and `"keep-last"` only
+ * appears on artifacts that had no reason of their own.
+ *
+ * @public
+ */
 export interface KeptArtifact extends ReapableArtifact {
   readonly reason: KeepReason;
 }
 
-/** @public */
+/**
+ * The decision, as three disjoint buckets whose union is exactly the input.
+ *
+ * Nothing is deleted by producing one of these — the plan IS the dry run, and executing it is a
+ * separate act on a value you can read first. Delete only what is in `reap`; `undetermined` is not
+ * a smaller `reap`, it is the set nobody could decide about.
+ *
+ * @public
+ */
 export interface ReapPlan {
   /** Safe to delete. Everything here was decided, not defaulted. */
   readonly reap: readonly ReapableArtifact[];
@@ -78,7 +112,15 @@ export interface ReapPlan {
   readonly undetermined: readonly ReapableArtifact[];
 }
 
-/** @public */
+/**
+ * Everything `planReaping` needs: the candidates, the policy, and the current time.
+ *
+ * `nowMs` is a parameter rather than a clock read so the same input always produces the same plan —
+ * which is what lets a caller compute a plan, show it, and execute it later against the same
+ * decision instead of a freshly re-derived one.
+ *
+ * @public
+ */
 export interface ReapPlanInput {
   readonly artifacts: readonly ReapableArtifact[];
   readonly retention: RetentionPolicy;
@@ -86,13 +128,6 @@ export interface ReapPlanInput {
   readonly nowMs: number;
 }
 
-/**
- * @returns the three buckets. Their union is exactly the input, each artifact counted once — the
- *   invariant an operator reads the totals against.
- * @throws RetentionPolicyError when the policy is not expressible; nonsense is refused rather than
- *   clamped, because a clamped window on this path deletes data the operator meant to keep.
- * @public
- */
 /**
  * Refuse a policy that cannot be honoured as written. Nonsense is not clamped: on this path a
  * clamped window deletes data the operator meant to keep.
@@ -170,6 +205,24 @@ function applyFloor(
   return { rescued, reap };
 }
 
+/**
+ * Sort artifacts into keep, reap, and undetermined — and delete nothing.
+ *
+ * The order of decision is liveness, then the retention window, then the floor. An artifact whose
+ * `live` is `"unknown"` leaves at the first step and is never considered again: it is not counted
+ * toward `keepLast`, so a transient mount failure cannot satisfy "keep my last two" with artifacts
+ * nobody confirmed while the confirmed ones are deleted.
+ *
+ * The window boundary belongs to the safe side. An artifact exactly `maxAgeMs` old is kept, so a
+ * 30-day retention never means 29 depending on clock granularity.
+ *
+ * @returns the three buckets. Their union is exactly the input, each artifact counted once — the
+ *   invariant an operator reads the totals against.
+ * @throws RetentionPolicyError when `maxAgeMs` is negative or not finite, or `keepLast` is negative
+ *   or not an integer. Nonsense is refused rather than clamped, because a clamped window on this
+ *   path deletes data the operator meant to keep.
+ * @public
+ */
 export function planReaping(input: ReapPlanInput): ReapPlan {
   assertPolicy(input.retention);
 

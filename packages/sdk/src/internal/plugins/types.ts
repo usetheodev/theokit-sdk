@@ -19,11 +19,21 @@ export type {
   HookHandler,
   HookName,
   LlmCallContext,
-  // `MemoryProviderFactory` is @internal; re-exporting it across this module hop
-  // trips rollup-plugin-dts (it strips @internal decls, then the re-export dangles
-  // — see stripInternal in tsconfig.base.json). Its two internal consumers import
-  // it directly from ../../types/plugin.js instead. It stays reachable as the
-  // `createProvider` field type on the `Plugin` union, which IS re-exported here.
+  // #335 — this used to be omitted here, with the note that it "stays reachable as
+  // the `createProvider` field type on the `Plugin` union, which IS re-exported".
+  // That inference was false, and it is what shipped a broken declaration: the DTS
+  // rollup emits an exported type's BODY and treeshakes away a non-exported type
+  // that body merely NAMES. Reachable-as-a-field-type is not reachable-as-a-
+  // declaration. The published `.d.ts` said `createProvider: MemoryProviderFactory`
+  // with no such type in the file — invisible under `skipLibCheck`, and an
+  // `error`-typed graph for any consumer running type-aware lint.
+  //
+  // The original reason for the omission (re-exporting a decl that carries the
+  // internal-visibility JSDoc tag leaves a dangling re-export once `stripInternal`
+  // deletes it) no longer applies: the tag came off `types/plugin.ts`, because a
+  // type named by a public signature is public. That tag is matched as TEXT, so
+  // its literal spelling is deliberately absent from this comment too.
+  MemoryProviderFactory,
   PluginContext,
   PostAssistantReplyContext,
   PostToolCallContext,

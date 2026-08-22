@@ -8,7 +8,7 @@
  * reverse-proxy auth.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { resolveProviderChain } from "../../../src/internal/llm/router.js";
 import {
@@ -20,51 +20,7 @@ import {
   getProviderProfile,
   listProviders,
 } from "../../../src/internal/providers/registry.js";
-
-/**
- * Drives a resolved chain client through one turn against a stubbed global `fetch`, and reports
- * what the transport actually requested.
- *
- * B-028/B-029. The env overrides these tests are named for are applied when the transport is built
- * (`router.ts:383` sets `opts.baseUrl` from `resolveBaseUrlEnvOverride`), and `LlmClient` exposes
- * only `name` and `stream` — so nothing about the base URL or the credential is readable from the
- * chain itself. Measured alternatives that do NOT work: `selectTransport` is module-local and cannot
- * be spied, and a namespace spy on `OpenAIClient` records zero calls because the router holds a
- * direct import binding.
- *
- * What the user configures IS observable at the request, which is the better oracle anyway. The idiom
- * — resolve the chain, drain the client, assert on what the fetch received — is the one
- * `tests/internal/llm/router-auth.test.ts:63` already uses.
- */
-async function captureRequest(
-  primary: string,
-): Promise<{ url: string; authorization: string; name: string }> {
-  let url = "";
-  let authorization = "";
-  vi.stubGlobal("fetch", (async (u: unknown, init?: { headers?: Record<string, string> }) => {
-    url = String(u);
-    authorization = init?.headers?.authorization ?? init?.headers?.Authorization ?? "";
-    return new Response('data: {"choices":[{"delta":{"content":"hi"}}]}\n\ndata: [DONE]\n\n', {
-      status: 200,
-      headers: { "content-type": "text/event-stream" },
-    });
-  }) as unknown as typeof fetch);
-  try {
-    const [client] = resolveProviderChain({ primary });
-    if (client === undefined) throw new Error(`no client resolved for primary="${primary}"`);
-    const gen = (
-      client as unknown as { stream: (r: unknown, s: AbortSignal) => AsyncGenerator }
-    ).stream(
-      { model: "m", messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }] },
-      new AbortController().signal,
-    );
-    let r = await gen.next();
-    while (!r.done) r = await gen.next();
-    return { url, authorization, name: client.name };
-  } finally {
-    vi.unstubAllGlobals();
-  }
-}
+import { captureRequest } from "../../helpers/capture-request.js";
 
 const ORIG_ENV: Record<string, string | undefined> = {};
 const TRACKED_ENV = [
@@ -139,7 +95,7 @@ describe("ollama builtin provider (D182)", () => {
     // giving an identical number is exactly what made the misattribution invisible.
     process.env.OLLAMA_HOST = "http://192.168.1.50:11434";
 
-    const { url } = await captureRequest("ollama");
+    const { url } = await captureRequest({ primary: "ollama" });
 
     expect(url, "the request must go to the host OLLAMA_HOST names").toMatch(
       /^http:\/\/192\.168\.1\.50:11434\//,
@@ -153,7 +109,7 @@ describe("ollama builtin provider (D182)", () => {
     // request carries THEIR key, not Ollama's local placeholder. That is what is asserted.
     process.env.OLLAMA_API_KEY = "secret-from-ollama-cloud";
 
-    const { authorization } = await captureRequest("ollama");
+    const { authorization } = await captureRequest({ primary: "ollama" });
 
     expect(authorization, "the caller's key must reach the wire, not the local sentinel").toBe(
       "Bearer secret-from-ollama-cloud",

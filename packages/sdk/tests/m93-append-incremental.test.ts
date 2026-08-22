@@ -2,10 +2,10 @@ import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { describe, expect, it } from "vitest";
-
+import { describe, expect, it, onTestFinished } from "vitest";
 import { FsSessionStore } from "../src/internal/persistence/fs-session-store.js";
 import { transcriptPath } from "../src/internal/persistence/session-transcript.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /**
  * M93 T4.1 — `appendRecords` appends the delta instead of rewriting the file.
@@ -22,6 +22,10 @@ const reg = (id: string) => ({ uuid: id, type: "user", message: { role: "user", 
 
 const build = () => {
   const base = mkdtempSync(join(tmpdir(), "m93-"));
+  const __baseCleanup1 = base;
+  onTestFinished(() => {
+    removeTempDirRobustSync(__baseCleanup1);
+  });
   const cwd = base;
   const store = new FsSessionStore({ baseDir: base, cwd });
   const filePath = transcriptPath(base, cwd, "ag-1");
@@ -81,6 +85,10 @@ describe("M93 — append incremental", () => {
    */
   it("an EMPTY delta never even takes the lock — the guard avoids mkdir + withFileLock", async () => {
     const base = mkdtempSync(join(tmpdir(), "m93-lock-"));
+    const __baseCleanup2 = base;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__baseCleanup2);
+    });
     const store = new FsSessionStore({ baseDir: base, cwd: base });
     await store.appendRecords("ag-empty", [] as never);
     const filePath = transcriptPath(base, base, "ag-empty");

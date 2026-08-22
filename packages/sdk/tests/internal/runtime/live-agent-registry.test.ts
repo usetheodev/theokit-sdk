@@ -70,24 +70,44 @@ describe("LiveAgentRegistry — core (T2.1)", () => {
     expect(reg.size()).toBe(3);
   });
 
-  it("ids returns entries in recency order (newest first)", async () => {
-    reg.configure({ maxAgents: 10 });
-    reg.set("a", stubAgent("a"));
-    await new Promise((r) => setTimeout(r, 5));
-    reg.set("b", stubAgent("b"));
-    await new Promise((r) => setTimeout(r, 5));
-    reg.set("c", stubAgent("c"));
-    expect(reg.ids()).toEqual(["c", "b", "a"]);
+  it("ids returns entries in recency order (newest first)", () => {
+    // B-056 — was two 5ms sleeps forcing `lastUsedAt` apart. `lastUsedAt` is
+    // written from `Date.now()` (live-agent-registry.ts:95,117) — same defect
+    // class as B-017/B-018 above, and the same fix: the clock IS the input to
+    // this behaviour, so it belongs under `vi.useFakeTimers()` control rather
+    // than being waited on. No production change needed — `Date.now()` is
+    // already a global, and `vi.useFakeTimers()` already proved reachable in
+    // this exact file for the LRU-eviction and idle-sweep tests below.
+    vi.useFakeTimers();
+    try {
+      reg.configure({ maxAgents: 10 });
+      vi.setSystemTime(1_000);
+      reg.set("a", stubAgent("a"));
+      vi.setSystemTime(2_000);
+      reg.set("b", stubAgent("b"));
+      vi.setSystemTime(3_000);
+      reg.set("c", stubAgent("c"));
+      expect(reg.ids()).toEqual(["c", "b", "a"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("get refreshes lastUsedAt, moving entry to top of recency", async () => {
-    reg.configure({ maxAgents: 10 });
-    reg.set("a", stubAgent("a"));
-    await new Promise((r) => setTimeout(r, 5));
-    reg.set("b", stubAgent("b"));
-    await new Promise((r) => setTimeout(r, 5));
-    reg.get("a"); // refresh
-    expect(reg.ids()[0]).toBe("a");
+  it("get refreshes lastUsedAt, moving entry to top of recency", () => {
+    // B-056 — same defect and fix as the test above.
+    vi.useFakeTimers();
+    try {
+      reg.configure({ maxAgents: 10 });
+      vi.setSystemTime(1_000);
+      reg.set("a", stubAgent("a"));
+      vi.setSystemTime(2_000);
+      reg.set("b", stubAgent("b"));
+      vi.setSystemTime(3_000);
+      reg.get("a"); // refresh, strictly after both sets
+      expect(reg.ids()[0]).toBe("a");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -138,53 +158,91 @@ describe("LiveAgentRegistry — LRU eviction (T2.2)", () => {
   });
 
   it("refreshing usage saves an agent from LRU eviction", async () => {
-    reg.configure({ maxAgents: 3 });
-    reg.set("a", stubAgent("a"));
-    await new Promise((r) => setTimeout(r, 5));
-    reg.set("b", stubAgent("b"));
-    await new Promise((r) => setTimeout(r, 5));
-    reg.set("c", stubAgent("c"));
-    await new Promise((r) => setTimeout(r, 5));
-    reg.get("a"); // refresh — a is no longer LRU
-    reg.set("d", stubAgent("d"));
-    await new Promise((r) => setTimeout(r, 20));
-    expect(reg.ids()).toContain("a");
-    expect(reg.ids()).not.toContain("b"); // b was oldest
+    // B-056 — was four sleeps (three 5ms separating a/b/c/refresh, one 20ms
+    // waiting for `set("d", …)`'s fire-and-forget `#evictLRU()` to settle).
+    // Two different waits, two different fixes: timestamps move under
+    // `vi.setSystemTime`; the pending eviction promise is drained with
+    // `vi.advanceTimersByTimeAsync(0)` — the exact idiom the LRU-eviction
+    // test above already established for "let the fire-and-forget settle".
+    vi.useFakeTimers();
+    try {
+      reg.configure({ maxAgents: 3 });
+      vi.setSystemTime(1_000);
+      reg.set("a", stubAgent("a"));
+      vi.setSystemTime(2_000);
+      reg.set("b", stubAgent("b"));
+      vi.setSystemTime(3_000);
+      reg.set("c", stubAgent("c"));
+      vi.setSystemTime(4_000);
+      reg.get("a"); // refresh — a is no longer LRU
+      vi.setSystemTime(5_000);
+      reg.set("d", stubAgent("d"));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(reg.ids()).toContain("a");
+      expect(reg.ids()).not.toContain("b"); // b was oldest
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("set with same id different agent disposes the old (EC-4)", async () => {
-    reg.configure({ maxAgents: 10 });
-    const oldDispose = vi.fn().mockResolvedValue(undefined);
-    const oldAgent = { ...stubAgent("a"), dispose: oldDispose } as unknown as SDKAgent;
-    reg.set("a", oldAgent);
-    const newAgent = stubAgent("a");
-    reg.set("a", newAgent);
-    await new Promise((r) => setTimeout(r, 20));
-    expect(oldDispose).toHaveBeenCalled();
-    expect(reg.get("a")).toBe(newAgent);
+    // B-056 — was a 20ms sleep guessing how long the fire-and-forget
+    // `existing.agent.dispose()` (live-agent-registry.ts:107) needs. No
+    // `lastUsedAt` ordering is asserted here at all — only the settle-time of
+    // a pending promise, which `vi.advanceTimersByTimeAsync(0)` drains
+    // deterministically instead of guessing a duration for it.
+    vi.useFakeTimers();
+    try {
+      reg.configure({ maxAgents: 10 });
+      const oldDispose = vi.fn().mockResolvedValue(undefined);
+      const oldAgent = { ...stubAgent("a"), dispose: oldDispose } as unknown as SDKAgent;
+      reg.set("a", oldAgent);
+      const newAgent = stubAgent("a");
+      reg.set("a", newAgent);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(oldDispose).toHaveBeenCalled();
+      expect(reg.get("a")).toBe(newAgent);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("set with same id same agent does NOT dispose (EC-4 idempotent)", async () => {
-    reg.configure({ maxAgents: 10 });
-    const dispose = vi.fn().mockResolvedValue(undefined);
-    const agent = { ...stubAgent("a"), dispose } as unknown as SDKAgent;
-    reg.set("a", agent);
-    reg.set("a", agent); // same instance
-    await new Promise((r) => setTimeout(r, 20));
-    expect(dispose).not.toHaveBeenCalled();
+    // B-056 — same fix as above; this test asserts the ABSENCE of a call, so
+    // draining the microtask queue once is what makes "did not fire yet" and
+    // "will never fire" indistinguishable-by-design rather than a race.
+    vi.useFakeTimers();
+    try {
+      reg.configure({ maxAgents: 10 });
+      const dispose = vi.fn().mockResolvedValue(undefined);
+      const agent = { ...stubAgent("a"), dispose } as unknown as SDKAgent;
+      reg.set("a", agent);
+      reg.set("a", agent); // same instance
+      await vi.advanceTimersByTimeAsync(0);
+      expect(dispose).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("dispose error swallowed with stderr warn", async () => {
-    reg.configure({ maxAgents: 1 });
-    const bad = {
-      ...stubAgent("bad"),
-      dispose: vi.fn().mockRejectedValue(new Error("dispose nope")),
-    } as unknown as SDKAgent;
-    reg.set("bad", bad);
-    reg.set("ok", stubAgent("ok")); // triggers eviction of "bad"
-    await new Promise((r) => setTimeout(r, 30));
-    // No throw — eviction continued.
-    expect(reg.ids()).toContain("ok");
+    // B-056 — was a 30ms sleep waiting for the rejecting fire-and-forget
+    // dispose to be caught and swallowed (D309). Same fix.
+    vi.useFakeTimers();
+    try {
+      reg.configure({ maxAgents: 1 });
+      const bad = {
+        ...stubAgent("bad"),
+        dispose: vi.fn().mockRejectedValue(new Error("dispose nope")),
+      } as unknown as SDKAgent;
+      reg.set("bad", bad);
+      reg.set("ok", stubAgent("ok")); // triggers eviction of "bad"
+      await vi.advanceTimersByTimeAsync(0);
+      // No throw — eviction continued.
+      expect(reg.ids()).toContain("ok");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -272,13 +330,23 @@ describe("LiveAgentRegistry — onEvict (T2.4)", () => {
   });
 
   it("onEvict fires with reason=lru on capacity overflow", async () => {
-    const calls: Array<[string, EvictReason]> = [];
-    reg.configure({ maxAgents: 1, onEvict: (id, r) => calls.push([id, r]) });
-    reg.set("a", stubAgent("a"));
-    await new Promise((r) => setTimeout(r, 5));
-    reg.set("b", stubAgent("b"));
-    await new Promise((r) => setTimeout(r, 30));
-    expect(calls).toEqual([["a", "lru"]]);
+    // B-056 — was a 5ms timestamp-separation sleep plus a 30ms
+    // eviction-settle sleep. Same two-fix pattern as above: `vi.setSystemTime`
+    // for the `lastUsedAt` ordering `set("b", …)` needs to make "a" the LRU
+    // victim, `vi.advanceTimersByTimeAsync(0)` for the fire-and-forget evict.
+    vi.useFakeTimers();
+    try {
+      const calls: Array<[string, EvictReason]> = [];
+      reg.configure({ maxAgents: 1, onEvict: (id, r) => calls.push([id, r]) });
+      vi.setSystemTime(1_000);
+      reg.set("a", stubAgent("a"));
+      vi.setSystemTime(2_000);
+      reg.set("b", stubAgent("b"));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(calls).toEqual([["a", "lru"]]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("onEvict listener errors are swallowed", async () => {

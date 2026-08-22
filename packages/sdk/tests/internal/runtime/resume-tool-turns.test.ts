@@ -7,13 +7,14 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { FsSessionStore } from "../../../src/internal/persistence/fs-session-store.js";
 import {
   persistTurn,
   readSessionMessages,
   type TranscriptLocation,
 } from "../../../src/internal/session/agent-session-store.js";
+import { removeTempDirRobustSync } from "../../helpers/temp-workspace.js";
 
 const cwd = "/tmp/resume-proj";
 function loc(agentId: string): TranscriptLocation {
@@ -23,6 +24,10 @@ function loc(agentId: string): TranscriptLocation {
 describe("SE40 — non-lossy session hydration", () => {
   it("includes tool_call/tool_result turns in the hydrated context (folded to assistant)", async () => {
     const baseDir = mkdtempSync(join(tmpdir(), "resume-tool-"));
+    const __baseDirCleanup1 = baseDir;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__baseDirCleanup1);
+    });
     const store = new FsSessionStore({ baseDir, cwd });
     await persistTurn(store, loc("a1"), "a1", {
       userText: "run ls",
@@ -50,6 +55,10 @@ describe("SE40 — non-lossy session hydration", () => {
 
   it("plain user/assistant turns hydrate unchanged", async () => {
     const baseDir = mkdtempSync(join(tmpdir(), "resume-legacy-"));
+    const __baseDirCleanup2 = baseDir;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__baseDirCleanup2);
+    });
     const store = new FsSessionStore({ baseDir, cwd });
     await persistTurn(store, loc("a2"), "a2", {
       userText: "hi",

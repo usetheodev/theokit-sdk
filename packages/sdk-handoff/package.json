@@ -1,7 +1,7 @@
 {
   "name": "@theokit/sdk-handoff",
   "version": "0.1.2",
-  "description": "Inter-agent dispatch for @theokit/sdk — typed Handoff descriptors, loop protection, plugin-based wiring.",
+  "description": "Inter-agent dispatch for @theokit/sdk \u2014 typed Handoff descriptors, loop protection, plugin-based wiring.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
   "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
@@ -55,16 +55,23 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node ../../tools/repair-dts-imports.mjs .",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "node ../../tools/check-publish-no-workspace.mjs ."
   },
   "peerDependencies": {
+    "@opentelemetry/api": "^1.9.0",
     "@theokit/sdk": ">=4.0.0",
     "zod": "^4.0.0"
   },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^4.1.8",
@@ -72,6 +79,7 @@
     "zod": "^4.0.0"
   },
   "publishConfig": {
+    "provenance": true,
     "access": "public"
   }
 }

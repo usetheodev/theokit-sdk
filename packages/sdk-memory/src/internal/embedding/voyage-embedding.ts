@@ -26,6 +26,15 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "voyage-multilingual-2": 1024,
 };
 
+/**
+ * Voyage AI embeddings, over the standard OpenAI wire. Default model
+ * `voyage-3-lite` at 512 dimensions — the narrowest in the catalog, which makes
+ * the index smaller and the search cheaper at some cost in quality; `voyage-3`
+ * and `voyage-3-large` are 1024, and `voyage-code-3` is the one to pick for
+ * source code.
+ *
+ * Reads `VOYAGE_API_KEY` and honours `VOYAGE_API_BASE_URL`. Priority 14.
+ */
 export const voyageMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "voyage",
   defaultModel: DEFAULT_VOYAGE_EMBEDDING_MODEL,

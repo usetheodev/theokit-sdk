@@ -47,7 +47,16 @@ export interface ModelListItem {
   variants?: ModelVariant[];
 }
 
-/** @public */
+/**
+ * Alias of {@link ModelListItem}, used where a model comes back from the Theokit platform rather
+ * than from a catalog listing.
+ *
+ * It is the SAME type, not a narrowed one — the alias exists so platform-facing signatures read in
+ * platform vocabulary alongside `SDKRepository` and `SDKUser`, and a value of either name is
+ * assignable to the other.
+ *
+ * @public
+ */
 export type SDKModel = ModelListItem;
 
 /**

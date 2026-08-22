@@ -16,6 +16,42 @@
 
 import type { ClientOptions, SendResponse, StreamEvent } from "./types.js";
 
+/**
+ * Browser-safe client for the legacy agent HTTP contract: `POST <basePath>/send`
+ * and `GET <basePath>/stream`. Uses only `fetch` and `TextDecoder`, so it runs in
+ * a browser, a worker, or Node with no Node-only dependency.
+ *
+ *   const client = new TheoKitClient({ baseUrl: "https://api.example.com" });
+ *   const res = await client.send("hello");
+ *   for await (const ev of client.stream("hello")) console.log(ev.type);
+ *
+ * Deprecated together with the `@theokit/sdk/client` sub-path — the module note
+ * above names the replacements.
+ *
+ * Needs a reachable `baseUrl` (a trailing `/` is stripped) and a server exposing
+ * BOTH routes under `basePath` (default `/agent`). `opts.headers` is merged into
+ * every request and is the only auth affordance; there is no retry, no timeout and
+ * no way to pass an `AbortSignal` — neither method accepts one.
+ *
+ * How it fails: both methods throw a plain `Error` on any non-2xx
+ * (`TheoKitClient: send failed with status <n>` /
+ * `TheoKitClient: stream failed with status <n>`), so the server's error body is
+ * discarded. `stream` additionally throws
+ * `TheoKitClient: response body is not readable` when the response carries no
+ * body. There is no typed error class and no status field to branch on.
+ *
+ * Traps:
+ *  - `stream` ends on a `data: [DONE]` sentinel. NOTHING in this package emits SSE
+ *    framing: `createAgentHandler` returns a raw `AsyncIterable` and leaves
+ *    `data: ` / `[DONE]` to the host. Pointed at this SDK's own adapter as-is, the
+ *    generator yields no events and ends only when the socket closes.
+ *  - A `data:` line whose payload is not JSON is skipped SILENTLY, so malformed
+ *    output looks like a quiet stream rather than an error.
+ *  - Leaving the loop early (`break`) releases the reader lock but does NOT abort
+ *    the request; the connection stays open until the server closes it.
+ *  - `stream` puts the whole input in the query string, so a long prompt can
+ *    exceed a proxy's URL length limit while the same input works via `send`.
+ */
 export class TheoKitClient {
   private readonly _baseUrl: string;
   private readonly _basePath: string;

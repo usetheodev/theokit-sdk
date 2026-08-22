@@ -122,6 +122,7 @@ describe("@theokit/sdk-budget extracted internals (Phase 2 iter 18+ — ADR-008)
     it("test_createBudget_registers_named_budget", () => {
       const handle = createBudget({
         name: "test-budget-1",
+        scope: "process" as const,
         limits: [{ window: "1d", limitUsd: 1 }],
       });
       expect(handle.name).toBe("test-budget-1");
@@ -129,8 +130,16 @@ describe("@theokit/sdk-budget extracted internals (Phase 2 iter 18+ — ADR-008)
     });
 
     it("test_listBudgets_returns_all_active", () => {
-      createBudget({ name: "b1", limits: [{ window: "1d", limitUsd: 1 }] });
-      createBudget({ name: "b2", limits: [{ window: "1d", limitUsd: 2 }] });
+      createBudget({
+        name: "b1",
+        scope: "process" as const,
+        limits: [{ window: "1d", limitUsd: 1 }],
+      });
+      createBudget({
+        name: "b2",
+        scope: "process" as const,
+        limits: [{ window: "1d", limitUsd: 2 }],
+      });
       const list = listBudgets();
       expect(list.length).toBe(2);
       const names = list.map((b) => b.name).sort();
@@ -138,13 +147,21 @@ describe("@theokit/sdk-budget extracted internals (Phase 2 iter 18+ — ADR-008)
     });
 
     it("test_deleteBudget_returns_true_when_existed", () => {
-      createBudget({ name: "to-delete", limits: [{ window: "1d", limitUsd: 1 }] });
+      createBudget({
+        name: "to-delete",
+        scope: "process" as const,
+        limits: [{ window: "1d", limitUsd: 1 }],
+      });
       expect(deleteBudget("to-delete")).toBe(true);
       expect(deleteBudget("to-delete")).toBe(false); // already gone
     });
 
     it("test_snapshotAll_returns_per_window_state", async () => {
-      createBudget({ name: "snap-test", limits: [{ window: "1d", limitUsd: 10 }] });
+      createBudget({
+        name: "snap-test",
+        scope: "process" as const,
+        limits: [{ window: "1d", limitUsd: 10 }],
+      });
       await charge("snap-test", 3);
       const snaps = snapshotAll();
       const entry = snaps.find((s) => s.name === "snap-test");
@@ -154,7 +171,11 @@ describe("@theokit/sdk-budget extracted internals (Phase 2 iter 18+ — ADR-008)
     });
 
     it("test_defaultMode_returns_warn_when_unspecified", () => {
-      const opts = { name: "x", limits: [{ window: "1d" as const, limitUsd: 1 }] };
+      const opts = {
+        name: "x",
+        scope: "process" as const,
+        limits: [{ window: "1d" as const, limitUsd: 1 }],
+      };
       expect(defaultMode(opts)).toBe("warn");
     });
   });
@@ -163,6 +184,7 @@ describe("@theokit/sdk-budget extracted internals (Phase 2 iter 18+ — ADR-008)
     it("test_preflightCheck_does_not_throw_under_limit", () => {
       createBudget({
         name: "block-test",
+        scope: "process" as const,
         mode: "block",
         limits: [{ window: "1d", limitUsd: 10 }],
       });
@@ -172,6 +194,7 @@ describe("@theokit/sdk-budget extracted internals (Phase 2 iter 18+ — ADR-008)
     it("test_preflightCheck_throws_when_estimate_would_exceed_block_limit", async () => {
       createBudget({
         name: "block-fail",
+        scope: "process" as const,
         mode: "block",
         limits: [{ window: "1d", limitUsd: 1 }],
       });
@@ -185,6 +208,7 @@ describe("@theokit/sdk-budget extracted internals (Phase 2 iter 18+ — ADR-008)
       // at 100% of ANY limit per the dispatchExceed implementation.
       createBudget({
         name: "callback-test",
+        scope: "process" as const,
         mode: "warn",
         limits: [{ window: "1d", limitUsd: 1 }],
         onExceed,

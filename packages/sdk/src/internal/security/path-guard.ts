@@ -324,19 +324,6 @@ function isForbiddenBasename(basename: string): boolean {
 const IDENTIFIER_PATTERN = /^[a-z0-9][a-z0-9\-_]*$/i;
 
 /**
- * Validate that `input` is a safe path component (skill name, agent ID,
- * namespace, etc.) and return its lowercase form. Strict grammar
- * `^[a-z0-9][a-z0-9-_]*$` rejects path separators, dots, null bytes,
- * whitespace, unicode invisible chars, and any leading `-`/`_`.
- *
- * @param input - User-supplied identifier candidate.
- * @param options.maxLen - Maximum allowed length (default 64).
- * @returns Lowercase form of `input`.
- * @throws `ConfigurationError` with code `invalid_identifier` on rejection.
- *
- * @internal
- */
-/**
  * T1.4 — validate a relative artifact path string BEFORE it is used to look
  * up a fixture or to fetch from PaaS. Rejects every well-known traversal
  * vector at the boundary, throwing `PathTraversalError`.
@@ -357,7 +344,8 @@ const IDENTIFIER_PATTERN = /^[a-z0-9][a-z0-9\-_]*$/i;
  * @param input - Caller-supplied artifact path.
  * @throws `PathTraversalError` on any rejection.
  *
- * @internal
+ * Semver-exempt: reachable via the `@theokit/sdk/internal/security` sub-path, which the package
+ * declares in `exports` but does NOT cover with its semver contract.
  */
 export function validateArtifactPath(input: string): void {
   rejectKnownPrefixVectors(input);
@@ -406,6 +394,36 @@ function rejectParentTraversal(input: string, normalized: string): void {
   }
 }
 
+/**
+ * Validate that `input` is a safe path component (skill name, agent ID,
+ * namespace, etc.) and return its lowercase form. Strict grammar
+ * `^[a-z0-9][a-z0-9-_]*$` rejects path separators, dots, null bytes,
+ * whitespace, unicode invisible chars, and any leading `-`/`_`.
+ *
+ * TWO error classes leave this function, and the input decides which.
+ * `PathTraversalError` EXTENDS `ConfigurationError`, so an `instanceof
+ * ConfigurationError` test matches both and only `code` separates them — a
+ * caller that branches on `code === "invalid_identifier"` alone rethrows the
+ * traversal case, for exactly the bytes an attacker chooses:
+ *
+ *  - length 0, or above `maxLen` — `ConfigurationError`, code `invalid_identifier`.
+ *  - a NUL (`0x00`), a C0 control char (`0x01`-`0x1f`) or DEL (`0x7f`) anywhere in
+ *    `input` — `PathTraversalError`, code `path_traversal`. `rejectNulAndControlChars`
+ *    runs BEFORE the grammar test, so it wins for any input carrying one of those bytes.
+ *  - every other off-grammar input, a space and `/` and `..` and a leading `-` included —
+ *    `ConfigurationError`, code `invalid_identifier`. Note a space is `0x20`, NOT a control
+ *    char: `"agent /etc/passwd"` takes this branch, not the one above.
+ *
+ * The split itself is reported as usetheokit/theokit-sdk#368 — collapsing it is a behaviour
+ * change on a published error class, so it is tracked there rather than made here.
+ *
+ * @param input - User-supplied identifier candidate.
+ * @param options.maxLen - Maximum allowed length (default 64).
+ * @returns Lowercase form of `input`.
+ * @throws `PathTraversalError` with code `path_traversal` when `input` carries a NUL or
+ *   control character; `ConfigurationError` with code `invalid_identifier` on every other
+ *   rejection.
+ */
 export function sanitizeIdentifier(input: string, options?: { maxLen?: number }): string {
   const maxLen = options?.maxLen ?? 64;
   if (input.length === 0 || input.length > maxLen) {

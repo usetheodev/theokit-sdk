@@ -60,6 +60,31 @@ function findLeakedErrorAssistant(events: ReadonlyArray<unknown>): unknown | und
   });
 }
 
+/**
+ * The reported failure (#338 item 3): OpenRouter credit runs out mid-round and answers 402 with a
+ * `quota_exceeded` reason. The reporter saw `status: "error"`, `result` undefined and nothing else,
+ * and spent hours on the wrong cause — the provider's reason was only visible by installing a
+ * diagnostics sink and consuming the stream.
+ */
+function mockFetch402QuotaExceeded(): typeof fetch {
+  return vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => {
+    return new Response(
+      JSON.stringify({
+        error: {
+          message: "Insufficient credits. Add more using https://openrouter.ai/settings/credits",
+          type: "insufficient_quota",
+          code: "quota_exceeded",
+        },
+      }),
+      {
+        status: 402,
+        statusText: "Payment Required",
+        headers: { "content-type": "application/json" },
+      },
+    ) as Response;
+  }) as unknown as typeof fetch;
+}
+
 describe("RunResult.error end-to-end (Finding B — full pipeline)", () => {
   let root: string;
 
@@ -151,6 +176,53 @@ describe("RunResult.error end-to-end (Finding B — full pipeline)", () => {
       for (const text of assistantTexts) {
         expect(text).not.toMatch(/Invalid API key|401|invalid_api_key/i);
       }
+    } finally {
+      await agent.dispose();
+    }
+  });
+});
+
+describe("a provider's REASON reaches RunResult without the stream (#338 item 3)", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    clearAgentRegistry();
+    clearAllSessions();
+    invalidateRegistryHydration();
+    await Agent.registry.evictAll();
+    root = await mkdtemp(join(tmpdir(), "theokit-quota-e2e-"));
+  });
+
+  afterEach(async () => {
+    clearAgentRegistry();
+    clearAllSessions();
+    invalidateRegistryHydration();
+    await Agent.registry.evictAll();
+    await rm(root, { recursive: true, force: true });
+    vi.unstubAllGlobals();
+  });
+
+  it("carries the quota reason on result.error for a caller who only ever calls wait()", async () => {
+    // `run.wait()` is the path the docs present first, and the reported diagnosis cost came from
+    // it reporting an outcome with no cause. The 401 case above is already covered; this pins the
+    // one that was actually met in the field, and pins it at wait() rather than through the stream.
+    vi.stubEnv("OPENROUTER_API_KEY", "sk-or-v1-test-fixture-key");
+    vi.stubGlobal("fetch", mockFetch402QuotaExceeded());
+    const agent = await Agent.create({
+      apiKey: REAL_KEY_SHAPE,
+      model: MODEL,
+      local: { cwd: root },
+      providers: { routes: [{ capability: "chat", provider: "openrouter" }] },
+    });
+    try {
+      const result = await (await agent.send("hi")).wait();
+
+      expect(result.status).toBe("error");
+      expect(result.error).toBeDefined();
+      // The reason, not merely "something failed": a caller has to be able to tell a billing
+      // problem from a rate limit from a bad key without attaching a diagnostics sink.
+      expect(result.error?.message ?? "").toContain("quota_exceeded");
+      expect(result.error?.message ?? "").toContain("openrouter");
     } finally {
       await agent.dispose();
     }

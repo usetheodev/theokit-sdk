@@ -100,7 +100,7 @@ describe("HonchoAdapter (T4.1)", () => {
     const id = await adapter.write("hi", { userId: "alice" });
     expect(id).toBe("honcho:msg-99");
     expect(honchoState.peerCalls).toContain("alice");
-    expect(honchoState.sessionCalls).toContain("alice:default");
+    expect(honchoState.sessionCalls).toContain("alice--default");
     expect(honchoState.addPeersCalls.length).toBe(1);
     expect(honchoState.addMessagesCalls.length).toBe(1);
   });
@@ -144,14 +144,14 @@ describe("HonchoAdapter (T4.1)", () => {
     const adapter = new HonchoAdapter({ apiKey: "sk-test" });
     await adapter.write("a-msg", { userId: "alice" });
     await adapter.write("b-msg", { userId: "bob" });
-    expect(honchoState.sessionCalls).toContain("alice:default");
-    expect(honchoState.sessionCalls).toContain("bob:default");
+    expect(honchoState.sessionCalls).toContain("alice--default");
+    expect(honchoState.sessionCalls).toContain("bob--default");
   });
 
   it("translate.session falls back to default", async () => {
     const adapter = new HonchoAdapter({ apiKey: "sk-test" });
     await adapter.write("hi", { userId: "alice" });
-    expect(honchoState.sessionCalls).toContain("alice:default");
+    expect(honchoState.sessionCalls).toContain("alice--default");
   });
 
   // EC-J: tool schema description mentions "reasoning" / "synthesized answer"

@@ -30,13 +30,18 @@ For the full reference, see the [root README](https://github.com/usetheokit/theo
 
 New here? The exported TypeScript types are the discovery front-door and the canonical contract — every harness primitive with its import path, signature and JSDoc example (`compactTranscript`, `buildRepoMap`, `isTransientError`, `@theokit/sdk/persistence`, ...), surfaced by your editor.
 
-It also **ships inside this package** — no network needed, and pinned to the version you installed:
+Two references ship inside the package — no network, pinned to the version you installed, and both
+GENERATED from the built declarations so they cannot drift from what you actually got:
 
 ```
-node_modules/@theokit/sdk/docs/harness-capability-map.md   # every public primitive + import path
-node_modules/@theokit/sdk/docs/error-codes.md              # AgentRunError.code reference
-node_modules/@theokit/sdk/claude-template/                 # agent context (npx theokit-init-claude)
+node_modules/@theokit/sdk/docs/harness-capability-map.md   # every public symbol + its exact import specifier
+node_modules/@theokit/sdk/docs/error-codes.md              # every `code` an error can carry, and where it is raised
 ```
+
+If you are an agent: read the capability map before writing an import. Several symbols are reachable
+from more than one specifier, and a class emitted into a subpath entry is a DISTINCT nominal type
+from the one in the root bundle — import a symbol and everything you pass it to from the same
+specifier, or the call fails on a private field.
 
 Agents that consume documentation should prefer the machine-readable corpora on the docs site ([llmstxt.org](https://llmstxt.org) convention): [`llms.txt`](https://docs.usetheo.dev/llms.txt) (curated index) and [`llms-full.txt`](https://docs.usetheo.dev/llms-full.txt) (every page inlined).
 

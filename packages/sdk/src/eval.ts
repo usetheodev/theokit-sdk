@@ -67,6 +67,44 @@ const EvalOptionsSchema = z.object({
     .optional(),
 });
 
+/**
+ * One eval definition — a dataset, at least one scorer, and the agent under test.
+ * `Eval.create(options)` validates and returns an instance; `.run()` executes it
+ * and resolves an {@link EvalRun}.
+ *
+ *   import { Eval, Scorers } from "@theokit/sdk/eval";
+ *   const run = await Eval.create({
+ *     name: "qa-smoke",
+ *     dataset: [{ input: "Say ok", expected: "ok" }],
+ *     scorers: [Scorers.containsExpected()],
+ *     agent: { apiKey: process.env.OPENROUTER_API_KEY, model: { id: "openai/gpt-4o-mini" } },
+ *   }).run();
+ *   console.log(run.aggregate.meanScore);
+ *
+ * Needs a usable agent — an `SDKAgent`, an `AgentOptions` object, or a factory —
+ * which in practice means live provider credentials. Import from
+ * `@theokit/sdk/eval`: loading that entry is also what registers the `Agent`
+ * facade the runner resolves at call time.
+ *
+ * How it fails:
+ *  - `Eval.create` THROWS a `ZodError` on bad options: empty `name`, `scorers` not
+ *    a non-empty array, missing `agent`, `concurrency` outside 1..64, `trials`
+ *    outside 1..100. Non-integers and `Infinity` are rejected, never coerced.
+ *  - `run()` rejects with `EvalAlreadyRunningError` when another run with the SAME
+ *    `name` is in flight in this process. The guard is a module-level set keyed on
+ *    the name, so two independently created `Eval`s that happen to share a name
+ *    collide with each other.
+ *  - A row that throws does NOT reject `run()`. It is isolated and recorded in
+ *    `run.rows`, so a resolved promise does not mean every row succeeded — read
+ *    `aggregate` / `rows`, or use `assertEval` to turn thresholds into a throw
+ *    for CI.
+ *
+ * Trap: `Eval.create` only checks that `dataset`, `scorers` and `agent` are the
+ * right KIND of value. A malformed dataset entry or an unreachable provider
+ * surfaces later, per row, inside the run.
+ *
+ * @public
+ */
 export class Eval {
   private constructor(private readonly options: EvalOptions) {}
 

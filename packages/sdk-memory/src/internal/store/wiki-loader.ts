@@ -26,10 +26,21 @@ export interface WikiFile {
   relPath: string;
 }
 
+/**
+ * Path to `<memory root>/wiki`, the read-only supplement directory. Nothing in
+ * this package writes there — it is for material a human or another tool puts
+ * in place. Pure path computation.
+ */
 export function wikiDir(cwd: string): string {
   return join(memoryDir(cwd), "wiki");
 }
 
+/**
+ * List the `.md` files directly under `wiki/`, with each path expressed relative
+ * to the memory root so the index can store a stable `wiki/<name>.md`. Returns
+ * `[]` when the directory does not exist. Does not recurse, so wiki material
+ * organised into sub-directories is not picked up.
+ */
 export async function discoverWikiFiles(cwd: string): Promise<WikiFile[]> {
   let entries: string[];
   try {

@@ -27,6 +27,18 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "mistralai/mistral-embed": 1024,
 };
 
+/**
+ * Embeddings routed through OpenRouter, which lets one key reach several
+ * upstream providers. Use it when you want to switch provider without changing
+ * credentials; use the provider's own adapter when you want its full model
+ * range, since only the four ids in this adapter's dimension table are
+ * accepted.
+ *
+ * Model ids carry the upstream prefix, for example
+ * `openai/text-embedding-3-small` or `mistralai/mistral-embed`. The endpoint is
+ * `/v1/embeddings` under the base `https://openrouter.ai/api`. Reads
+ * `OPENROUTER_API_KEY` and honours `OPENROUTER_API_BASE_URL`. Priority 15.
+ */
 export const openRouterMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "openrouter",
   defaultModel: DEFAULT_OPENROUTER_EMBEDDING_MODEL,

@@ -1,11 +1,11 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import type { EmbeddingRuntime } from "../../../src/internal/memory/embedding-adapter.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Phase 5 T5.1+T5.2 — vector index + hybrid search.
@@ -43,6 +43,10 @@ describe("vector index + hybrid search", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-vec-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await mkdir(join(cwd, ".theokit", "memory"), { recursive: true });
   });
 

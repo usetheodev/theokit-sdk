@@ -39,12 +39,13 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node ../../tools/repair-dts-imports.mjs .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prepublishOnly": "node ../../tools/check-publish-no-workspace.mjs ."
   },
   "publishConfig": {
+    "provenance": true,
     "access": "public"
   },
   "peerDependencies": {

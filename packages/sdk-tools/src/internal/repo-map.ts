@@ -58,6 +58,11 @@ function safeReadHead(p: string, n: number): string {
   }
 }
 
+/**
+ * Options for {@link buildEnvContext}. Both fields exist to make the block deterministic under test:
+ * `now` fixes the date line, `gitHeadPath` points the branch lookup at a fixture instead of
+ * `<cwd>/.git/HEAD`. Neither changes what the block contains.
+ */
 export interface EnvContextOptions {
   /** Injectable clock for the date line (deterministic tests). Default `new Date()`. */
   now?: Date;

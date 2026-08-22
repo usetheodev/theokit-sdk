@@ -24,13 +24,36 @@ import {
 
 import { honchoPeerKey, honchoSessionKey } from "./translate.js";
 
-/** Configuration accepted by the `honchoMemory(...)` factory. @public */
+/**
+ * Configuration accepted by the `honchoMemory(...)` factory.
+ *
+ * @public
+ */
 export interface HonchoAdapterOptions {
-  /** Honcho API key. Falls back to `HONCHO_API_KEY`. */
+  /**
+   * Honcho API key, forwarded verbatim to `new Honcho({ apiKey })`.
+   *
+   * REQUIRED by this type. `@honcho-ai/sdk` itself falls back to `HONCHO_API_KEY` when the value
+   * it receives is `undefined`, so passing `process.env.HONCHO_API_KEY!` and passing nothing
+   * reach the same place inside the vendor client — but this adapter's `isAvailable()` reports
+   * `false` for an empty or missing key, and nothing constructs the client until the first
+   * `write` / `recall`. An absent key therefore surfaces as a
+   * `MemoryAdapterError(code: "auth_failed")` on the first call, not at `Agent.create` time.
+   */
   apiKey: string;
-  /** Workspace ID. Falls back to `HONCHO_WORKSPACE_ID`. */
+  /**
+   * Honcho workspace to write into. Forwarded only when set.
+   *
+   * When omitted, `@honcho-ai/sdk` resolves `HONCHO_WORKSPACE_ID` and finally the literal
+   * `"default"` workspace — so leaving this out is never an error, it silently picks a workspace.
+   */
   workspaceId?: string;
-  /** Base URL override for self-hosted Honcho. */
+  /**
+   * Base URL for a self-hosted Honcho, forwarded as the vendor's `baseURL`.
+   *
+   * Omit it for Honcho cloud; the vendor then reads `HONCHO_URL` and falls back to its own
+   * production URL.
+   */
   baseUrl?: string;
 }
 

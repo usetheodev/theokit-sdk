@@ -3,9 +3,15 @@
  * `pre_tool_call` veto hook (D101, D355, EC-2).
  *
  * Modes:
- *  - `auto`  — pass-through (plugin NOT installed in this mode)
- *  - `deny`  — block every tool call
- *  - `ask`   — round-trip via `conn.requestPermission` with timeout (EC-2)
+ *  - `auto`  — pass-through; `installPermissionPlugin` is never called, so `trustedTools` and
+ *              `timeoutMs` have no effect
+ *  - `deny`  — block every tool call, INCLUDING the ones in `trustedTools` (the deny branch is
+ *              evaluated first)
+ *  - `ask`   — round-trip via `conn.requestPermission`, with `trustedTools` skipping the round-trip
+ *              and `timeoutMs` bounding it (EC-2)
+ *
+ * Every failure of the round-trip blocks: timeout, host-side cancel, an explicit deny, and a
+ * transport error are all vetoes. The tool never runs on ambiguity.
  *
  * @internal
  */
@@ -79,9 +85,11 @@ async function askWithTimeout(
 }
 
 /**
- * Install the permission plugin on an SDK agent. Idempotent — calling on the
- * same agent twice replaces the prior listener (per the SDK's pre_tool_call
- * subscription contract).
+ * Install the tool-permission veto on an SDK agent, for one session.
+ *
+ * Call it once per prompt (the prompt handler does); the plugin name is derived from the session id,
+ * and re-registering under the same name relies on the SDK's `pre_tool_call` subscription contract
+ * rather than on bookkeeping here.
  *
  * **Fail-closed (SEC-M0-03):** when `mode` is `deny`/`ask` but the runtime has
  * no plugin manager (e.g. a CloudAgent), enforcement is impossible — this

@@ -73,8 +73,10 @@ describe("sdk-memory index-manager (iter 72)", () => {
   });
 
   describe("SQLite full lifecycle (skipped when native stack missing)", () => {
-    it("test_open_sync_search_status_close_FTS_only_no_embedding", async () => {
-      if (!(await hasNativeStack())) return;
+    it("test_open_sync_search_status_close_FTS_only_no_embedding", async (ctx) => {
+      if (!(await hasNativeStack())) {
+        ctx.skip("better-sqlite3 native stack unavailable on this runner");
+      }
       // Seed a tiny memory corpus.
       await mkdir(memoryDir(cwd), { recursive: true });
       await writeFile(
@@ -106,16 +108,20 @@ describe("sdk-memory index-manager (iter 72)", () => {
       idx.close();
     });
 
-    it("test_empty_query_short_circuits_to_empty_array", async () => {
-      if (!(await hasNativeStack())) return;
+    it("test_empty_query_short_circuits_to_empty_array", async (ctx) => {
+      if (!(await hasNativeStack())) {
+        ctx.skip("better-sqlite3 native stack unavailable on this runner");
+      }
       const idx = await IndexManager.open({ cwd });
       expect(await idx.search("")).toEqual([]);
       expect(await idx.search("   \n\t ")).toEqual([]);
       idx.close();
     });
 
-    it("test_sync_idempotent_unchanged_files_skip", async () => {
-      if (!(await hasNativeStack())) return;
+    it("test_sync_idempotent_unchanged_files_skip", async (ctx) => {
+      if (!(await hasNativeStack())) {
+        ctx.skip("better-sqlite3 native stack unavailable on this runner");
+      }
       await mkdir(memoryDir(cwd), { recursive: true });
       await writeFile(join(memoryDir(cwd), "MEMORY.md"), "# Memory\n\n## Facts\n\n- pin\n");
       const idx = await IndexManager.open({ cwd });
@@ -131,8 +137,10 @@ describe("sdk-memory index-manager (iter 72)", () => {
       idx.close();
     });
 
-    it("test_EC1_identity_change_drops_vector_index_on_re_open", async () => {
-      if (!(await hasNativeStack())) return;
+    it("test_EC1_identity_change_drops_vector_index_on_re_open", async (ctx) => {
+      if (!(await hasNativeStack())) {
+        ctx.skip("better-sqlite3 native stack unavailable on this runner");
+      }
       // First open with a 3-dim embedding.
       const embedding3: EmbeddingRuntime = {
         id: "stub",
@@ -141,11 +149,12 @@ describe("sdk-memory index-manager (iter 72)", () => {
         dimension: 3,
         embed: async (texts: string[]) => texts.map(() => [1, 0, 0]),
       } as unknown as EmbeddingRuntime;
-      // Need sqlite-vec for full vector init — gracefully skip if absent.
+      // Need sqlite-vec for full vector init — report SKIPPED if absent, so an
+      // environment without it cannot report PASS for an unexercised path.
       try {
         await import("sqlite-vec");
       } catch {
-        return;
+        ctx.skip("sqlite-vec not installed on this runner");
       }
       const idx1 = await IndexManager.open({ cwd, embedding: embedding3 });
       idx1.close();

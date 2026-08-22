@@ -17,10 +17,11 @@
  *   - `{ ok: false, error: 'path_traversal' | 'forbidden_path' | 'timeout' |
  *        'no_vitest' | 'unparseable_output' }`
  *
- * Implementation note: invokes vitest via `npx --no-install vitest`. The
- * `--no-install` avoids the agent triggering a multi-megabyte download
- * mid-turn if vitest is missing — the tool fails cleanly with
- * `no_vitest` instead.
+ * Implementation note: invokes vitest via `npx --no-install vitest`. The `--no-install` avoids the
+ * agent triggering a multi-megabyte download mid-turn when vitest is missing. That case surfaces as
+ * `unparseable_output`, not `no_vitest`: `npx` itself starts, writes its complaint to stderr and
+ * exits non-zero, leaving no JSON on stdout. `no_vitest` is reported when the SPAWN fails, i.e. `npx`
+ * is not on PATH.
  */
 
 import { spawn } from "node:child_process";
@@ -46,6 +47,11 @@ export interface CreateRunVitestToolOptions {
   maxStdoutBytes?: number;
 }
 
+/**
+ * The fields lifted from vitest's JSON report. All optional, because the object is the report's own
+ * top level passed through unvalidated — a vitest version that renames a field yields `undefined`
+ * here rather than an error, so treat a missing `success` as unknown, never as failed.
+ */
 export interface VitestSummary {
   numTotalTests?: number;
   numPassedTests?: number;
@@ -53,6 +59,20 @@ export interface VitestSummary {
   success?: boolean;
 }
 
+/**
+ * Build the `run_vitest` tool: run the project's suite and return the counts rather than the log.
+ *
+ * A FAILING suite is `{ ok: true, summary }` with `success: false`. `ok` reports only that vitest
+ * ran; an agent that branches on `ok` reads a red suite as a green one. And the summary carries
+ * counts alone — which test failed, and why, is not in the result, so chasing a failure means falling
+ * back to `shell_exec`.
+ *
+ * Runs `npx --no-install vitest run --reporter=json`, so a project without vitest installed fails
+ * instead of downloading it mid-turn. That failure arrives as `unparseable_output`; `no_vitest` is
+ * narrower than its name suggests and means the spawn failed, i.e. `npx` is not on PATH. The
+ * remaining refusals are `path_traversal`, `forbidden_path` and `timeout` (default 120s, process
+ * group killed).
+ */
 export function createRunVitestTool(opts: CreateRunVitestToolOptions): CustomTool {
   const {
     projectRoot,

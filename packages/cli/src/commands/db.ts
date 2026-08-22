@@ -6,7 +6,8 @@
  *   - `theokit db generate`       → drizzle-kit generate
  *   - `theokit db migrate`        → drizzle-kit migrate
  *   - `theokit db studio`         → drizzle-kit studio
- *   - `theokit db push`           → drizzle-kit push (dangerous, gated)
+ *   - `theokit db push`           → drizzle-kit push (dangerous, and NOT gated by this CLI —
+ *                                   drizzle-kit's own confirmation is the only prompt)
  *   - `theokit db export-schema`  → run @theokit/orm schema-export → .theokit/schema/{entity}.schema.json
  *   - `theokit db check-schema-drift`
  *                                 → re-emit and diff against committed schemas; exit 1 on drift
@@ -16,7 +17,15 @@
  *   - export-schema and check-schema-drift load `orm.config.ts` from cwd
  *     (must default-export `{ schema, dialect, db? }` shape — only `schema` is used)
  *   - All file writes are atomic (write tmp + rename)
- *   - All paths sanitized via path.resolve before write
+ *   - All paths resolved with `path.resolve` before write. That normalises, it does not CONFINE:
+ *     `--out ../../elsewhere` resolves cleanly and writes there. These flags are operator input,
+ *     not untrusted input.
+ *
+ * Exit codes: `0` success; `1` the schema exporter threw, or (for `check-schema-drift`) drift was
+ * found; `2` a precondition the operator can fix — drizzle-kit absent, `orm.config` missing or
+ * without a `{ schema }` default export, `@theokit/orm` not installed. The four drizzle-kit
+ * wrappers instead forward the child process's own exit code, and return `1` when it is killed by a
+ * signal.
  */
 
 import { spawnSync } from "node:child_process";
@@ -32,12 +41,16 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+/** Shared options. `cwd` defaults to `process.cwd()` and is the root for every lookup below it. */
 interface DbCommandOptions {
   readonly cwd?: string;
 }
 
+/** Options for the two schema commands. Both paths are resolved against `cwd`; neither is confined to it. */
 interface DbExportSchemaOptions extends DbCommandOptions {
+  /** Output directory. Default `.theokit/schema`. */
   readonly out?: string;
+  /** Path to the ORM config module. Default `orm.config.ts`. */
   readonly config?: string;
 }
 
@@ -71,15 +84,26 @@ function runDrizzleKit(verb: string, cwd: string, extraArgs: string[] = []): num
   return r.status;
 }
 
+/** `drizzle-kit generate` in `cwd`, stdio inherited. Returns its exit code (2 if drizzle-kit is absent). */
 export function runDbGenerate(opts: DbCommandOptions = {}): number {
   return runDrizzleKit("generate", opts.cwd ?? process.cwd());
 }
+/** `drizzle-kit migrate` in `cwd`, stdio inherited. Returns its exit code (2 if drizzle-kit is absent). */
 export function runDbMigrate(opts: DbCommandOptions = {}): number {
   return runDrizzleKit("migrate", opts.cwd ?? process.cwd());
 }
+/**
+ * `drizzle-kit studio` in `cwd`, stdio inherited. BLOCKS until the studio server is stopped —
+ * `spawnSync` gives the child the terminal.
+ */
 export function runDbStudio(opts: DbCommandOptions = {}): number {
   return runDrizzleKit("studio", opts.cwd ?? process.cwd());
 }
+/**
+ * `drizzle-kit push` in `cwd` — applies the schema straight to the live database, with no migration
+ * file. This CLI adds NO confirmation of its own; whatever drizzle-kit prompts is all the protection
+ * there is. Prototypes only.
+ */
 export function runDbPush(opts: DbCommandOptions = {}): number {
   return runDrizzleKit("push", opts.cwd ?? process.cwd());
 }
@@ -174,6 +198,20 @@ function writeSchemasToOutDir(schemas: Record<string, unknown>, outDir: string):
   }
 }
 
+/**
+ * Emit one JSON Schema 7 file per entity, for consumers outside TypeScript.
+ *
+ * Loads `orm.config.ts` (override with `config`) and `@theokit/orm` from the project's own
+ * `node_modules`, then writes `<out>/<entity>.schema.json` (default `.theokit/schema`). Each write is
+ * atomic, but the directory is not: EVERY existing `*.schema.json` in `out` is deleted first, so
+ * pointing `--out` at a directory holding unrelated schema files loses them.
+ *
+ * The config module is imported with a cache-busting query, so consecutive calls in one process see
+ * edits — and re-run its top-level side effects.
+ *
+ * @returns 0 on success, 2 for a missing/invalid config or a missing `@theokit/orm`, 1 when the
+ * exporter itself throws.
+ */
 export async function runDbExportSchema(opts: DbExportSchemaOptions = {}): Promise<number> {
   const cwd = opts.cwd ?? process.cwd();
   const configPath = resolve(cwd, opts.config ?? "orm.config.ts");
@@ -239,6 +277,17 @@ function reportSchemaDrift(drift: SchemaDrift): number {
   return 1;
 }
 
+/**
+ * Re-derive the schemas and compare them to the committed copies in `out`. Writes nothing.
+ *
+ * Drift is reported per entity as added / removed / changed, where "changed" is a strict
+ * `JSON.stringify` inequality — key ORDER counts, so a hand-edited file that only reorders keys
+ * reads as drift.
+ *
+ * @returns 0 when in sync, 1 when any drift is found (the CI signal), 2 for a missing/invalid config
+ * or a missing `@theokit/orm`. Unlike `export-schema`, an exporter throw here is NOT caught and
+ * propagates to the caller.
+ */
 export async function runDbCheckSchemaDrift(opts: DbCheckDriftOptions = {}): Promise<number> {
   const cwd = opts.cwd ?? process.cwd();
   const configPath = resolve(cwd, opts.config ?? "orm.config.ts");

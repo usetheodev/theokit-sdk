@@ -11,6 +11,18 @@
 import type { EnvPolicy } from "../types/env-policy.js";
 import { shellEscapePosix } from "./shell-escape.js";
 
+/**
+ * What a {@link SandboxBackend} returns for one command.
+ *
+ * `exitCode` is a coarse signal rather than the child's real exit status: the backends in this
+ * package report `0` on success, `124` on timeout, and `1` for everything else — including a command
+ * that exited with its own non-zero code. Read `timedOut` to tell a killed command from a failed one,
+ * and `stderr` for the reason; branching on a specific exit code will not work here.
+ *
+ * `stdout` and `stderr` are truncated independently at `SandboxConfig.maxOutputBytes`, with a
+ * trailing `...(truncated)` marker. Neither is safe to parse as a complete document without checking
+ * for it.
+ */
 export interface ExecuteResult {
   stdout: string;
   stderr: string;
@@ -18,6 +30,19 @@ export interface ExecuteResult {
   timedOut: boolean;
 }
 
+/**
+ * Construction-time settings shared by every {@link SandboxBackend}. All fields are optional and the
+ * base constructor fills them in, so `{}` is a valid config: `workDir` `/tmp`, `timeoutMs` 30000,
+ * `maxOutputBytes` 5 MiB, `env` `"inherit-scrubbed"`.
+ *
+ * `workDir` is the child process's cwd and the base a relative `uploadFile` path resolves against. It
+ * is not a boundary — under `LocalSandbox` nothing stops a command, or an absolute path, from leaving
+ * it. Only `LinuxSandbox` makes it enforceable.
+ *
+ * `timeoutMs` is the default for every call; `execute(command, { timeoutMs })` overrides it per
+ * command. On expiry the child is killed and the result carries `timedOut: true` with `exitCode`
+ * 124 — the partial output collected so far is still returned.
+ */
 export interface SandboxConfig {
   workDir?: string;
   timeoutMs?: number;
@@ -31,6 +56,17 @@ export interface SandboxConfig {
   env?: EnvPolicy;
 }
 
+/**
+ * A backend refused a command on policy grounds — the environment works, and it said no. Carries a
+ * stable `code: "sandbox_security"` for callers that prefer not to match on the class.
+ *
+ * Nothing in this package throws it, which is worth knowing before you write a `catch` for it:
+ * `LocalSandbox` and `LinuxSandbox` report a refusal through {@link ExecuteResult} (non-zero
+ * `exitCode`, reason on `stderr`), and a write blocked under confinement surfaces as a plain `Error`
+ * from `uploadFile`. This type exists so a custom backend that must reject a command BEFORE spawning
+ * anything — a container or VM runner enforcing its own policy — can do so in the protocol's
+ * vocabulary instead of inventing an error of its own.
+ */
 export class SandboxSecurityError extends Error {
   readonly code = "sandbox_security" as const;
   constructor(message: string) {
@@ -39,6 +75,16 @@ export class SandboxSecurityError extends Error {
   }
 }
 
+/**
+ * A backend cannot be used at all: its runtime is missing or unusable. The distinction from
+ * {@link SandboxSecurityError} is which side failed — there the sandbox worked and denied the
+ * command, here there is no sandbox. Carries `code: "sandbox_not_available"`.
+ *
+ * Nothing in this package throws it either, and that is a position rather than an oversight:
+ * `createSandboxBackend` treats a missing bubblewrap as a degradation, warns once, and hands back an
+ * unconfined `LocalSandbox`. Throw this instead from a backend that must never silently run outside
+ * its isolation.
+ */
 export class SandboxNotAvailableError extends Error {
   readonly code = "sandbox_not_available" as const;
   constructor(message: string) {
@@ -47,6 +93,24 @@ export class SandboxNotAvailableError extends Error {
   }
 }
 
+/**
+ * The execution capability handed to an agent tool, and the extension point for new environments.
+ *
+ * A backend implements exactly two methods, `execute` and `uploadFile`. Everything else here —
+ * `readFile`, `glob`, `grep`, `listDir` — is derived from `execute` by shelling out `cat`, `find`,
+ * `grep` and `ls`, so a subclass that overrides `execute` alone inherits confined reads, searches and
+ * listings for free. It does not inherit confined writes: `writeFile` delegates to `uploadFile`, and
+ * that is the second override `LinuxSandbox` needs.
+ *
+ * Choosing one: `LocalSandbox` runs the command on the host with no isolation and suits code you
+ * already trust; `LinuxSandbox` adds kernel confinement where bubblewrap is available;
+ * `createSandboxBackend` probes and picks between them, and is the right entry point unless you have
+ * a reason to pin one. For genuinely untrusted code you want a container or VM backend, which this
+ * package does not ship — write it against these two methods.
+ *
+ * Because the derived helpers assemble shell command lines (arguments escaped for POSIX `sh`), a
+ * backend whose `execute` is not a POSIX shell must override them as well.
+ */
 export abstract class SandboxBackend {
   protected config: SandboxConfig;
 

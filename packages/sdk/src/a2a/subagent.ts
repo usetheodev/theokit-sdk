@@ -89,6 +89,45 @@ export interface DelegationCompleteDecision {
   feedback?: string;
 }
 
+/**
+ * The declaration of a delegating child agent, handed to `SubAgent.create(spec)`.
+ *
+ * `name`, `description` and `instructions` are the only required fields: the first
+ * two become the tool the supervisor's model sees, the third becomes the child's
+ * system prompt. Everything else narrows what the child inherits.
+ *
+ *   const research = SubAgent.create({
+ *     name: "research",
+ *     description: "Look a fact up",
+ *     instructions: "You answer with one sentence.",
+ *   });
+ *   const agent = await Agent.create({ tools: [research] });
+ *
+ * The tool's own input schema is fixed — one required string property, `input`.
+ * It is not derived from this spec and cannot be widened here.
+ *
+ * What the child inherits from the parent AT DISPATCH TIME, not from this object:
+ * the API key, the model (unless `model` is set), the parent's plugins, and the
+ * parent's sandbox posture (unless `sandbox` is set). An absent `sandbox` inherits;
+ * an explicit `sandbox: false` turns confinement OFF for a child of a confined
+ * parent, which is not the same thing.
+ *
+ * How it fails: the child's failure is re-thrown to the supervisor as a tool error
+ * — a run ending in `status: "error"` becomes
+ * `subagent "<name>" run failed: <cause>`. `onDelegationStart` and `messageFilter`
+ * propagate their own throws; only a throw from `onDelegationComplete` ON THE
+ * ERROR PATH is suppressed, so it cannot mask the real cause.
+ *
+ * Traps:
+ *  - `model` as a bare string drops reasoning parameters. Pass the
+ *    {@link ModelSelection} object form when the child needs `params`.
+ *  - `maxDelegationDepth` (default 3) is compared against the `parentDepth`
+ *    argument of `SubAgent.create`, which nothing in this SDK threads for you —
+ *    see {@link MaxDelegationDepthError}.
+ *  - Context isolation is the DEFAULT. Without `messageFilter` the child sees only
+ *    the delegated string; without `includeToolResults` the supervisor gets only
+ *    the child's final text.
+ */
 export interface SubAgentSpec {
   name: string;
   description: string;
@@ -143,6 +182,20 @@ export interface SubAgentSpec {
   includeToolResults?: boolean;
 }
 
+/**
+ * Raised by `SubAgent.create(spec, parentDepth)` when `parentDepth + 1` exceeds
+ * `spec.maxDelegationDepth` (default 3). Carries `currentDepth`, `maxDepth` and a
+ * stable `code: "max_delegation_depth"`.
+ *
+ * Thrown at TOOL-CONSTRUCTION time, not while a delegation runs — catching it
+ * around `agent.send()` catches nothing.
+ *
+ * Trap: the depth is entirely caller-supplied. `parentDepth` defaults to 0 and
+ * nothing in this SDK increments it across a chain of delegations, so with the
+ * default call `SubAgent.create(spec)` this error can never fire and a subagent
+ * that delegates to a subagent is NOT bounded by it. A supervisor building nested
+ * delegation tools must thread its own depth through.
+ */
 export class MaxDelegationDepthError extends Error {
   readonly code = "max_delegation_depth" as const;
   constructor(
@@ -193,12 +246,6 @@ async function collectChildToolResults(run: Run): Promise<string> {
 }
 
 /**
- * Create the transient child agent and send the input, composing every forwarded
- * `SendOptions` onto ONE `send` call — SE10 `signal` + SE13 `maxIterations`. Absent
- * every option ⇒ the pre-SE10 single-arg `send(input)` shape. SE14 — when
- * `includeToolResults` is set, append the child's completed tool results. Dispose in `finally`.
- */
-/**
  * Build the child agent's `Agent.create` options: the child inherits the parent's
  * apiKey (else `Agent.create` throws "Missing API key"), its model (unless the spec
  * overrides it), and — #55 — the parent's plugins (permission gate/guards) so the
@@ -231,6 +278,12 @@ export function buildChildCreateOptions(
   };
 }
 
+/**
+ * Create the transient child agent and send the input, composing every forwarded
+ * `SendOptions` onto ONE `send` call — SE10 `signal` + SE13 `maxIterations`. Absent
+ * every option ⇒ the pre-SE10 single-arg `send(input)` shape. SE14 — when
+ * `includeToolResults` is set, append the child's completed tool results. Dispose in `finally`.
+ */
 async function runChildAgent(
   spec: SubAgentSpec,
   input: string,
@@ -416,7 +469,10 @@ export class SubAgent {
  * Convert a parent's declarative `agents` map ({@link AgentDefinition} per key)
  * into delegation tools for the LOCAL runtime — the counterpart of the
  * cloud/fixture subagent wiring. Each child inherits the parent's `apiKey`/model
- * via {@link inheritSubAgentCredentials}; `def.model` overrides the model
+ * from the CALL, not from the tool object: `inheritSubAgentCredentials` used to
+ * attach them to the tool, and any layer that rebuilt that object dropped them —
+ * including the SDK's own rebuild (theokit#148). Credentials now ride the
+ * dispatch, so a rebuilt tool cannot lose them. `def.model` overrides the model
  * (`"inherit"` keeps the parent's), and `def.tools` scopes the child to that
  * subset of the parent's tools (absent → the parent's full toolset, per the
  * `AgentDefinition.tools` contract).

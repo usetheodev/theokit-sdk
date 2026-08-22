@@ -108,6 +108,21 @@ export class PluginsManager {
     }
   }
 
+  /**
+   * B-107 measured this guard as unreachable and it was REMOVED on 2026-08-20. The pre-push gate
+   * caught the regression the same hour: `tests/contract/plugins.contract.test.ts:69` drives
+   * `Agent.create` with `cloud` plus `plugins.paths` and requires a `ConfigurationError`.
+   *
+   * The measurement that said "unreachable" was a `tsc` probe returning TS2353 — `plugins.paths` is
+   * not in the declared `AgentOptions`. That proves the option is undeclarable in TypeScript; it
+   * does NOT prove the value cannot arrive. The contract test casts through a `ProposedAgentOptions`
+   * shape it declares itself, which is exactly what a JavaScript caller, a JSON config or an `as`
+   * cast does. Runtime boundary validation exists for values types cannot stop
+   * (`rules/architecture.md` § 1) — so "the type system forbids it" is never on its own a reason to
+   * delete a boundary check.
+   *
+   * Do not remove this again without making `tests/contract/plugins.contract.test.ts` go red first.
+   */
   private assertCloudRules(): void {
     if (!this.cloud) return;
     if (this.localPaths !== undefined && this.localPaths.length > 0) {

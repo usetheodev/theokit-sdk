@@ -227,7 +227,6 @@ export async function deviceLogin(
 
 // ─── OpenAI / ChatGPT "headless" device flow (two-step) ───
 
-/** The OpenAI two-step device config: usercode + poll endpoints return an authorization_code (not tokens). */
 /** Step 1 (OpenAI) — request the user code. */
 export async function requestOpenAIUsercode(
   config: OpenAIDeviceConfig,

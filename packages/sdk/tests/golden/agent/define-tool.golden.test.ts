@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
 
 import { Tool } from "../../../src/index.js";
@@ -73,6 +73,10 @@ describe("Tool", () => {
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
     const cwd = await mkdtemp(join(tmpdir(), "theokit-definetool-bad-"));
+    onTestFinished(async () => {
+      const { removeTempDirRobust } = await import("../../helpers/temp-workspace.js");
+      await removeTempDirRobust(cwd);
+    });
     // Using z.string() at the root produces inputSchema with type: "string",
     // which our validateCustomTools rejects with tool_invalid_schema_type.
     const tool = Tool.create({

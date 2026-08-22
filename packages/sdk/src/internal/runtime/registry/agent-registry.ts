@@ -126,10 +126,18 @@ export function getRegisteredAgent(agentId: string): RegisteredAgent | undefined
  *
  * @internal
  */
-export function listRegisteredAgents(runtime?: AgentRuntime, cwd?: string): RegisteredAgent[] {
+export function listRegisteredAgents(
+  runtime?: AgentRuntime,
+  cwd?: string,
+  // B-115 (measured 2026-08-19): `Agent.list({ includeArchived })` compiled and was silently
+  // dropped — archived agents were always included, with no way to hide them. Default `false`
+  // (hide archived), matching the field's name and the common "includeX" list-API convention.
+  includeArchived = false,
+): RegisteredAgent[] {
   let out = Array.from(agents.values());
   if (runtime !== undefined) out = out.filter((agent) => agent.runtime === runtime);
   if (cwd !== undefined) out = out.filter((agent) => resolveRegistryCwd(agent) === cwd);
+  if (!includeArchived) out = out.filter((agent) => !agent.archived);
   return out;
 }
 

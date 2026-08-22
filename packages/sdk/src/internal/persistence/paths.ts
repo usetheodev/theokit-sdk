@@ -33,12 +33,25 @@ import { join } from "node:path";
 const THEOKIT_DIR_NAME = ".theokit";
 
 /**
- * Resolve the active Theokit state directory.
+ * Resolve the directory cwd-anchored SDK state lives in.
  *
- * Returns the value of `THEOKIT_HOME` env var if set (and non-empty after
- * trim); otherwise returns `<cwd>/.theokit`.
+ * `THEOKIT_HOME` wins when it is set and not blank after trimming; the trimmed value is used, and
+ * it is used VERBATIM — it is not resolved against `cwd`, so a relative value stays relative and
+ * `.theokit` is not appended to it. Otherwise the answer is `<cwd>/.theokit`.
  *
- * @internal
+ * The environment is read on every call, so a change to the variable takes effect immediately
+ * rather than being frozen at import.
+ *
+ * This creates nothing and checks nothing: the returned path may not exist, and the caller owns
+ * the `mkdir`. Call it instead of writing `join(cwd, ".theokit")` by hand, or the override stops
+ * working for that one call site and tests silently touch the real home.
+ *
+ * Not the whole story about where state lives — the transcript is home-anchored via
+ * `transcriptRoot()`, honoring the same variable but defaulting to `~/.theokit`. With
+ * `THEOKIT_HOME` unset, state is genuinely split between two roots.
+ *
+ * Semver-exempt: reachable via the `@theokit/sdk/internal/persistence` sub-path, which the package
+ * declares in `exports` but does NOT cover with its semver contract.
  */
 export function getTheokitHome(cwd: string): string {
   const override = process.env.THEOKIT_HOME?.trim();
@@ -49,22 +62,38 @@ export function getTheokitHome(cwd: string): string {
 }
 
 /**
- * Profiles root is ALWAYS at `~/.theokit/profiles/`, regardless of
- * `THEOKIT_HOME`. This lets `theokit profile list` see all profiles
- * regardless of which one is currently active.
+ * The directory holding every profile: always `~/.theokit/profiles`, from `os.homedir()`.
  *
- * @internal
+ * Deliberately NOT affected by `THEOKIT_HOME`, which is the one thing to remember about it. If it
+ * followed the override, a session pointed at one profile would only be able to see that profile,
+ * and `theokit profile list` could never enumerate the rest. Profiles are the thing the override
+ * switches between, so their index cannot live behind it.
+ *
+ * Takes no `cwd` for the same reason. Creates nothing; the path may not exist.
+ *
+ * Semver-exempt: reachable via the `@theokit/sdk/internal/persistence` sub-path, which the package
+ * declares in `exports` but does NOT cover with its semver contract.
  */
 export function getProfilesRoot(): string {
   return join(homedir(), THEOKIT_DIR_NAME, "profiles");
 }
 
 /**
- * Human-readable Theokit home for log/print output. Collapses `$HOME` to
- * `~` when applicable. NEVER used for `fs.*` calls — use `getTheokitHome`
- * for those.
+ * The same path `getTheokitHome(cwd)` returns, shortened for display: the home directory prefix
+ * collapses to `~`, so `/home/ada/.theokit` prints as `~/.theokit`.
  *
- * @internal
+ * For humans only — log lines, CLI output, error messages. The result is NOT a usable path: `~`
+ * is a shell convention that `fs` does not expand, so passing this to a filesystem call resolves
+ * a literal directory named `~` relative to the process cwd. Use `getTheokitHome` for anything
+ * that touches disk.
+ *
+ * Collapsing is a prefix match on the home directory followed by a literal `/`, so a sibling like
+ * `/home/adalovelace` is left alone even though `/home/ada` is a string prefix of it. A path
+ * outside the home directory comes back unchanged — and so does a Windows path, where the
+ * separator is a backslash and the prefix test therefore never matches.
+ *
+ * Semver-exempt: reachable via the `@theokit/sdk/internal/persistence` sub-path, which the package
+ * declares in `exports` but does NOT cover with its semver contract.
  */
 export function displayTheokitHome(cwd: string): string {
   const resolved = getTheokitHome(cwd);

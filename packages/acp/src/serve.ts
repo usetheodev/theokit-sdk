@@ -3,7 +3,9 @@
  *
  * Constructs `AgentSideConnection` from `@agentclientprotocol/sdk@^0.22`,
  * delegates lifecycle methods to `lifecycle.ts`, and drives the prompt
- * translator from `translator.ts`. Per-invocation state (D356).
+ * translator from `translator.ts`. All state (sessions, warnings, defaults) is
+ * per invocation — nothing is module-global, so two `serveAcp` calls on
+ * different stream pairs do not see each other (D356).
  *
  * @public
  */
@@ -28,8 +30,58 @@ const DEFAULT_PERMISSION_TIMEOUT_MS = 60_000;
 const DEFAULT_PERMISSION_MODE: PermissionMode = "ask";
 
 /**
- * Block on a stdio JSON-RPC ACP server until stdin closes. Returns ONLY
- * after every active session has been disposed (EC-1).
+ * Serve `options.agent` to an ACP host over JSON-RPC on stdio, blocking until the input stream ends.
+ *
+ * ```ts
+ * await serveAcp({ agent: (sessionId) => Agent.create({ agentId: sessionId }) });
+ * ```
+ *
+ * Needs `@agentclientprotocol/sdk` and `@theokit/sdk` installed (peer dependencies). It reads no
+ * environment variable and no config file of its own; every knob is on {@link AcpServerOptions}.
+ * **Do not write to stdout** from the agent or its tools — that stream carries the protocol frames.
+ *
+ * Resolves once `stdin` emits `end` or `close` AND `dispose()` has settled for every live session
+ * (EC-1). A `dispose()` that throws is logged and swallowed, so a bad teardown cannot strand the
+ * process.
+ *
+ * Rejects only when it cannot start: an `InvalidAgentError` when `agent` is neither a function nor
+ * an object with a string `agentId` and a callable `send`. That class is NOT on this package's
+ * public surface — `@theokit/acp` exports `serveAcp` and `PromptTooLargeError`, nothing else — so a
+ * consumer cannot `import` it and cannot `instanceof` it; branch on `err.name === "InvalidAgentError"`
+ * instead. Nothing that happens afterwards rejects this promise — per-request failures go back to
+ * the host as JSON-RPC errors:
+ *
+ * | Condition | Code |
+ * |---|---|
+ * | `cwd` absent or not on disk (`session/new`, `session/load`, `session/fork`) | `-32602` |
+ * | `session/load` for an id already loaded in this process | `-32602` |
+ * | prompt with no text block, or over `maxPromptBytes` | `-32602` |
+ * | `session/fork` whose parent IS loaded here — deferred to v0.2 | `-32602` |
+ * | `session/prompt` or `session/fork` naming a session this process has not loaded | `-32001` |
+ * | `session/load` the SDK cannot resume (wrong host, no shared storage) | `-32001` |
+ * | agent factory threw | `-32603` |
+ * | `permissionDefault` is `"ask"`/`"deny"` and the runtime cannot enforce it | `-32603` |
+ * | run ended in a status ACP has no stop reason for | `-32603` |
+ *
+ * `session/fork` checks the parent BEFORE `cwd`, so a fork naming a parent this process does not
+ * hold answers `-32001` and never reaches either `-32602` row above. Because the session store is
+ * in-memory and per-process, that is the common case after a restart — `session/fork` is refused in
+ * every case, but reading the refusal as "always `-32602`" is wrong.
+ *
+ * A prompt that completes maps the run onto an ACP stop reason: `end_turn`, `cancelled`, `refusal`
+ * (safety), `max_tokens` (context or token cap), `max_turn_requests` (iteration cap).
+ *
+ * Traps worth knowing before you wire a host to this:
+ * - `session/authenticate` always answers success without checking anything (D350) — do not read an
+ *   empty `authMethods` plus a successful authenticate as "the agent authorised me".
+ * - Only the TEXT blocks of a prompt reach the agent. Images, audio and resources are counted
+ *   against `maxPromptBytes`, then dropped.
+ * - `session/cancel` aborts the session's single `AbortController`, and nothing re-arms it. Every
+ *   later prompt on that session is issued with an already-aborted signal, so treat a cancelled
+ *   session as spent and open a new one.
+ * - Of the SDK stream, only assistant text, thinking and tool calls are forwarded; `status`, `task`
+ *   and `object_delta` messages have no ACP equivalent and are dropped silently.
+ * - `serveAcp` does not close `stdout` and does not call `process.exit` — the caller owns the exit.
  *
  * @public
  */
@@ -66,7 +118,6 @@ export async function serveAcp(options: AcpServerOptions): Promise<void> {
   });
 
   // Construct connection. The agentBuilder is invoked synchronously by the SDK.
-  // eslint-disable-next-line no-new
   new acp.AgentSideConnection((conn) => {
     return {
       initialize: async (params) =>

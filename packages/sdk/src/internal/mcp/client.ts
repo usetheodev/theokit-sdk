@@ -455,12 +455,6 @@ class HttpMcpClient extends BaseMcpClient {
   }
 
   /**
-   * Capture the session on the FIRST response that carries it (the `initialize`).
-   *
-   * Never overwritten by a later one: a server that re-issues mid-session would otherwise split
-   * the session in two, and the second half would not see the first half's state.
-   */
-  /**
    * Read one JSON-RPC response, in either encoding the server may choose.
    *
    * Streamable HTTP lets the server answer a POST with `application/json` OR `text/event-stream`,
@@ -486,6 +480,12 @@ class HttpMcpClient extends BaseMcpClient {
     });
   }
 
+  /**
+   * Capture the session on the FIRST response that carries it (the `initialize`).
+   *
+   * Never overwritten by a later one: a server that re-issues mid-session would otherwise split
+   * the session in two, and the second half would not see the first half's state.
+   */
   private captureSession(response: Response): void {
     if (this.sessionId !== undefined) return;
     const issued = response.headers.get("mcp-session-id");

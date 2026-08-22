@@ -1,11 +1,11 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { defaultIndexPath } from "../../../src/internal/memory/index-db.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryMdPath, notesDir } from "../../../src/internal/memory/storage/markdown-store.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Phase 3 T3.1 — SQLite + FTS5 IndexManager.
@@ -21,6 +21,10 @@ describe("IndexManager", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-index-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await setupMemoryCorpus(cwd);
   });
 

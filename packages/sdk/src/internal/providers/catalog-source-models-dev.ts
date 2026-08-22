@@ -25,9 +25,40 @@ import { getProviderProfile } from "./registry.js";
  */
 
 const DEFAULT_URL = "https://models.dev/api.json";
+
+/**
+ * Ceiling on a fetched catalog, before it is parsed or written to the cache.
+ *
+ * The response body was read with `res.text()` and persisted with no bound, so a host serving a
+ * multi-gigabyte document would have been materialised in memory and then written to disk. The
+ * default URL is trusted, but `THEOKIT_MODELS_URL` lets an operator point this anywhere, and a
+ * limit is the difference between "we only fetch from a host we trust" and "we cannot be hurt by
+ * one we do not".
+ *
+ * 32 MiB is roughly 40x the real catalog (~800 KiB in 2026-08), so it bounds the failure without
+ * being a number anyone has to tune when models.dev grows.
+ */
+const MAX_CATALOG_BYTES = 32 * 1024 * 1024;
 const TTL_MS = 60 * 60 * 1000; // 1 hour
 const FETCH_TIMEOUT_MS = 10_000;
 
+/**
+ * Arguments to `refreshModelCatalog`, the SDK's only network trigger for model metadata.
+ *
+ * `url` wins over the `THEOKIT_MODELS_URL` environment variable, which in turn wins over
+ * `https://models.dev/api.json`. A non-default URL gets its own cache file, named by a hash of
+ * the URL, so switching sources never reads another source's cache.
+ *
+ * `force` skips only the freshness check — it does not skip the kill switch. When
+ * `THEOKIT_DISABLE_MODELS_FETCH` is set to anything other than an empty string, `"0"` or
+ * `"false"`, the call returns `source: "skipped"` with no fetch and no cache read, whatever
+ * `force` says.
+ *
+ * Without `force`, a cache file whose mtime is under an hour old is served directly and no
+ * request is made.
+ *
+ * `deps` exists so tests can drive the fetch and the clock; production leaves it unset.
+ */
 export interface RefreshModelCatalogOptions {
   /** Override the source URL (`THEOKIT_MODELS_URL` env also honored). */
   url?: string;
@@ -37,6 +68,25 @@ export interface RefreshModelCatalogOptions {
   deps?: { fetch?: typeof fetch; now?: () => number };
 }
 
+/**
+ * What `refreshModelCatalog` did. It never throws on a failed refresh, so this is the only place
+ * the outcome is reported.
+ *
+ * `source` is `"network"` only when a request succeeded, its body parsed as JSON, and the models
+ * were patched in. Every failure path — kill switch aside — returns `"cache"`: an HTTP error
+ * after retries, a timeout, an unparseable body, or a patch that threw. `"cache"` therefore means
+ * "serving what was already there", which may be a fresh cache, a stale one, or nothing but the
+ * vendored catalog. Read `models` to tell those apart. `"skipped"` means the kill switch was set.
+ *
+ * `models` counts the models patched into the index during this call, not the catalog's size. It
+ * counts each model once even when the provider has aliases and the model is written under several
+ * index keys, and it excludes models whose payload failed schema validation and models under
+ * providers the SDK does not know. It is 0 whenever there was no cache to fall back on, and 0 for
+ * `"skipped"`.
+ *
+ * A cache write that fails is logged and otherwise ignored: the result can still say `"network"`
+ * with the data live in memory and nothing on disk.
+ */
 export interface RefreshModelCatalogResult {
   /** Where the data came from: a fresh network fetch, the still-fresh disk cache, or skipped entirely. */
   source: "network" | "cache" | "skipped";
@@ -232,7 +282,17 @@ export async function refreshModelCatalog(
       // the whole call is already fail-closed at the caller.
       { retries: 2, isRetryable: () => true, initialDelayMs: 200 },
     );
+    const declaredLength = Number(res.headers.get("content-length") ?? Number.NaN);
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_CATALOG_BYTES) {
+      throw new Error(`catalog too large: ${declaredLength} bytes declared`);
+    }
     body = await res.text();
+    // Checked again after reading: `content-length` is the server's claim, and a server that
+    // omits it or lies about it is exactly the one worth bounding. Both checks are cheap and
+    // neither alone is sufficient.
+    if (body.length > MAX_CATALOG_BYTES) {
+      throw new Error(`catalog too large: ${body.length} bytes received`);
+    }
     JSON.parse(body); // validate before persisting — never cache garbage
   } catch (err) {
     diag(

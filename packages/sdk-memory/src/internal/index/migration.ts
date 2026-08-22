@@ -68,12 +68,38 @@ async function writeMigratedFacts(
 
 const migrationRun = new Set<string>();
 
+/**
+ * Outcome of {@link migrateLegacyJson}. `reason` is present on every non-migrated
+ * result and says which guard stopped it: `already-migrated` (this key was
+ * attempted earlier in this process), `no-legacy-json` (nothing to migrate, or
+ * the file could not be read or parsed), `markdown-exists` (both files present,
+ * so neither was touched), `readonly-fs` (the write failed).
+ */
 export interface MigrationResult {
   migrated: boolean;
   factCount: number;
   reason?: "already-migrated" | "no-legacy-json" | "markdown-exists" | "readonly-fs";
 }
 
+/**
+ * Move facts from the pre-markdown JSON store into `MEMORY.md`, once.
+ *
+ * It runs only when the legacy file exists and `MEMORY.md` does not. When both
+ * exist it stops and leaves both alone — merging would need a conflict rule
+ * nobody has picked, and losing hand-written notes is worse than skipping. On
+ * success each fact is appended as a `## Facts` bullet and the JSON file is
+ * deleted.
+ *
+ * Guarded by a per-process set keyed on cwd, namespace, scope and user id, so
+ * the second call for the same key returns `already-migrated` without touching
+ * disk — including after a genuine failure. That set is per module instance, so
+ * a process that loads both this package's copy and the one inside
+ * `@theokit/sdk` has two independent sets.
+ *
+ * Never throws: a JSON file that cannot be read or parsed reports
+ * `no-legacy-json`, and a failed write reports `readonly-fs` after a warning on
+ * stderr.
+ */
 export async function migrateLegacyJson(
   cwd: string,
   config: MemoryConfig,

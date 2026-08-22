@@ -1,9 +1,25 @@
 /**
- * `@theokit/acp` — Agent Client Protocol (ACP) server adapter for `@theokit/sdk`.
+ * `@theokit/acp` — serve an `@theokit/sdk` agent to any ACP-compatible host over stdio JSON-RPC.
  *
- * Public API:
- *   - `serveAcp({ agent })` — blocks on stdio JSON-RPC until disconnect (D356).
- *   - `AcpServerOptions`, `AgentFactory`, `PermissionMode`, `PromptTooLargeError`.
+ * ```ts
+ * import { serveAcp } from "@theokit/acp";
+ * import { Agent } from "@theokit/sdk";
+ *
+ * // One agent per ACP session — this is the shape you want.
+ * await serveAcp({ agent: (sessionId) => Agent.create({ agentId: sessionId }) });
+ * ```
+ *
+ * Needs two peer dependencies installed by the consumer, neither of them bundled:
+ * `@agentclientprotocol/sdk` (`^0.22.1`) and `@theokit/sdk`. Beyond that this package reads no
+ * environment variable and no file — whatever the agent itself needs (provider keys, `THEOKIT_HOME`)
+ * is still the caller's job.
+ *
+ * **stdout is the protocol channel.** A `console.log` anywhere in the agent or its tools writes into
+ * the JSON-RPC frame stream and desynchronises the host. Diagnostics from this package go to stderr;
+ * override with `AcpServerOptions.log`.
+ *
+ * Public surface: `serveAcp` plus the option and error types below. Everything else (lifecycle handlers,
+ * translator, permission plugin, session store) is internal and may change without a major bump.
  *
  * Spec: https://agentclientprotocol.com
  * ADRs: D349-D360. Plan: `.claude/knowledge-base/plans/acp-server-adapter-plan.md`.

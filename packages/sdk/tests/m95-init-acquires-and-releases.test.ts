@@ -12,11 +12,12 @@
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 import { LocalAgent } from "../src/internal/local-agent/local-agent.js";
 import { transcriptPath } from "../src/internal/persistence/session-transcript.js";
 import { SessionBusyError } from "../src/internal/persistence/session-writer.js";
 import type { AgentOptions } from "../src/types/agent.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 const created: LocalAgent[] = [];
 afterEach(async () => {
@@ -53,12 +54,20 @@ function lockFromAnotherProcess(baseDir: string, agentId: string): string {
 describe("M95 — init takes the lease (mutant N1)", () => {
   it("after initialize(), the lock exists", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
+    const __baseCleanup1 = base;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__baseCleanup1);
+    });
     await makeAgent(base, "ag-n1");
     expect(existsSync(`${transcriptPath(base, base, "ag-n1")}.writer.lock`)).toBe(true);
   });
 
   it("dispose() releases the lock", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
+    const __baseCleanup2 = base;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__baseCleanup2);
+    });
     const a = new LocalAgent(options(base, "ag-n1b"));
     await a.initialize();
     await a.dispose();
@@ -69,6 +78,10 @@ describe("M95 — init takes the lease (mutant N1)", () => {
 describe("M95 — SessionBusyError PROPAGATES from init (mutant N2)", () => {
   it("initialize() throws when another live process holds the session", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
+    const __baseCleanup3 = base;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__baseCleanup3);
+    });
     lockFromAnotherProcess(base, "ag-n2");
     const a = new LocalAgent(options(base, "ag-n2"));
     created.push(a);
@@ -79,6 +92,10 @@ describe("M95 — SessionBusyError PROPAGATES from init (mutant N2)", () => {
 describe("M95 — an init that fails AFTER acquiring releases the lease (HIGH-1)", () => {
   it("the lock is not left with this very process, which would lock it forever", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
+    const __baseCleanup4 = base;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__baseCleanup4);
+    });
     const p = transcriptPath(base, base, "ag-h1");
     mkdirSync(dirname(p), { recursive: true });
     // Unreadable transcript: `readRecords` MUST throw by contract ("a resume cannot proceed on a
@@ -99,6 +116,10 @@ describe("M95 — an init that fails AFTER acquiring releases the lease (HIGH-1)
 describe("M95/LOW-1 — a failing init does not release OTHER agents' leases", () => {
   it("a live agent's lease survives another agent's init failure", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
+    const __baseCleanup5 = base;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__baseCleanup5);
+    });
     const live = await makeAgent(base, "ag-live");
     expect(existsSync(`${transcriptPath(base, base, "ag-live")}.writer.lock`)).toBe(true);
 

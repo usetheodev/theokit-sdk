@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { replaceFileAtomic } from "../../persistence/atomic-write.js";
@@ -63,23 +63,6 @@ export function appendFactToMarkdown(cwd: string, fact: MemoryFact): Promise<voi
     await mkdir(memoryDir(cwd), { recursive: true });
     await replaceFileAtomic(path, next);
   });
-}
-
-export interface NoteFile {
-  slug: string;
-  path: string;
-}
-
-export async function listNotes(cwd: string): Promise<NoteFile[]> {
-  let entries: string[] = [];
-  try {
-    entries = await readdir(notesDir(cwd));
-  } catch {
-    return [];
-  }
-  return entries
-    .filter((name) => name.endsWith(".md"))
-    .map((name) => ({ slug: name.replace(/\.md$/, ""), path: join(notesDir(cwd), name) }));
 }
 
 function parseFactsSection(raw: string): MemoryFact[] {
