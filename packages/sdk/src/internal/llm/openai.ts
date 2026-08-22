@@ -217,7 +217,19 @@ export class OpenAIClient implements LlmClient {
       new Set(request.tools?.map((tool) => tool.name) ?? []),
     );
     let sawDone = false;
-    for await (const record of parseSseStream(response.body, signal)) {
+    // #371 — reading the BODY can fail too (socket destroyed mid-stream), and only the initial
+    // `fetch` was wrapped. Undici's raw "terminated" reached the caller with no provider, no
+    // endpoint and `code: undefined`, while every other transport failure on this path reads
+    // "openai transport failure on /v1/chat/completions: …" and carries `transport_failure`. The
+    // wrapper returns any SDK error untouched, so an in-stream provider error keeps its own mapping.
+    const records = (async function* () {
+      try {
+        yield* parseSseStream(response.body, signal);
+      } catch (readErr) {
+        throw wrapTransportError(readErr, { providerId, endpoint: "/v1/chat/completions" });
+      }
+    })();
+    for await (const record of records) {
       if (record.data === "[DONE]") {
         sawDone = true;
         break;

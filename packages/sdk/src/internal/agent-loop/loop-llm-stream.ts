@@ -185,26 +185,35 @@ async function collectLlmEvents(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
 ): Promise<CollectedEvents> {
-  let accumulatedText = "";
   let errored = false;
   let finishValue: CollectedEvents["finishValue"];
   let thinking: LlmThinkingPart | undefined;
+  // #371 — the text lives OUTSIDE the try, because a mid-stream throw leaves with the exception and
+  // takes any local with it. A cut stream used to reach the catch below with nothing to report, so
+  // a 1490-character answer severed before its terminator reached the caller as "". Truncated
+  // streams are routine — proxy timeouts, load-balancer idle limits, mobile links — and the longer
+  // the answer, the more each one destroyed.
+  const partial = { text: "" };
   try {
-    const result = await runCollectorLoop(generator, inputs, ctx);
-    accumulatedText = result.accumulatedText;
+    const result = await runCollectorLoop(generator, inputs, ctx, partial);
     errored = result.errored;
     finishValue = result.finishValue;
     thinking = result.thinking;
   } catch (cause) {
     if (inputs.signal?.aborted === true) {
+      // A caller's own abort has its own marker, and preserving partial text must not overwrite it:
+      // the caller already knows what it asked for.
       ctx.finalText = "[aborted]";
       ctx.events.push(buildAssistantEvent(inputs, "[aborted]"));
     } else {
       registerLoopError(ctx, cause);
-      ctx.finalText = "";
+      // The turn is still errored — this hands back what arrived, it does not call it a success.
+      ctx.finalText = partial.text;
+      if (partial.text !== "") ctx.events.push(buildAssistantEvent(inputs, partial.text));
     }
     errored = true;
   }
+  const accumulatedText = partial.text;
   return {
     accumulatedText,
     errored,
@@ -267,13 +276,17 @@ async function runCollectorLoop(
   generator: ReturnType<LlmClient["stream"]>,
   inputs: AgentLoopInputs,
   ctx: LoopContext,
+  /**
+   * #371 — the caller's holder for the text collected SO FAR. Written on every delta so that a
+   * mid-stream throw, which never reaches this function's `return`, still leaves the caller with
+   * what arrived.
+   */
+  partial: { text: string },
 ): Promise<{
-  accumulatedText: string;
   errored: boolean;
   finishValue: CollectedEvents["finishValue"];
   thinking?: LlmThinkingPart;
 }> {
-  let accumulatedText = "";
   // issue #47/#48: reasoning streams on its own channel — `text` is accumulated for the
   // `thinking` SDKMessage replay; `startedAt` (set on the first delta) measures the duration.
   const reasoning: ReasoningAccumulator = { text: "", startedAt: undefined, signature: undefined };
@@ -294,16 +307,18 @@ async function runCollectorLoop(
       }
       if (next.value.type === "error") {
         registerLoopError(ctx, next.value);
-        ctx.finalText = "";
+        // #371 — same reasoning as the throw path: an in-band provider error does not make the
+        // tokens that preceded it disappear.
+        ctx.finalText = partial.text;
         errored = true;
         break;
       }
-      accumulatedText += await consumeStreamEvent(inputs, reasoning, next.value);
+      partial.text += await consumeStreamEvent(inputs, reasoning, next.value);
     }
   } finally {
     thinking = await finalizeReasoning(inputs, ctx, reasoning);
   }
-  return { accumulatedText, errored, finishValue, ...(thinking !== undefined ? { thinking } : {}) };
+  return { errored, finishValue, ...(thinking !== undefined ? { thinking } : {}) };
 }
 
 /**

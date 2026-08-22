@@ -141,9 +141,13 @@ export interface RunResult {
   error?: RunErrorDetail;
   /**
    * Token usage observed for this run (ADR D376). Populated in every
-   * status where ≥1 LLM call completed — including partial-failure
-   * runs (EC-5). `undefined` only when zero LLM calls executed (e.g.,
-   * abort before send).
+   * status where ≥1 LLM call COMPLETED — including partial-failure
+   * runs (EC-5). `undefined` when zero LLM calls executed (e.g. an
+   * abort before send) and, for the same reason, when the only call was
+   * cut mid-stream: the counts arrive with the provider's terminating
+   * frame, which a severed connection never delivers. Such a run can
+   * therefore return partial text (#371) with no usage to bill it
+   * against — the tokens were generated and are not reported here.
    *
    * @public
    */
