@@ -148,10 +148,11 @@ export class Cache {
    * the cached text. Use {@link Cache.consult} / {@link Cache.remember} when the point is to avoid
    * the call.
    *
-   * Second trap: the store hook always passes `usedTools: false`, so a turn that invoked tools IS
-   * cached, despite the package's stated intent not to. `PostAssistantReplyContext` carries no
-   * tool signal to key on. If replaying a tool-using answer is unsafe for you, exclude those
-   * prompts via {@link CacheTTLConfig.exclude} or drive the cache explicitly.
+   * A turn that invoked tools is NOT cached: the store hook reads
+   * `PostAssistantReplyContext.usedTools`, which the runtime derives from the run's tool calls
+   * (#358). Replaying such an answer would hand a later caller the result of a write that never
+   * happened. Until that signal existed the hook passed a literal `false` and cached those turns,
+   * despite the package's stated intent.
    *
    * Memoized: repeated calls return the SAME plugin, so registering it twice does not double the
    * hooks.
@@ -190,16 +191,16 @@ export class Cache {
         });
         ctx.on("post_assistant_reply", async (rawCtx) => {
           const c = rawCtx as PostAssistantReplyContext;
-          // EC-10: don't cache tool-use runs. v1 lacks a "usedTools" signal
-          // in PostAssistantReplyContext (D266 documented gap). For now we
-          // accept the conservative-skip if `c.reply` looks like a tool
-          // result envelope (contains `tool_call_id` markers). Future
-          // PostAssistantReplyContext extension will surface usedTools
-          // explicitly.
           await performStore({
             prompt: c.prompt,
             response: c.reply,
-            usedTools: false,
+            // EC-10 / D266 — never cache a reply the run produced with tools; replaying it hands a
+            // later caller the RESULT of a write without the write having happened. This used to
+            // be the literal `false` under a comment describing a `tool_call_id` heuristic that was
+            // never implemented, so the guard fired only for a hand-written `remember(...)` call
+            // and never on the plugin path, which is the one that runs automatically. #358 added
+            // the signal to `PostAssistantReplyContext`; this reads it.
+            usedTools: c.usedTools,
             store: cache.store,
             embedder: cache.embedder,
             ttl: cache.ttl,

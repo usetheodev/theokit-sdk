@@ -219,6 +219,18 @@ export interface PostAssistantReplyContext {
   reply: string;
   agentId: string;
   runId: string;
+  /**
+   * `true` when the run that produced `reply` called at least one tool (#358).
+   *
+   * A reply produced by a tool call is not safely replayable: re-serving the text hands a later
+   * caller the RESULT of a `write_file` / HTTP POST / payment without the side effect having
+   * happened. A semantic cache must skip storing such a reply, and before this field existed it
+   * had nothing to key on and assumed `false`.
+   *
+   * Derived from the run's replayed event stream, so it counts tool calls the run actually made,
+   * not tools the agent merely has.
+   */
+  usedTools: boolean;
   memoryContext?: import("./memory-adapter.js").MemoryContext;
 }
 
