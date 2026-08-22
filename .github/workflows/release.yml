@@ -6,18 +6,23 @@ name: Release
 # vehicle for multi-package per-package release notes + sequential publish.
 # (Backend-DX, gateways, react, rag, voice, google-workspace skill were
 # extracted to sibling repos — plan monorepo-cohesion-split, 2026-06-18.)
-# Auth is NPM_TOKEN (granular automation token) via NODE_AUTH_TOKEN — see the
-# publish step below for the full rationale. OIDC trusted-publisher binding is
-# NOT configured for @theokit/*.
+# Auth is OIDC. No NODE_AUTH_TOKEN, no NPM_TOKEN: each of the twelve packages
+# carries a Trusted Publisher connection on npmjs.com naming this repository and
+# this file, and npm mints a short-lived credential per job. Provenance is
+# declared per package via `publishConfig.provenance: true`, not by an env var.
+# The publish step below carries the full rationale.
 #
-# This comment used to claim the opposite ("NPM_TOKEN intentionally NOT used —
-# token env disables OIDC silently"), contradicting the step it describes. The
-# publish here failed from ~2026-07-24 with E404 on the PUT of @theokit/sdk; the
-# cause was an expired NPM_TOKEN, renewed 2026-08-06, after which 4.40.0
-# published from CI unchanged. A header asserting the token was unused is the
-# worst possible thing to read while debugging a token failure. Keep this block
-# and the publish step in agreement, or delete this one — a header that
-# disagrees with the code it summarizes is worse than no header.
+# This header has now been wrong in BOTH directions, which is why it is worth the
+# space. It first claimed NPM_TOKEN was unused while the step used it — the worst
+# thing to read while debugging the expired-token E404s of 2026-07-24 and
+# 2026-08-11. It was corrected to describe the token, and then the step moved to
+# OIDC and left the header describing the token again (#370): the fix was real,
+# the description of it was not, and a reader checking the header would have
+# concluded provenance was still impossible here.
+#
+# Keep this block and the publish step in agreement, or delete this one. A header
+# that disagrees with the code it summarizes is worse than no header, and this
+# file has proved that twice.
 #
 # RELATED, as of the pipeline standardisation: usetheokit/theokit#169 was that
 # repository's release.yml failing with EUNKNOWNCONFIG (--git-checks) from an
