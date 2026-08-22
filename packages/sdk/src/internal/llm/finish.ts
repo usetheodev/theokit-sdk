@@ -56,13 +56,6 @@ export function mapOpenAIFinish(reason: string): LlmStopReason {
 }
 
 /**
- * Build the provider-agnostic `LlmFinish` shape from accumulator state.
- * Shared between the Anthropic and OpenAI stream parsers so the two
- * implementations don't drift on token-usage fields.
- *
- * @internal
- */
-/**
  * A provider-reported token count, or `undefined` when what arrived is not one.
  *
  * Accepts a non-negative finite number, and a numeric STRING — providers returning numeric JSON
@@ -107,6 +100,13 @@ function assign(finish: LlmFinish, key: TokenField, value: unknown): void {
   finish[key] = count;
 }
 
+/**
+ * Build the provider-agnostic `LlmFinish` shape from accumulator state.
+ * Shared between the Anthropic and OpenAI stream parsers so the two
+ * implementations don't drift on token-usage fields.
+ *
+ * @internal
+ */
 export function makeLlmFinish(state: {
   stopReason: LlmStopReason;
   text: string;
