@@ -7,6 +7,7 @@
  * @public
  */
 
+import { diag } from "../internal/diagnostics.js";
 import type { A2AMessage, MessageHandler } from "./types.js";
 
 /**
@@ -76,8 +77,19 @@ export class MessageBus {
       // SE3 — provenance projection of the sender address (thin view over `from`).
       origin: { kind: "peer", from },
     };
-    // Fire-and-forget: invoke handler but don't await result
-    handler(message);
+    // Fire-and-forget: the SENDER does not wait for the result, which is the whole point of
+    // `send`. It does not mean nobody is told when delivery fails — that is the difference
+    // between asynchronous and silent (#365).
+    //
+    // The returned promise used to be dropped on the floor. `MessageHandler` may return one, so a
+    // rejecting handler became an unhandled rejection: fatal under Node's default
+    // `--unhandled-rejections=throw`, and invisible to the caller, whose `await send(...)`
+    // resolved cleanly either way. Attaching a catch keeps the call non-blocking and reports the
+    // failure instead of discarding it (`error-handling.md` § 5).
+    void Promise.resolve(handler(message)).catch((cause: unknown) => {
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      diag(`[theokit-sdk] a2a: handler for "${to}" failed on a fire-and-forget send: ${reason}\n`);
+    });
   }
 
   async request(

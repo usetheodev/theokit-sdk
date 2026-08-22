@@ -94,7 +94,30 @@ function resolveTemplatesRoot(): string {
   );
 }
 
-function scaffoldError(code: string, message: string): Error & { code?: string } {
+/**
+ * Every coded refusal `scaffold` can throw. All of them are user errors — a bad name, a bad
+ * template, a destination that escapes the cwd, is a symlink, or is not empty — so this list IS the
+ * exit-code-2 set that `commands/init.ts` maps against.
+ *
+ * It is a typed union rather than a loose string so that adding a refusal without deciding its exit
+ * code does not compile. `dest_is_symlink` used to be absent from that set and fell through to 1,
+ * the code `--help` defines as "unknown error", which routed a plain user mistake to whichever CI
+ * branch pages someone (#353).
+ *
+ * Node's own `err.code` values (`ENOENT`, `EACCES`, …) are deliberately NOT in here: an fs failure
+ * carries a code too, and it is not a user error.
+ */
+export const SCAFFOLD_USER_ERROR_CODES = [
+  "invalid_project_name",
+  "unknown_template",
+  "invalid_dest",
+  "dest_is_symlink",
+  "dest_not_empty",
+] as const;
+
+export type ScaffoldUserErrorCode = (typeof SCAFFOLD_USER_ERROR_CODES)[number];
+
+function scaffoldError(code: ScaffoldUserErrorCode, message: string): Error & { code?: string } {
   const err = new Error(message) as Error & { code?: string };
   err.code = code;
   return err;

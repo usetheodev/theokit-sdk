@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk/server/auth — encrypted OAuth transaction cookie store
+ * Encrypted OAuth transaction cookie store — `@theokit/sdk/server/auth`.
  *
  * Per ADR D5 — cookie-state pattern (no Redis/db dependency in core).
  *

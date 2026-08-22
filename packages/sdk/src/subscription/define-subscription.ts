@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk — `defineSubscription` DSL (G8 public API).
+ * `defineSubscription` DSL (G8 public API) — `@theokit/sdk`.
  *
  * Per ADR D426 (AsyncGenerator handler + Zod input/output schemas).
  *

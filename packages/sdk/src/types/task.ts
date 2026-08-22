@@ -80,6 +80,16 @@ export interface TaskHandle {
    * AbortController).
    */
   readonly cancelRequested?: boolean;
+  /**
+   * Why the task was cancelled, when whoever cancelled it said. Free text, written alongside
+   * `cancelledAt` for a `queued` task and alongside `cancelRequested` for a `running` one.
+   *
+   * Absent when no reason was given — an empty string is not a reason, and a default like
+   * "cancelled" would put words in the operator's mouth. `theokit tasks cancel --reason` is what
+   * writes it (#351); nothing in the runtime reads it, because it exists for the human reading the
+   * registry later.
+   */
+  readonly cancelReason?: string;
 }
 
 /** Query filter for `Task.list`. */
@@ -88,7 +98,11 @@ export interface TaskFilter {
   readonly kind?: TaskKind | readonly TaskKind[];
   readonly submittedAfter?: number;
   readonly submittedBefore?: number;
-  /** Defaults to 100. JsonFileTaskStore hard-caps loaded entries at 256 (D364). */
+  /**
+   * Defaults to 100. `JsonFileTaskStore` returns the newest matching tasks first and reads its
+   * whole directory to find them (256 files at a time); page past this limit with
+   * `submittedBefore` (#362).
+   */
   readonly limit?: number;
 }
 

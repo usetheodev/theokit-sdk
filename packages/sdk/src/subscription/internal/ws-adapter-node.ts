@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk — Node `ws` WebSocket adapter (G8 internal).
+ * Node `ws` WebSocket adapter (G8 internal) — `@theokit/sdk`.
  *
  * Per ADR D425. Canonical v1.7.0 adapter — wraps `ws.WebSocketServer({ noServer: true })`
  * for explicit HTTP upgrade integration. Dynamic `import('ws')` keeps the lib

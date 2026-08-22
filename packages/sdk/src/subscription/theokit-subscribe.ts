@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk — `Theokit.subscribe` client (G8 public API).
+ * `Theokit.subscribe` client (G8 public API) — `@theokit/sdk`.
  *
  * Per ADR D427 (Theokit.subscribe namespace) + D424 (transport selection)
  * + D423 (lastEventId opaque propagation).

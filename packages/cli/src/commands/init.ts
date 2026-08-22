@@ -13,7 +13,7 @@
 import * as p from "@clack/prompts";
 import pc from "picocolors";
 
-import { scaffold } from "../init/scaffold.js";
+import { SCAFFOLD_USER_ERROR_CODES, scaffold } from "../init/scaffold.js";
 import { DEFAULT_TEMPLATE, findTemplate, TEMPLATES } from "../init/templates.js";
 
 /** Flags for {@link runInit}, mirroring the `theokit init` options. */
@@ -22,11 +22,6 @@ export interface InitOptions {
   template?: string;
   /** Allow a non-empty destination — it is DELETED and replaced, not merged into. */
   force?: boolean;
-  /**
-   * Accepted by the CLI and NOT implemented: nothing reads this field, so `--here` scaffolds into
-   * `./<project-name>` exactly like a run without it.
-   */
-  here?: boolean;
   /** Skip prompts (CI mode). Implied when stdin or stdout is not a TTY. */
   yes?: boolean;
 }
@@ -76,12 +71,10 @@ async function resolveTemplate(
   return template;
 }
 
-const USER_ERROR_CODES = new Set([
-  "invalid_project_name",
-  "dest_not_empty",
-  "invalid_dest",
-  "unknown_template",
-]);
+// #353 — derived from the scaffolder rather than restated here. The hand-written copy was missing
+// `dest_is_symlink`, so a symlinked destination exited 1 ("unknown error") for what is squarely a
+// user mistake, and a CI job branching on 1 vs 2 routed it to the branch that pages someone.
+const USER_ERROR_CODES: ReadonlySet<string> = new Set(SCAFFOLD_USER_ERROR_CODES);
 
 async function runScaffold(name: string, template: string, force: boolean): Promise<number> {
   try {
@@ -117,9 +110,15 @@ async function runScaffold(name: string, template: string, force: boolean): Prom
  * Without a TTY the name becomes mandatory and the template falls back to `minimal`, so the same
  * command behaves differently under a pipe than in a terminal.
  *
- * The destination is always `<cwd>/<project-name>` — a name that would escape cwd is refused, and
- * `--here` is not honoured. With `force`, an existing destination is REMOVED before the new tree is
- * moved into place; there is no merge and no backup.
+ * The destination is always `<cwd>/<project-name>` — a name that would escape cwd is refused. With
+ * `force`, an existing destination is REMOVED before the new tree is moved into place; there is no
+ * merge and no backup.
+ *
+ * There is no scaffold-in-place option. `--here` used to be advertised and ignored (#351), and it
+ * was removed rather than implemented because the writer cannot honour it: the tree is built in a
+ * temp directory and moved into place with `rm` + `rename`, so a destination equal to `cwd` would
+ * mean deleting the directory the process is running in. Writing in place needs a second write path
+ * with weaker atomicity, which is a feature to ask for, not a flag to quietly repair.
  *
  * Returns the process exit code (0 / 2 / 1 as described at the top of this file). Cancelling a
  * prompt returns 0 and writes nothing.

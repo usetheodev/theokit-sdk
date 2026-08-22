@@ -60,31 +60,19 @@ export type PermissionMode = "ask" | "auto" | "deny";
 /**
  * Overrides for the capabilities advertised in the ACP `initialize` handshake.
  *
- * Only `loadSession` and the three `prompt` flags reach the wire. `forkSession` and `listSessions`
- * are accepted by this type and never advertised — setting them changes nothing today.
+ * `loadSession` and the three `prompt` flags reach the wire; they are the only session-shaped
+ * capabilities `AgentCapabilities` has a slot for at `@agentclientprotocol/sdk@0.22.1`.
+ *
+ * `forkSession` and `listSessions` were removed in #350. The protocol has nowhere to advertise
+ * them — neither name appears in its generated schema — and neither gated anything here:
+ * `session/fork` is refused unconditionally and `session/list` is answered from the in-memory
+ * store regardless. They were accepted, typed, documented, and inert.
  *
  * @public
  */
 export interface AcpCapabilities {
   /** Advertise `session/load`. Default `true`. The handler needs the SDK to be able to resume that id. */
   loadSession?: boolean;
-  /**
-   * Not advertised, and not honoured: `session/fork` has no success path in v0.1. It is always
-   * refused, but NOT always with the same code — the handler validates before it defers, so the code
-   * names which thing was wrong:
-   *
-   * - `-32001` (`INVALID_SESSION`, `parent session not loaded: <id>`) when this process's session
-   *   store does not hold the parent. The store is in-memory and per-process, so after a restart —
-   *   or on any host that did not create the session here — this is the ORDINARY answer, not an
-   *   exotic one. A host that branches on `-32602` alone to fall back to `session/new` will miss it.
-   * - `-32602` (`INVALID_REQUEST`) only once the parent lookup has SUCCEEDED: for a `cwd` that does
-   *   not resolve, and otherwise for the "deferred to @theokit/acp v0.2" message.
-   *
-   * Present so the field does not have to be added back in a minor.
-   */
-  forkSession?: boolean;
-  /** Not advertised. `session/list` is answered regardless, from the in-memory store. */
-  listSessions?: boolean;
   /** Prompt content the host may send. Anything disabled here is a hint to the host, not a guard. */
   prompt?: {
     /** Default `false`. Audio blocks are still accepted and counted against `maxPromptBytes`. */
@@ -99,9 +87,10 @@ export interface AcpCapabilities {
 /**
  * Display info for the agent in an ACP host UI.
  *
- * **Not wired.** Nothing reads this today: the `initialize` response carries `protocolVersion`,
- * `agentCapabilities` and an empty `authMethods`, and no agent name. Passing `info` is accepted and
- * has no observable effect on the handshake.
+ * Sent as `InitializeResponse.agentInfo` when you supply it (#350 — it was accepted and read by
+ * nothing). Omitted otherwise: defaulting to this package's own metadata would label every agent as
+ * the adapter serving it, and a name that is confidently wrong is worse for a host to display than
+ * one that is absent.
  *
  * @public
  */
@@ -123,7 +112,7 @@ export interface AcpAgentInfo {
 export interface AcpServerOptions {
   /** The agent, or a per-session factory. Required; an unusable value throws before serving. */
   agent: AgentOrFactory;
-  /** Accepted and currently ignored — see {@link AcpAgentInfo}. */
+  /** Name, title and version advertised as `agentInfo` in the `initialize` handshake. */
   info?: AcpAgentInfo;
   /** Handshake capability overrides. Only a subset is honoured — see {@link AcpCapabilities}. */
   capabilities?: AcpCapabilities;

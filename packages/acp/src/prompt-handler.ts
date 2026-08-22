@@ -13,7 +13,7 @@ import type { Run } from "@theokit/sdk";
 import { ACP_ERR, type AcpError } from "./lifecycle.js";
 import { installPermissionPlugin } from "./permission-plugin.js";
 import { extractPrompt } from "./prompt-extract.js";
-import type { AcpSession, SessionStore } from "./session-store.js";
+import { type AcpSession, armTurn, type SessionStore } from "./session-store.js";
 import { translateStream } from "./translator.js";
 import type { PermissionMode } from "./types.js";
 
@@ -86,13 +86,16 @@ async function runPrompt(
   params: acp.PromptRequest,
   deps: HandlePromptDeps,
 ): Promise<acp.StopReason> {
-  const run: Run = await session.agent.send(text, { signal: session.abortController.signal });
+  // #349 — a fresh abort scope per turn. Both the send and the translator read THIS signal, so a
+  // cancel of an earlier turn cannot reach into this one.
+  const signal = armTurn(session);
+  const run: Run = await session.agent.send(text, { signal });
   try {
     await translateStream({
       messages: run.stream(),
       conn: deps.conn,
       sessionId: params.sessionId,
-      signal: session.abortController.signal,
+      signal,
       log: deps.log,
     });
   } catch (err) {

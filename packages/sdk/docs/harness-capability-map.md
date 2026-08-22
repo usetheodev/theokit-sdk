@@ -15,6 +15,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `AcpServerOptions` | interface | Options for {@link serveAcp } .  |
 | `AgentFactory` | type | Builds the agent that will serve one ACP session.  |
 | `AgentOrFactory` | type | What `serveAcp({ agent })` accepts.  |
+| `InvalidAgentError` | class | Thrown when `serveAcp({ agent })` is neither a function nor an object with `agentId` + `send`. |
 | `PermissionMode` | type | How tool calls are gated before they execute (D355).  |
 | `PromptTooLargeError` | class | Raised when a prompt's accumulated size passes `maxPromptBytes` (D360).  |
 | `serveAcp` | function | Serve `options.agent` to an ACP host over JSON-RPC on stdio, blocking until the input stream ends.  |
@@ -481,7 +482,6 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | Symbol | Kind | Summary |
 |---|---|---|
 | `Cache` | class | A semantic response cache: an exact-key lookup, then a vector-similarity lookup, over prompt/response pairs the caller has stored.  |
-| `CacheEmbedderError` | class | The embedder rejected or failed a call.  |
 | `CacheEmbedderRuntime` | interface | Embedder runtime shape — minimal subset of `EmbeddingRuntime` (D11) the Cache actually uses.  |
 | `CacheEntry` | interface | One cached prompt/response pair, as `Cache` stores it.  |
 | `CacheInvalidTtlError` | class | A TTL value that could not be parsed, thrown at configuration time rather than on first use.  |

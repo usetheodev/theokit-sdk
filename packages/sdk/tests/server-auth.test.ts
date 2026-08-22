@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk/server/auth — T1.2 critical tests
+ * T1.2 critical tests — `@theokit/sdk/server/auth`.
  *
  * Covers MUST FIX edge cases from plan v1.4:
  *   - EC-1: AuthCancelledError on ?error=access_denied

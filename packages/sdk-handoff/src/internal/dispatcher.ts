@@ -136,14 +136,30 @@ function extractUserText(content: unknown): string | undefined {
   return text.length > 0 ? text : undefined;
 }
 
+/**
+ * The user turn's text, for either transcript shape reaching this function.
+ *
+ * `HandoffHistory.messages` is `unknown[]` by design (it must not import the message types), and
+ * two real shapes arrive through it: the SDK's flat `ToolContextMessage` (`{ role, content }`),
+ * which is what a tool handler's `ctx.messages` carries, and the nested `SDKMessage`
+ * (`{ type: "user", message: { role, content } }`). Reading only the nested one is half of why
+ * #354 went unnoticed — the flat shape would have been skipped even had it been passed.
+ */
+function userTextOf(entry: unknown): string | undefined {
+  const m = entry as {
+    type?: string;
+    role?: string;
+    content?: unknown;
+    message?: { role?: string; content?: unknown };
+  };
+  if (m?.type === "user" && m.message?.role === "user") return extractUserText(m.message.content);
+  if (m?.role === "user") return extractUserText(m.content);
+  return undefined;
+}
+
 function extractLastUserMessage(history: HandoffHistory, senderAgentId: string): string {
   for (let i = history.messages.length - 1; i >= 0; i -= 1) {
-    const m = history.messages[i] as {
-      type?: string;
-      message?: { role?: string; content?: unknown };
-    };
-    if (m?.type !== "user" || m.message?.role !== "user") continue;
-    const text = extractUserText(m.message.content);
+    const text = userTextOf(history.messages[i]);
     if (text !== undefined) return text;
   }
   return `(Handoff from ${senderAgentId} — no prior user message in history.)`;
@@ -196,7 +212,15 @@ export async function dispatchHandoff(args: {
   });
 
   try {
-    const run = await receiver.send(lastUserMessage);
+    // #356 — `HandoffOptions.tools` was presented as an allowlist and read by nothing, so a caller
+    // who set it got no restriction and no warning. It is wired to `SendOptions.activeTools`, the
+    // same `withToolWhitelist` path `Agent.fork`'s `allowedTools` uses. An empty list means the
+    // empty set (fail-closed), matching that contract; omitting the option means no restriction.
+    const toolAllowlist = descriptor.options.tools;
+    const run = await receiver.send(
+      lastUserMessage,
+      toolAllowlist !== undefined ? { activeTools: [...toolAllowlist] } : {},
+    );
     const result = await run.wait();
     const reply = buildReply(result, receiver.agentId);
     return {

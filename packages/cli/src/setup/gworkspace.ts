@@ -39,13 +39,6 @@ const PROBE_TIMEOUT_MS = 10_000;
 /** Flags for {@link runGworkspaceSetup}. */
 export interface GworkspaceSetupOptions {
   /**
-   * Comma-separated product list. **Grants nothing.** The value is never parsed or validated and
-   * never reaches upstream — passing it only prints a note saying that scopes are not narrowed, and
-   * only on the interactive path. Write access is decided at runtime by
-   * `googleWorkspace({ writable: true })` in your own code.
-   */
-  writable?: string;
-  /**
    * Run `npx google-workspace-mcp status` INSTEAD of the setup flow, not after it: when true, the
    * function returns the probe's exit code and never runs `setup` or `accounts add`.
    */
@@ -220,6 +213,13 @@ async function runInteractiveSetup(): Promise<number> {
  * Two things surprise callers. `--probe` REPLACES the setup instead of following it. And
  * `~/.google-mcp/` is created even when `credentialsPath` points somewhere else entirely.
  *
+ * SCOPES ARE NOT NARROWED HERE, and nothing in this command can narrow them. OAuth is delegated
+ * upstream (ADR D345), and the upstream MCP server asks for every scope it supports at the consent
+ * screen — there is no per-product grant to choose. Write access is decided later, at runtime, by
+ * `googleWorkspace({ writable: true })` in your own code. A `--writable <products>` flag used to be
+ * advertised here and granted nothing (#351); it was removed rather than left implying a choice the
+ * consent screen does not offer.
+ *
  * The interactive path spawns `npx` with inherited stdio and no timeout, so it blocks on the
  * upstream prompts; only the probe is bounded (10s, then SIGTERM).
  *
@@ -265,14 +265,6 @@ export async function runGworkspaceSetup(opts: GworkspaceSetupOptions): Promise<
 
   const interactiveCode = await runInteractiveSetup();
   if (interactiveCode !== 0) return interactiveCode;
-
-  if (typeof opts.writable === "string" && opts.writable.length > 0) {
-    process.stdout.write(
-      `\n${pc.yellow("note:")} you passed --writable=${opts.writable}. ` +
-        `The upstream MCP server does not narrow scopes — all scopes are granted at consent.\n` +
-        `Write tools are gated at runtime by ${pc.bold("googleWorkspace({ writable: true })")} in your code.\n`,
-    );
-  }
 
   process.stdout.write(
     `\n${pc.green("✓")} gworkspace setup complete.\n` +

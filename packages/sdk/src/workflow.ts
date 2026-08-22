@@ -100,14 +100,10 @@ const WorkflowOptionsSchema = z.object({
  *    "Workflow already committed; create a fresh Workflow.create(...) call." A
  *    builder is single-use.
  *  - A step id is validated on the spot by `sanitizeIdentifier`
- *    (`^[a-z0-9][a-z0-9-_]*$`, max 64 chars) and a rejection throws one of TWO
- *    classes, not a plain `Error` and not one class: an id carrying a NUL (`0x00`),
- *    a C0 control char (`0x01`-`0x1f`) or DEL (`0x7f`) throws `PathTraversalError`
- *    with code `path_traversal`; every other rejection — length, a space, `/`, `..`,
- *    a leading `-` — throws `ConfigurationError` with code `invalid_identifier`.
- *    `PathTraversalError` extends `ConfigurationError`, so catching the base class
- *    catches both; branching on `code === "invalid_identifier"` alone does not
- *    (usetheokit/theokit-sdk#368).
+ *    (`^[a-z0-9][a-z0-9-_]*$`, max 64 chars). Every rejection — length, a space,
+ *    `/`, `..`, a leading `-`, a NUL or control char — throws `ConfigurationError`
+ *    with code `invalid_identifier`, not a plain `Error` (#368 collapsed a second
+ *    class that the control-char branch used to raise).
  *  - `sleep(durationMs)` throws a plain `Error` on a negative or non-finite value.
  *  - A duplicate id anywhere in the tree, including inside `parallel`, `branch`,
  *    `foreach` and `dowhile`, throws `WorkflowDuplicateStepIdError` at

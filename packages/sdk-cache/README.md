@@ -72,7 +72,7 @@ Clears the in-memory state. For the JSON file store, deletes the persisted state
 
 ## Errors
 
-- `CacheEmbedderError` — embedder runtime failed (rate-limited, network error, etc.). Agent run continues without cache.
+An embedder failure never surfaces as an error: every path degrades to a cache miss or a skipped write, warns on stderr, and increments `CacheStats.embedderFailures`. That counter is how you detect a broken embedder.
 - `CacheInvalidTtlError` — TTL string failed parse (e.g., `"-5m"` or `"abc"`). Thrown pre-construction.
 
 ## How it fits with `@theokit/sdk`

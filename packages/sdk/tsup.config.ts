@@ -82,6 +82,7 @@ export default defineConfig({
       errors: "src/errors.ts",
       "subagents-loader": "src/subagents-loader.ts",
       cron: "src/cron.ts",
+      workflow: "src/workflow.ts",
       "server/auth/index": "src/server/auth/index.ts",
       "server/errors-envelope": "src/server/errors-envelope.ts",
     },

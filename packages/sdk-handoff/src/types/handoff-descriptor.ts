@@ -95,18 +95,25 @@ export interface HandoffOptions<TInput extends ZodType = ZodType> {
   /**
    * Hook to rewrite the transcript before the receiver sees it — the intended place for redaction.
    *
-   * TODAY IT RECEIVES AN EMPTY HISTORY. Both wirings pass `{ messages: [] }` (history replay is
-   * unimplemented), so this is called with nothing to filter and its result cannot change what the
-   * receiver gets. Do not rely on it for redaction yet.
+   * It receives the supervisor's transcript as the tool handler saw it, and the receiver is sent
+   * the last user turn SURVIVING this filter — so dropping a message here does keep it from the
+   * receiver. Until #354 both wirings passed `{ messages: [] }`, which made this hook a no-op that
+   * looked like redaction.
    *
    * Failures are swallowed: a throw falls back to the unfiltered history with one warning on
    * stderr per process — so a broken redactor fails OPEN, not closed.
    */
   readonly inputFilter?: (history: HandoffHistory) => HandoffHistory | Promise<HandoffHistory>;
   /**
-   * DECLARED BUT NOT IMPLEMENTED. Nothing in this package reads it, so setting it neither restricts
-   * nor grants the receiver any tool. It is reserved for a future tool allowlist; treat it as a
-   * no-op today.
+   * Restrict the receiving agent, for THIS handoff only, to the tools named here.
+   *
+   * Wired to `SendOptions.activeTools`: names match EXACTLY against the receiver's registered tool
+   * names, an empty list restricts to the empty set (fail-closed), and omitting the option imposes
+   * no restriction. It narrows what the receiver may call; it never grants a tool the receiver
+   * does not have.
+   *
+   * LOCAL RUNTIME ONLY — a cloud agent ignores `activeTools`, so this cannot restrict one. Before
+   * #356 nothing read this field at all, in either runtime.
    */
   readonly tools?: ReadonlyArray<string>;
   /**

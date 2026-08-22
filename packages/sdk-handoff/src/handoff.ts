@@ -146,14 +146,17 @@ export class Handoff {
    * - **`maxHandoffDepth: 0`, or an empty `targets`, registers NOTHING** and returns a plugin that
    *   silently does nothing. There is no error and no warning; the model simply never sees a
    *   transfer tool.
-   * - **Registration is ASYNCHRONOUS.** `register()` starts an unawaited dynamic import and
-   *   returns, so the tools appear a microtask later. Nothing here reports a failure in that
-   *   import, and nothing lets you await readiness.
-   * - **The receiver does NOT get the user's message.** History replay is unimplemented: the tool
-   *   handler dispatches with an empty transcript, so the receiving agent is sent the literal
-   *   string `` `(Handoff from <sender> — no prior user message in history.)` `` and must answer
-   *   from that alone. Anything the target needs to know has to be in its own system prompt, or
-   *   you drive the handoff yourself with {@link handoffTo}, which passes the message through.
+   * - **Registration is awaited.** `register()` returns a promise that settles once the tools are
+   *   registered, and the plugin manager awaits it — so the transfer tools exist before the first
+   *   `send()`, and a failure in the lazy import or in target validation reaches the caller.
+   *   Before #355 it returned immediately and both of those were untrue.
+   * - **The receiver gets the user's LAST message, not the whole conversation.** The tool handler
+   *   forwards the supervisor's transcript, from which the dispatcher takes the most recent user
+   *   turn (#354 — before that it forwarded nothing, and the receiver was sent the literal string
+   *   `` `(Handoff from <sender> — no prior user message in history.)` ``). That placeholder is
+   *   still what a receiver gets when there genuinely is no prior user turn. Anything beyond the
+   *   last question has to be in the target's own system prompt, or you drive the handoff yourself
+   *   with {@link handoffTo}, which passes an explicit message through.
    * - **The handoff tool never throws at the caller.** Every failure — loop detected, depth
    *   exceeded, disposed receiver, `isEnabled` false, input that fails `inputType` — is caught
    *   inside the tool handler and returned to the MODEL as
@@ -161,9 +164,9 @@ export class Handoff {
    *   in this wiring they never reach your `try`/`catch`; watch the tool results instead.
    *
    * A self-referencing target and two targets resolving to the same tool name are both rejected —
-   * but inside that async registration, so they arrive as an UNHANDLED PROMISE REJECTION
-   * (`HandoffSelfReferenceError` / `HandoffNameCollisionError`) rather than as a throw you can
-   * catch around `Agent.create`. Validate the target list yourself if you need to handle them.
+   * from `register`, which the plugin manager awaits — so `HandoffSelfReferenceError` and
+   * `HandoffNameCollisionError` reject the `Agent.create` you can `catch` around (#355; they used
+   * to arrive as an unhandled rejection instead, leaving an agent silently without handoff tools).
    */
   static asPlugin(opts: AsPluginOptions): Plugin {
     const parent = opts.parentAgentId ?? "anonymous";
@@ -173,19 +176,22 @@ export class Handoff {
       name: `handoff-${parent}`,
       version: "1.0.0",
       kind: "general" as const,
-      register(ctx: PluginContext): void {
+      // #355 — `async`, and the promise is RETURNED. The plugin contract types `register` as
+      // `(ctx) => void | Promise<void>` and the manager awaits it, so returning it is all this
+      // needed. It used to run an unawaited async IIFE and return immediately: the tools appeared a
+      // module-load later, so whether they existed for the first `send()` depended on timing no
+      // caller controls, and `normalizeHandoffs`' validation errors became unhandled rejections
+      // that could not be caught around `Agent.create`.
+      //
+      // The import stays lazy — deferring it until `register` runs is what keeps the cold path
+      // lean, and that never required leaving it unawaited INSIDE `register`.
+      async register(ctx: PluginContext): Promise<void> {
         if (maxDepth === 0 || targets.length === 0) return;
-        // Lazy import — keeps cold path lean if asPlugin is constructed but
-        // its register hook is never invoked (e.g., disabled by config).
-        void (async () => {
-          const { normalizeHandoffs, buildHandoffTool } = await import(
-            "./internal/tool-injector.js"
-          );
-          const normalized = normalizeHandoffs(parent, targets);
-          for (const { descriptor } of normalized) {
-            ctx.registerTool(buildHandoffTool(parent, descriptor, maxDepth));
-          }
-        })();
+        const { normalizeHandoffs, buildHandoffTool } = await import("./internal/tool-injector.js");
+        const normalized = normalizeHandoffs(parent, targets);
+        for (const { descriptor } of normalized) {
+          ctx.registerTool(buildHandoffTool(parent, descriptor, maxDepth));
+        }
       },
     });
   }

@@ -109,7 +109,10 @@ export function buildHandoffTool(
     name: descriptor.resolvedToolName,
     description,
     inputSchema,
-    handler: async (input: unknown): Promise<string> => {
+    handler: async (
+      input: unknown,
+      ctx?: { messages?: ReadonlyArray<unknown> },
+    ): Promise<string> => {
       const chainState = createChainState(parentAgentId, maxHandoffDepth);
       try {
         const { reply, result } = await dispatchHandoff({
@@ -117,7 +120,12 @@ export function buildHandoffTool(
           senderAgentId: parentAgentId,
           chainState,
           rawInputJson: input,
-          history: { messages: [] }, // v1: history replay deferred
+          // #354 — the supervisor's transcript, which the SDK hands every tool handler as
+          // `ctx.messages`. This used to be `{ messages: [] }` with the note "v1: history replay
+          // deferred", so the dispatcher found no user message and sent the receiver the
+          // placeholder instead of the question — and `inputFilter`, the documented redaction
+          // hook, was handed an empty transcript to redact.
+          history: { messages: ctx?.messages ?? [] },
         });
         return JSON.stringify({
           ok: true,

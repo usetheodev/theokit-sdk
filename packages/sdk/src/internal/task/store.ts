@@ -48,12 +48,12 @@ export interface TaskStore {
   /**
    * Returns at most `filter.limit ?? 100` matching handles.
    *
-   * `JsonFileTaskStore` additionally reads at most 256 files per call, and that
-   * cap is applied to the RAW directory listing — before `state`, `kind` and the
-   * `submittedBefore` / `submittedAfter` window are considered. Past 256 task
-   * files the visible set is therefore an arbitrary, readdir-ordered subset, and
-   * `submittedBefore` narrows WITHIN that subset instead of paging beyond it.
-   * `InMemoryTaskStore` has no such cap.
+   * `JsonFileTaskStore` returns them newest-first and considers every task in its
+   * directory, reading at most 256 files concurrently (#362 — that number bounds
+   * I/O, not which tasks are visible). Walk past `limit` by passing the oldest
+   * `submittedAt` of a page as the next call's `submittedBefore`; the ordering is
+   * what makes that a cursor rather than a re-roll of an arbitrary subset.
+   * `InMemoryTaskStore` applies the same filters but does not order its result.
    */
   list(filter: TaskFilter): Promise<TaskHandle[]>;
   delete(id: string): Promise<boolean>;
@@ -95,6 +95,24 @@ function matchesTime(h: TaskHandle, filter: TaskFilter): boolean {
 }
 function matchesFilter(h: TaskHandle, filter: TaskFilter): boolean {
   return matchesState(h, filter) && matchesKind(h, filter) && matchesTime(h, filter);
+}
+
+/** The states `evictTerminalOlderThan` considers terminal. */
+const TERMINAL_STATES: readonly TaskState[] = ["finished", "error", "cancelled"];
+
+/**
+ * Where `submittedAt` belongs in a newest-first list — the first index whose entry is older.
+ *
+ * Linear rather than binary: the list is bounded by the caller's `limit` (100 by default) and the
+ * scan runs once per MATCHING handle, so the comparison count is dwarfed by the file read that
+ * produced the handle. A binary search here would trade a real cost for an imagined one.
+ */
+function insertionIndex(newestFirst: readonly TaskHandle[], submittedAt: number): number {
+  for (let i = 0; i < newestFirst.length; i++) {
+    const entry = newestFirst[i];
+    if (entry !== undefined && entry.submittedAt < submittedAt) return i;
+  }
+  return newestFirst.length;
 }
 
 function applyFilter(values: Iterable<TaskHandle>, filter: TaskFilter): TaskHandle[] {
@@ -216,15 +234,13 @@ export class InMemoryTaskStore implements TaskStore {
  *    (for example a permission error) throws.
  *
  * Traps:
- *  - `list()` loads at most 256 files and applies that cap to the raw directory
- *    listing, before any filter. Past 256 task files the result is an arbitrary
- *    readdir-ordered subset that `submittedBefore` cannot page beyond.
+ *  - `list()` reads every task file in the directory (256 at a time) to apply the
+ *    filter, because `state`, `kind` and `submittedAt` live inside the files. On a
+ *    large directory that is a lot of I/O for one call; the memory it holds is
+ *    bounded by `limit`, the time is not.
  *  - `list()` is `async`, but its directory scan is not: `readdirSync` blocks the event
  *    loop for the whole listing before the first `await`. Only the per-file reads that
  *    follow it are concurrent.
- *  - `evictTerminalOlderThan()` is built on that same capped `list()`, so one call
- *    is not guaranteed to have evicted everything eligible — call it until it
- *    returns 0.
  *  - Files whose name contains `.tmp` are skipped as orphans of an interrupted
  *    write, and nothing ever removes them.
  */
@@ -270,7 +286,14 @@ export class JsonFileTaskStore implements TaskStore {
     }
   }
 
-  async list(filter: TaskFilter): Promise<TaskHandle[]> {
+  /**
+   * Task ids backed by a file in `dir`, in readdir order.
+   *
+   * EC-8: orphan `.tmp` files left by an interrupted atomic write are skipped, as is any name
+   * outside the id grammar. EC-6: a missing directory lists as empty; any other `readdir` failure
+   * (a permission error, say) throws rather than being reported as "no tasks".
+   */
+  private candidateIds(): string[] {
     let entries: string[];
     try {
       entries = readdirSync(this.dir);
@@ -278,20 +301,50 @@ export class JsonFileTaskStore implements TaskStore {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") return []; // EC-6
       throw err;
     }
-    // EC-8: skip orphan .tmp files left by interrupted atomic writes.
-    const candidates = entries
+    return entries
       .filter((name) => name.endsWith(".json") && !name.includes(".tmp"))
-      .slice(0, JSON_LOAD_CAP);
+      .map((name) => name.slice(0, -".json".length))
+      .filter((id) => isValidTaskId(id, true));
+  }
 
-    const loaded = await Promise.all(
-      candidates.map(async (name) => {
-        const id = name.slice(0, -".json".length);
-        if (!isValidTaskId(id, true)) return undefined;
-        return this.get(id);
-      }),
-    );
-    const handles = loaded.filter((h): h is TaskHandle => h !== undefined);
-    return applyFilter(handles, filter);
+  /**
+   * Read every task in `ids`, handing each loaded handle to `visit`, at most `JSON_LOAD_CAP` file
+   * reads in flight.
+   *
+   * #362 — the cap used to be applied to the directory listing, which made it a bound on WHICH
+   * tasks were visible rather than on how much I/O ran at once. Every filter then ran on that
+   * arbitrary readdir-ordered prefix. As a concurrency bound it does the job it was named for
+   * without deciding what the caller gets to see; the caller's own bound on memory is whatever
+   * `visit` chooses to retain.
+   */
+  private async forEachHandle(
+    ids: readonly string[],
+    visit: (handle: TaskHandle) => void | Promise<void>,
+  ): Promise<void> {
+    for (let start = 0; start < ids.length; start += JSON_LOAD_CAP) {
+      const batch = ids.slice(start, start + JSON_LOAD_CAP);
+      const loaded = await Promise.all(batch.map(async (id) => this.get(id)));
+      for (const handle of loaded) {
+        if (handle !== undefined) await visit(handle);
+      }
+    }
+  }
+
+  async list(filter: TaskFilter): Promise<TaskHandle[]> {
+    const limit = filter.limit ?? DEFAULT_LIST_LIMIT;
+    // Newest-first, keeping at most `limit` handles in memory regardless of how many match. The
+    // order is what makes `submittedBefore` a real cursor: with the previous readdir order, a page
+    // was an arbitrary subset, so a caller walking the timeline skipped every task that happened
+    // to fall outside its window and could never come back for them.
+    const newest: TaskHandle[] = [];
+    await this.forEachHandle(this.candidateIds(), (handle) => {
+      if (!matchesFilter(handle, filter)) return;
+      const at = insertionIndex(newest, handle.submittedAt);
+      if (at >= limit) return; // older than everything already held, and the page is full
+      newest.splice(at, 0, handle);
+      if (newest.length > limit) newest.pop();
+    });
+    return newest;
   }
 
   async delete(id: string): Promise<boolean> {
@@ -306,14 +359,18 @@ export class JsonFileTaskStore implements TaskStore {
   }
 
   async evictTerminalOlderThan(epochMs: number): Promise<number> {
-    const handles = await this.list({ state: ["finished", "error", "cancelled"], limit: 256 });
+    // #362 — eviction scans the directory itself rather than borrowing `list()`. Sharing that path
+    // made one call incomplete twice over: it saw only a 256-file window, and it wanted the OLDEST
+    // handles while `list()` is ordered newest-first — so on a large directory it could delete
+    // nothing while thousands of eligible handles sat just outside the page. Sweeping every
+    // candidate is what lets one call mean "everything eligible is gone".
     let count = 0;
-    for (const h of handles) {
-      const ts = terminalTimestamp(h);
-      if (ts !== undefined && ts < epochMs) {
-        if (await this.delete(h.id)) count++;
-      }
-    }
+    await this.forEachHandle(this.candidateIds(), async (handle) => {
+      if (!TERMINAL_STATES.includes(handle.state)) return;
+      const ts = terminalTimestamp(handle);
+      if (ts === undefined || ts >= epochMs) return;
+      if (await this.delete(handle.id)) count++;
+    });
     return count;
   }
 }

@@ -134,8 +134,19 @@ export interface PermissionEngineOptions {
 }
 
 function argMatches(matcher: ArgMatcher, value: unknown): boolean {
+  // The guard comes FIRST, for every matcher form including a predicate (#367). It used to sit
+  // below the function branch, so a declared predicate was invoked with `undefined` — and both
+  // directions of that were wrong:
+  //
+  //   allow rule  `(v) => v !== "prod"` returns true for undefined, so a call that supplied NO
+  //               argument produced an EXPLICIT allow — a matcher written to narrow, widening.
+  //   deny rule   `(v) => v.includes("rm")` raised TypeError out of the permission gate, which
+  //               is not a denial but an unhandled failure on the path that decides authorization.
+  //
+  // A rule that declares an argument is a rule about that argument. A call that omitted it has
+  // not satisfied the rule, whatever shape the matcher takes.
+  if (value === undefined) return false;
   if (typeof matcher === "function") return matcher(value);
-  if (value === undefined) return false; // missing arg never matches a declared predicate
   if (matcher instanceof RegExp) {
     // Reset `lastIndex` so a global/sticky-flag regex (`/x/g`) does not carry
     // state across `.test()` calls — otherwise the same rule would alternate

@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk — WS adapter contract (G8 internal).
+ * WS adapter contract (G8 internal) — `@theokit/sdk`.
  *
  * Per ADR D425. Defines the minimal interface that runtime adapters
  * (Node `ws`, CF Workers WebSocketPair v1.8.x, Bun.serve v1.8.x, etc.)

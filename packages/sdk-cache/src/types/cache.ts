@@ -144,8 +144,9 @@ export interface CacheSemanticOptions {
    * Isolation bucket, 1..64 chars. Default `"global"`. Entries never match across namespaces.
    *
    * It is also the plugin name (`cache-semantic-<namespace>`) and, under `"json"` persistence, the
-   * FILE name — so two caches sharing a namespace and a `dir` write over each other's snapshot,
-   * last flush winning.
+   * FILE name. Two caches sharing a namespace and a `dir` therefore share ONE store rather than
+   * racing over one file (#359) — with the consequence that the second one's `maxEntries` is
+   * ignored, since the store already exists.
    */
   readonly namespace?: string;
   /**
@@ -225,29 +226,6 @@ export interface CacheStats {
 }
 
 /* ─── Error classes ─── */
-
-/**
- * The embedder rejected or failed a call.
- *
- * NOTHING IN THIS PACKAGE THROWS IT TODAY, and a `catch` written for it will never fire. Every
- * embedder failure on every path — `consult`, `remember`, and both plugin hooks — degrades to a
- * cache miss / skipped write, logs a warning on stderr and increments
- * {@link CacheStats.embedderFailures}, because a cache is an optimisation and must not take the
- * request down with it. That counter, not this class, is how you detect a broken embedder.
- *
- * It is exported so a custom {@link CacheEmbedderRuntime} can throw a typed error from its own
- * `embed()`; the cache will still swallow it into a miss.
- *
- * `cause` carries the underlying error when there was one.
- */
-export class CacheEmbedderError extends Error {
-  override readonly name = "CacheEmbedderError";
-  override readonly cause?: Error;
-  constructor(message: string, cause?: Error) {
-    super(`Cache embedder failed: ${message}`);
-    if (cause !== undefined) this.cause = cause;
-  }
-}
 
 /**
  * A TTL value that could not be parsed, thrown at configuration time rather than on first use.

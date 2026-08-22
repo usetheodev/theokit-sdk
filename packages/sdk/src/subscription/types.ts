@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk — Subscription type contract (G8 v1.7.0).
+ * Subscription type contract (G8 v1.7.0) — `@theokit/sdk`.
  *
  * Per ADRs D423 (resume token opaque), D424 (transport selection),
  * D426 (defineSubscription DSL shape).

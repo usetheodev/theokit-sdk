@@ -3,7 +3,10 @@
  *
  * Per ADR D2: `defineSubAgent(spec)` returns a `CustomTool` that, when
  * invoked by the LLM, creates a child agent and sends the input as a
- * message. EC-2: delegation depth tracked to prevent infinite recursion.
+ * message. EC-2: delegation depth is tracked across the RUN (#364) — each
+ * delegation publishes its depth on the async scope its child executes in, so a
+ * subagent that delegates to a subagent is bounded by `maxDelegationDepth`
+ * without the caller threading a counter by hand.
  *
  * SE10 — the handler forwards the parent run's `AbortSignal` to the child.
  * SE11 — optional `onDelegationStart` / `onDelegationComplete` lifecycle hooks
@@ -13,6 +16,10 @@
  */
 
 import { z } from "zod";
+import {
+  currentDelegationDepth,
+  withDelegationDepth,
+} from "../internal/runtime/concurrency/delegation-depth.js";
 import {
   currentInheritedSubAgentCredentials,
   type InheritedCredentials,
@@ -121,9 +128,10 @@ export interface DelegationCompleteDecision {
  * Traps:
  *  - `model` as a bare string drops reasoning parameters. Pass the
  *    {@link ModelSelection} object form when the child needs `params`.
- *  - `maxDelegationDepth` (default 3) is compared against the `parentDepth`
- *    argument of `SubAgent.create`, which nothing in this SDK threads for you —
- *    see {@link MaxDelegationDepthError}.
+ *  - `maxDelegationDepth` (default 3) bounds the delegation CHAIN, counted at
+ *    dispatch across the run (#364) — the depth is not something you thread. The
+ *    `parentDepth` argument of `SubAgent.create` still offsets it, for a supervisor
+ *    that wants a lower ceiling than the chain it sits in.
  *  - Context isolation is the DEFAULT. Without `messageFilter` the child sees only
  *    the delegated string; without `includeToolResults` the supervisor gets only
  *    the child's final text.
@@ -142,6 +150,11 @@ export interface SubAgentSpec {
   tools?: CustomTool[];
   /** Per-subagent shell sandbox toggle (M33). `true` ⇒ child `local.sandboxOptions.enabled`. */
   sandbox?: boolean;
+  /**
+   * Maximum length of the delegation CHAIN rooted at this tool, counted at dispatch
+   * (default 3). Depth 1 is this subagent; a subagent it delegates to is depth 2.
+   * Exceeding it throws {@link MaxDelegationDepthError} from the tool handler.
+   */
   maxDelegationDepth?: number;
   /**
    * SE11 — called before the supervisor delegates. Return `{ proceed: false }`
@@ -187,14 +200,19 @@ export interface SubAgentSpec {
  * `spec.maxDelegationDepth` (default 3). Carries `currentDepth`, `maxDepth` and a
  * stable `code: "max_delegation_depth"`.
  *
- * Thrown at TOOL-CONSTRUCTION time, not while a delegation runs — catching it
- * around `agent.send()` catches nothing.
+ * Thrown from the subagent tool's handler when a delegation would exceed
+ * `maxDelegationDepth` (default 3), so it surfaces as the tool call's failure —
+ * catching it around the dispatching `agent.send()` works.
  *
- * Trap: the depth is entirely caller-supplied. `parentDepth` defaults to 0 and
- * nothing in this SDK increments it across a chain of delegations, so with the
- * default call `SubAgent.create(spec)` this error can never fire and a subagent
- * that delegates to a subagent is NOT bounded by it. A supervisor building nested
- * delegation tools must thread its own depth through.
+ * Also thrown eagerly at TOOL-CONSTRUCTION time when a caller threads its own
+ * `parentDepth` that is already past the limit; such a tool could never be
+ * dispatched, so refusing to build it fails earlier and clearer.
+ *
+ * Before #364 the construction-time check was the ONLY one, against a depth
+ * nothing in the SDK incremented — so under the documented `SubAgent.create(spec)`
+ * call this error could not fire at all and nested delegation was unbounded. The
+ * chain length now travels with the run (`internal/runtime/concurrency/delegation-depth.ts`),
+ * and a caller-threaded `parentDepth` still adds to it.
  */
 export class MaxDelegationDepthError extends Error {
   readonly code = "max_delegation_depth" as const;
@@ -290,6 +308,22 @@ async function runChildAgent(
   signal: AbortSignal | undefined,
   maxSteps: number | undefined,
   inherited: InheritedCredentials | undefined,
+  depth: number,
+): Promise<string> {
+  // #364 — publish THIS delegation's depth for the whole child run. The child's loop, and every
+  // tool it dispatches, runs inside this scope, so a nested subagent reads the real chain length
+  // instead of the 0 every construction-time check saw.
+  return withDelegationDepth(depth, () =>
+    runChildAgentInScope(spec, input, signal, maxSteps, inherited),
+  );
+}
+
+async function runChildAgentInScope(
+  spec: SubAgentSpec,
+  input: string,
+  signal: AbortSignal | undefined,
+  maxSteps: number | undefined,
+  inherited: InheritedCredentials | undefined,
 ): Promise<string> {
   // SE45 cycle 3 — use the registered Agent facade via the DIP seam
   // (agent-factory-registry) instead of a dynamic `import("../agent.js")`.
@@ -378,11 +412,14 @@ async function applyDelegationComplete(
 }
 
 function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
-  const currentDepth = _parentDepth + 1;
   const maxDepth = spec.maxDelegationDepth ?? 3;
 
-  if (currentDepth > maxDepth) {
-    throw new MaxDelegationDepthError(currentDepth, maxDepth);
+  // A caller that threads its own depth still gets the eager failure it always got: a spec that is
+  // already too deep to ever be dispatchable is worth refusing at construction. What this check
+  // CANNOT see is the runtime chain — constructing a tool says nothing about how deep it will later
+  // be invoked — which is why the guard that actually bounds recursion lives at dispatch (#364).
+  if (_parentDepth + 1 > maxDepth) {
+    throw new MaxDelegationDepthError(_parentDepth + 1, maxDepth);
   }
 
   // Zod for RUNTIME validation of the tool_use input …
@@ -425,6 +462,13 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
       // child failed with `provider_unresolved`. The scope travels with the call, so nothing about
       // the object's shape matters — and two concurrent runs sharing one tool each read their own.
       const inherited = currentInheritedSubAgentCredentials();
+      // #364 — the real bound. `currentDelegationDepth()` is the length of the chain that led here,
+      // published by each ancestor's `runChildAgent`; a caller-threaded `_parentDepth` still adds to
+      // it, so the pre-#364 hand-threaded behaviour is unchanged when the ambient depth is 0.
+      const currentDepth = _parentDepth + currentDelegationDepth() + 1;
+      if (currentDepth > maxDepth) {
+        throw new MaxDelegationDepthError(currentDepth, maxDepth);
+      }
       iteration += 1; // SE15 — before onDelegationStart; a rejected delegation still counts.
       // Pin THIS invocation's iteration before any await so a concurrent invocation
       // bumping the shared counter cannot change the value onDelegationComplete /
@@ -439,7 +483,14 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
       let result: string;
       try {
         // SE13 — apply the optional onDelegationStart maxSteps cap on the child send.
-        result = await runChildAgent(spec, input, ctx?.signal, start.maxSteps, inherited);
+        result = await runChildAgent(
+          spec,
+          input,
+          ctx?.signal,
+          start.maxSteps,
+          inherited,
+          currentDepth,
+        );
       } catch (error) {
         // SE11 — notify the completion hook of the failure (best-effort observer),
         // then re-throw the ORIGINAL error (Rule 8: never swallow the delegation's

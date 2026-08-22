@@ -435,7 +435,9 @@ The push is gated locally by `.githooks/pre-push`, and again in CI. Every gate i
 | Docs drift | `pnpm quality:doc-api` | a documented import that no longer resolves |
 | Declaration typecheck | `pnpm quality:dts-typechecks` | a published `.d.ts`/`.d.cts` that does not compile without `skipLibCheck` |
 | Export parity | `pnpm quality:dts-parity` | a name the source barrel exports and the emit omits |
+| Nominal dts identity | `pnpm quality:dts-identity` | one exported class declared twice across published entries, so the two are incompatible types |
 | Orphaned docblocks | `pnpm quality:doc-orphans` | a JSDoc block stranded above another, attaching to nothing |
+| Tag-first docblocks | `pnpm quality:doc-tag-first` | a JSDoc block opening with an unknown `@tag`, so TypeScript files the whole text under that tag and the symbol ships undocumented |
 | Doc coverage | `pnpm quality:doc-coverage` | a public export with no documentation (floor: 100%) |
 | Generated references | `pnpm quality:docs-map` + `quality:docs-errors` | the committed capability map or error-code reference has drifted from the build |
 | Dependencies | `pnpm quality:audit` | a known vulnerability in a shipped dependency |
