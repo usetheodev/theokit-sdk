@@ -37,8 +37,6 @@ function prettyToken(token: string): string {
  *
  * @public
  */
-const SLASH_CODE = 47; // "/"
-
 export function humanizeModelName(modelId: string): string {
   const { name } = parseModelId(modelId);
   if (name.length === 0) return "";
@@ -80,6 +78,8 @@ export function toModelOption(modelId: string): ModelOption {
     provider: parseModelId(modelId).provider,
   };
 }
+
+const SLASH_CODE = 47; // "/"
 
 /** Removes trailing `/` characters in one linear pass. See the call site for why not a regex. */
 function trimTrailingSlashes(value: string): string {
