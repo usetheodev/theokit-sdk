@@ -435,7 +435,11 @@ function selectTransport(
       return new VertexRouterClient(realKey !== undefined ? { apiKey: realKey } : {});
     }
     const opts: ConstructorParameters<typeof AnthropicClient>[0] = { apiKey };
-    opts.baseUrl = process.env.ANTHROPIC_API_BASE_URL ?? profile.baseUrl;
+    // `baseUrl` first, matching the chat_completions branch and the field's own contract:
+    // `ModelSelection.url` is "the endpoint THIS call should reach" and outranks the process-wide
+    // env var. It reached only `ollama` and `chat_completions`; here a run aimed at localhost went
+    // to api.anthropic.com with the caller's key and said nothing (B-150).
+    opts.baseUrl = baseUrl ?? process.env.ANTHROPIC_API_BASE_URL ?? profile.baseUrl;
     // M45 — feed the provider transform + static extraHeaders (mirror of the M41 chat_completions wiring),
     // so anthropic_messages providers can carry headers (anthropic-beta) and refresh-aware fetches (M46).
     return comTransform(opts, (o) => new AnthropicClient(o));
@@ -444,7 +448,13 @@ function selectTransport(
     // D301: dedicated Bedrock InvokeModel client. apiKey from env when set;
     // strip the lazy sentinel so client triggers @aws/bedrock-token-generator (D287).
     const realKey = apiKey === "__bedrock_lazy_token__" ? undefined : apiKey;
-    return new BedrockAnthropicClient(realKey !== undefined ? { apiKey: realKey } : {});
+    // `BedrockAnthropicClient` accepts `baseUrl` (bedrock-anthropic.ts:40) and the router never
+    // passed it, so `model.url` was silently dropped on this branch too (B-150). Absent, the
+    // client still derives the regional endpoint from the model id, as before.
+    return new BedrockAnthropicClient({
+      ...(realKey !== undefined ? { apiKey: realKey } : {}),
+      ...(baseUrl !== undefined ? { baseUrl: baseUrl } : {}),
+    });
   }
   if (profile.apiMode === "responses_api") {
     // M40 — the OpenAI Responses-API transport (ChatGPT Codex backend + any responses provider). Consumes
@@ -459,7 +469,10 @@ function selectTransport(
         : undefined;
     return new ResponsesApiClient({
       apiKey,
-      ...(profile.baseUrl !== undefined ? { baseUrl: profile.baseUrl } : {}),
+      // Per-call URL first, same contract as every other branch (B-150).
+      ...((baseUrl ?? profile.baseUrl) !== undefined
+        ? { baseUrl: (baseUrl ?? profile.baseUrl) as string }
+        : {}),
       ...(mergedHeaders !== undefined ? { extraHeaders: mergedHeaders } : {}),
       ...(t.fetch !== undefined ? { fetch: t.fetch } : {}),
       providerName: profile.name,
