@@ -13,7 +13,7 @@
 import * as p from "@clack/prompts";
 import pc from "picocolors";
 
-import { scaffold } from "../init/scaffold.js";
+import { SCAFFOLD_USER_ERROR_CODES, scaffold } from "../init/scaffold.js";
 import { DEFAULT_TEMPLATE, findTemplate, TEMPLATES } from "../init/templates.js";
 
 /** Flags for {@link runInit}, mirroring the `theokit init` options. */
@@ -76,12 +76,10 @@ async function resolveTemplate(
   return template;
 }
 
-const USER_ERROR_CODES = new Set([
-  "invalid_project_name",
-  "dest_not_empty",
-  "invalid_dest",
-  "unknown_template",
-]);
+// #353 — derived from the scaffolder rather than restated here. The hand-written copy was missing
+// `dest_is_symlink`, so a symlinked destination exited 1 ("unknown error") for what is squarely a
+// user mistake, and a CI job branching on 1 vs 2 routed it to the branch that pages someone.
+const USER_ERROR_CODES: ReadonlySet<string> = new Set(SCAFFOLD_USER_ERROR_CODES);
 
 async function runScaffold(name: string, template: string, force: boolean): Promise<number> {
   try {
