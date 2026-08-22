@@ -9,6 +9,11 @@ ls:
     .ts: regex:^[a-z][a-z0-9-]*$
   packages/*/tests/**:
     .ts: regex:^[a-z][a-z0-9-]*$
+  # Root e2e suite. Named here rather than left out: a directory no gate is scoped to
+  # is a directory whose conventions nobody checks, and this one holds the only tests
+  # that consume the published package.
+  e2e:
+    .ts: regex:^[a-z][a-z0-9-.]*$
 
 ignore:
   - node_modules

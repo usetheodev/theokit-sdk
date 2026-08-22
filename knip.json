@@ -6,6 +6,10 @@
   "ignoreBinaries": ["turbo"],
   "tags": ["-knipignore"],
   "workspaces": {
+    ".": {
+      "entry": ["e2e/**/*.e2e.test.ts", "tools/*.mjs"],
+      "project": ["e2e/**/*.ts", "tools/**/*.mjs"]
+    },
     "packages/sdk": {
       "entry": ["src/agent.ts", "tests/**/*.test.ts", "tests/helpers/**/*.ts", "bin/*.mjs"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],

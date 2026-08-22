@@ -132,6 +132,7 @@ deadcode-output/
 refactor/
 
 BACKLOG.md
+BACKLOG-ARCHIVE.md
 
 # Stryker mutation testing — transient sandbox (a full copy of src/) + tool reports.
 # Both are machine-generated per run. Left untracked they make the working tree dirty,

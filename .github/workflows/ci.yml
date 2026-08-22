@@ -191,6 +191,12 @@ jobs:
       - name: Tests
         run: pnpm test
 
+      - name: E2E over a real socket (aimock)
+        # Consumes @theokit/sdk through its `exports` map and drives it against a local
+        # mock provider. Offline by construction: no key, no egress. Runs after Tests so
+        # the build it needs is already present.
+        run: pnpm run test:e2e
+
       - name: Publint
         run: pnpm validate:publint
 
