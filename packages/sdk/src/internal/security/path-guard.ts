@@ -127,14 +127,27 @@ export function safePathJoin(base: string, ...parts: string[]): string {
  *
  * @internal
  */
-function rejectNulAndControlChars(input: string, role: string): void {
+/**
+ * The operator-legible label for the first NUL / C0 control char / DEL in `input`, or `undefined`
+ * when it carries none.
+ *
+ * Detection is separated from the throw so the two callers can share the byte scan and the precise
+ * diagnostic while each raising the error ITS contract documents (#368) — a path guard reports a
+ * traversal, an identifier validator reports an invalid identifier.
+ */
+function firstControlCharLabel(input: string): string | undefined {
   for (let i = 0; i < input.length; i++) {
     const code = input.charCodeAt(i);
     if (code === 0x00 || (code >= 0x01 && code <= 0x1f) || code === 0x7f) {
-      const label = code === 0x00 ? "<nul-byte>" : `<control-char-0x${code.toString(16)}>`;
-      throw new PathTraversalError(`${role}: ${input}`, label);
+      return code === 0x00 ? "<nul-byte>" : `<control-char-0x${code.toString(16)}>`;
     }
   }
+  return undefined;
+}
+
+function rejectNulAndControlChars(input: string, role: string): void {
+  const label = firstControlCharLabel(input);
+  if (label !== undefined) throw new PathTraversalError(`${role}: ${input}`, label);
 }
 
 /**
@@ -400,29 +413,20 @@ function rejectParentTraversal(input: string, normalized: string): void {
  * `^[a-z0-9][a-z0-9-_]*$` rejects path separators, dots, null bytes,
  * whitespace, unicode invisible chars, and any leading `-`/`_`.
  *
- * TWO error classes leave this function, and the input decides which.
- * `PathTraversalError` EXTENDS `ConfigurationError`, so an `instanceof
- * ConfigurationError` test matches both and only `code` separates them — a
- * caller that branches on `code === "invalid_identifier"` alone rethrows the
- * traversal case, for exactly the bytes an attacker chooses:
+ * ONE error class leaves this function: `ConfigurationError` with code
+ * `invalid_identifier`, for every rejection — length out of range, a path
+ * separator, `..`, a space, a leading `-`, and a NUL / C0 control char / DEL
+ * alike. A caller can branch on that code and know it has covered the whole
+ * rejection surface.
  *
- *  - length 0, or above `maxLen` — `ConfigurationError`, code `invalid_identifier`.
- *  - a NUL (`0x00`), a C0 control char (`0x01`-`0x1f`) or DEL (`0x7f`) anywhere in
- *    `input` — `PathTraversalError`, code `path_traversal`. `rejectNulAndControlChars`
- *    runs BEFORE the grammar test, so it wins for any input carrying one of those bytes.
- *  - every other off-grammar input, a space and `/` and `..` and a leading `-` included —
- *    `ConfigurationError`, code `invalid_identifier`. Note a space is `0x20`, NOT a control
- *    char: `"agent /etc/passwd"` takes this branch, not the one above.
- *
- * The split itself is reported as usetheokit/theokit-sdk#368 — collapsing it is a behaviour
- * change on a published error class, so it is tracked there rather than made here.
+ * Before #368 the control-char branch threw `PathTraversalError` instead, which
+ * made the error CLASS a function of the attacker's bytes; the message still names
+ * the offending byte, which is the part that was worth keeping.
  *
  * @param input - User-supplied identifier candidate.
  * @param options.maxLen - Maximum allowed length (default 64).
  * @returns Lowercase form of `input`.
- * @throws `PathTraversalError` with code `path_traversal` when `input` carries a NUL or
- *   control character; `ConfigurationError` with code `invalid_identifier` on every other
- *   rejection.
+ * @throws `ConfigurationError` with code `invalid_identifier` on every rejection.
  */
 export function sanitizeIdentifier(input: string, options?: { maxLen?: number }): string {
   const maxLen = options?.maxLen ?? 64;
@@ -431,14 +435,22 @@ export function sanitizeIdentifier(input: string, options?: { maxLen?: number })
       code: "invalid_identifier",
     });
   }
-  // T5.5 — explicit NUL / control char rejection ahead of the generic
-  // pattern check. The IDENTIFIER_PATTERN regex already excludes these
-  // (they are not in `[a-z0-9\-_]`), but routing them through the same
-  // helper used by safePathJoin gives operators a precise diagnostic
-  // ("nul-byte" / "control-char-0x..") instead of the generic
-  // "invalid characters" message — making prompt-injection traces
-  // legible per Unbreakable Rule 3.
-  rejectNulAndControlChars(input, "identifier");
+  // T5.5 — explicit NUL / control char rejection ahead of the generic pattern check. The
+  // IDENTIFIER_PATTERN regex already excludes these (they are not in `[a-z0-9\-_]`); naming the
+  // offending byte gives operators a precise diagnostic instead of the generic "invalid characters"
+  // message, which is what makes a prompt-injection trace legible (Rule 3).
+  //
+  // #368 — the diagnostic used to arrive as a `PathTraversalError`, because the branch reused
+  // `safePathJoin`'s thrower. That made the error CLASS a function of the attacker's bytes: a
+  // caller branching on the documented `invalid_identifier` rethrew for any input carrying a
+  // control char, so a rejection surfaced as a 500 and the 400/500 split became an oracle. The
+  // detection is shared; the error each contract documents is not.
+  const controlChar = firstControlCharLabel(input);
+  if (controlChar !== undefined) {
+    throw new ConfigurationError(`Identifier contains ${controlChar}: "${input}"`, {
+      code: "invalid_identifier",
+    });
+  }
   if (!IDENTIFIER_PATTERN.test(input)) {
     throw new ConfigurationError(`Identifier contains invalid characters: "${input}"`, {
       code: "invalid_identifier",
