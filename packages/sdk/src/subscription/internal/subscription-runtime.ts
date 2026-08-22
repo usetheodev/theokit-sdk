@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk — Subscription runtime (G8 internal).
+ * Subscription runtime (G8 internal) — `@theokit/sdk`.
  *
  * Per ADR D422 (Form 4 Hybrid). Hosts registered {@link SubscriptionDescriptor}
  * + dispatches incoming subscription requests across SSE / WS transports.

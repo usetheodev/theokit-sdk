@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk/server/auth — public barrel
+ * Public barrel — `@theokit/sdk/server/auth`.
  *
  * Per ADR D6 (sub-path export) — consumers import via `@theokit/sdk/server/auth`
  * NOT main `@theokit/sdk` barrel. Tree-shaking + allows breaking changes in

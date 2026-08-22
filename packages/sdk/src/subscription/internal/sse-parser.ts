@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk — W3C SSE parser (G8 internal).
+ * W3C SSE parser (G8 internal) — `@theokit/sdk`.
  *
  * Per ADR D428. Reads from `ReadableStream<Uint8Array>` or async iterable of
  * UTF-8 chunks; yields parsed {@link SSEvent} objects per W3C SSE spec.

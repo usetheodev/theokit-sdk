@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk — theokit/server integration (G8 internal).
+ * Theokit/server integration (G8 internal) — `@theokit/sdk`.
  *
  * Per ADR D429 (auto-route via theokit.subscriptions namespace).
  *
