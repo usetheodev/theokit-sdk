@@ -10,7 +10,8 @@
  *        'forbidden_path' }` on refusal
  */
 
-import { copyFile, readFile, writeFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import type { CustomTool } from "@theokit/sdk";
 
 import { Tool } from "@theokit/sdk";
@@ -127,7 +128,30 @@ async function editViaLocal(
   }
   const outcome = computeEdit(content, old_string, new_string);
   if (!outcome.ok) return JSON.stringify({ ok: false, error: "no_match", path });
-  await copyFile(absolutePath, `${absolutePath}.bak`);
+  // The backup path is predictable, and the project-root guard above validated `path` — not
+  // `<path>.bak`. Planting a symlink there made `copyFile` follow it and write outside the root:
+  // an arbitrary write from a tool the caller only authorised to edit one file (CodeQL
+  // js/insecure-temporary-file #32; the regression test reproduces it).
+  //
+  // O_NOFOLLOW is the stdlib answer — the kernel refuses to open a symlink at all, so no check
+  // can go stale between the test and the write. An existing REGULAR .bak is still overwritten,
+  // which keeps the documented behaviour intact.
+  try {
+    await writeFile(`${absolutePath}.bak`, content, {
+      encoding: "utf-8",
+      flag:
+        fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_TRUNC | fsConstants.O_NOFOLLOW,
+    });
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    // ELOOP is the kernel refusing a symlink; EEXIST covers platforms that report it that way.
+    // Fail the whole edit rather than proceeding without a backup: the caller asked for an edit
+    // that keeps one, and a silent downgrade is what `error-handling.md` § 5 forbids.
+    if (code === "ELOOP" || code === "EEXIST") {
+      return JSON.stringify({ ok: false, error: "unsafe_backup_path", path });
+    }
+    throw err;
+  }
   await writeFile(absolutePath, outcome.result, "utf-8");
   return JSON.stringify({ ok: true, replacements: 1 });
 }
