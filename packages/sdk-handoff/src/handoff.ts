@@ -149,11 +149,13 @@ export class Handoff {
    * - **Registration is ASYNCHRONOUS.** `register()` starts an unawaited dynamic import and
    *   returns, so the tools appear a microtask later. Nothing here reports a failure in that
    *   import, and nothing lets you await readiness.
-   * - **The receiver does NOT get the user's message.** History replay is unimplemented: the tool
-   *   handler dispatches with an empty transcript, so the receiving agent is sent the literal
-   *   string `` `(Handoff from <sender> — no prior user message in history.)` `` and must answer
-   *   from that alone. Anything the target needs to know has to be in its own system prompt, or
-   *   you drive the handoff yourself with {@link handoffTo}, which passes the message through.
+   * - **The receiver gets the user's LAST message, not the whole conversation.** The tool handler
+   *   forwards the supervisor's transcript, from which the dispatcher takes the most recent user
+   *   turn (#354 — before that it forwarded nothing, and the receiver was sent the literal string
+   *   `` `(Handoff from <sender> — no prior user message in history.)` ``). That placeholder is
+   *   still what a receiver gets when there genuinely is no prior user turn. Anything beyond the
+   *   last question has to be in the target's own system prompt, or you drive the handoff yourself
+   *   with {@link handoffTo}, which passes an explicit message through.
    * - **The handoff tool never throws at the caller.** Every failure — loop detected, depth
    *   exceeded, disposed receiver, `isEnabled` false, input that fails `inputType` — is caught
    *   inside the tool handler and returned to the MODEL as

@@ -95,9 +95,10 @@ export interface HandoffOptions<TInput extends ZodType = ZodType> {
   /**
    * Hook to rewrite the transcript before the receiver sees it — the intended place for redaction.
    *
-   * TODAY IT RECEIVES AN EMPTY HISTORY. Both wirings pass `{ messages: [] }` (history replay is
-   * unimplemented), so this is called with nothing to filter and its result cannot change what the
-   * receiver gets. Do not rely on it for redaction yet.
+   * It receives the supervisor's transcript as the tool handler saw it, and the receiver is sent
+   * the last user turn SURVIVING this filter — so dropping a message here does keep it from the
+   * receiver. Until #354 both wirings passed `{ messages: [] }`, which made this hook a no-op that
+   * looked like redaction.
    *
    * Failures are swallowed: a throw falls back to the unfiltered history with one warning on
    * stderr per process — so a broken redactor fails OPEN, not closed.
