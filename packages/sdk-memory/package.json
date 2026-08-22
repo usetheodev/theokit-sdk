@@ -70,6 +70,7 @@
     "sqlite-vec": "^0.1.6"
   },
   "publishConfig": {
+    "provenance": true,
     "access": "public"
   }
 }

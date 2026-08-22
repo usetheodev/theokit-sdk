@@ -1,7 +1,7 @@
 {
   "name": "@theokit/sdk",
   "version": "4.53.1",
-  "description": "TypeScript SDK for the Theo agent harness \u2014 same surface, local or cloud.",
+  "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
   "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
@@ -354,13 +354,11 @@
     "dist",
     "bin",
     "docs",
-    "claude-template",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
   "bin": {
-    "theokit-init-claude": "./bin/init-claude.mjs",
     "theokit-migrate-config": "./bin/theokit-migrate-config.mjs",
     "theokit-migrate-memory": "./bin/theokit-migrate-memory.mjs"
   },
@@ -417,6 +415,7 @@
     }
   },
   "publishConfig": {
+    "provenance": true,
     "access": "public"
   },
   "keywords": [

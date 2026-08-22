@@ -53,6 +53,7 @@
     "@theokit/sdk": "workspace:*"
   },
   "publishConfig": {
+    "provenance": true,
     "access": "public"
   }
 }

@@ -43,6 +43,7 @@
     "prepublishOnly": "node ../../tools/check-publish-no-workspace.mjs ."
   },
   "publishConfig": {
+    "provenance": true,
     "access": "public"
   },
   "peerDependencies": {
