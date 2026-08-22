@@ -41,7 +41,6 @@
     "src/agent-builder.ts",
     "src/define-tool.ts",
     "src/types/**/*",
-    "src/workflow.ts",
     "src/eval.ts",
     "src/scorers.ts",
     "src/internal/eval/**/*",

@@ -398,23 +398,18 @@ export {
 /**
  * Workflow, exported from the ROOT and not only from `@theokit/sdk/workflow`.
  *
- * `CronCreateOptions.workflow` types against the `Workflow` that lands in the shared cron chunk,
- * while the `./workflow` subpath entry emits a STANDALONE re-declaration of the same class. Two
- * declarations of one class with a private field are nominally distinct, so a consumer following
- * the documented path —
+ * Both this entry and `@theokit/sdk/workflow` now resolve to ONE declaration, so the documented
+ * combination typechecks:
  *
  *     import { Workflow } from "@theokit/sdk/workflow";
  *     import { Cron } from "@theokit/sdk";
  *     await Cron.create({ cron: "@hourly", workflow: pipeline });
  *
- * — was rejected with "types have separate declarations of a private property '_options'". SE35's
- * workflow-per-fire target was unreachable from outside the package. Measured 2026-08-20 while
- * rewriting the workflow template, which is how it surfaced: nothing in-tree crosses that boundary,
- * because in-tree code imports from `src/`.
- *
- * Exporting here puts `Workflow` and `Cron` on ONE identity for anyone importing both from the root,
- * which is the combination the API is for. The subpath still works standalone and still produces the
- * incompatible type when mixed with root `Cron` — that is a build-layout defect, not something this
- * line can close.
+ * It did not until #361. The two entries were built by different DTS pipelines and each emitted its
+ * own `declare class Workflow`; a class with a private field is compared nominally, so the call was
+ * rejected with "types have separate declarations of a private property '_options'" and SE35's
+ * workflow-per-fire target was unreachable from outside the package. Nothing in-tree crosses that
+ * boundary — in-tree code imports from `src/` — which is why it survived to a release.
+ * `quality:dts-identity` now fails the build on the shape.
  */
 export { agentStep, fn, Workflow } from "./workflow.js";
