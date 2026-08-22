@@ -21,7 +21,7 @@
  * + `tsc --noEmit` for confirmation.
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -29,7 +29,14 @@ const args = process.argv.slice(2);
 const write = args.includes("--write");
 const root = args.find((a) => !a.startsWith("--")) ?? ".";
 
-const files = execSync(`git -C ${resolve(root)} ls-files '*.ts' '*.tsx'`, { encoding: "utf8" })
+// `execFileSync` with an argument array, not `execSync` with an interpolated string: `root`
+// comes from `process.argv`, and a path containing a shell metacharacter would have been
+// interpreted rather than passed through (CodeQL js/indirect-command-line-injection #25 and
+// js/shell-command-injection-from-environment #13). No shell is spawned at all now, so there is
+// nothing to escape — parsimony ladder rung 2, the standard library already draws this line.
+const files = execFileSync("git", ["-C", resolve(root), "ls-files", "*.ts", "*.tsx"], {
+  encoding: "utf8",
+})
   .split("\n")
   .filter((p) => p.length > 0)
   .map((p) => resolve(root, p));

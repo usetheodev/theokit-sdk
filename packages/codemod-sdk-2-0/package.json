@@ -2,7 +2,7 @@
   "name": "@theokit/codemod-sdk-2-0",
   "version": "1.0.0",
   "private": true,
-  "description": "DEPRECATED — do not use. Codemod for a @theokit/sdk → @theokit/sdk-core rename that was ABANDONED: SDK 2.0 shipped keeping the name @theokit/sdk, and @theokit/sdk-core does not exist (npm 404). Running this codemod would rewrite imports to a non-existent package and break your build. Archived 2026-07-09.",
+  "description": "DEPRECATED \u2014 do not use. Codemod for a @theokit/sdk \u2192 @theokit/sdk-core rename that was ABANDONED: SDK 2.0 shipped keeping the name @theokit/sdk, and @theokit/sdk-core does not exist (npm 404). Running this codemod would rewrite imports to a non-existent package and break your build. Archived 2026-07-09.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "bin/codemod.mjs",
@@ -23,7 +23,7 @@
     "migration"
   ],
   "scripts": {
-    "test": "node tests/codemod.test.mjs"
+    "test": "node tests/codemod.test.mjs && node tests/backup-symlink.test.mjs"
   },
   "publishConfig": {
     "access": "public"
