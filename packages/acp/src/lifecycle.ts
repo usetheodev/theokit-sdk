@@ -22,21 +22,26 @@ import path from "node:path";
 import * as acp from "@agentclientprotocol/sdk";
 import { Agent, type SDKAgent } from "@theokit/sdk";
 import type { AcpSession, SessionStore } from "./session-store.js";
-import type { AcpCapabilities, AgentFactory } from "./types.js";
+import type { AcpAgentInfo, AcpCapabilities, AgentFactory } from "./types.js";
 
 // ===== initialize =====
 
 interface InitializeDeps {
   capabilities?: AcpCapabilities;
+  info?: AcpAgentInfo;
 }
 
 /**
  * Build the `initialize` reply. Ignores the request entirely — the negotiated protocol version is
  * always `acp.PROTOCOL_VERSION` from the installed `@agentclientprotocol/sdk`, never the client's.
  *
- * Advertises `loadSession` (default `true`) and the three prompt flags (`image` and
- * `embeddedContext` default `true`, `audio` defaults `false`). `authMethods` is always empty, and
- * `AcpCapabilities.forkSession` / `.listSessions` / `AcpServerOptions.info` are not advertised at all.
+ * Advertises `loadSession` (default `true`), the three prompt flags (`image` and `embeddedContext`
+ * default `true`, `audio` defaults `false`), and `AcpServerOptions.info` as `agentInfo` when the
+ * caller supplied one (#350 — it was accepted and never read). `authMethods` is always empty.
+ *
+ * `agentInfo` is OMITTED rather than defaulted. Falling back to this package's own metadata would
+ * label every agent as the adapter serving it, and a name that is confidently wrong is worse for a
+ * host to display than one that is absent.
  */
 export function buildInitializeResponse(
   _params: acp.InitializeRequest,
@@ -53,6 +58,7 @@ export function buildInitializeResponse(
         embeddedContext: userCaps.prompt?.embeddedContext ?? true,
       },
     },
+    ...(deps.info !== undefined ? { agentInfo: { ...deps.info } } : {}),
     authMethods: [],
   };
 }

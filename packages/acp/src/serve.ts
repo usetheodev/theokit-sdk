@@ -120,7 +120,10 @@ export async function serveAcp(options: AcpServerOptions): Promise<void> {
   new acp.AgentSideConnection((conn) => {
     return {
       initialize: async (params) =>
-        buildInitializeResponse(params, { capabilities: options.capabilities }),
+        buildInitializeResponse(params, {
+          capabilities: options.capabilities,
+          ...(options.info !== undefined ? { info: options.info } : {}),
+        }),
 
       authenticate: async (_params): Promise<acp.AuthenticateResponse> => {
         // D350 — auth deferred to v0.2; return empty success.
