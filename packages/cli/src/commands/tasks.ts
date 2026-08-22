@@ -50,8 +50,9 @@ export interface TasksInspectOptions {
 /** Flags for {@link runTasksCancel}. */
 export interface TasksCancelOptions {
   /**
-   * Accepted by the CLI and NOT implemented: nothing reads this field, so no reason is written to
-   * the registry and `--reason` has no observable effect.
+   * Free-text reason, written to the task handle's `cancelReason` when this cancel actually
+   * changes something (#351 — it used to be accepted and read by nothing). A task that is already
+   * terminal is left untouched, reason or not.
    */
   reason?: string;
 }
@@ -193,7 +194,7 @@ export async function runTasksInspect(id: string, opts: TasksInspectOptions): Pr
  *
  * Returns 3 for a malformed id, 2 when the store cannot be opened, 4 when the task does not exist.
  */
-export async function runTasksCancel(id: string, _opts: TasksCancelOptions): Promise<number> {
+export async function runTasksCancel(id: string, opts: TasksCancelOptions): Promise<number> {
   if (!isValidTaskId(id)) {
     process.stderr.write(`tasks: invalid id grammar: ${id}\n`);
     return 3;
@@ -216,12 +217,21 @@ export async function runTasksCancel(id: string, _opts: TasksCancelOptions): Pro
   if (handle.state === "queued") {
     // Direct transition (no owning process AbortController to flip).
     const cancelledAt = Date.now();
-    await store.update(id, (h) => ({ ...h, state: "cancelled", cancelledAt }));
+    await store.update(id, (h) => ({
+      ...h,
+      state: "cancelled",
+      cancelledAt,
+      ...(opts.reason !== undefined ? { cancelReason: opts.reason } : {}),
+    }));
     process.stdout.write(`task ${id} cancelled (was queued)\n`);
     return 0;
   }
   // Running: set cancelRequested flag; owning process honors at next checkpoint.
-  await store.update(id, (h) => ({ ...h, cancelRequested: true }));
+  await store.update(id, (h) => ({
+    ...h,
+    cancelRequested: true,
+    ...(opts.reason !== undefined ? { cancelReason: opts.reason } : {}),
+  }));
   process.stdout.write(
     `cancel requested for task ${id}; the owning process will honor it at the next checkpoint\n`,
   );

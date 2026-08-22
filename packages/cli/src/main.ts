@@ -54,7 +54,6 @@ function registerSubcommands(program: Command, setExit: (n: number) => void): vo
       `Template name: ${TEMPLATES.map((t) => t.name).join(" | ")}`,
     )
     .option("-f, --force", "Overwrite a non-empty destination directory")
-    .option("--here", "Scaffold into the current directory")
     .option("-y, --yes", "Skip interactive prompts (CI mode)")
     .action(async (projectName: string | undefined, opts: InitOptions) => {
       setExit(await runInit(projectName, opts));
