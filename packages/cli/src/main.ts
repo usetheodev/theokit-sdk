@@ -107,10 +107,6 @@ function registerSubcommands(program: Command, setExit: (n: number) => void): vo
     .description(
       "Stage credentials + connectivity probe for a third-party integration. Domains: gworkspace (Google Workspace).",
     )
-    .option(
-      "--writable <products>",
-      "Comma-separated products to grant write access (e.g., 'drive,calendar')",
-    )
     .option("--probe", "Run upstream connectivity check after staging credentials")
     .option(
       "--credentials-path <path>",

@@ -17,8 +17,6 @@ import { type GworkspaceSetupOptions, runGworkspaceSetup } from "../setup/gworks
 
 /** Flags for {@link runSetup}, forwarded verbatim to the domain handler. */
 export interface SetupOptions {
-  /** Comma-separated product list. Advisory only — see `GworkspaceSetupOptions.writable`. */
-  writable?: string;
   /** Run the upstream connectivity check INSTEAD of the setup flow, not after it. */
   probe?: boolean;
   /** Override the credentials file path. Default `~/.google-mcp/credentials.json`. */
@@ -36,7 +34,6 @@ export interface SetupOptions {
 export async function runSetup(domain: string, opts: SetupOptions): Promise<number> {
   if (domain === "gworkspace") {
     const gworkspaceOpts: GworkspaceSetupOptions = {
-      writable: opts.writable,
       probe: opts.probe === true,
       nonInteractive: opts.nonInteractive === true,
       ...(opts.credentialsPath !== undefined ? { credentialsPath: opts.credentialsPath } : {}),
