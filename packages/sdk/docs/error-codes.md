@@ -82,8 +82,8 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `invalid_context_window_margin` | domain | — | `packages/sdk/src/compaction.ts:278` +1 |
 | `invalid_cron` | domain | ConfigurationError | `packages/sdk/src/internal/cron/validate.ts:34` +3 |
 | `invalid_doom_loop_threshold` | domain | ConfigurationError | `packages/sdk/src/internal/agent-loop/doom-loop-tracker.ts:47` |
-| `invalid_filename_id` | domain | ConfigurationError | `packages/sdk/src/internal/security/path-guard.ts:474` |
-| `invalid_identifier` | domain | ConfigurationError | `packages/sdk/src/internal/security/path-guard.ts:430` +1 |
+| `invalid_filename_id` | domain | ConfigurationError | `packages/sdk/src/internal/security/path-guard.ts:486` |
+| `invalid_identifier` | domain | ConfigurationError | `packages/sdk/src/internal/security/path-guard.ts:434` +2 |
 | `invalid_input` | domain | MemoryAdapterError | `packages/memory-honcho/src/adapter.ts:98` +9 |
 | `invalid_max_iterations` | domain | ConfigurationError | `packages/sdk/src/internal/local-agent/real-local-run.ts:215` |
 | `invalid_memory_backend` | domain | ConfigurationError | `packages/sdk/src/internal/memory/index-manager-dispatch.ts:24` +1 |
@@ -207,7 +207,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `unknown_cron_job` | domain | UnknownAgentError | `packages/sdk/src/cron.ts:84` +2 |
 | `unsafe_filename` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/context/project-instructions.ts:120` |
 | `work_threw` | domain | — | `packages/sdk/src/internal/task/registry.ts:295` |
-| `workflow_tool_failed` | domain | WorkflowToolError | `packages/sdk/src/workflow.ts:598` |
+| `workflow_tool_failed` | domain | WorkflowToolError | `packages/sdk/src/workflow.ts:594` |
 | `ws_global_missing` | domain | SubscriptionError | `packages/sdk/src/subscription/theokit-subscribe.ts:183` |
 | `ws_peer_missing` | domain | SubscriptionError | `packages/sdk/src/subscription/internal/ws-adapter-node.ts:48` |
 | `ws_server_error` | domain | SubscriptionError | `packages/sdk/src/subscription/theokit-subscribe.ts:251` |
