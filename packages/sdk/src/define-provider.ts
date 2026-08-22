@@ -25,11 +25,20 @@ export interface DefineProviderOptions {
  * endpoint (Groq, Together, Fireworks, a private gateway) is expressible as a
  * profile with no new code.
  *
+ * Reached through {@link Provider.create}, which is the exported façade — this function
+ * itself is internal. The docblock used to show `defineProvider(...)` as the call to write,
+ * and it is not exported from any entry point, so following it produced
+ * `TypeError: defineProvider is not a function`.
+ *
+ * One door rather than two, deliberately: `Provider` already owns `create`, `builtins` and
+ * `forModel`, and a second exported way to build the same plugin would be a choice nobody
+ * needs to make.
+ *
  * Pass the result to `Agent.create({ plugins: [...] })` and route to it with
  * the `provider/model` id prefix or `providers.routes`:
  *
  * ```ts
- * const groq = defineProvider({
+ * const groq = Provider.create({
  *   name: "groq",
  *   apiMode: "chat_completions",
  *   authType: "api_key",
