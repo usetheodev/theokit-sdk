@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1124 export(s) across 45 entry point(s).
+1123 export(s) across 45 entry point(s).
 
 ## `@theokit/acp`
 
@@ -481,7 +481,6 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | Symbol | Kind | Summary |
 |---|---|---|
 | `Cache` | class | A semantic response cache: an exact-key lookup, then a vector-similarity lookup, over prompt/response pairs the caller has stored.  |
-| `CacheEmbedderError` | class | The embedder rejected or failed a call.  |
 | `CacheEmbedderRuntime` | interface | Embedder runtime shape — minimal subset of `EmbeddingRuntime` (D11) the Cache actually uses.  |
 | `CacheEntry` | interface | One cached prompt/response pair, as `Cache` stores it.  |
 | `CacheInvalidTtlError` | class | A TTL value that could not be parsed, thrown at configuration time rather than on first use.  |

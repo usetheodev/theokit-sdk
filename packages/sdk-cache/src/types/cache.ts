@@ -227,29 +227,6 @@ export interface CacheStats {
 /* ─── Error classes ─── */
 
 /**
- * The embedder rejected or failed a call.
- *
- * NOTHING IN THIS PACKAGE THROWS IT TODAY, and a `catch` written for it will never fire. Every
- * embedder failure on every path — `consult`, `remember`, and both plugin hooks — degrades to a
- * cache miss / skipped write, logs a warning on stderr and increments
- * {@link CacheStats.embedderFailures}, because a cache is an optimisation and must not take the
- * request down with it. That counter, not this class, is how you detect a broken embedder.
- *
- * It is exported so a custom {@link CacheEmbedderRuntime} can throw a typed error from its own
- * `embed()`; the cache will still swallow it into a miss.
- *
- * `cause` carries the underlying error when there was one.
- */
-export class CacheEmbedderError extends Error {
-  override readonly name = "CacheEmbedderError";
-  override readonly cause?: Error;
-  constructor(message: string, cause?: Error) {
-    super(`Cache embedder failed: ${message}`);
-    if (cause !== undefined) this.cause = cause;
-  }
-}
-
-/**
  * A TTL value that could not be parsed, thrown at configuration time rather than on first use.
  *
  * Accepts a number of SECONDS, or a string with a unit suffix `s` / `m` / `h` / `d` / `w`

@@ -18,4 +18,4 @@ export type {
   CacheStats,
   CacheTTLConfig,
 } from "./types/cache.js";
-export { CacheEmbedderError, CacheInvalidTtlError } from "./types/cache.js";
+export { CacheInvalidTtlError } from "./types/cache.js";
