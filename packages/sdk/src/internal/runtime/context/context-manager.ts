@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join, resolve as resolvePath } from "node:path";
 
 import { ConfigurationError } from "../../../errors.js";
@@ -305,7 +305,11 @@ async function loadSources(
       continue;
     }
     try {
-      await stat(absolute);
+      // The `await stat(absolute)` that used to sit here checked existence and threw its result
+      // away — and `readFile` below already fails when the file is gone. So the only thing the
+      // extra lookup added was a window in which the path could resolve to a different file
+      // between the check and the read (CodeQL js/file-system-race #20). One lookup has no
+      // window: parsimony ladder rung 1, the cheapest fix is the operation nobody needed.
       const content = await readFile(absolute, "utf8");
       const tokens = tokenizeContent(content);
       results.push({ ...source, status: "included", tokens });

@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
-
 import { sanitizeFts5Query } from "../persistence/fts5-sanitize.js";
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
 import { LruEmbeddingCache } from "./embedding-cache.js";
+import { escapeLikePattern } from "./escape-like-pattern.js";
 import { defaultIndexPath, type MemoryDb, openMemoryDb } from "./index-db.js";
 import { assertValidBackend, openLanceIndex } from "./index-manager-dispatch.js";
 import {
@@ -241,7 +241,7 @@ export class IndexManager implements MemoryIndex {
     query: string,
     limit: number,
   ): Array<MemorySearchHit & { chunkId: number }> {
-    const pattern = `%${query.replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
+    const pattern = escapeLikePattern(query);
     const stmt = this.db.prepare(
       `SELECT chunks.id as id, files.rel_path as rel_path, files.source as source,
               chunks.start_line as start_line, chunks.end_line as end_line,
