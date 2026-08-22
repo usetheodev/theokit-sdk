@@ -18,6 +18,7 @@ import {
 } from "../types/handoff.js";
 import { dispatchHandoff } from "./dispatcher.js";
 import { createChainState } from "./registry.js";
+import { slugifyAgentName } from "./slugify-agent-name.js";
 import { toJsonSchema } from "./to-json-schema.js";
 
 interface NormalizedHandoff {
@@ -71,17 +72,7 @@ function autoWrap(agent: SDKAgent): HandoffDescriptor {
 function resolveTargetName(agent: SDKAgent): string {
   // Prefer a `name` field if exposed; fall back to a short agentId slug.
   const candidate = (agent as unknown as { name?: string }).name ?? agent.agentId ?? "anonymous";
-  return slugify(candidate);
-}
-
-function slugify(input: string): string {
-  return (
-    input
-      .replace(/^agent-/i, "")
-      .replace(/[^a-zA-Z0-9_-]+/g, "_")
-      .replace(/^_+|_+$/g, "")
-      .slice(0, 64) || "anonymous"
-  );
+  return slugifyAgentName(candidate);
 }
 
 /**

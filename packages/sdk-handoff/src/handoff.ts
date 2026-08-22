@@ -30,6 +30,7 @@
 
 import { ConfigurationError, Plugin, type PluginContext, type SDKAgent } from "@theokit/sdk";
 import type { ZodType } from "zod";
+import { slugifyAgentName } from "./internal/slugify-agent-name.js";
 import type { HandoffDescriptor, HandoffOptions } from "./types/handoff.js";
 
 /**
@@ -225,13 +226,7 @@ export interface AsPluginOptions {
 
 function slugifyName(agent: SDKAgent): string {
   const candidate = (agent as unknown as { name?: string }).name ?? agent.agentId ?? "anonymous";
-  return (
-    candidate
-      .replace(/^agent-/i, "")
-      .replace(/[^a-zA-Z0-9_-]+/g, "_")
-      .replace(/^_+|_+$/g, "")
-      .slice(0, 64) || "anonymous"
-  );
+  return slugifyAgentName(candidate);
 }
 
 /**
