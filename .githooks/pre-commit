@@ -96,6 +96,28 @@ if [ "$selected_count" -eq 0 ] && [ -z "$staged_typescript" ]; then
   exit 0
 fi
 
+# TypeScript that lives OUTSIDE `packages/` belongs to no workspace, so the diff-scoped
+# filter can never select it — not because the ref is stale, but because turbo is not the
+# tool that checks it. `e2e/` is the case: it consumes @theokit/sdk through its `exports`
+# map on purpose, so it is deliberately not a package. Separating the two zero-selection
+# causes here keeps the guard below meaning what it says; without this, every commit
+# touching only `e2e/` reported a stale-ref failure that was not one.
+staged_outside_packages=$(echo "$staged_typescript" | grep -v '^packages/' || true)
+staged_inside_packages=$(echo "$staged_typescript" | grep '^packages/' || true)
+
+if [ "$selected_count" -eq 0 ] && [ -n "$staged_outside_packages" ] && [ -z "$staged_inside_packages" ]; then
+  echo "→ G1: typecheck scoped to the root e2e project (staged TypeScript is outside packages/)"
+  if ! root_typecheck_out=$(pnpm run typecheck:e2e 2>&1); then
+    echo ""
+    echo "$root_typecheck_out" | tail -30
+    echo ""
+    echo "✗ G1 (typecheck) failed. Fix the types."
+    exit 1
+  fi
+  echo "✓ pre-commit gates passed"
+  exit 0
+fi
+
 if [ "$selected_count" -eq 0 ]; then
   echo ""
   echo "✗ G1 (typecheck) failed: the diff-scoped filter selected 0 packages against"
