@@ -101,7 +101,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `local_provider_http_error` | domain | ConfigurationError | `packages/sdk/src/internal/catalog/local-models.ts:61` |
 | `local_provider_unreachable` | domain | ConfigurationError | `packages/sdk/src/internal/catalog/local-models.ts:46` |
 | `malformed_api_key` | domain | AuthenticationError | `packages/sdk/src/agent-helpers.ts:195` +1 |
-| `max_delegation_depth` | domain | MaxDelegationDepthError | `packages/sdk/src/a2a/subagent.ts:200` |
+| `max_delegation_depth` | domain | MaxDelegationDepthError | `packages/sdk/src/a2a/subagent.ts:218` |
 | `mcp_buffer_overflow` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:314` |
 | `mcp_closed` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:289` |
 | `mcp_crashed` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:208` |
