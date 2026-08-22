@@ -18,8 +18,10 @@
  * the JSON-RPC frame stream and desynchronises the host. Diagnostics from this package go to stderr;
  * override with `AcpServerOptions.log`.
  *
- * Public surface: `serveAcp` plus the option and error types below. Everything else (lifecycle handlers,
- * translator, permission plugin, session store) is internal and may change without a major bump.
+ * Public surface: `serveAcp`, the option types, and the two errors it can produce —
+ * `InvalidAgentError` (startup) and `PromptTooLargeError` (per prompt). Everything else (lifecycle
+ * handlers, translator, permission plugin, session store) is internal and may change without a
+ * major bump.
  *
  * Spec: https://agentclientprotocol.com
  * ADRs: D349-D360. Plan: `.claude/knowledge-base/plans/acp-server-adapter-plan.md`.
@@ -27,6 +29,9 @@
  * @packageDocumentation
  */
 
+// #369 — exported for the same reason `PromptTooLargeError` is: it is a failure a consumer is
+// expected to branch on, and without the class the only way to recognise it is matching `err.name`.
+export { InvalidAgentError } from "./agent-resolver.js";
 export { serveAcp } from "./serve.js";
 export type {
   AcpAgentInfo,

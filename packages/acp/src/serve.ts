@@ -45,10 +45,9 @@ const DEFAULT_PERMISSION_MODE: PermissionMode = "ask";
  * process.
  *
  * Rejects only when it cannot start: an `InvalidAgentError` when `agent` is neither a function nor
- * an object with a string `agentId` and a callable `send`. That class is NOT on this package's
- * public surface — `@theokit/acp` exports `serveAcp` and `PromptTooLargeError`, nothing else — so a
- * consumer cannot `import` it and cannot `instanceof` it; branch on `err.name === "InvalidAgentError"`
- * instead. Nothing that happens afterwards rejects this promise — per-request failures go back to
+ * an object with a string `agentId` and a callable `send`. That class is exported, so branch on
+ * `instanceof InvalidAgentError` rather than on `err.name` (#369). Nothing that happens afterwards
+ * rejects this promise — per-request failures go back to
  * the host as JSON-RPC errors:
  *
  * | Condition | Code |
