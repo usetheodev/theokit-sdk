@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1123 export(s) across 45 entry point(s).
+1124 export(s) across 45 entry point(s).
 
 ## `@theokit/acp`
 
@@ -15,6 +15,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `AcpServerOptions` | interface | Options for {@link serveAcp } .  |
 | `AgentFactory` | type | Builds the agent that will serve one ACP session.  |
 | `AgentOrFactory` | type | What `serveAcp({ agent })` accepts.  |
+| `InvalidAgentError` | class | Thrown when `serveAcp({ agent })` is neither a function nor an object with `agentId` + `send`. |
 | `PermissionMode` | type | How tool calls are gated before they execute (D355).  |
 | `PromptTooLargeError` | class | Raised when a prompt's accumulated size passes `maxPromptBytes` (D360).  |
 | `serveAcp` | function | Serve `options.agent` to an ACP host over JSON-RPC on stdio, blocking until the input stream ends.  |
