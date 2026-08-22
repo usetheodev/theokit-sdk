@@ -212,7 +212,15 @@ export async function dispatchHandoff(args: {
   });
 
   try {
-    const run = await receiver.send(lastUserMessage);
+    // #356 — `HandoffOptions.tools` was presented as an allowlist and read by nothing, so a caller
+    // who set it got no restriction and no warning. It is wired to `SendOptions.activeTools`, the
+    // same `withToolWhitelist` path `Agent.fork`'s `allowedTools` uses. An empty list means the
+    // empty set (fail-closed), matching that contract; omitting the option means no restriction.
+    const toolAllowlist = descriptor.options.tools;
+    const run = await receiver.send(
+      lastUserMessage,
+      toolAllowlist !== undefined ? { activeTools: [...toolAllowlist] } : {},
+    );
     const result = await run.wait();
     const reply = buildReply(result, receiver.agentId);
     return {

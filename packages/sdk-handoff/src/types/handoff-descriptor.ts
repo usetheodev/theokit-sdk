@@ -105,9 +105,15 @@ export interface HandoffOptions<TInput extends ZodType = ZodType> {
    */
   readonly inputFilter?: (history: HandoffHistory) => HandoffHistory | Promise<HandoffHistory>;
   /**
-   * DECLARED BUT NOT IMPLEMENTED. Nothing in this package reads it, so setting it neither restricts
-   * nor grants the receiver any tool. It is reserved for a future tool allowlist; treat it as a
-   * no-op today.
+   * Restrict the receiving agent, for THIS handoff only, to the tools named here.
+   *
+   * Wired to `SendOptions.activeTools`: names match EXACTLY against the receiver's registered tool
+   * names, an empty list restricts to the empty set (fail-closed), and omitting the option imposes
+   * no restriction. It narrows what the receiver may call; it never grants a tool the receiver
+   * does not have.
+   *
+   * LOCAL RUNTIME ONLY — a cloud agent ignores `activeTools`, so this cannot restrict one. Before
+   * #356 nothing read this field at all, in either runtime.
    */
   readonly tools?: ReadonlyArray<string>;
   /**
