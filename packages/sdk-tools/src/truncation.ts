@@ -129,9 +129,20 @@ export function truncateOutput(output: string, opts?: TruncationOptions): Trunca
   // not an error. Surfaced as an intermittent failure while running two truncation suites together;
   // `rules/testing.md § 3` treats a flake as a bug, and the root cause was in production code, not
   // in the test. `randomUUID` is stdlib (parsimony-ladder rung 2).
-  const filename = `overflow-${Date.now()}-${randomUUID().slice(0, 8)}.txt`;
+  //
+  // The UUID is no longer truncated (CodeQL js/insecure-temporary-file #34). Eight hex characters
+  // is 32 bits, and the rest of the name — `Date.now()` — is predictable, so the whole path was
+  // guessable by anyone who could watch the clock. That matters because the write below lands
+  // wherever the path resolves: a symlink planted at a guessed name would have received the full
+  // untruncated output, which is exactly the content large enough to be worth exfiltrating.
+  const filename = `overflow-${Date.now()}-${randomUUID()}.txt`;
   const overflowPath = join(outputDir, filename);
-  writeFileSync(overflowPath, output, "utf-8");
+  // `wx` = O_CREAT|O_EXCL|O_WRONLY. POSIX makes O_EXCL fail when the path already exists — a
+  // symlink included, even a dangling one — so the kernel refuses a planted name rather than a
+  // check deciding it is safe a moment before the write. With a full UUID a collision is not a
+  // real outcome, so a failure here means the name was already taken by someone, and it should
+  // propagate rather than be retried into.
+  writeFileSync(overflowPath, output, { encoding: "utf-8", flag: "wx" });
 
   const buf = Buffer.from(output, "utf-8");
   const trailer = `\n\n[Output truncated. Full output: ${overflowPath}]`;
