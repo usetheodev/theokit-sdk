@@ -85,7 +85,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `invalid_filename_id` | domain | ConfigurationError | `packages/sdk/src/internal/security/path-guard.ts:474` |
 | `invalid_identifier` | domain | ConfigurationError | `packages/sdk/src/internal/security/path-guard.ts:430` +1 |
 | `invalid_input` | domain | MemoryAdapterError | `packages/memory-honcho/src/adapter.ts:98` +9 |
-| `invalid_max_iterations` | domain | ConfigurationError | `packages/sdk/src/internal/local-agent/real-local-run.ts:206` |
+| `invalid_max_iterations` | domain | ConfigurationError | `packages/sdk/src/internal/local-agent/real-local-run.ts:215` |
 | `invalid_memory_backend` | domain | ConfigurationError | `packages/sdk/src/internal/memory/index-manager-dispatch.ts:24` +1 |
 | `invalid_model_selection` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/model-selection.ts:21` |
 | `invalid_request` | transport | — | `packages/sdk/src/internal/error-mappers/vertex.ts:52` +1 |
@@ -150,7 +150,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `plugin_manifest_shape` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/plugins/plugins-manager.ts:160` |
 | `plugin_missing_manifest` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/plugins/plugins-manager.ts:145` +2 |
 | `programmatic_hooks_rejected` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/validate-agent-options.ts:94` |
-| `provider_unresolved` | domain | ConfigurationError | `packages/sdk/src/internal/llm/router.ts:90` +1 |
+| `provider_unresolved` | domain | ConfigurationError | `packages/sdk/src/internal/llm/router.ts:99` +1 |
 | `quota_exceeded` | transport | — | `packages/sdk/src/errors.ts:0` |
 | `rate_limit` | transport | — | `packages/sdk/src/internal/error-mappers/vertex.ts:46` |
 | `rate_limited` | domain | MemoryAdapterError | `packages/memory-honcho/src/adapter.ts:244` +3 |
@@ -199,7 +199,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `tool_missing_schema` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/validate-agent-options.ts:230` |
 | `tool_reserved_name` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/validate-agent-options.ts:212` |
 | `transport_failure` | domain | NetworkError | `packages/sdk/src/internal/llm/transport-error.ts:45` |
-| `transport_unavailable` | domain | ConfigurationError | `packages/sdk/src/internal/llm/router.ts:453` +1 |
+| `transport_unavailable` | domain | ConfigurationError | `packages/sdk/src/internal/llm/router.ts:468` +1 |
 | `unknown` | transport | AgentRunError, MemoryAdapterError, TheokitAgentError | `packages/memory-honcho/src/adapter.ts:264` +5 |
 | `unknown_agent` | domain | UnknownAgentError | `packages/sdk/src/agent-helpers.ts:379` +1 |
 | `unknown_artifact` | domain | UnknownAgentError | `packages/sdk/src/internal/cloud-agent/cloud-agent.ts:279` |

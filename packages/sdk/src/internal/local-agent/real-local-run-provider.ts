@@ -1,12 +1,18 @@
 /**
  * Provider inference helpers for the real local run — extracted from
- * `real-local-run.ts` to keep it within the G8 LoC budget and give the two
- * pure "which provider?" heuristics one cohesive home.
+ * `real-local-run.ts` to keep it within the G8 LoC budget and give the
+ * "which provider?" heuristics one cohesive home.
+ *
+ * The precedence diagnostic joined them for the same two reasons: it answers the same question
+ * ("which provider, and was that what the caller asked for?"), and adding it inline pushed
+ * `real-local-run.ts` to 411 LoC against the 400 budget. The gate asked for a split and this is
+ * where the split already lives.
  *
  * @internal
  */
 
 import { providerFromApiKeyPrefix } from "../auth/api-key-prefix.js";
+import { diag } from "../diagnostics.js";
 import { getProviderProfile } from "../providers/index.js";
 
 /**
@@ -42,4 +48,33 @@ export function detectPrimaryProvider(): string {
     return "openrouter";
   }
   return "openai";
+}
+
+/**
+ * Warns once per (asked, used) pair when the resolved provider is not the one the model id named.
+ *
+ * One-shot per pair, mirroring `warnNoAuthApiKeysIgnoredOnce` in `router.ts` — the same "your
+ * input was ignored, here is why" shape, and a per-request warning is one nobody reads.
+ *
+ * Silent when the model id carried no provider prefix, or when the prefix IS what was used: an
+ * override that did not happen is not news.
+ *
+ * @internal
+ */
+const warnedProviderPrecedence = new Set<string>();
+export function warnProviderPrecedenceOnce(asked: string | undefined, used: string): void {
+  if (asked === undefined || asked === used) return;
+  const key = `${asked}->${used}`;
+  if (warnedProviderPrecedence.has(key)) return;
+  warnedProviderPrecedence.add(key);
+  diag(
+    `[theokit-sdk] model id names provider "${asked}", but "${used}" was used — an explicit ` +
+      "`providers.routes[0]` or the API key's own prefix outranks the model id's prefix. " +
+      "Pass `providers.routes` to choose deliberately.\n",
+  );
+}
+
+/** Test-only reset. @internal */
+export function _resetProviderPrecedenceWarnings(): void {
+  warnedProviderPrecedence.clear();
 }
