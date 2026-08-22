@@ -198,7 +198,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `tool_missing_name` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/validate-agent-options.ts:201` |
 | `tool_missing_schema` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/validate-agent-options.ts:230` |
 | `tool_reserved_name` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/validate-agent-options.ts:212` |
-| `transport_failure` | domain | NetworkError | `packages/sdk/src/internal/llm/transport-error.ts:45` |
+| `transport_failure` | domain | NetworkError | `packages/sdk/src/internal/llm/transport-error.ts:48` |
 | `transport_unavailable` | domain | ConfigurationError | `packages/sdk/src/internal/llm/router.ts:481` +1 |
 | `unknown` | transport | AgentRunError, MemoryAdapterError, TheokitAgentError | `packages/memory-honcho/src/adapter.ts:264` +5 |
 | `unknown_agent` | domain | UnknownAgentError | `packages/sdk/src/agent-helpers.ts:379` +1 |
