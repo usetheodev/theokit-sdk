@@ -40,6 +40,14 @@ export class AimockServer {
     return new AimockServer(mock, url);
   }
 
+  /**
+   * Makes the next request fail with `status`, so a negative case can assert what the SDK
+   * does with a real HTTP failure rather than with a rejected promise a test constructed.
+   */
+  failNextRequest(status: number, message: string): void {
+    this.mock.nextRequestError(status, { message });
+  }
+
   /** Every request the server received, in arrival order. */
   get requests(): RecordedRequest[] {
     return this.mock.getRequests() as RecordedRequest[];
