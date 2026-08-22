@@ -201,20 +201,20 @@ The `proper-lockfile` row is the one that fails quietly: the SDK degrades and ke
 
 ## AI coding assistant setup (optional)
 
-Scaffold a TheoKit-aware config so your AI coding tool writes correct SDK code out of the box. Works with any tool that reads `AGENTS.md`.
+Install the TheoKit agent skills so your AI coding tool writes correct SDK code out of the box.
 
 ```bash
-npx theokit-init-claude          # add --force to overwrite an existing setup
+npx @theokit/skills
 ```
 
-This writes `AGENTS.md` (a cross-agent instruction file with the SDK API reference, import map, and common patterns), `CLAUDE.md` (Claude Code extensions), and `.claude/` (domain skills + convention rules). Everything is bundled — no internet needed. Then open your tool and describe what you want:
+It detects the tools your project already uses and writes 31 skills where each one reads them — `.agents/skills/` covers OpenAI Codex, Gemini CLI, GitHub Copilot, Zed and Devin Desktop; `.claude/skills/` covers Claude Code. Each skill carries a glob, so the one matching what you are editing loads on its own and the rest cost nothing. Then describe what you want:
 
 ```
 Create an agent that monitors GitHub PRs and posts review comments
 Add a cron job that summarizes incidents every morning at 9 AM
 ```
 
-The scaffolded skills auto-load when you edit files matching each TheoKit domain.
+`npx @theokit/skills --check` fails in CI when what is installed drifts from the package, which is what keeps a skill from teaching last year's API.
 
 <details>
 <summary>Bundled skill list</summary>
@@ -793,7 +793,7 @@ The code is the documentation: the exported TypeScript types are the canonical c
 - The exported TypeScript types — every public primitive, its import path and its contract
 - The JSDoc on each export — signatures and examples, surfaced by your editor
 
-The scaffolded agent context (`npx theokit-init-claude`) ships inside the package, under `claude-template/`.
+The agent skills live in [`@theokit/skills`](https://www.npmjs.com/package/@theokit/skills) — one authored home for the whole ecosystem, installed with `npx @theokit/skills`.
 
 **Building an agent that reads documentation?** The docs site publishes machine-readable corpora following the [llmstxt.org](https://llmstxt.org) convention — [`llms.txt`](https://docs.usetheo.dev/llms.txt) (curated index) and [`llms-full.txt`](https://docs.usetheo.dev/llms-full.txt) (every page inlined, code samples verbatim). Point your agent at those instead of crawling the site.
 

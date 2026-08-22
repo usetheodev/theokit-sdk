@@ -7,7 +7,7 @@
 // including the template `theokit init --template telegram-bot` scaffolds — it imported
 // `createAgentFactory`, which the SE36 rename replaced with `AgentFactory.create` in v3.0. The
 // project shipped a codemod for that rename (`@theokit/codemod-sdk-3-0`) and wrote the rule into
-// `claude-template/AGENTS.md` ("NEVER author defineTool ... use Tool.create"), then left its own
+// the scaffolded AGENTS.md ("NEVER author defineTool ... use Tool.create"), then left its own
 // templates on the old names. A published example that does not compile is a first impression.
 //
 // The oracle is the COMPILER, not a regex over `.d.ts` text. A first version hand-parsed export
@@ -77,11 +77,10 @@ function consumerFiles() {
   const files = [];
   const code = (n) => /\.(ts|tsx|mts|js|mjs)$/.test(n);
   const md = (n) => n.endsWith(".md");
-  for (const d of [
-    "packages/sdk/templates",
-    "packages/cli/templates",
-    "packages/sdk/claude-template",
-  ]) {
+  // `packages/sdk/templates` was listed here after it had already been deleted, so the walk
+  // silently covered nothing under a name that read like coverage. `walk` tolerates a missing
+  // directory by design, which is what let it go unnoticed.
+  for (const d of ["packages/cli/templates"]) {
     walk(join(ROOT, d), (n) => code(n) || md(n), files);
   }
   walk(ROOT, (n) => n === "README.md", files);

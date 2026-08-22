@@ -36,7 +36,6 @@ GENERATED from the built declarations so they cannot drift from what you actuall
 ```
 node_modules/@theokit/sdk/docs/harness-capability-map.md   # every public symbol + its exact import specifier
 node_modules/@theokit/sdk/docs/error-codes.md              # every `code` an error can carry, and where it is raised
-node_modules/@theokit/sdk/claude-template/                 # agent context (npx theokit-init-claude)
 ```
 
 If you are an agent: read the capability map before writing an import. Several symbols are reachable

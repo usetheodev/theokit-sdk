@@ -291,7 +291,7 @@ interface Offender {
 
 /**
  * Extensions the gate reads. `.md` and `.mjs` are in scope because `package.json` `files[]`
- * publishes README, docs and the claude-template to npm — Portuguese there reaches consumers
+ * publishes the README and docs to npm — Portuguese there reaches consumers
  * exactly like Portuguese in a `.d.ts` does. Scanning only `.ts` left them unwatched.
  */
 const SCANNED_EXT = /\.(?:ts|mts|cts|js|mjs|cjs|md)$/;
