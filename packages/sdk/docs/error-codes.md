@@ -64,8 +64,8 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `filesystem_stale` | domain | StaleFileError | `packages/sdk/src/filesystem/types.ts:111` |
 | `forbidden_path` | domain | — | `packages/sdk/src/internal/security/path-guard.ts:57` +1 |
 | `handoff_package_missing` | domain | ConfigurationError | `packages/sdk/src/agent-helpers.ts:104` +1 |
-| `handoff_target_invalid` | domain | ConfigurationError | `packages/sdk-handoff/src/handoff.ts:115` |
-| `handoff_target_required` | domain | ConfigurationError | `packages/sdk-handoff/src/handoff.ts:110` |
+| `handoff_target_invalid` | domain | ConfigurationError | `packages/sdk-handoff/src/handoff.ts:116` |
+| `handoff_target_required` | domain | ConfigurationError | `packages/sdk-handoff/src/handoff.ts:111` |
 | `hitl_timeout` | domain | HitlTimeoutError | `packages/sdk/src/internal/runtime/tools/hitl-middleware.ts:39` |
 | `hook_denied` | domain | ConfigurationError | `packages/sdk/src/internal/local-agent/local-agent.ts:424` |
 | `hooks_invalid_command` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/hooks/hooks-source.ts:189` |

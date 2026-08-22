@@ -22,7 +22,7 @@
  * @internal
  */
 
-import { closeSync, openSync, readFileSync, readSync, statSync, writeSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readFileSync, readSync, writeSync } from "node:fs";
 
 import { TheokitAgentError } from "../../errors.js";
 
@@ -129,8 +129,13 @@ const TAIL_CHUNK = 64 * 1024;
  * be cut in half when the read stopped before the start of the file; that is why it is discarded.
  */
 function readRawTail(path: string, want: number): { lines: string[]; bytesRead: number } {
-  const size = statSync(path).size;
+  // Opened FIRST, then sized through the descriptor. `statSync(path)` followed by
+  // `openSync(path)` resolves the name twice, and `size` is what drives every read offset below —
+  // so a path that changed between the two calls would have the loop seeking by one file's length
+  // inside another (CodeQL js/file-system-race #19). `fstat` on the open fd describes the file
+  // being read, by construction.
   const fd = openSync(path, "r");
+  const size = fstatSync(fd).size;
   let bytesRead = 0;
   let tail = "";
   let pos = size;
