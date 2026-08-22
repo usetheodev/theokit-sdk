@@ -88,7 +88,11 @@ export interface TaskFilter {
   readonly kind?: TaskKind | readonly TaskKind[];
   readonly submittedAfter?: number;
   readonly submittedBefore?: number;
-  /** Defaults to 100. JsonFileTaskStore hard-caps loaded entries at 256 (D364). */
+  /**
+   * Defaults to 100. `JsonFileTaskStore` returns the newest matching tasks first and reads its
+   * whole directory to find them (256 files at a time); page past this limit with
+   * `submittedBefore` (#362).
+   */
   readonly limit?: number;
 }
 
