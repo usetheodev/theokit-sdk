@@ -25,6 +25,20 @@ import { getProviderProfile } from "./registry.js";
  */
 
 const DEFAULT_URL = "https://models.dev/api.json";
+
+/**
+ * Ceiling on a fetched catalog, before it is parsed or written to the cache.
+ *
+ * The response body was read with `res.text()` and persisted with no bound, so a host serving a
+ * multi-gigabyte document would have been materialised in memory and then written to disk. The
+ * default URL is trusted, but `THEOKIT_MODELS_URL` lets an operator point this anywhere, and a
+ * limit is the difference between "we only fetch from a host we trust" and "we cannot be hurt by
+ * one we do not".
+ *
+ * 32 MiB is roughly 40x the real catalog (~800 KiB in 2026-08), so it bounds the failure without
+ * being a number anyone has to tune when models.dev grows.
+ */
+const MAX_CATALOG_BYTES = 32 * 1024 * 1024;
 const TTL_MS = 60 * 60 * 1000; // 1 hour
 const FETCH_TIMEOUT_MS = 10_000;
 
@@ -268,7 +282,17 @@ export async function refreshModelCatalog(
       // the whole call is already fail-closed at the caller.
       { retries: 2, isRetryable: () => true, initialDelayMs: 200 },
     );
+    const declaredLength = Number(res.headers.get("content-length") ?? Number.NaN);
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_CATALOG_BYTES) {
+      throw new Error(`catalog too large: ${declaredLength} bytes declared`);
+    }
     body = await res.text();
+    // Checked again after reading: `content-length` is the server's claim, and a server that
+    // omits it or lies about it is exactly the one worth bounding. Both checks are cheap and
+    // neither alone is sufficient.
+    if (body.length > MAX_CATALOG_BYTES) {
+      throw new Error(`catalog too large: ${body.length} bytes received`);
+    }
     JSON.parse(body); // validate before persisting — never cache garbage
   } catch (err) {
     diag(
