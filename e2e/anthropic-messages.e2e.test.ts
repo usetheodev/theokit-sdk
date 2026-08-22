@@ -10,15 +10,10 @@ import { assertBuiltPackageResolves } from "./built-package-guard.js";
  * differs precisely in the body it sends. A test that only checked "a reply arrived" would
  * pass even if the SDK sent the wrong shape — the defect class B-049 recorded.
  *
- * **This file points the SDK with `ANTHROPIC_API_BASE_URL`, not with `model.url`, and the reason
- * is a defect this suite found: B-150.** The `anthropic_messages` branch (`router.ts:423`) reads
- * only the env var and `profile.baseUrl`; `model.url` never reaches it, so a run aimed at
- * localhost silently goes to the vendor. Measured: the local server recorded 0 requests and the
- * run failed with `Anthropic API error: auth_failed (HTTP 401)` — from `api.anthropic.com`.
- *
- * Using the env var here is not weakening the assertion: the shape being pinned is the request
- * body, and the env var is the seam that exists today. The regression test for `model.url`
- * belongs to B-150, written RED against the fix.
+ * This file pins the request BODY. `model-url-per-apimode.e2e.test.ts` pins that `model.url`
+ * reaches this branch at all — it used to not, which is B-150, fixed since. The env var is used
+ * here deliberately so the two tests fail for different reasons: a regression in the per-call URL
+ * breaks that file, and a regression in the body shape breaks this one.
  */
 
 const PROMPT = "ping over anthropic messages";
