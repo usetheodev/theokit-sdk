@@ -128,7 +128,18 @@ export interface MemoryAdapter {
   readonly id: string;
   readonly capabilities: MemoryAdapterCapabilities;
 
-  /** Synchronous availability probe — no network, no I/O. */
+  /**
+   * Synchronous availability probe — no network, no I/O. Typically "do I have the credentials I
+   * need".
+   *
+   * `false` DISABLES the adapter: the runtime skips it when building the agent's memory, warns
+   * naming this `id`, and carries on with whatever other adapters said yes. When every registered
+   * adapter declines, a `write` or `recall` fails with `no_memory_adapter` and a message saying so,
+   * rather than resolving without storing anything.
+   *
+   * It was mandatory and consulted by nothing until #360, which made it a contract that read as a
+   * guarantee and provided none — a missing key surfaced mid-conversation as `auth_failed` instead.
+   */
   isAvailable(): boolean;
 
   /** One-shot initialization. Idempotent: safe to call multiple times. */

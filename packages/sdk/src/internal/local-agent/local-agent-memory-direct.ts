@@ -19,11 +19,50 @@ import type {
   MemoryId,
   MemoryTurnMessage,
 } from "../../types/memory-adapter.js";
+import { diag } from "../diagnostics.js";
 import type { PluginManager } from "../plugins/manager.js";
 
 interface ResolvedAdapters {
   adapters: ReadonlyArray<MemoryAdapter>;
   initialized: boolean;
+  /** How many memory plugins were registered, before `isAvailable()` filtered them (#360). */
+  registered: number;
+}
+
+/**
+ * Instantiate each registered memory plugin's adapter, keeping only the ones that report
+ * themselves available.
+ *
+ * #360 — `isAvailable()` is mandatory on `MemoryAdapter` and was consulted by nobody. Every
+ * third-party adapter implements it as "is there a non-empty apiKey", so an implementer reasonably
+ * reads `false` as "disable me" — and it disabled nothing: the client is built lazily, so a missing
+ * key surfaced mid-conversation as `auth_failed`, at the point where a memory write is happening
+ * rather than where the operator could still fix it.
+ *
+ * Skipping degrades to no-memory instead, which is the right shape for an optional capability, and
+ * gives a multi-adapter setup a fallback. The diagnostic names the adapter, because a memory that
+ * silently does nothing is the failure this exists to replace.
+ */
+async function createAvailableAdapters(
+  entries: ReadonlyArray<{
+    pluginName: string;
+    createProvider: (cwd: string) => Promise<MemoryAdapter> | MemoryAdapter;
+  }>,
+  workspaceCwd: string,
+): Promise<MemoryAdapter[]> {
+  const available: MemoryAdapter[] = [];
+  for (const entry of entries) {
+    const instance = await entry.createProvider(workspaceCwd);
+    if (instance.isAvailable() === false) {
+      diag(
+        `[theokit-sdk] memory adapter "${instance.id}" reports itself unavailable ` +
+          `(plugin "${entry.pluginName}") — skipping it. Check its credentials.\n`,
+      );
+      continue;
+    }
+    available.push(instance);
+  }
+  return available;
 }
 
 /**
@@ -43,18 +82,14 @@ export function buildAgentMemory(
   async function ensure(): Promise<ResolvedAdapters> {
     if (resolved !== undefined) return resolved;
     const entries = pluginManager.aggregated.memoryProviders;
-    const created: MemoryAdapter[] = [];
-    for (const entry of entries) {
-      const instance = await entry.createProvider(workspaceCwd);
-      created.push(instance);
-    }
+    const created = await createAvailableAdapters(entries, workspaceCwd);
     // EC-I: initialize() each adapter exactly once on first access.
     for (const adapter of created) {
       if (adapter.initialize !== undefined) {
         await adapter.initialize();
       }
     }
-    resolved = { adapters: created, initialized: true };
+    resolved = { adapters: created, initialized: true, registered: entries.length };
     return resolved;
   }
 
@@ -101,8 +136,12 @@ export function buildAgentMemory(
   async function requireAdapters(): Promise<ReadonlyArray<MemoryAdapter>> {
     const r = await ensure();
     if (r.adapters.length === 0) {
+      // Two different facts, and telling them apart is the difference between "add a plugin" and
+      // "fix the key on the plugin you already added" (#360).
       throw new ConfigurationError(
-        "No memory adapter registered. Pass a memory plugin in AgentOptions.plugins (e.g. supermemoryMemory({...})).",
+        r.registered === 0
+          ? "No memory adapter registered. Pass a memory plugin in AgentOptions.plugins (e.g. supermemoryMemory({...}))."
+          : `All ${r.registered} registered memory adapter(s) reported themselves unavailable — see the warnings naming each one. Check their credentials.`,
         { code: "no_memory_adapter" },
       );
     }
