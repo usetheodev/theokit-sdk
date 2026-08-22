@@ -144,8 +144,9 @@ export interface CacheSemanticOptions {
    * Isolation bucket, 1..64 chars. Default `"global"`. Entries never match across namespaces.
    *
    * It is also the plugin name (`cache-semantic-<namespace>`) and, under `"json"` persistence, the
-   * FILE name — so two caches sharing a namespace and a `dir` write over each other's snapshot,
-   * last flush winning.
+   * FILE name. Two caches sharing a namespace and a `dir` therefore share ONE store rather than
+   * racing over one file (#359) — with the consequence that the second one's `maxEntries` is
+   * ignored, since the store already exists.
    */
   readonly namespace?: string;
   /**

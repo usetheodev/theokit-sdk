@@ -32,6 +32,7 @@
  * @public
  */
 
+import { resolve } from "node:path";
 import {
   Plugin,
   type PluginContext,
@@ -110,7 +111,39 @@ export class Cache {
     private readonly namespace: string,
     private readonly modelId: string,
     private readonly store: LookupableStore,
+    private readonly hydrated: Promise<void>,
   ) {}
+
+  /**
+   * Resolves once the `"json"` backend has finished reading its snapshot; resolves immediately on
+   * the in-memory backend.
+   *
+   * You rarely need it: `consult` and `remember` await hydration themselves, so a cache is correct
+   * without it. It exists for a caller who wants the read charged to startup rather than to the
+   * first lookup — and because the code promised it long before it existed (#359).
+   *
+   * A corrupt or unreadable snapshot resolves normally with an empty cache and a warning on
+   * stderr; a cache must not take the process down.
+   */
+  async ready(): Promise<void> {
+    await this.hydrated;
+  }
+
+  /**
+   * Write the pending snapshot to disk now, keeping every entry. No-op on the in-memory backend.
+   *
+   * Writes are debounced 200ms, so a process that remembers something and exits inside that window
+   * persists nothing — precisely the once-per-invocation CLI the `"json"` backend exists for. Call
+   * this before exiting. Nothing flushes on teardown: an `exit` handler cannot await, and a library
+   * installing a process-level hook is a side effect the caller did not ask for.
+   *
+   * Until #359 the only public call that wrote the snapshot was `clear()`, which also destroyed
+   * everything you wanted to persist.
+   */
+  async flush(): Promise<void> {
+    const store = this.store as { flush?: () => Promise<void> };
+    if (typeof store.flush === "function") await store.flush();
+  }
 
   /**
    * Build a cache. Validates `options` with Zod and THROWS `ZodError` on a bad shape — an
@@ -122,9 +155,12 @@ export class Cache {
    * which is a real namespace value and not a wildcard: entries stored while `modelId` was
    * defaulted are only ever returned to lookups that also default it.
    *
-   * With `persistence: { backend: "json", dir }` the snapshot is loaded in the BACKGROUND — this
-   * call does not await hydration, and there is no `ready()` to await. A lookup issued
-   * immediately after construction can miss on an entry that is on disk.
+   * With `persistence: { backend: "json", dir }` the snapshot is read in the background and this
+   * call does not await it — but `consult` and `remember` do, so a lookup issued immediately after
+   * construction still sees what is on disk. Await {@link Cache.ready} to charge the read to
+   * startup instead of to the first lookup. Two caches built with the same `dir` and `namespace`
+   * share one store, so they cannot overwrite each other's snapshot; the FIRST one's `maxEntries`
+   * is the one that applies.
    */
   static semantic(options: CacheSemanticOptions): Cache {
     CacheSemanticOptionsSchema.parse(options);
@@ -133,8 +169,8 @@ export class Cache {
     const namespace = options.namespace ?? DEFAULT_NAMESPACE;
     const modelId = options.modelId ?? "unknown";
     const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
-    const store = createStore(namespace, maxEntries, options.persistence);
-    return new Cache(options.embedder, threshold, ttl, namespace, modelId, store);
+    const { store, hydrated } = createStore(namespace, maxEntries, options.persistence);
+    return new Cache(options.embedder, threshold, ttl, namespace, modelId, store, hydrated);
   }
 
   /**
@@ -240,6 +276,7 @@ export class Cache {
   ): Promise<
     { hit: false } | { hit: true; response: string; source: "kv" | "semantic"; distance?: number }
   > {
+    await this.hydrated; // #359 — never answer "miss" from a snapshot that is still being read.
     const result = await performLookup({
       prompt,
       store: this.store,
@@ -274,10 +311,12 @@ export class Cache {
    * that.
    *
    * Writing beyond `maxEntries` evicts the least-recently-used entry. On the `"json"` backend the
-   * disk write is DEBOUNCED by 200 ms and there is no public flush, so a process that exits right
-   * after this resolves can lose the entry; `clear()` is the only call that forces a write.
+   * disk write is DEBOUNCED by 200 ms, so a process that exits right after this resolves loses the
+   * entry unless it calls {@link Cache.flush} — which writes the snapshot and keeps every entry.
+   * Nothing flushes on teardown.
    */
   async remember(prompt: string, response: string, opts?: { usedTools?: boolean }): Promise<void> {
+    await this.hydrated; // #359 — a write that lands before hydration would be erased by it.
     await performStore({
       prompt,
       response,
@@ -326,18 +365,41 @@ export class Cache {
   }
 }
 
+/**
+ * One `JsonFileCacheStore` per `(dir, namespace)`, with the promise of its hydration.
+ *
+ * #359 — the file path is `<dir>/<namespace>.json` and each `Cache` used to own a private store,
+ * so two caches with the same dir and namespace — trivially, two agents in one process — each
+ * wrote their own FULL snapshot and the last flush erased the other's entries, silently. One file
+ * has to mean one store; anything else is two writers racing over a document neither one owns.
+ *
+ * The first construction's `maxEntries` wins, because the store is already built by the time a
+ * second caller asks. That is a real limitation and is documented on `CachePersistenceOptions`
+ * rather than papered over.
+ *
+ * Entries are never released: the map is keyed by a pair a program chooses deliberately, so it is
+ * bounded by configuration rather than by traffic.
+ */
+const jsonStores = new Map<string, { store: JsonFileCacheStore; hydrated: Promise<void> }>();
+
 function createStore(
   namespace: string,
   maxEntries: number,
   persistence?: CachePersistenceOptions,
-): LookupableStore {
+): { store: LookupableStore; hydrated: Promise<void> } {
   if (persistence?.backend === "json") {
     const dir = persistence.dir as string;
+    const key = `${resolve(dir)}\u0000${namespace}`;
+    const existing = jsonStores.get(key);
+    if (existing !== undefined) return existing;
     const store = new JsonFileCacheStore(dir, namespace, maxEntries);
-    // Hydrate fire-and-forget — callers do `await cache.ready()` if they need
-    // sync hydration. v1: lazy load on first lookup.
-    void store.hydrate();
-    return store;
+    // Started here, awaited by `ready()` and by the first `consult` / `remember` (#359). It used
+    // to be `void store.hydrate()` under a comment promising a `ready()` that was never
+    // implemented, so a lookup issued right after construction raced the read and missed on an
+    // entry that was on disk.
+    const entry = { store, hydrated: store.hydrate() };
+    jsonStores.set(key, entry);
+    return entry;
   }
-  return new InMemoryCacheStore(maxEntries);
+  return { store: new InMemoryCacheStore(maxEntries), hydrated: Promise.resolve() };
 }
