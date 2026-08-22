@@ -117,23 +117,17 @@ export function safePathJoin(base: string, ...parts: string[]): string {
 }
 
 /**
- * T5.5 — Reject NUL (`\x00`) and C0/DEL control characters
- * (`\x01-\x1F`, `\x7F`) in any path-shaped or identifier-shaped input.
- * Centralizes the check so every public path-guard / sanitize entrypoint
- * shares the same defense.
+ * T5.5 — the operator-legible label for the first NUL (`\x00`), C0 control char (`\x01-\x1F`) or
+ * DEL (`\x7F`) in `input`, or `undefined` when it carries none. Centralizes the scan so every
+ * public path-guard / sanitize entrypoint shares one definition of "control character".
  *
- * Throws `PathTraversalError` (the same shape as other path-shape
- * rejections) so callers don't need to learn a new error class.
+ * Detection is separated from the throw so the two callers can share the scan and the precise
+ * diagnostic while each raising the error ITS OWN contract documents (#368) — a path guard reports
+ * a traversal, an identifier validator reports an invalid identifier. Before that split both threw
+ * `PathTraversalError`, which made an identifier validator's error class depend on the bytes of the
+ * input it was handed.
  *
  * @internal
- */
-/**
- * The operator-legible label for the first NUL / C0 control char / DEL in `input`, or `undefined`
- * when it carries none.
- *
- * Detection is separated from the throw so the two callers can share the byte scan and the precise
- * diagnostic while each raising the error ITS contract documents (#368) — a path guard reports a
- * traversal, an identifier validator reports an invalid identifier.
  */
 function firstControlCharLabel(input: string): string | undefined {
   for (let i = 0; i < input.length; i++) {
@@ -145,6 +139,12 @@ function firstControlCharLabel(input: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Reject any path-shaped input carrying a NUL or control character, as `PathTraversalError` — the
+ * same shape as every other path-shape rejection, so callers do not learn a second error class.
+ *
+ * @internal
+ */
 function rejectNulAndControlChars(input: string, role: string): void {
   const label = firstControlCharLabel(input);
   if (label !== undefined) throw new PathTraversalError(`${role}: ${input}`, label);
