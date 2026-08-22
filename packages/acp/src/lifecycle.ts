@@ -311,9 +311,10 @@ interface CancelDeps {
  * Abort the in-flight turn of a session. Idempotent, and silently succeeds for an unknown id —
  * `session/cancel` is a notification, so there is no channel to report one.
  *
- * One-way: the session owns a single `AbortController` created at session creation, and nothing in
- * this package re-arms or replaces it. Every subsequent prompt on that session is therefore handed
- * an already-aborted signal, both to `agent.send` and to the stream translator.
+ * Scoped to the turn, not to the session: `handlePrompt` arms a fresh `AbortController` before each
+ * prompt (`armTurn`), so cancelling one answer leaves the session usable for the next. It used to
+ * abort a controller created once at session creation and never replaced, which handed every later
+ * prompt an already-aborted signal and killed the session while it still looked alive (#349).
  */
 export function handleCancel(params: acp.CancelNotification, deps: CancelDeps): void {
   const session = deps.store.get(params.sessionId);

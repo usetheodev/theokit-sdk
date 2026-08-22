@@ -14,8 +14,28 @@ export interface AcpSession {
   readonly agent: SDKAgent;
   readonly createdAt: number;
   lastUsedAt: number;
-  readonly abortController: AbortController;
+  /**
+   * The abort handle of the CURRENT turn, replaced by {@link armTurn} at the start of each one.
+   *
+   * It is per-turn rather than per-session because that is what `session/cancel` means: the host
+   * stops the answer being written, not the conversation. It used to be created once at session
+   * creation and never replaced, so one cancel handed every later prompt an already-aborted signal
+   * and the session was dead while still looking alive (#349).
+   */
+  abortController: AbortController;
   readonly cwd: string;
+}
+
+/**
+ * Give `session` a fresh abort scope for a turn that is about to start, and return its signal.
+ *
+ * Called at the top of every prompt. The previous controller is dropped: whatever it was cancelling
+ * has already finished or been aborted, and a turn must never inherit a decision made about an
+ * earlier one.
+ */
+export function armTurn(session: AcpSession): AbortSignal {
+  session.abortController = new AbortController();
+  return session.abortController.signal;
 }
 
 /**
