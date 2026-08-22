@@ -4,7 +4,7 @@ import type { AgentFacadePort } from "../../src/internal/runtime/registry/agent-
 import { setAgentFacade } from "../../src/internal/runtime/registry/agent-factory-registry.js";
 import type { CustomTool } from "../../src/types/agent.js";
 
-/**
+/*
  * #364 — `maxDelegationDepth` could not fire through any supported call.
  *
  * The check ran once at TOOL-CONSTRUCTION time against a caller-supplied `_parentDepth` that
