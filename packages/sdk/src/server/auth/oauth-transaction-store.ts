@@ -28,7 +28,18 @@ import type { OAuthTransaction } from "./types.js";
 // subdomain-fixation vector where a malicious page on
 // `evil.example.com` could plant a same-name cookie that the parent
 // app at `example.com` would happily decrypt.
-const COOKIE_NAME = "__Host-theo_oauth_tx";
+/**
+ * The transaction cookie's name. EXPORTED so the orchestrator uses this and not a second literal.
+ *
+ * It was module-private, and `orchestrator.ts` therefore built its `Set-Cookie` header by hand and
+ * wrote `theo_oauth_tx=` — losing the `__Host-` prefix. Every OAuth sign-in driven through the
+ * orchestrator then failed at the callback, because this file reads the prefixed name. The defect
+ * survived a major.
+ *
+ * RFC 6265bis makes `__Host-` a browser-enforced guarantee: the cookie must be `Secure`, have
+ * `Path=/`, and carry no `Domain`, and a sibling subdomain cannot set it.
+ */
+export const COOKIE_NAME = "__Host-theo_oauth_tx";
 const TX_LIFETIME_MS = 10 * 60 * 1000; // 10 minutes per D5
 
 // T5.1 — HKDF info string fixed per plan; bump version (v1 → v2) only when
