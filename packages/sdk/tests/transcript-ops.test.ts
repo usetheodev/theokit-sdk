@@ -31,7 +31,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterAll, describe, expect, it } from "vitest";
-import { loadJsonl } from "../src/internal/persistence/jsonl.js";
+import { JsonlParseError, loadJsonl } from "../src/internal/persistence/jsonl.js";
 import {
   forkTranscript,
   LiveSessionError,
@@ -75,7 +75,12 @@ describe("M81 T1.1 — transcript operations", () => {
     const src = writeTranscriptFile("source3.jsonl", 5);
     const dst = writeTranscriptFile("already-exists.jsonl", 3);
 
-    expect(() => forkTranscript(src, dst, { beforeRecordIndex: 2 })).toThrow();
+    // B-079 — was bare `.toThrow()`. Reclassified during triage: `dst` is not in
+    // `liveSessionPaths` here, so this does NOT hit `LiveSessionError` — it hits
+    // `openSync(dst, "wx", …)`, which is Node's own EEXIST `SystemError`. Not our
+    // code; pinning `.code` on a raw Node errno buys nothing (same rationale as
+    // the item's own stdlib carve-out).
+    expect(() => forkTranscript(src, dst, { beforeRecordIndex: 2 })).toThrow(/EEXIST/);
     expect(loadJsonl(dst), "the existing destination must not have been touched").toHaveLength(3);
   });
 
@@ -135,7 +140,11 @@ describe("M81 T1.1 — transcript operations", () => {
     const p = join(dir, "crash2.jsonl");
     writeFileSync(p, `${JSON.stringify({ i: 1 })}\n{"i":2`);
 
-    expect(() => loadJsonl(p)).toThrow();
+    // B-079 — was bare `.toThrow()`. `loadJsonl` already throws the typed
+    // `JsonlParseError` (jsonl.ts:110) — the item's own triage miscategorized
+    // this site as untyped; only the test was under-asserting.
+    expect(() => loadJsonl(p)).toThrow(JsonlParseError);
+    expect(() => loadJsonl(p)).toThrow(/invalid JSON/);
   });
 
   it("test_two_concurrent_forks_do_not_corrupt_the_destination", async () => {

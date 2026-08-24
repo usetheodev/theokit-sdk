@@ -1,12 +1,16 @@
 /**
  * Top-level CLI dispatcher via commander (ADR D194).
  *
- * Subcommands: `init`, `dev`, `inspect`, `eval`, `setup`, `acp`, `tasks`.
+ * Subcommands: `init`, `dev`, `inspect`, `eval`, `acp`, `setup`, `db`, `tasks`.
  *
- * Exit codes:
- *  - 0  → success
- *  - 1  → unknown error
- *  - 2  → user error (bad flags, unknown subcommand suggestion)
+ * Exit codes at this layer:
+ *  - 0  → success, and also `--help` / `--version`
+ *  - 1  → unknown error (an exception that escaped a subcommand)
+ *  - 2  → user error (unknown subcommand, unknown option, bad flag value)
+ *
+ * Subcommands are free to return codes of their own beyond these — `theokit tasks` uses 3 and 4,
+ * `theokit db check-schema-drift` uses 1 to mean "drift found", and `theokit dev` forwards the
+ * child process's exit code verbatim. Each command module documents its own.
  *
  * @internal
  */
@@ -35,15 +39,21 @@ import {
   type TasksInspectOptions,
   type TasksListOptions,
 } from "./commands/tasks.js";
+import { TEMPLATES } from "./init/templates.js";
 import { CLI_VERSION, SDK_VERSION } from "./version.js";
 
 function registerSubcommands(program: Command, setExit: (n: number) => void): void {
   program
     .command("init [project-name]")
     .description("Scaffold a new agent project from a bundled template.")
-    .option("-t, --template <name>", "Template name: minimal | ollama-local | telegram-bot")
+    .option(
+      "-t, --template <name>",
+      // Derived from the registry, not restated. This line named three templates while the
+      // registry held seven — a help text that lists options is a second copy of the list, and
+      // the copy is the one that goes stale.
+      `Template name: ${TEMPLATES.map((t) => t.name).join(" | ")}`,
+    )
     .option("-f, --force", "Overwrite a non-empty destination directory")
-    .option("--here", "Scaffold into the current directory")
     .option("-y, --yes", "Skip interactive prompts (CI mode)")
     .action(async (projectName: string | undefined, opts: InitOptions) => {
       setExit(await runInit(projectName, opts));
@@ -82,7 +92,7 @@ function registerSubcommands(program: Command, setExit: (n: number) => void): vo
   program
     .command("acp")
     .description(
-      "Launch a stdio Agent Client Protocol (ACP) server pointing at the entry file's default-exported agent. Used by Zed/Cursor/Claude Desktop. ADRs D349-D360.",
+      "Launch a stdio Agent Client Protocol (ACP) server pointing at the entry file's default-exported agent. Used by ACP-compatible hosts. ADRs D349-D360.",
     )
     .option("--entry <path>", "Entry file (default: src/index.ts or package.main)")
     .option("--permission <mode>", "Tool permission mode: ask | auto | deny (default: ask)")
@@ -96,10 +106,6 @@ function registerSubcommands(program: Command, setExit: (n: number) => void): vo
     .command("setup <domain>")
     .description(
       "Stage credentials + connectivity probe for a third-party integration. Domains: gworkspace (Google Workspace).",
-    )
-    .option(
-      "--writable <products>",
-      "Comma-separated products to grant write access (e.g., 'drive,calendar')",
     )
     .option("--probe", "Run upstream connectivity check after staging credentials")
     .option(
@@ -192,6 +198,20 @@ function mapCommanderExitCode(code: string | undefined, fallback: number): numbe
   return fallback > 0 ? fallback : 2;
 }
 
+/**
+ * Parse `argv` and run the matching subcommand, returning the process exit code instead of exiting.
+ *
+ * `argv` is commander-shaped, i.e. the full `process.argv`: `[execPath, scriptPath, ...args]`. The
+ * first two entries are skipped, so passing `["theokit", "init"]` silently drops `init` — pass
+ * `["node", "theokit", "init"]` when synthesising one.
+ *
+ * Never throws and never calls `process.exit`; the caller decides what to do with the code (the
+ * bundled `bin/theokit.ts` shim exits with it). Writes to `process.stdout` and `process.stderr`
+ * directly, so redirect the streams if you need to capture the output.
+ *
+ * Returns `0` for success and for `--help` / `--version`, `2` for a user error, `1` for anything
+ * that escaped a subcommand as an exception, and otherwise whatever the subcommand returned.
+ */
 export async function main(argv: ReadonlyArray<string>): Promise<number> {
   const program = new Command();
   program

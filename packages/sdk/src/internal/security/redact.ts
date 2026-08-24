@@ -1,4 +1,5 @@
 import { diag } from "../diagnostics.js";
+import { readEnv } from "../env.js";
 
 /**
  * Canonical secret redaction module (ADRs D68-D73).
@@ -25,7 +26,9 @@ import { diag } from "../diagnostics.js";
 let REDACT_ENABLED: boolean = readEnvOnce();
 
 function readEnvOnce(): boolean {
-  const raw = process.env.THEOKIT_REDACT_SECRETS;
+  // `readEnv` rather than `process.env`: this module reaches the browser through `errors.ts`, and
+  // a bare `process` there is a ReferenceError at module scope — a blank page, not a warning.
+  const raw = readEnv("THEOKIT_REDACT_SECRETS");
   if (raw === undefined) return true; // D70: default ON
   return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
 }
@@ -120,11 +123,28 @@ const PARAM_PATTERN =
 const _extraPatterns: RegExp[] = [];
 
 /**
- * Add a user-defined redaction pattern. Additive — never removes builtins.
- * Throws if the regex lacks the `/g` flag (without `/g`, `.replace` only
- * substitutes the first match and the rest leaks).
+ * Register an extra pattern for `redactSecrets` to mask, on top of the built-in vendor set.
  *
- * @internal — exposed publicly via `Security.addPattern` in `src/security.ts`.
+ * Additive and irreversible for the life of the process: patterns accumulate in module scope,
+ * builtins are never replaced or reordered, and there is no way to remove one. Registering the
+ * same regex twice registers it twice.
+ *
+ * Throws immediately when the regex has no `/g` flag. That is not pedantry — `String.replace`
+ * with a non-global regex substitutes only the FIRST match, so a pattern registered without it
+ * would mask the first credential in a payload and let every later one through, which reads as
+ * working.
+ *
+ * Extras run after the builtins and before the parametric `key=value` sweep, and each whole match
+ * is replaced by `maskToken` of that match. Anchor and bound the pattern with care: a regex that
+ * matches more than the secret masks more than the secret, and one that backtracks badly runs on
+ * every string crossing an output boundary.
+ *
+ * Registering a pattern does not enable redaction. When `THEOKIT_REDACT_SECRETS` was off at
+ * module load, `redactSecrets` returns its input untouched and extras never run.
+ *
+ * Also exposed publicly, and under semver, as `Security.addPattern` in `src/security.ts`; the
+ * direct export here additionally reaches the semver-exempt `@theokit/sdk/internal/security`
+ * sub-path.
  */
 export function addPattern(re: RegExp): void {
   if (!re.global) {
@@ -134,14 +154,30 @@ export function addPattern(re: RegExp): void {
 }
 
 /**
- * Two-bucket masking (D71):
- *   - tokens shorter than 18 chars → fully masked as `***`
- *   - tokens >= 18 chars → keep first 6 + `...` + last 4
+ * Mask one string, keeping enough of it to be recognizable in a log.
  *
- * Rationale: long tokens are unique per-account; prefix+suffix preserves
- * debuggability without revealing the secret middle.
+ * Under 18 characters the whole string becomes the literal `***`; the length is not preserved and
+ * nothing of the input survives. From 18 characters up, the result is the first 6 characters, the
+ * literal `...`, and the last 4 — so exactly 10 characters of the input are RETAINED IN CLEAR and
+ * the middle is dropped. That is the trade the threshold encodes: short strings could be brute
+ * forced from a partial, long ones cannot, and the surviving prefix is usually the vendor tag
+ * (`sk-ant`, `ghp_de`) that tells an operator which credential misbehaved.
  *
- * @internal
+ * Be clear about what this is and is not. It is a readability aid for logs, not an anonymizer and
+ * not a security boundary. The retained prefix and suffix identify the credential's issuer and
+ * often the credential itself to anyone who has seen it before, so a masked value still belongs in
+ * a trusted log and not in a bug report or a support ticket.
+ *
+ * It masks whatever it is handed. There is no check that the argument is a secret, so calling it
+ * on ordinary text mangles the text, and calling it on something the caller merely hopes is a
+ * secret proves nothing about what leaked.
+ *
+ * `redactSecrets` applies it to the ENTIRE match of a pattern, not to a captured group. For a
+ * match like `Bearer sk-ant-...` the first 6 characters retained are `Bearer`, not the key's
+ * prefix.
+ *
+ * Semver-exempt: reachable via the `@theokit/sdk/internal/security` sub-path, which the package
+ * declares in `exports` but does NOT cover with its semver contract.
  */
 export function maskToken(token: string): string {
   if (token.length < 18) return "***";
@@ -153,20 +189,6 @@ export function maskToken(token: string): string {
 // otherwise re-mask, WITHOUT skipping a raw secret that merely contains `...`.
 const MASK_SHAPE = /^.{6}\.\.\..{4}$/s;
 
-/**
- * Redact known credential patterns from `text`. Default behavior masks
- * builtins + extras + parametric `key=value` sinks.
- *
- * With `{ codeFile: true }` (D72), skips PARAM_PATTERN to avoid mangling
- * `.env.example`, schema JSON, or test fixtures that legitimately contain
- * prefix-like strings.
- *
- * Returns the redacted string. Coerces non-strings via JSON.stringify;
- * EC-7 fix (edge-case review): wraps in try/catch so circular references
- * never propagate — returns sentinel `"[unredactable: circular]"`.
- *
- * @internal
- */
 // Coerce arbitrary input to a string for redaction. Returns `null`
 // sentinel when the value is null/undefined/non-stringifiable, so the
 // caller can short-circuit with `""`. EC-7 fix: circular refs go through
@@ -185,6 +207,25 @@ function coerceToString(value: unknown): string | null {
   return String(value);
 }
 
+/**
+ * Redact known credential patterns from `text`. Default behavior masks
+ * builtins + extras + parametric `key=value` sinks.
+ *
+ * With `{ codeFile: true }` (D72), skips PARAM_PATTERN to avoid mangling
+ * `.env.example`, schema JSON, or test fixtures that legitimately contain
+ * prefix-like strings.
+ *
+ * Returns the redacted string. Coerces non-strings via JSON.stringify;
+ * EC-7 fix (edge-case review): wraps in try/catch so circular references
+ * never propagate — returns sentinel `"[unredactable: circular]"`.
+ *
+ * `null` and `undefined` return `""`. When redaction was switched off at module load via
+ * `THEOKIT_REDACT_SECRETS`, the coerced input is returned with no masking at all — the value is
+ * still stringified, but nothing is removed from it.
+ *
+ * Masking is best-effort against a list of known shapes. A credential in a format no pattern
+ * covers passes through unchanged, so a redacted string is not a string proven free of secrets.
+ */
 export function redactSecrets(text: unknown, opts?: { codeFile?: boolean }): string {
   const coerced = coerceToString(text);
   if (coerced === null) return "";

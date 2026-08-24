@@ -3,12 +3,13 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { AuthenticationError } from "../../../src/errors.js";
 import { buildResponsesBody, ResponsesApiClient } from "../../../src/internal/llm/responses.js";
 import type { LlmEvent, LlmRequest, LlmToolCallPart } from "../../../src/internal/llm/types.js";
 
 /**
- * M40 — the Responses-API transport. GOLDEN tests against Upstream's recorded SSE fixtures (MIT © 2025
- * upstream), so the theokit port stays faithful to the real ChatGPT/OpenAI responses stream shape. A fixture
+ * M40 — the Responses-API transport. GOLDEN tests against recorded SSE fixtures,
+ * so the transport stays faithful to the real ChatGPT/OpenAI responses stream shape. A fixture
  * is a recorded HTTP interaction `{ request: { body }, response: { status, body: <SSE text> } }`.
  */
 const fixtureDir = join(__dirname, "responses-fixtures");
@@ -52,7 +53,7 @@ async function drain(
   return { events, finish: res.value as never };
 }
 
-describe("M40 — ResponsesApiClient (golden, Upstream fixtures)", () => {
+describe("M40 — ResponsesApiClient (golden SSE fixtures)", () => {
   it("builds the Responses body from an LlmRequest (matches the recorded request shape)", () => {
     const body = buildResponsesBody({
       model: "gpt-5.5",
@@ -134,13 +135,19 @@ describe("M40 — ResponsesApiClient (golden, Upstream fixtures)", () => {
           status: 401,
         })) as typeof fetch,
     });
-    await expect(async () => {
+    // B-079 — was bare `.rejects.toThrowError()`, ironic given the test's own
+    // name ("...to a typed provider error"): `mapOpenAICompatibleError` maps
+    // 401 → typed `AuthenticationError` (openai-compatible.ts:51) with code
+    // `openai_auth_failed`; only the assertion was not pinning it.
+    const drainStream = async (): Promise<void> => {
       const gen = client.stream(
         { model: "gpt-5.5", messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }] },
         new AbortController().signal,
       );
       let r = await gen.next();
       while (!r.done) r = await gen.next();
-    }).rejects.toThrowError();
+    };
+    await expect(drainStream()).rejects.toThrow(AuthenticationError);
+    await expect(drainStream()).rejects.toMatchObject({ code: "openai_auth_failed" });
   });
 });

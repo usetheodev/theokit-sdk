@@ -1,6 +1,13 @@
 /**
  * `theokit eval` — minimal v1 eval runner (T5.1, ADR D199).
  *
+ * Reads `eval.config.ts` from cwd, runs every dataset entry against a REAL provider (each entry
+ * costs one agent turn and real tokens), and writes a markdown report.
+ *
+ * Exit codes: `0` success; `2` for a `--output` that escapes cwd or ANY config-loading failure —
+ * missing file, a throw while importing it, no default export, wrong shape (every one of those
+ * carries a `config_*` code); `1` when the eval run itself fails or the report cannot be written.
+ *
  * EC-F MUST FIX (edge-case review 2026-05-22): validate `--output` path
  * via `safePathJoin` (D80) BEFORE writing. Without this, --output
  * `../../../etc/passwd-report.md` escapes cwd.
@@ -18,8 +25,11 @@ import { loadEvalConfig } from "../eval/config-loader.js";
 import { formatReport } from "../eval/report.js";
 import { runEvalSuite } from "../eval/runner.js";
 
+/** Flags for {@link runEval}. */
 export interface EvalOptions {
+  /** Config module. Default `./eval.config.ts`. Absolute paths are used as-is and are NOT confined to cwd. */
   config?: string;
+  /** Report path. Default `eval-report.md`. Must resolve INSIDE cwd (EC-F) or the run exits 2. */
   output?: string;
 }
 
@@ -72,6 +82,20 @@ function writeReport(outputAbs: string, report: string): boolean {
   }
 }
 
+/**
+ * Run the eval suite described by the config and write the markdown report.
+ *
+ * The `--output` path is validated FIRST, before the config is even loaded, so a bad path fails
+ * before anything is spent. The report is overwritten without warning, and an existing report is
+ * left untouched when the run fails.
+ *
+ * Note the asymmetry between the two paths: `--output` is confined to cwd, `--config` is not — the
+ * config is a module you are choosing to execute, and executing it is the point.
+ *
+ * @returns the process exit code (0 / 1 / 2 as described at the top of this file). A suite where
+ * every row errored still exits 0 — the report is the result, the exit code only reports whether the
+ * run itself completed.
+ */
 export async function runEval(opts: EvalOptions): Promise<number> {
   const cwd = process.cwd();
 

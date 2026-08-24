@@ -51,9 +51,29 @@ export type SettingSource = "project" | "user" | "team" | "mdm" | "plugins" | "a
 /**
  * Local agent configuration.
  *
+ * TWO THINGS A LOCAL AGENT DOES BY DEFAULT, both reported as surprises (#338):
+ *
+ * 1. **A `shell` tool is always registered**, including when you pass `tools: []`. Every local
+ *    agent can therefore read any file reachable from {@link LocalOptions.cwd}. One report describes
+ *    an evaluation invalidated this way: the working directory held the benchmark's answer key, and
+ *    two transcripts show the model citing it. Deny it explicitly if that matters —
+ *    `{ tool: "shell", action: "deny" }` on a {@link PermissionEngine} rule is terminal under every
+ *    permission mode, including `bypass`. Note the tool still appears in the advertised catalog, so
+ *    the model may attempt it and be refused, rather than never seeing it.
+ *
+ * 2. **Finished runs write a transcript to disk**, at `.theokit/memory/sessions/<runId>.md` under
+ *    the workspace `cwd`, with the full prompt and reply. This happens with no `memory` config and
+ *    with `settingSources: []` — it is what `memory_search({ corpus: "sessions" })` reads. It is not
+ *    currently opt-out. If the workspace is a git repository, add `.theokit/` to `.gitignore`: one
+ *    report describes a transcript reaching a public repo before it was noticed.
+ *
  * @public
  */
 export interface LocalOptions {
+  /**
+   * Workspace root(s). Also the reach of the always-present `shell` tool — see the note on
+   * {@link LocalOptions}, and the transcript written under `.theokit/memory/sessions/` here.
+   */
   cwd?: string | string[];
   settingSources?: SettingSource[];
   sandboxOptions?: { enabled: boolean };
@@ -333,8 +353,11 @@ export interface MemorySettings {
  * to add prompt/response/args events to the spans (consumer's
  * responsibility to sanitize PII).
  *
- * `@opentelemetry/api` is an OPTIONAL peer dependency. Without it
- * installed, telemetry is a no-op even when `enabled: true`.
+ * `@opentelemetry/api` is an OPTIONAL peer dependency — declared, so your package manager can
+ * tell you the version range, and not installed for you. Without it, telemetry is a NO-OP even
+ * when `enabled: true`: the tracer is loaded lazily inside a try/catch, so nothing throws and
+ * nothing is recorded. A run that reports no spans with `enabled: true` is almost always this,
+ * not a misconfigured collector.
  *
  * @public
  */
@@ -405,10 +428,7 @@ export interface AgentOptions {
    *
    * `'run'` (DEFAULT, and the historical behaviour) spawns a client per `send` and drops it when the
    * run ends. `'session'` pools clients per `(agentId, server, config)` and keeps them across turns,
-   * which is what the reference does — Codex holds its MCP runtime in `SessionServices`
-   * (`upstream/core/src/state/service.rs:51-58`; theokit#155 corrected the earlier
-   * `core/src/state/service.rs:116`, which named a parameter of `install_mcp_runtime`, not the
-   * owning field). Measured cost of the per-run path: 193 / 138 / 134 ms of spawn + handshake on
+   * which keeps the MCP runtime alive across turns. Measured cost of the per-run path: 193 / 138 / 134 ms of spawn + handshake on
    * every turn.
    *
    * Opt-in rather than default because it changes the FAILURE model: a server that dies mid-session
@@ -752,6 +772,12 @@ export interface AgentDescription {
 /**
  * Options for `Agent.list()`.
  *
+ * `limit`/`cursor` paginate (B-115): a `limit` bounds the page and, when more agents remain,
+ * `ListResult.nextCursor` is set — pass it back as `cursor` for the next page. Omitting `limit`
+ * returns every matching agent in one page, unpaginated, exactly as before (M107 declared imposing
+ * pagination order unconditionally a breaking change to every caller's observed order; pagination
+ * here is opt-in and only reorders the page it returns, never the unlimited default).
+ *
  * @public
  */
 export type ListAgentsOptions = {
@@ -762,7 +788,15 @@ export type ListAgentsOptions = {
   | { runtime: "local"; cwd?: string }
   | {
       runtime: "cloud";
-      prUrl?: string;
+      // B-115 — `prUrl` removed 2026-08-19. Filtering by a repo's PR URL would need the registry
+      // to retain `prUrl` per repo across process restarts, which the on-disk schema
+      // (`agent-registry-store.ts`) does not today — a persistence/migration change, not an
+      // option-wiring fix. `prUrl` was accepted and silently ignored before this — removed rather
+      // than left half-implemented (parsimony ladder rung 1). Re-add when the registry retains it.
+      /**
+       * Hide archived agents unless `true`. Default `false` (hidden) — B-115, this used to be
+       * accepted and silently ignored; every archived agent was always included.
+       */
       includeArchived?: boolean;
       apiKey?: string;
     }
@@ -770,6 +804,9 @@ export type ListAgentsOptions = {
 
 /**
  * Options for `Agent.get()`.
+ *
+ * `cwd` (default `process.cwd()`) selects which workspace's on-disk registry to hydrate before the
+ * lookup — same rule `Agent.list` uses (B-115; this used to be accepted and silently ignored).
  *
  * @public
  */
@@ -781,12 +818,22 @@ export interface GetAgentOptions {
 /**
  * Options for `Agent.listRuns()`.
  *
+ * `cwd` (default `process.cwd()`) hydrates that workspace's registry before validating the agent
+ * exists — same rule as `Agent.get` (B-115). `limit`/`cursor` paginate the SAME way as
+ * `Agent.list` — see its doc — except no reordering is ever needed: a single agent's runs are
+ * already returned in the stable order they were created.
+ *
+ * B-115 — `runtime` removed 2026-08-19. A single `agentId` already pins exactly one runtime;
+ * filtering an already-single-agent's runs by runtime filtered nothing and was never checked.
+ *
  * @public
  */
-export type ListRunsOptions = {
+export interface ListRunsOptions {
+  cwd?: string;
+  apiKey?: string;
   limit?: number;
   cursor?: string;
-} & ({ runtime?: "local"; cwd?: string } | { runtime: "cloud"; apiKey?: string });
+}
 
 /**
  * Options for `Agent.getRun()`. Cloud requires the parent `agentId`.

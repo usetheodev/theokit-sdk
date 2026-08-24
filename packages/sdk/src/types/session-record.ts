@@ -13,7 +13,6 @@
  * @public
  */
 
-/** One transcript record (one JSONL line). `message` absent on `system` (compact_boundary) records. */
 /** A content block inside {@link TranscriptMessage}. */
 export type TranscriptBlock =
   | { type: "text"; text: string }
@@ -47,6 +46,24 @@ export interface TranscriptMessage {
   model?: string;
 }
 
+/**
+ * One transcript record — a single line of the session JSONL file, and the unit the pluggable
+ * `SessionStore` seam reads and writes.
+ *
+ * Records form a `uuid`/`parentUuid` DAG, not a flat list: `parentUuid` names the preceding record
+ * and is `null` at the root. Thread a session by following those links; a reader that assumes file
+ * order is linear will mis-thread one that branched.
+ *
+ * `message` is absent on `system` records — a compaction boundary carries `compactMetadata` instead —
+ * so it is optional even on records you would expect to be conversational, and `type` is what tells
+ * you which you are holding.
+ *
+ * Reading is deliberately tolerant: a malformed line is skipped rather than failing the whole read.
+ * Every record you receive is well-formed, but the file may have contained more than you got back,
+ * so this is not the type to use for an exact-count audit of what was written.
+ *
+ * @public
+ */
 export interface SessionRecord {
   type: "user" | "assistant" | "system";
   uuid: string;

@@ -3,9 +3,7 @@
  *
  * Every subprocess the SDK spawns previously inherited the FULL `process.env`,
  * so API keys, tokens and passwords leaked into hook scripts and shell tools.
- * `resolveChildEnv` computes the env a child receives under an explicit policy,
- * modeled on codex's `ShellEnvironmentPolicy`
- * (reference: codex/upstream/protocol/src/shell_environment.rs).
+ * `resolveChildEnv` computes the env a child receives under an explicit policy.
  *
  * Modes:
  *  - `inherit-scrubbed` (DEFAULT) — inherit all parent vars EXCEPT secret-like

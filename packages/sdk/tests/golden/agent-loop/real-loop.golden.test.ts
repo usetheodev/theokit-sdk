@@ -1,8 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
 import type {
   LlmClient,
@@ -11,6 +10,7 @@ import type {
   LlmRequest,
 } from "../../../src/internal/llm/types.js";
 import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Behaviour gate for the real agent loop. Uses a stub LLM client that
@@ -44,6 +44,10 @@ describe("real agent loop", () => {
   let cwd: string | undefined;
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-loop-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await writeFile(join(cwd, "data.txt"), "answer-is-42\n");
   });
   afterEach(() => {

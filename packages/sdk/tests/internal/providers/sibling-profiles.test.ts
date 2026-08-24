@@ -22,6 +22,7 @@ import {
   getProviderProfile,
   listProviders,
 } from "../../../src/internal/providers/registry.js";
+import { captureRequest } from "../../helpers/capture-request.js";
 
 const ORIG_ENV: Record<string, string | undefined> = {};
 const TRACKED_ENV = [
@@ -65,15 +66,41 @@ describe("LM Studio profile (D188)", () => {
     expect(getProviderProfile("lm-studio")?.name).toBe("lmstudio");
   });
 
-  it("resolves client with zero env vars set", () => {
+  it("resolves client with zero env vars set", async () => {
+    // B-073. `toHaveLength(1)` proved a client existed, never that it was lmstudio's. The item's dod
+    // asks for `chain[0].name === "lmstudio"`, and that assertion can never hold: `name` is the
+    // TRANSPORT class's name (`openai.ts:125` → "openai"), not the profile's, so every
+    // chat_completions provider reports "openai". Measured — under a mutant resolving lmstudio to
+    // the native ollama client, the name assertion would pass for the wrong reason and this test
+    // stayed green either way.
+    //
+    // The default base URL is what distinguishes them, and this file's own profile test at :60
+    // already pins `http://localhost:1234` as lmstudio's. Asserting the request lands there is the
+    // dod's intent expressed through something observable.
+    //
+    // Scope of this oracle, stated rather than implied: it pins the PROFILE, not the transport
+    // class. Measured — a mutant routing lmstudio through the native ollama client leaves this green
+    // (the native client still reads `profile.baseUrl`, so the port is unchanged), while a mutant
+    // resolving lmstudio to the llamacpp profile kills it. Discriminating profiles is what the item
+    // asks for; discriminating transports is a different property and no test here claims it.
     const chain = resolveProviderChain({ primary: "lmstudio" });
     expect(chain).toHaveLength(1);
+
+    expect(
+      (await captureRequest({ primary: "lmstudio" })).url,
+      "zero configuration must resolve the lmstudio profile, not merely some client",
+    ).toMatch(/^http:\/\/localhost:1234\//);
   });
 
-  it("LMSTUDIO_HOST env var allows pointing at a remote box", () => {
+  it("LMSTUDIO_HOST env var allows pointing at a remote box", async () => {
+    // B-031. `toHaveLength(1)` never observed the host. Measured: deleting
+    // `case "lmstudio": return process.env.LMSTUDIO_HOST` from `router.ts` left this file green.
     process.env.LMSTUDIO_HOST = "http://192.168.1.50:1234";
-    const chain = resolveProviderChain({ primary: "lmstudio" });
-    expect(chain).toHaveLength(1);
+
+    expect(
+      (await captureRequest({ primary: "lmstudio" })).url,
+      "the request must go to the host LMSTUDIO_HOST names",
+    ).toMatch(/^http:\/\/192\.168\.1\.50:1234\//);
   });
 });
 
@@ -90,15 +117,27 @@ describe("llama.cpp profile (D189)", () => {
     expect(getProviderProfile("llama.cpp")?.name).toBe("llamacpp");
   });
 
-  it("resolves client with zero env vars set", () => {
+  it("resolves client with zero env vars set", async () => {
+    // B-073, llama.cpp half. Same reasoning as the lmstudio case above: `name` cannot discriminate
+    // (both report the transport's "openai"), the default base URL can, and this file pins
+    // `http://localhost:8080` as llamacpp's at :85.
     const chain = resolveProviderChain({ primary: "llamacpp" });
     expect(chain).toHaveLength(1);
+
+    expect(
+      (await captureRequest({ primary: "llamacpp" })).url,
+      "zero configuration must resolve the llamacpp profile, not merely some client",
+    ).toMatch(/^http:\/\/localhost:8080\//);
   });
 
-  it("LLAMACPP_HOST env var allows pointing at a remote box", () => {
+  it("LLAMACPP_HOST env var allows pointing at a remote box", async () => {
+    // B-032. Same measurement, same gap: deleting the `llamacpp` case left this file green.
     process.env.LLAMACPP_HOST = "http://192.168.1.50:8080";
-    const chain = resolveProviderChain({ primary: "llamacpp" });
-    expect(chain).toHaveLength(1);
+
+    expect(
+      (await captureRequest({ primary: "llamacpp" })).url,
+      "the request must go to the host LLAMACPP_HOST names",
+    ).toMatch(/^http:\/\/192\.168\.1\.50:8080\//);
   });
 });
 

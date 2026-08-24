@@ -18,20 +18,19 @@
  * `IterationBudget`. This is intentional — every send is its own iteration
  * round, not a long-running budget shared across sends.
  *
+ * NOTE on how exhaustion is signalled (B-140): by RETURN VALUE, never by
+ * throwing — `recordCompression()` answers `{ allowed: false, reason }` and
+ * `shouldContinue()` answers `false`. Running out of budget is an expected
+ * outcome of the loop, not an exceptional one, so it is not an exception
+ * (`rules/error-handling.md` § 2: never use exceptions for control flow).
+ * Three exported error classes for these cases (`IterationBudgetExhaustedError`,
+ * `CompressionExhaustedError`, `CompressionIneffectiveError`) survived here from
+ * an earlier design and were thrown by nothing; removed 2026-08-20. If you find
+ * yourself re-adding one, the question to settle first is whether the caller can
+ * act on the difference — because today it reads a reason string instead.
+ *
  * @internal
  */
-
-export class IterationBudgetExhaustedError extends Error {
-  override readonly name: string = "IterationBudgetExhaustedError";
-}
-
-export class CompressionExhaustedError extends Error {
-  override readonly name: string = "CompressionExhaustedError";
-}
-
-export class CompressionIneffectiveError extends Error {
-  override readonly name: string = "CompressionIneffectiveError";
-}
 
 export interface IterationBudgetOptions {
   /** Total iterations before grace call. Default 8. */

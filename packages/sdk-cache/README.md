@@ -72,7 +72,7 @@ Clears the in-memory state. For the JSON file store, deletes the persisted state
 
 ## Errors
 
-- `CacheEmbedderError` — embedder runtime failed (rate-limited, network error, etc.). Agent run continues without cache.
+An embedder failure never surfaces as an error: every path degrades to a cache miss or a skipped write, warns on stderr, and increments `CacheStats.embedderFailures`. That counter is how you detect a broken embedder.
 - `CacheInvalidTtlError` — TTL string failed parse (e.g., `"-5m"` or `"abc"`). Thrown pre-construction.
 
 ## How it fits with `@theokit/sdk`
@@ -97,6 +97,19 @@ import { Cache } from "@theokit/sdk-cache";
 ```
 
 See the monorepo `CHANGELOG.md` for the 1.x → 2.0 package-split migration notes.
+
+## API reference
+
+Every symbol this package exports, with the exact specifier to import it from, is in the generated
+capability map that ships inside `@theokit/sdk`:
+
+```
+node_modules/@theokit/sdk/docs/harness-capability-map.md   # symbol -> import specifier
+node_modules/@theokit/sdk/docs/error-codes.md              # every `code` an error can carry
+```
+
+Both are generated from the built type declarations, so they describe the version you installed
+rather than the version someone wrote a page about.
 
 ## License
 

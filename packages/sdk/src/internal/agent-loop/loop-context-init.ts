@@ -204,7 +204,21 @@ export async function safeListTools(
   sink?: RunEventSink,
 ): Promise<McpTool[]> {
   try {
-    return await client.listTools();
+    const listed = await client.listTools();
+    // usetheokit/theokit#426 — the sibling of the failure below, on the other branch. Without it a
+    // consumer sees what was configured and what broke, and cannot tell a server that came up with
+    // twelve tools from one that came up with NONE. `tools: []` here is a real, healthy state that
+    // was previously indistinguishable from the failure.
+    //
+    // The names are the server's OWN, not the sanitized `mcp_<server>_<tool>` the model sees: that
+    // spelling exists for the provider, and a consumer matching it back to a server's documentation
+    // would have to undo the mangling.
+    emitRunEvent(sink, {
+      type: "mcp_server_ready",
+      serverName: serverName ?? "unknown",
+      tools: listed.map((tool) => tool.name),
+    });
+    return listed;
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     const server = serverName ?? "unknown";

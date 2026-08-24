@@ -46,7 +46,9 @@ import type { Plugin } from "../../plugins/types.js";
  * re-exported it "for back-compat"; knip proved there was no back-compat surface to preserve — the
  * type was never in the public barrel nor the exports map — so the re-export was deleted.
  *
- * @internal
+ * Emitted rather than erased: `a2a/subagent.d.ts` imports it by name, and that entry IS published,
+ * so erasing this declaration ships a `.d.ts` that does not compile. Not being in the exports map
+ * is what keeps it out of the semver contract; erasure is not what does that.
  */
 export interface InheritedCredentials {
   readonly apiKey?: string;

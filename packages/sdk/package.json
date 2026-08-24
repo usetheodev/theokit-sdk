@@ -1,13 +1,13 @@
 {
   "name": "@theokit/sdk",
-  "version": "4.53.0",
+  "version": "4.54.0",
   "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/usetheodev/theokit-sdk#readme",
-  "bugs": "https://github.com/usetheodev/theokit-sdk/issues",
+  "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
+  "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/usetheodev/theokit-sdk.git",
+    "url": "git+https://github.com/usetheokit/theokit-sdk.git",
     "directory": "packages/sdk"
   },
   "type": "module",
@@ -86,6 +86,16 @@
       "require": {
         "types": "./dist/models.d.cts",
         "default": "./dist/models.cjs"
+      }
+    },
+    "./providers": {
+      "import": {
+        "types": "./dist/providers.d.ts",
+        "default": "./dist/providers.js"
+      },
+      "require": {
+        "types": "./dist/providers.d.cts",
+        "default": "./dist/providers.cjs"
       }
     },
     "./skills": {
@@ -343,14 +353,12 @@
   "files": [
     "dist",
     "bin",
-    "claude-template",
     "docs",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
   "bin": {
-    "theokit-init-claude": "./bin/init-claude.mjs",
     "theokit-migrate-config": "./bin/theokit-migrate-config.mjs",
     "theokit-migrate-memory": "./bin/theokit-migrate-memory.mjs"
   },
@@ -360,18 +368,19 @@
     "**/agent.cjs"
   ],
   "scripts": {
-    "build": "tsup && cp src/internal/providers/provider-catalog.json dist/provider-catalog.json && node scripts/copy-docs.mjs",
+    "build": "tsup && cp src/internal/providers/provider-catalog.json dist/provider-catalog.json && node ../../tools/repair-dts-imports.mjs .",
     "test": "vitest run --no-file-parallelism",
     "test:watch": "vitest",
     "eval": "vitest run --no-file-parallelism tests/eval/suites",
     "test:contract": "vitest run --no-file-parallelism tests/theokit-consumer-contract.test.ts",
-    "prepublishOnly": "pnpm build && pnpm test:contract && node ../../scripts/check-publish-no-workspace.mjs .",
+    "prepublishOnly": "pnpm build && pnpm test:contract && node ../../tools/check-publish-no-workspace.mjs .",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "docs:json": "typedoc --options typedoc.json"
   },
   "peerDependencies": {
     "@lancedb/lancedb": "^0.30.0",
+    "@opentelemetry/api": "^1.9.0",
     "@types/ws": ">=8.0.0",
     "better-sqlite3": "^12.0.0",
     "proper-lockfile": "^4.1.2",
@@ -381,6 +390,9 @@
   },
   "peerDependenciesMeta": {
     "@lancedb/lancedb": {
+      "optional": true
+    },
+    "@opentelemetry/api": {
       "optional": true
     },
     "@types/ws": {
@@ -403,6 +415,7 @@
     }
   },
   "publishConfig": {
+    "provenance": true,
     "access": "public"
   },
   "keywords": [

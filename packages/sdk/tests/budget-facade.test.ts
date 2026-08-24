@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Budget } from "../src/budget.js";
 import { BudgetExceededError, ConfigurationError } from "../src/errors.js";
 import { chargeAndCheckThresholds, preflightCheck } from "../src/internal/budget/enforcement.js";
-import { __resetLedgerForTests } from "../src/internal/budget/ledger.js";
+import { __resetLedgerForTests, spentIn } from "../src/internal/budget/ledger.js";
 import { __resetRegistryForTests } from "../src/internal/budget/registry.js";
 
 describe("Budget — facade (D375)", () => {
@@ -217,10 +217,33 @@ describe("Budget — EC-7/8/9/18/19/20 edge cases", () => {
   });
 
   it("EC-20: charge to deleted budget = silent no-op (no throw)", async () => {
+    // B-005, second location. The body ended at the bare `await`, with `// No throw` as its only
+    // claim. Not literally vacuous — a throwing charge would fail it — but it cannot tell "the charge
+    // was a no-op" from "the charge silently landed on a deleted budget", and the second is the bug
+    // the title is named against. The word in the title is *no-op*, so the assertion has to be that
+    // nothing happened, not merely that nothing exploded.
     Budget.create({ name: "deleted", scope: "process", limits: [{ window: "1d", limitUsd: 1 }] });
     Budget.delete("deleted");
-    // No throw
-    await chargeAndCheckThresholds("deleted", 0.5);
+
+    await expect(chargeAndCheckThresholds("deleted", 0.5)).resolves.not.toThrow();
+
+    // Review caught the first version asserting ONLY the line above — which is tautological.
+    // `Budget.get` reads the REGISTRY (registry.ts:53); `chargeAndCheckThresholds` writes the
+    // LEDGER. Two different stores, so no behaviour of the charge path can falsify it. Proven by a
+    // mutant that keeps the guard but charges anyway — literally "the charge silently landed on a
+    // deleted budget", the thing this test is named against: the whole 4465-test suite stayed green.
+    //
+    // The ledger read is the oracle. B-005's DoD said so — "and that the ledger recorded nothing" —
+    // and I implemented only the first half of the sentence, which is precisely the two-clauses-
+    // one-done pattern the commit that introduced this was written to complain about.
+    expect(
+      Budget.get("deleted"),
+      "the charge must not resurrect the budget it was aimed at",
+    ).toBeUndefined();
+    expect(
+      spentIn("deleted", "1d"),
+      "and nothing may reach the ledger — this is the half that can actually fail",
+    ).toBe(0);
   });
 
   it("EC-8: onThreshold callback throws — does not break run", async () => {
@@ -241,17 +264,32 @@ describe("Budget — EC-7/8/9/18/19/20 edge cases", () => {
   });
 
   it("EC-8: onExceed callback throws — does not break run", async () => {
+    // B-005. The body ended at the bare `await` with `// No throw` as its only claim. Measured: a
+    // regression that stops calling `onExceed` altogether leaves this test green, so the throw it is
+    // named for was never exercised. The sibling above already uses the `invoked` flag; this one
+    // needed it too, plus proof the charge survived the throwing callback.
+    let invoked = false;
     Budget.create({
       name: "broken-exceed",
       scope: "process",
       mode: "warn",
       limits: [{ window: "1d", limitUsd: 1 }],
       onExceed: () => {
+        invoked = true;
         throw new Error("sentry call failed");
       },
     });
-    // No throw
-    await chargeAndCheckThresholds("broken-exceed", 1.5);
+
+    await expect(
+      chargeAndCheckThresholds("broken-exceed", 1.5),
+      "a throwing onExceed must not propagate into the caller",
+    ).resolves.toBeUndefined();
+
+    expect(invoked, "the throwing callback must actually have fired").toBe(true);
+    expect(
+      Budget.snapshot().find((e) => e.name === "broken-exceed")?.spentUsd,
+      "and the charge must still have been applied — that is what 'does not break run' means",
+    ).toBeCloseTo(1.5, 5);
   });
 
   it("Stacked limits: ANY exceeded triggers block (D384)", () => {

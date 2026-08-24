@@ -30,13 +30,29 @@
  * @public
  */
 
-/** @public */
+/**
+ * Whether a project directory may switch anything on.
+ *
+ * There is no middle level on purpose: `untrusted` means every declared capability is off, not
+ * "some are off". A product that wants a partial grant expresses it by declaring fewer capabilities
+ * for that call, not by inventing a third level here.
+ *
+ * @public
+ */
 export type TrustLevel = "trusted" | "untrusted";
 
 /** Where the decision came from. @public */
 export type TrustSource = "env" | "store" | "default";
 
-/** @public */
+/**
+ * What the decision is made from: the capability vocabulary, a way to read the operator's record,
+ * and an optional blanket override.
+ *
+ * `capabilities` is load-bearing rather than descriptive — the returned `allows` is built from
+ * exactly this list, so a capability missing from it is a capability nothing gates.
+ *
+ * @public
+ */
 export interface TrustPostureInput<K extends string> {
   /**
    * Every capability a repository could switch on. `allows` is built from exactly this list — the
@@ -56,7 +72,15 @@ export interface TrustPostureInput<K extends string> {
   readonly envOverride?: boolean;
 }
 
-/** @public */
+/**
+ * The decision: the level, where it came from, and one boolean per declared capability.
+ *
+ * `allows` has exactly the keys of the `capabilities` list it was built from, so reading a
+ * capability the caller never declared is a type error rather than a silent `undefined` that a
+ * consumer would read as "not allowed".
+ *
+ * @public
+ */
 export interface TrustPosture<K extends string> {
   readonly level: TrustLevel;
   readonly source: TrustSource;
@@ -64,7 +88,21 @@ export interface TrustPosture<K extends string> {
   readonly allows: Readonly<Record<K, boolean>>;
 }
 
-/** @public */
+/**
+ * Decide what a project directory is allowed to switch on.
+ *
+ * Precedence: `envOverride === true` grants trust and SHORT-CIRCUITS — `isTrusted` is not called at
+ * all, which matters because it may touch the filesystem. Otherwise `isTrusted()` is called exactly
+ * once and its answer decides. `envOverride === false` is not a denial: it falls through to the
+ * store like `undefined` does, so an unset or explicitly-off environment switch can never revoke a
+ * directory the operator recorded as trusted.
+ *
+ * Every entry of `allows` is `false` whenever the level is untrusted, and the entries are generated
+ * from `capabilities` rather than supplied per capability — that is what makes "nothing was left
+ * ungated" a property of the call instead of a habit of the caller.
+ *
+ * @public
+ */
 export function resolveTrustPosture<K extends string>(
   input: TrustPostureInput<K>,
 ): TrustPosture<K> {

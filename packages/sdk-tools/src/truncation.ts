@@ -37,6 +37,10 @@ import { join } from "node:path";
 /** How the middle is dropped when output exceeds the budget. */
 export type TruncationMode = "head" | "head-tail";
 
+/**
+ * Options for {@link truncateOutput}. Every field has a default, so `truncateOutput(text)` is a
+ * complete call.
+ */
 export interface TruncationOptions {
   /** Maximum output size in bytes before truncation. Default: 30_000. */
   maxBytes?: number;
@@ -50,6 +54,13 @@ export interface TruncationOptions {
   mode?: TruncationMode;
 }
 
+/**
+ * What {@link truncateOutput} returns.
+ *
+ * `truncated` is the field to branch on. On the false branch `content` is the input unchanged and
+ * `overflowPath` is absent; reading `overflowPath` without checking `truncated` first is how a
+ * consumer ends up joining `undefined` into a path.
+ */
 export interface TruncationResult {
   /** The (possibly truncated) content. */
   content: string;
@@ -76,6 +87,29 @@ function decodeWholeCodePoints(buf: Buffer): string {
   return new TextDecoder("utf-8").decode(buf, { stream: true });
 }
 
+/**
+ * Bound a block of tool output to `maxBytes`, spilling the full text to a file when it does not fit.
+ *
+ * Nothing is written and nothing is copied when the output already fits — the comparison is
+ * `originalBytes <= maxBytes`, so a payload exactly at the limit passes through untouched. Above the
+ * limit the WHOLE original is written under `outputDir` (created recursively) and the returned
+ * `content` is the cut text plus a trailer naming that file. The trailer is appended after the cut,
+ * so the returned string is longer than `maxBytes`: the budget bounds what is copied out of the
+ * input, not what comes back.
+ *
+ * Choose the mode by where the information sits. `"head"` keeps the opening, which suits a document
+ * or a listing. `"head-tail"` splits the budget between the start and the end, which is what command
+ * output needs — the exit status, the failing assertion and the summary all live in the last lines,
+ * and `"head"` discards exactly those.
+ *
+ * The head is cut on a UTF-8 code-point boundary and never ends in a replacement character. The tail
+ * of `"head-tail"` starts mid-buffer, so it can open with one U+FFFD where a multi-byte character was
+ * split; the omitted-byte count in the separator is computed from `maxBytes` and is approximate for
+ * the same reason.
+ *
+ * Touches the filesystem on the truncating path — a `mkdirSync`/`writeFileSync` failure propagates
+ * rather than degrading to an untruncated return.
+ */
 export function truncateOutput(output: string, opts?: TruncationOptions): TruncationResult {
   const maxBytes = opts?.maxBytes ?? 30_000;
   const outputDir = opts?.outputDir ?? ".theocode/tool-output";
@@ -95,17 +129,30 @@ export function truncateOutput(output: string, opts?: TruncationOptions): Trunca
   // not an error. Surfaced as an intermittent failure while running two truncation suites together;
   // `rules/testing.md § 3` treats a flake as a bug, and the root cause was in production code, not
   // in the test. `randomUUID` is stdlib (parsimony-ladder rung 2).
-  const filename = `overflow-${Date.now()}-${randomUUID().slice(0, 8)}.txt`;
+  //
+  // The UUID is no longer truncated (CodeQL js/insecure-temporary-file #34). Eight hex characters
+  // is 32 bits, and the rest of the name — `Date.now()` — is predictable, so the whole path was
+  // guessable by anyone who could watch the clock. That matters because the write below lands
+  // wherever the path resolves: a symlink planted at a guessed name would have received the full
+  // untruncated output, which is exactly the content large enough to be worth exfiltrating.
+  const filename = `overflow-${Date.now()}-${randomUUID()}.txt`;
   const overflowPath = join(outputDir, filename);
-  writeFileSync(overflowPath, output, "utf-8");
+  // `wx` = O_CREAT|O_EXCL|O_WRONLY. POSIX makes O_EXCL fail when the path already exists — a
+  // symlink included, even a dangling one — so the kernel refuses a planted name rather than a
+  // check deciding it is safe a moment before the write. With a full UUID a collision is not a
+  // real outcome, so a failure here means the name was already taken by someone, and it should
+  // propagate rather than be retried into.
+  writeFileSync(overflowPath, output, { encoding: "utf-8", flag: "wx" });
 
   const buf = Buffer.from(output, "utf-8");
   const trailer = `\n\n[Output truncated. Full output: ${overflowPath}]`;
 
   if (mode === "head-tail") {
-    // Split the budget in half. The tail decode starts mid-buffer, so its first bytes may be a
-    // continuation of a split code point; `decodeWholeCodePoints` drops the incomplete lead rather
-    // than emitting U+FFFD.
+    // Split the budget in half. `decodeWholeCodePoints` withholds an incomplete sequence at the END
+    // of a buffer, which is what protects the head. It does NOT protect the tail: that decode starts
+    // mid-buffer, and a leading continuation byte is a decode error, so a split code point there
+    // surfaces as a single U+FFFD. One replacement character at the tail boundary is the accepted
+    // cost; the alternative is scanning backwards for a lead byte, which buys one character.
     const half = Math.floor(maxBytes / 2);
     const head = decodeWholeCodePoints(buf.subarray(0, half));
     const tail = decodeWholeCodePoints(buf.subarray(buf.length - half));

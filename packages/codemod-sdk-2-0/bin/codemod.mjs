@@ -26,7 +26,8 @@
  * publishable equivalent downstream consumers run.
  */
 
-import { copyFile, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 
 const args = process.argv.slice(2);
@@ -136,7 +137,7 @@ async function process_file(path) {
     if (changes.length > 0) {
       summary.package_json.push({ path: rel, changes });
       if (WRITE_MODE) {
-        if (BACKUP) await copyFile(path, `${path}.bak`);
+        if (BACKUP) await writeBackup(path, content);
         await writeFile(path, `${JSON.stringify(parsed, null, 2)}\n`);
       }
     }
@@ -151,7 +152,7 @@ async function process_file(path) {
     const bucket = ext === ".md" ? summary.documentation : summary.source;
     bucket.push({ path: rel, count: hits });
     if (WRITE_MODE) {
-      if (BACKUP) await copyFile(path, `${path}.bak`);
+      if (BACKUP) await writeBackup(path, content);
       await writeFile(path, next);
     }
   }
@@ -206,3 +207,33 @@ main().catch((err) => {
   console.error("codemod failed:", err);
   process.exit(1);
 });
+
+/**
+ * Writes `<path>.bak` without following a symlink planted there.
+ *
+ * `copyFile` follows symlinks, and `<path>.bak` is a name anyone who can write into the tree can
+ * predict from a file they can see. This codemod runs on a CONSUMER's repository, so "someone
+ * placed a file in the tree" is the ordinary situation rather than a privileged one — the same
+ * defect, and the same fix, as `@theokit/sdk-tools`' `edit_file` (CodeQL js/file-system-race,
+ * fixed in 434b25fc).
+ *
+ * O_NOFOLLOW makes the kernel refuse a symlink outright, so nothing can go stale between deciding
+ * a path is safe and writing to it. An existing REGULAR `.bak` is still overwritten.
+ */
+async function writeBackup(path, content) {
+  try {
+    await writeFile(`${path}.bak`, content, {
+      encoding: "utf8",
+      flag:
+        fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_TRUNC | fsConstants.O_NOFOLLOW,
+    });
+  } catch (err) {
+    if (err?.code === "ELOOP" || err?.code === "EEXIST") {
+      throw new Error(
+        `refusing to write ${path}.bak: that path already exists as a symlink. ` +
+          "Remove it and re-run, or pass --no-backup.",
+      );
+    }
+    throw err;
+  }
+}

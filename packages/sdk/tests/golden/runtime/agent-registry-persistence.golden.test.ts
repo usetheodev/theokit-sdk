@@ -8,6 +8,7 @@ import {
   clearAgentRegistry,
   invalidateRegistryHydration,
 } from "../../../src/internal/runtime/registry/agent-registry.js";
+import { withMockedCwd } from "../../helpers/with-cwd.js";
 
 /**
  * ADR D17 + D21 + EC-1/EC-4/EC-5 — the agent registry must survive process
@@ -135,12 +136,11 @@ describe("Agent registry persistence (T0.1 / ADR D17 + D21)", () => {
   });
 
   it("registry-archived-flag-persists — Agent.archive → restart → registry shows archived: true", async () => {
-    // Isolate from parallel test workers that share process.cwd() by chdir-ing
-    // into the per-test tmpdir for the duration of this case. Cloud agents
-    // route persistence via process.cwd() (they have no workspace concept).
-    const previousCwd = process.cwd();
-    process.chdir(cwd);
-    try {
+    // Isolate from parallel test workers that share process.cwd() by mocking it
+    // for the duration of this case. Cloud agents route persistence via
+    // process.cwd() (they have no workspace concept) — see withMockedCwd's doc
+    // comment for why this is a spy, not a real process.chdir().
+    await withMockedCwd(cwd, async () => {
       const agent = await Agent.create({
         apiKey: "theo_test_archive_persist",
         model: { id: "google/gemini-2.0-flash-001" },
@@ -156,15 +156,11 @@ describe("Agent registry persistence (T0.1 / ADR D17 + D21)", () => {
 
       const info = await Agent.get(id);
       expect(info).toMatchObject({ runtime: "cloud", archived: true });
-    } finally {
-      process.chdir(previousCwd);
-    }
+    });
   });
 
   it("cloud-agent-rehydration — persisted CloudAgent with theo_test_* key resumes cleanly", async () => {
-    const previousCwd = process.cwd();
-    process.chdir(cwd);
-    try {
+    await withMockedCwd(cwd, async () => {
       const agent = await Agent.create({
         apiKey: "theo_test_cloud_rehydrate",
         model: { id: "google/gemini-2.0-flash-001" },
@@ -179,9 +175,7 @@ describe("Agent registry persistence (T0.1 / ADR D17 + D21)", () => {
       const resumed = await Agent.resume(id, { apiKey: "theo_test_cloud_rehydrate" });
       expect(resumed.agentId).toBe(id);
       await resumed.dispose();
-    } finally {
-      process.chdir(previousCwd);
-    }
+    });
   });
 
   it("create-throws-when-id-exists (EC-1) — second Agent.create with same agentId after restart throws agent_id_already_exists", async () => {

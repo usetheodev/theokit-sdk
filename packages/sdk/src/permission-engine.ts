@@ -75,6 +75,40 @@ export function applyMode(
  */
 export type ArgMatcher = string | RegExp | ((value: unknown) => boolean);
 
+/**
+ * One entry in a {@link PermissionEngine}'s ordered rule list.
+ *
+ * Order is the semantics. The engine walks the list and the first rule whose `tool` matches — and
+ * whose `args` matchers all pass, when it declares any — decides; nothing after it is consulted. Put
+ * the narrow rules first: a catch-all `tool` RegExp placed above a specific deny makes that deny
+ * unreachable, and nothing warns you.
+ *
+ * `args` is what lets one tool name resolve differently depending on what it is asked to do —
+ * `{ tool: "shell", args: { command: /rm\s+-rf/ }, action: "deny" }` blocks the destructive call and
+ * leaves `ls` to fall through to a later rule. Every declared matcher must pass.
+ *
+ * **A missing argument is NOT handled uniformly, and the difference bites in the unsafe direction.**
+ * For a string or RegExp matcher, an argument the call did not supply fails the matcher, so the rule
+ * does not match and evaluation continues. For a PREDICATE matcher the function is called anyway,
+ * with `undefined`:
+ *
+ * ```ts
+ * { tool: "shell", args: { command: (v) => v !== "prod" }, action: "allow" }
+ * // evaluate("shell", {}) → the predicate gets `undefined`, returns true, the rule MATCHES,
+ * // and a call that supplied no arguments at all is authorized.
+ *
+ * { tool: "shell", args: { command: (v) => v.includes("rm") }, action: "deny" }
+ * // evaluate("shell", {}) → TypeError thrown out of the permission gate.
+ * ```
+ *
+ * Until that is fixed (issue #367), guard the parameter in every predicate you write —
+ * `(v) => typeof v === "string" && v !== "prod"` — rather than relying on the matcher never being
+ * reached.
+ *
+ * A rule that matches yields an EXPLICIT verdict, and that is what makes it survive a permissive
+ * `PermissionMode`: `acceptEdits` auto-approves the unmatched default but still honours an explicit
+ * `ask` rule, and an explicit `deny` is immune to every mode, `bypass` included.
+ */
 export interface PermissionRule {
   /** Tool name (exact string) or pattern (RegExp). */
   tool: string | RegExp;
@@ -100,8 +134,19 @@ export interface PermissionEngineOptions {
 }
 
 function argMatches(matcher: ArgMatcher, value: unknown): boolean {
+  // The guard comes FIRST, for every matcher form including a predicate (#367). It used to sit
+  // below the function branch, so a declared predicate was invoked with `undefined` — and both
+  // directions of that were wrong:
+  //
+  //   allow rule  `(v) => v !== "prod"` returns true for undefined, so a call that supplied NO
+  //               argument produced an EXPLICIT allow — a matcher written to narrow, widening.
+  //   deny rule   `(v) => v.includes("rm")` raised TypeError out of the permission gate, which
+  //               is not a denial but an unhandled failure on the path that decides authorization.
+  //
+  // A rule that declares an argument is a rule about that argument. A call that omitted it has
+  // not satisfied the rule, whatever shape the matcher takes.
+  if (value === undefined) return false;
   if (typeof matcher === "function") return matcher(value);
-  if (value === undefined) return false; // missing arg never matches a declared predicate
   if (matcher instanceof RegExp) {
     // Reset `lastIndex` so a global/sticky-flag regex (`/x/g`) does not carry
     // state across `.test()` calls — otherwise the same rule would alternate
@@ -112,6 +157,27 @@ function argMatches(matcher: ArgMatcher, value: unknown): boolean {
   return matcher === value;
 }
 
+/**
+ * Ordered first-match permission rules for tool invocations — the policy object you hand to
+ * `PermissionPlugin.create()` to have it enforced.
+ *
+ * On its own it enforces nothing. `evaluate(toolName, args, mode)` is a pure function returning
+ * `"allow" | "deny" | "ask"`, and no part of the SDK calls it until the engine is wrapped in a plugin
+ * and that plugin is registered on an agent. The plugin is where a verdict becomes behaviour: `deny`
+ * blocks the tool call, `allow` passes it through, and `ask` is routed to the host's `canUseTool`
+ * gate — with no gate configured, `ask` blocks. So constructing an engine and never registering it
+ * is a policy that does nothing, which is the mistake worth knowing about first.
+ *
+ * It is fail-closed by default: a call no rule matches resolves to `"ask"`, not `"allow"`, so a tool
+ * the rules never mention needs a human — or an explicit `{ defaultAction: "allow" }` — before it
+ * runs. Keep that default if you intend to use `PermissionMode: "plan"` for read-only behaviour,
+ * because `plan` gates on the RESOLVED verdict: an engine built with `defaultAction: "allow"` still
+ * allows every unmatched call under `plan`.
+ *
+ * The rules array is stored by reference and walked afresh on every `evaluate` call. Mutating the
+ * array you passed in therefore changes the policy of a live engine; build a new engine when you
+ * want a policy change to be a deliberate, visible event.
+ */
 export class PermissionEngine {
   private readonly defaultAction: PermissionAction;
 

@@ -1,10 +1,10 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { Agent } from "../../../src/index.js";
 import type { SDKAgent } from "../../../src/types/agent.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 interface AgentWithLoaders extends SDKAgent {
   skills?: {
@@ -26,6 +26,10 @@ describe("Agent.resume", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-resume-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
   });
 
   afterEach(() => {

@@ -20,8 +20,23 @@ export interface WebSearchResult {
   snippet: string;
 }
 
+/**
+ * The search provider {@link createWebSearchTool} calls.
+ *
+ * `maxResults` is what the caller asked for, not a limit you must enforce — the tool slices the array
+ * itself — but returning far more than asked wastes the round trip that produced them.
+ *
+ * Reject the promise to signal a failed search: the tool turns a rejection into
+ * `{ ok: false, error: "search_failed" }` and never lets it escape into the agent turn. Resolving
+ * with `[]` says something different — that the search ran and found nothing.
+ */
 export type WebSearchCallback = (query: string, maxResults: number) => Promise<WebSearchResult[]>;
 
+/**
+ * Options for {@link createWebSearchTool}. `search` is required: the tool ships no provider of its
+ * own, and the two adapters in this package — {@link createBraveWebSearchAdapter} and
+ * {@link createGenericHttpSearchAdapter} — exist to fill it.
+ */
 export interface CreateWebSearchToolOptions {
   /** M76 — name exposed to the model. Omitted => today's literal (additive). The name is a contract:
    *  the approval key, what the model sees and what telemetry records. */
@@ -34,6 +49,19 @@ export interface CreateWebSearchToolOptions {
   defaultMaxResults?: number;
 }
 
+/**
+ * Build the `web_search` tool over a caller-supplied provider.
+ *
+ * The tool holds no API key and talks to no service; everything network-facing lives in the `search`
+ * callback, which is why one tool serves Brave, a self-hosted endpoint, or a fixture in a test. Use
+ * it to find pages and `web_fetch` to read one — results carry a snippet, not a body.
+ *
+ * The model's `max_results` (1..20) wins over `defaultMaxResults`, and the list is sliced to it even
+ * when the provider returns more. A rejecting provider yields `{ ok: false, error: "search_failed" }`
+ * with its message attached; a provider resolving `[]` yields `{ ok: true, results: [] }`. The two
+ * are different signals, so an adapter that swallows its own failures — as
+ * {@link createGenericHttpSearchAdapter} deliberately does — reports the first as the second.
+ */
 export function createWebSearchTool(opts: CreateWebSearchToolOptions): CustomTool {
   const { search, defaultMaxResults = 5 } = opts;
 

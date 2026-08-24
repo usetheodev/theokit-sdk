@@ -2,7 +2,7 @@
 # pre-commit hook — light Tier 1 quality gates.
 # See .claude/quality-gates.md.
 
-set -e
+set -eo pipefail
 
 # Load nvm if available so we hit the .nvmrc-pinned Node.
 if [ -s "$HOME/.nvm/nvm.sh" ]; then
@@ -25,7 +25,116 @@ if ! pnpm exec biome check --no-errors-on-unmatched --staged 2>&1; then
   exit 1
 fi
 
-if ! pnpm -w run typecheck 2>&1 | tail -3; then
+# The output is captured rather than piped. `... | tail -3` returns tail's status, so
+# without pipefail the `if !` could never be true and this gate always passed — it ran
+# build+typecheck for the whole monorepo on every commit to produce a verdict that was
+# green by construction. Capturing also means a real failure prints the type errors
+# instead of the last three lines of turbo's summary.
+#
+# B-127 — `pnpm -w run typecheck` (= `turbo run typecheck --filter='./packages/*'`)
+# unconditionally selects EVERY package. Measured 2026-08-19: 30 tasks (15 build + 15
+# typecheck) on a tree with a single-file change under packages/sdk/src, because every
+# package depends on @theokit/sdk#build via `^build`. `main`/`develop` gained required
+# status checks the same day (validate on both node legs, TruffleHog, CodeQL), so CI
+# already re-checks everyone before merge — this hook only needs to be a fast, HONEST
+# local signal, not the last line of defence.
+#
+# `--filter='...[origin/workspace]'` scopes to packages changed since the last promoted
+# ref (the leading `...` also pulls in dependents, so a change to a package others import
+# still typechecks those importers). But a stale, missing, or freshly-pushed
+# `origin/workspace` can make the filter select ZERO packages, and turbo exits 0 on an
+# empty selection — MEASURED for real: `turbo run typecheck --filter='[HEAD]'` on a clean
+# tree reports "Packages in scope: " / "Running typecheck in 0 packages" and exits 0.
+# Swapping the expensive-but-honest unscoped gate for a filter that can silently select
+# nothing reproduces the exact defect dd1cf860 fixed, one filter over — a green hook that
+# checked nothing. The guard below (selected_count) is not optional; it is this item's DoD.
+selected_json=$(npx turbo run typecheck --filter='...[origin/workspace]' --dry=json 2>/dev/null) || selected_json=""
+selected_count=$(printf '%s' "$selected_json" | node -e '
+let data = "";
+process.stdin.on("data", (chunk) => { data += chunk; });
+process.stdin.on("end", () => {
+  try {
+    const parsed = JSON.parse(data);
+    const packages = (parsed.packages || []).filter((name) => name !== "//");
+    process.stdout.write(String(packages.length));
+  } catch {
+    // Unparseable/empty stdout means the dry-run itself failed (e.g. `origin/workspace`
+    // does not resolve). Treated identically to a zero selection below: fail loudly.
+    process.stdout.write("-1");
+  }
+});
+')
+
+if [ "$selected_count" = "-1" ]; then
+  echo ""
+  echo "✗ G1 (typecheck) failed: could not compute the diff-scoped package selection"
+  echo "  against origin/workspace (turbo --dry=json produced no parseable output —"
+  echo "  the ref may not resolve locally). Run 'git fetch origin workspace' and retry,"
+  echo "  or run 'pnpm -w run typecheck' manually to check the full monorepo."
+  exit 1
+fi
+
+# A zero selection has two causes and they need opposite responses, so the two are
+# separated by asking what is actually staged rather than by trusting the filter.
+#
+# Measured 2026-08-20: a CONTRIBUTING.md-only commit hit the branch below and had no
+# way through. The message named "a genuinely no-op change (rare)" as legitimate and
+# then offered no in-band path for it, so the only way to land docs was --no-verify —
+# which skips G0, the one gate whose failure cannot be repaired after the fact. A guard
+# whose sole escape is weaker than the guard is worse than the case it was protecting
+# against.
+staged_typescript=$(git diff --cached --name-only --diff-filter=ACMR \
+  | grep -E '\.(ts|tsx|mts|cts)$' || true)
+
+if [ "$selected_count" -eq 0 ] && [ -z "$staged_typescript" ]; then
+  # Honest zero: nothing staged is TypeScript, so a typecheck has nothing to read.
+  # Reported rather than passed silently — same discipline the dead-code gate follows
+  # (see CONTRIBUTING "A blanket suppression is a claim about the tool"): a gate that
+  # skips must say it skipped, or it is indistinguishable from one that found nothing.
+  echo "→ G1: SKIPPED — no TypeScript staged, so there is nothing to typecheck."
+  echo "✓ pre-commit gates passed"
+  exit 0
+fi
+
+# TypeScript that lives OUTSIDE `packages/` belongs to no workspace, so the diff-scoped
+# filter can never select it — not because the ref is stale, but because turbo is not the
+# tool that checks it. `e2e/` is the case: it consumes @theokit/sdk through its `exports`
+# map on purpose, so it is deliberately not a package. Separating the two zero-selection
+# causes here keeps the guard below meaning what it says; without this, every commit
+# touching only `e2e/` reported a stale-ref failure that was not one.
+staged_outside_packages=$(echo "$staged_typescript" | grep -v '^packages/' || true)
+staged_inside_packages=$(echo "$staged_typescript" | grep '^packages/' || true)
+
+if [ "$selected_count" -eq 0 ] && [ -n "$staged_outside_packages" ] && [ -z "$staged_inside_packages" ]; then
+  echo "→ G1: typecheck scoped to the root e2e project (staged TypeScript is outside packages/)"
+  if ! root_typecheck_out=$(pnpm run typecheck:e2e 2>&1); then
+    echo ""
+    echo "$root_typecheck_out" | tail -30
+    echo ""
+    echo "✗ G1 (typecheck) failed. Fix the types."
+    exit 1
+  fi
+  echo "✓ pre-commit gates passed"
+  exit 0
+fi
+
+if [ "$selected_count" -eq 0 ]; then
+  echo ""
+  echo "✗ G1 (typecheck) failed: the diff-scoped filter selected 0 packages against"
+  echo "  origin/workspace, but TypeScript IS staged:"
+  echo "$staged_typescript" | sed 's/^/      /'
+  echo ""
+  echo "  That combination is the case this guard exists for — a stale, missing, or"
+  echo "  freshly-pushed ref hiding a real diff. Run 'git fetch origin workspace' and"
+  echo "  retry, or run 'pnpm -w run typecheck' manually to check the full monorepo."
+  exit 1
+fi
+
+echo "→ G1: typecheck scoped to ${selected_count} package(s) changed since origin/workspace"
+
+if ! typecheck_out=$(npx turbo run typecheck --filter='...[origin/workspace]' 2>&1); then
+  echo ""
+  echo "$typecheck_out" | tail -30
   echo ""
   echo "✗ G1 (typecheck) failed. Fix the types."
   exit 1

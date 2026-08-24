@@ -23,8 +23,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { runAgentLoop } from "../src/internal/agent-loop/loop.js";
 import type { LlmClient, LlmEvent, LlmFinish, LlmRequest } from "../src/internal/llm/types.js";
 import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
@@ -37,6 +36,7 @@ import type {
 } from "../src/internal/runtime/memory/memory-provider.js";
 import type { CustomTool, SDKAgent } from "../src/types/agent.js";
 import type { MemoryAdapter } from "../src/types/memory-adapter.js";
+import { removeTempDirRobust } from "./helpers/temp-workspace.js";
 
 /** Stub LLM that records every request and returns a deterministic final turn. */
 function buildRecordingStubClient(): { client: LlmClient; requests: LlmRequest[] } {
@@ -78,6 +78,10 @@ describe("MemoryProvider full integration with runAgentLoop (iter 24)", () => {
   let cwd: string | undefined;
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-mem-prov-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
   });
   afterEach(() => {
     cwd = undefined;

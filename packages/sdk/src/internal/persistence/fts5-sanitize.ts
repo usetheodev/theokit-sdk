@@ -75,10 +75,23 @@ const CJK_RANGES: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /**
- * Returns true if `text` contains at least one character in the main CJK
- * Unicode ranges.
+ * Report whether `text` holds at least one Chinese, Japanese or Korean character.
  *
- * @internal
+ * Iterates by code point, so surrogate pairs are handled correctly, and returns on the first hit.
+ * An empty string is `false`.
+ *
+ * Coverage is deliberately coarse: CJK Symbols and Punctuation, Hiragana, Katakana, Hangul
+ * Syllables, and CJK Unified Ideographs including Extension A. Everything beyond that — the
+ * higher ideograph extensions, Halfwidth and Fullwidth Forms, Hangul Jamo — reads as `false`, so
+ * a `false` is not proof that the text is CJK-free.
+ *
+ * The reason to ask is FTS5: the default tokenizer splits on whitespace, which CJK text does not
+ * use, so a matching query against it returns nothing rather than failing. A caller seeing `true`
+ * should short-circuit to an empty result or a LIKE fallback instead of running the search and
+ * reporting no matches.
+ *
+ * Semver-exempt: reachable via the `@theokit/sdk/internal/persistence` sub-path, which the package
+ * declares in `exports` but does NOT cover with its semver contract.
  */
 export function containsCjk(text: string): boolean {
   for (const char of text) {

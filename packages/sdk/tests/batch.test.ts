@@ -125,17 +125,68 @@ describe("batchImpl (T2.1)", () => {
     expect((results[1] as { error: TheokitAgentError }).error.message).toContain("boom");
   });
 
-  it("preserves input order in results", async () => {
+  it("preserves input order when completions arrive out of order", async () => {
+    // B-058. The interleaving this test needs was drawn from an unseeded `Math.random() * 20` on
+    // every run: a draw that happens to be near-sorted exercises nothing, and a failure cannot be
+    // replayed. Which interleaving happens is the *input* to the behaviour under test, so it is
+    // pinned here instead of sampled.
+    //
+    // Each prompt now blocks on its own gate and completes only when this test opens it, so the
+    // completion order is a fact rather than a probability. `completionOrder` is checked as an
+    // assertion of its own — without it a fixture that quietly stopped blocking would leave the
+    // order assertion passing on the trivial in-order case.
+    //
+    // With concurrency 3, a/b/c are in flight and d/e are queued: opening "c" frees the slot "d"
+    // takes, opening "a" frees the slot "e" takes.
+    const prompts = ["a", "b", "c", "d", "e"];
+    const completionOrder = ["c", "a", "e", "b", "d"];
+    const gates = new Map<string, { opened: Promise<void>; open: () => void }>(
+      prompts.map((p) => {
+        let open!: () => void;
+        const opened = new Promise<void>((resolve) => {
+          open = resolve;
+        });
+        return [p, { opened, open }];
+      }),
+    );
+    let nextToOpen = 0;
+    const openNext = (): void => {
+      gates.get(completionOrder[nextToOpen++] ?? "")?.open();
+    };
+
     const create = buildFakeFactory({
       onSend: async (p) => {
-        // Random delay 0-20ms
-        await new Promise((r) => setTimeout(r, Math.random() * 20));
+        await gates.get(p)?.opened;
         return { kind: "ok", text: p };
       },
     });
-    const prompts = ["a", "b", "c", "d", "e"];
-    const results = await batchImpl(prompts, { ...baseOptions, concurrency: 3 }, { create });
-    expect(results.map((r) => r.prompt)).toEqual(prompts);
+    const completed: string[] = [];
+
+    openNext();
+    const results = await batchImpl(
+      prompts,
+      {
+        ...baseOptions,
+        concurrency: 3,
+        onResult: (r) => {
+          completed.push(r.prompt);
+          openNext();
+        },
+      },
+      { create },
+    );
+
+    expect(completed, "the fixture must really have completed out of order").toEqual(
+      completionOrder,
+    );
+    expect(
+      results.map((r) => r.prompt),
+      "results must follow INPUT order, not completion order",
+    ).toEqual(prompts);
+    expect(
+      results.map((r) => r.index),
+      "and each result must carry its input index",
+    ).toEqual([0, 1, 2, 3, 4]);
   });
 
   it("calls onResult per completion", async () => {
@@ -334,25 +385,98 @@ describe("batchImpl (T2.1)", () => {
     );
   });
 
-  // EC-B: slow onResult — parallel work continues but total wait includes slow callback
-  it("EC-B: slow onResult does not block parallel agents but delays resolution", async () => {
+  // EC-B / B-110: `onResult` must be bounded by `concurrency`, not just the underlying agent work.
+  //
+  // B-023 shipped a test here under this exact name that asserted the OPPOSITE of what this
+  // describes: at `concurrency: 1`, it required both `onResult` callbacks to be in flight AT THE
+  // SAME TIME, and called that overlap the "contract". It passed because `runBatch` released the
+  // semaphore permit in its `finally` and only THEN awaited `onResult` (batch.ts, pre-B-110) — so a
+  // caller who asked for `concurrency: 1` got overlapping `onResult` invocations regardless. Measured
+  // (B-110, 2026-08-19): a caller doing anything stateful in `onResult` — writing a file, appending
+  // to a buffer, rate-limiting an API — got concurrency they explicitly refused. `types/batch.ts`
+  // now says so explicitly: `concurrency` bounds the whole per-item lifecycle, `onResult` included.
+  //
+  // Fixed by moving the counters update + `await safeCallResult` inside the `try` that the semaphore
+  // release's `finally` wraps, so the permit is held until the callback finishes.
+  //
+  // `concurrency: 1` is load-bearing, not incidental: at `concurrency: 2` the two callbacks may
+  // overlap simply because the two prompts ran side by side, which proves nothing about whether
+  // `onResult` itself is bounded. At 1 the prompts cannot run side by side, so ANY overlap can only
+  // come from an early release — this is the one configuration that can tell a fixed implementation
+  // from a broken one.
+  it("test_on_result_is_bounded_by_the_concurrency_limit", async () => {
     const create = buildFakeFactory({ onSend: (p) => ({ kind: "ok", text: p }) });
-    const t0 = Date.now();
-    await batchImpl(
+    let releaseA!: () => void;
+    const aGate = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
+    let aEntered = false;
+    let bEntered = false;
+
+    const batch = batchImpl(
       ["a", "b"],
       {
         ...baseOptions,
-        concurrency: 2,
-        onResult: async () => {
-          await new Promise((r) => setTimeout(r, 50));
+        concurrency: 1,
+        onResult: async (r) => {
+          if (r.prompt === "a") {
+            aEntered = true;
+            await aGate;
+          } else {
+            bEntered = true;
+          }
         },
       },
       { create },
     );
-    const elapsed = Date.now() - t0;
-    // Parallel: ~50ms (not 100ms — callbacks run after their own prompt's release).
-    // Floor 45ms tolerates setTimeout coarse resolution (~1ms jitter on some hosts).
-    expect(elapsed).toBeGreaterThanOrEqual(45);
-    expect(elapsed).toBeLessThan(150);
+
+    // No sleeps: `setImmediate` drains every microtask reachable through synchronous scheduling
+    // (the fake agent's create → send → wait → dispose chain is all promises, no timers/IO), so this
+    // single tick is enough for "a" to reach its blocked `onResult` — and, under the pre-fix code,
+    // would ALSO have been enough for "b" to fully enter and exit its own (non-blocking) callback,
+    // since its permit was released before "a"'s callback even started.
+    await new Promise((r) => setImmediate(r));
+
+    expect(aEntered, "the first prompt's onResult must have started").toBe(true);
+    expect(
+      bEntered,
+      "the second onResult must NOT run while the first is still inside its callback — " +
+        "concurrency:1 must bound onResult, not just the underlying agent work",
+    ).toBe(false);
+
+    releaseA();
+    await batch;
+
+    expect(bEntered, "and must run once the first callback finishes").toBe(true);
+  });
+
+  it("EC-B: the batch does not resolve until every onResult callback has finished", async () => {
+    const create = buildFakeFactory({ onSend: (p) => ({ kind: "ok", text: p }) });
+    let releaseCallbacks!: () => void;
+    const callbacksMayFinish = new Promise<void>((resolve) => {
+      releaseCallbacks = resolve;
+    });
+    let resolved = false;
+
+    const batch = batchImpl(
+      ["a", "b"],
+      { ...baseOptions, concurrency: 2, onResult: () => callbacksMayFinish },
+      { create },
+    ).then((results) => {
+      resolved = true;
+      return results;
+    });
+
+    // The whole fixture path is promise-only (no timers), so one macrotask turn drains every
+    // microtask the batch could still be waiting on. If the callbacks were not awaited, the batch
+    // would already have settled here.
+    await new Promise((r) => setImmediate(r));
+    expect(resolved, "the batch must still be pending while a callback is unfinished").toBe(false);
+
+    releaseCallbacks();
+    const results = await batch;
+
+    expect(resolved, "and must resolve once the callbacks do").toBe(true);
+    expect(results.length, "with every prompt accounted for").toBe(2);
   });
 });

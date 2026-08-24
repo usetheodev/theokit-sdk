@@ -132,9 +132,8 @@ describe("atomicWriteJson", () => {
  * exactly the reason written in the local workaround this item exists to erase. The reassertion goes on the
  * DESCRIPTOR, before the `rename`, and never after: chmod-ing after the rename would leave the file
  * briefly carrying the umask's mode, which is the anti-pattern measured in
- * `reference/upstream/packages/core/src/fs-util.ts:110-114`. The chosen shape — fileMode as
- * `open` parameter — is the single reference's
- * (`reference/upstream/upstream/network-proxy/src/certs.rs:687,783-791`).
+ * prior implementations of this pattern. The chosen shape passes fileMode as an
+ * `open` parameter.
  */
 describe("M107 T1.1 — atomicWriteJson honours mode and exclusive", () => {
   let dir: string;

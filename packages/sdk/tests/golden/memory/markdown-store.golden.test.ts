@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { resetMigrationStateForTests } from "../../../src/internal/memory/migration.js";
 import {
   appendFactToMarkdown,
@@ -14,6 +14,7 @@ import {
   type MemoryConfig,
   readMemoryFacts,
 } from "../../../src/internal/runtime/memory/memory-store.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Phase 1 T1.1 — Markdown corpus + migration + atomic writes + per-cwd mutex.
@@ -27,6 +28,10 @@ describe("MarkdownMemoryStore", () => {
   beforeEach(async () => {
     resetMigrationStateForTests();
     cwd = await mkdtemp(join(tmpdir(), "theokit-md-store-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
   });
   afterEach(() => {
     vi.restoreAllMocks();

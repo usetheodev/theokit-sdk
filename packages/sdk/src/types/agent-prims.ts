@@ -39,6 +39,20 @@ export interface ModelSelection {
    * clamped — declaring 10M does not blow past the provider.
    */
   contextWindow?: number;
+  /**
+   * #332 — the endpoint THIS model should reach, for OpenAI-compatible and local servers.
+   *
+   * Without it the base URL came only from a process-wide env var (`OLLAMA_HOST`) or the provider
+   * profile's shipped default, so every `ollama/*` model in a process shared one host — an app
+   * could not run a small model on localhost and a large one on a GPU box.
+   *
+   * It outranks the env var deliberately: with the env var winning, whoever set it for one model
+   * would keep hijacking every other one, which is the same bug wearing a hat.
+   *
+   * Leaving it unset keeps the zero-config path exactly as it was — `ollama/qwen2.5:3b` still
+   * resolves to `http://localhost:11434` from the profile, with no key and no setup.
+   */
+  url?: string;
 }
 
 /**

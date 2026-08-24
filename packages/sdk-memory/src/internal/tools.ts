@@ -38,6 +38,11 @@ export interface MemoryToolJson {
   inputSchema: Record<string, unknown>;
 }
 
+/**
+ * A memory tool ready to hand to the agent loop: the JSON-serialisable
+ * description an LLM sees, plus the `execute` that runs it. `execute` resolves
+ * to a JSON string — the tool layer does no further encoding.
+ */
 export interface MemoryTool extends MemoryToolJson {
   execute(input: Record<string, unknown>): Promise<string>;
 }
@@ -73,12 +78,32 @@ const MEMORY_GET_SCHEMA: Record<string, unknown> = {
 
 const DEFAULT_MAX_TOTAL_CHARS = 16384;
 
+/** Options for {@link createMemorySearchTool}. */
 export interface MemorySearchToolOptions {
   index: MemoryIndex;
   /** Cap on the JSON response size (EC-10 of edge-case review). Default 16384. */
   maxTotalChars?: number;
 }
 
+/**
+ * Build the `memory_search` tool over an index that is already open. The tool
+ * never opens or syncs anything: if `index.sync()` has not run, the search runs
+ * against whatever the index last recorded, and a freshly created index returns
+ * no hits.
+ *
+ * The tool accepts `query` (required), `maxResults` (default 10), `minScore`,
+ * and `corpus`, where `corpus` maps to the index's source filter: `memory`,
+ * `sessions`, `wiki`, or `all` (the default, which applies no filter). An
+ * unrecognised `corpus` value is treated as `all` rather than rejected.
+ *
+ * `execute` returns `{"hits": [...], "truncated": bool}`. Hits are dropped from
+ * the tail once their estimated size would exceed `maxTotalChars`, except that
+ * the first hit is always kept even when it alone exceeds the cap.
+ *
+ * Use this for recall by meaning across the whole corpus, and
+ * {@link createMemoryGetTool} when the model already knows the file and wants
+ * exact lines.
+ */
 export function createMemorySearchTool(opts: MemorySearchToolOptions): MemoryTool {
   const cap = opts.maxTotalChars ?? DEFAULT_MAX_TOTAL_CHARS;
   return {
@@ -102,10 +127,23 @@ export function createMemorySearchTool(opts: MemorySearchToolOptions): MemoryToo
   };
 }
 
+/** Options for {@link createMemoryGetTool}. `cwd` is the workspace root, not the memory directory. */
 export interface MemoryGetToolOptions {
   cwd: string;
 }
 
+/**
+ * Build the `memory_get` tool, which reads an exact excerpt from a file under
+ * `<cwd>/.theokit/memory`. Needs no index and no embedding runtime — it is
+ * plain file reading, so it works in a workspace where search is not configured.
+ *
+ * The tool accepts `path` (required, relative to the memory root), `from`
+ * (1-indexed, default 1) and `lines` (default 200). A `path` whose resolved
+ * location falls outside the memory root is rejected with a
+ * `ConfigurationError` carrying the code `memory_path_escapes_root`. A path that
+ * stays inside but does not exist is not caught here: the underlying read
+ * rejects with the filesystem error.
+ */
 export function createMemoryGetTool(opts: MemoryGetToolOptions): MemoryTool {
   const memoryRoot = resolvePath(memoryDir(opts.cwd));
   return {

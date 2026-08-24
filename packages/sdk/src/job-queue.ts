@@ -30,6 +30,24 @@ export interface JobQueueOptions {
   maxConcurrency?: number;
 }
 
+/**
+ * An in-process queue of background jobs with status tracking, cancellation, and an optional
+ * concurrency bound.
+ *
+ * `enqueue` returns a job id immediately and never throws for the job's own failure: a synchronous
+ * throw inside the function becomes a rejection, and a rejection becomes `status: "failed"` with
+ * the message on `job.error`. Poll `getJob(id)` or `list()` for outcomes — there is no completion
+ * event and no promise to await.
+ *
+ * Cancellation is COOPERATIVE. `cancel` aborts the `AbortSignal` handed to the job function and
+ * flips the status, but a function that ignores the signal keeps running to completion; its result
+ * is then discarded, because a cancelled job never leaves the cancelled state. The concurrency slot
+ * of a running job is freed at cancel time rather than when it eventually settles, so a job that
+ * never settles cannot deadlock a bounded queue.
+ *
+ * State lives entirely in memory and grows without bound — nothing evicts finished jobs. This is a
+ * queue for one process, not a durable one.
+ */
 export class JobQueue {
   private jobs = new Map<string, Job<unknown>>();
   private controllers = new Map<string, AbortController>();

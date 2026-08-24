@@ -7,7 +7,7 @@
 Report it through GitHub's private vulnerability reporting, which is enabled on this
 repository:
 
-**[Report a vulnerability](https://github.com/usetheodev/theokit-sdk/security/advisories/new)**
+**[Report a vulnerability](https://github.com/usetheokit/theokit-sdk/security/advisories/new)**
 
 That form opens a private thread visible only to the maintainers. It is the only
 channel we can promise to read for this — there is no security mailing list, and a

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { ConfigurationError } from "../src/errors.js";
 import { sessionSummaryPath } from "../src/internal/memory/storage/session-summary-writer.js";
 import { safeFilenameForId } from "../src/path-safety.js";
 
@@ -43,7 +44,12 @@ describe("safeFilenameForId", () => {
   });
 
   it("test_safeFilenameForId_throws_on_empty_string", () => {
-    expect(() => safeFilenameForId("")).toThrow();
+    // B-079 — was bare `.toThrow()`. `safeFilenameForId` throws `ConfigurationError`
+    // with `code: "invalid_filename_id"` (src/internal/security/path-guard.ts).
+    expect(() => safeFilenameForId("")).toThrow(ConfigurationError);
+    expect(() => safeFilenameForId("")).toThrow(
+      expect.objectContaining({ code: "invalid_filename_id" }),
+    );
   });
 
   it("test_safeFilenameForId_hashes_when_over_maxLen", () => {

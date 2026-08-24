@@ -15,16 +15,16 @@ describe("Honcho translate (T4.1)", () => {
   it("EC-D: distinct users with sessionId=undefined produce distinct session keys", () => {
     const a = honchoSessionKey({ userId: "alice" });
     const b = honchoSessionKey({ userId: "bob" });
-    expect(a).toBe("alice:default");
-    expect(b).toBe("bob:default");
+    expect(a).toBe("alice--default");
+    expect(b).toBe("bob--default");
     expect(a).not.toBe(b);
   });
 
   it("session falls back to default when sessionId is undefined", () => {
-    expect(honchoSessionKey({ userId: "alice" })).toBe("alice:default");
+    expect(honchoSessionKey({ userId: "alice" })).toBe("alice--default");
   });
 
   it("explicit sessionId is preserved under userId namespace", () => {
-    expect(honchoSessionKey({ userId: "alice", sessionId: "chat42" })).toBe("alice:chat42");
+    expect(honchoSessionKey({ userId: "alice", sessionId: "chat42" })).toBe("alice--chat42");
   });
 });

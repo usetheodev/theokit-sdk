@@ -25,6 +25,13 @@ export interface TodoItem {
   completedAt?: number;
 }
 
+/**
+ * The `todolist` tool object. It is hand-built rather than produced by `Tool.create`, so
+ * `inputSchema` is a plain JSON Schema value and `handler` is synchronous.
+ *
+ * `getItems` is a test seam onto the same session state the handler mutates, reachable without going
+ * through an action.
+ */
 export interface TodolistTool {
   name: string;
   description: string;
@@ -151,6 +158,19 @@ function makeSessionOps(): { handle: (input: TodoInput) => string; getItems: () 
   };
 }
 
+/**
+ * Build the `todolist` tool: an in-memory checklist the agent keeps across the turns of one session.
+ *
+ * State lives in the closure. It is never written anywhere and dies with the process, so this is a
+ * working memo for the model, not a task store. One tool object can serve many sessions — lists are
+ * keyed by `ctx.threadId`, and every call arriving without one shares a single default list, which
+ * means a multi-session host that forgets to thread the id merges all its users' tasks together.
+ *
+ * Ids are `todo-1`, `todo-2`, … per session and are never reused, so a removed item's id stays gone.
+ * Each successful action returns the whole list twice: `items` structured for a UI, `items_summary`
+ * formatted for the model. Failures are `missing_title`, `missing_id`, `not_found` and
+ * `invalid_action`.
+ */
 export function createTodolistTool(): TodolistTool {
   // #119 — one session-ops bundle per threadId; lazily created on first touch.
   const sessions = new Map<string, ReturnType<typeof makeSessionOps>>();

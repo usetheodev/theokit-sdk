@@ -39,6 +39,32 @@ const PROVIDER_ALIASES: Readonly<Record<string, string>> = {
   lm_studio: "lmstudio",
 };
 
+/**
+ * Split a model string into `{ provider, name }` at the FIRST `/`.
+ *
+ *   parseModelId("ollama/llama3.2:3b")             // { provider: "ollama",     name: "llama3.2:3b" }
+ *   parseModelId("openrouter/meta-llama/llama-3")  // { provider: "openrouter", name: "meta-llama/llama-3" }
+ *   parseModelId("claude-sonnet-4-6")              // { provider: undefined,    name: "claude-sonnet-4-6" }
+ *
+ * Pure and synchronous: no catalog lookup, no network, and no check that the
+ * provider or the model exists. The provider is lowercased and mapped through a
+ * small alias table (`llama-cpp` / `llama.cpp` to `llamacpp`, `lm-studio` /
+ * `lm_studio` to `lmstudio`); the name keeps its remaining slashes and any `:tag`
+ * suffix, which Ollama needs.
+ *
+ * Never throws and never returns an error shape. `provider: undefined` means "no
+ * usable prefix" and is the caller's cue to fall back to env-var detection.
+ *
+ * Traps:
+ *  - `undefined` or `""` yields `{ provider: undefined, name: "" }` — an EMPTY
+ *    name, not `undefined`. A caller forwarding `name` unchecked sends an empty
+ *    model id to the provider.
+ *  - A degenerate prefix is not an error. `"/foo"`, `"foo/"` and `" /x"` all come
+ *    back with `provider: undefined` and the ORIGINAL, untrimmed string as `name`;
+ *    trimming happens only when both halves are non-empty.
+ *  - Only the first `/` splits. `"openrouter/meta-llama/llama-3"` keeps
+ *    `meta-llama/llama-3` whole as the name.
+ */
 export function parseModelId(modelId: string | undefined): ParsedModelId {
   if (modelId === undefined || modelId.length === 0) {
     return { provider: undefined, name: "" };

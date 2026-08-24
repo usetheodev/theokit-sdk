@@ -1,5 +1,1093 @@
 # Changelog
 
+## 4.54.0
+
+### Minor Changes
+
+- 0258f3c: Two `theokit` flags that were advertised in `--help` and read by nothing now behave.
+
+  `tasks cancel --reason <r>` records the reason: `TaskHandle` gains a `cancelReason` field, written
+  alongside `cancelledAt` for a queued task and alongside `cancelRequested` for a running one. A task
+  that is already terminal is left untouched, reason or not.
+
+  **Breaking:** `theokit init --here` is removed. It never scaffolded into the current directory, and
+  the writer cannot honour it — the tree is built in a temp directory and moved into place with `rm` +
+  `rename`, so a destination equal to `cwd` would mean deleting the directory the process is running
+  in. An unknown-option error is immediate and clear where silence was not.
+
+- d485b4e: Fix three unresolved type references in the published declaration file (#335).
+
+  `MemoryProviderFactory` is now exported from the package root. It is the shape a
+  consumer must satisfy to write a memory plugin — the public `Plugin` union names
+  it in the `createProvider` position — but it carried the internal-visibility
+  JSDoc tag, so `stripInternal` deleted the declaration while the union went on
+  referencing it. The shipped `.d.ts` named a type it did not declare.
+
+  `AgentBuilderDeps` and the blast-radius symbol used as a computed key in
+  `WithBlastRadius<T>` had the same defect on other surfaces and are now emitted.
+  Neither is added to the public API — they only needed to exist in the declaration
+  file that references them.
+
+  None of this is visible under `skipLibCheck`, which is why it shipped. Consumers
+  running type-aware lint saw every type reached through those references degrade
+  to `error`, producing `no-unsafe-*` reports on correct SDK calls.
+
+- 181967f: New `RunEvent` member: `mcp_server_ready`, carrying the server name and the tool names it listed.
+
+  `mcp_server_failed` already reached consumers, so a broken MCP server was visible. A server that came
+  up was not — the resolved tool table never leaves the agent loop's internals, and no event carried an
+  inventory. A consumer could list what was configured and what broke, and could not tell a server that
+  came up with twelve tools from one that came up with none.
+
+  Emitted from the same function as its failure sibling, on the other branch. An event rather than a
+  getter because the state is scoped to the run: with `mcpLifecycle: "run"` a server may not exist by
+  the time anyone asks. Tool names are the server's own, not the sanitized `mcp_<server>_<tool>` form
+  the model sees.
+
+  Requested by `usetheokit/theokit#426`.
+
+- f33b52b: `MemoryAdapter.isAvailable()` now disables an adapter that returns `false`, as its mandatory
+  presence always implied.
+
+  Nothing called it. Every third-party adapter implements it as "is there a non-empty apiKey", so an
+  implementer reasonably read `false` as "disable me" — and it disabled nothing: the client is built
+  lazily, so `mem0Memory({ apiKey: "" })` started normally and surfaced mid-conversation as
+  `auth_failed`, at the point where a memory write is happening rather than where the operator could
+  still fix it.
+
+  An unavailable adapter is now skipped with a diagnostic naming it, so a missing key degrades to
+  no-memory and a multi-adapter setup falls back to the ones that work. When every registered adapter
+  declines, `write` and `recall` fail with a message saying exactly that — distinct from the message
+  for no adapter registered at all.
+
+- 398e7a0: `ModelSelection.url` — a model can name the endpoint it should reach.
+
+  The base URL came only from a process-wide env var (`OLLAMA_HOST`, `OPENAI_API_BASE_URL`) or the
+  provider profile's shipped default, so every `ollama/*` model in a process shared one host. An app
+  could not run a small model on localhost and a large one on a GPU box, and could not talk to two
+  OpenAI-compatible servers at once. The information had nowhere to travel: `ProviderRouterOptions`
+  carried no URL field at all (usetheokit/theokit-sdk#332).
+
+  ```ts
+  model: { id: "ollama/llama3.3:70b", url: "http://gpu-box:11434" }
+  ```
+
+  Precedence is `ModelSelection.url` → the provider's base-URL env var → `profile.baseUrl`. The model
+  outranks the env var deliberately: with the env var winning, whoever set it for one model would keep
+  hijacking every other one, which is the same bug wearing a hat.
+
+  Leaving `url` unset changes nothing — `ollama/qwen2.5:3b` still resolves to `http://localhost:11434`
+  from the profile, with no key and no setup.
+
+  Applied to both transports separately, because they do not share the override: `OllamaNativeClient`
+  (the native `/api/chat` path Ollama tool calling requires) and the OpenAI-compatible client, which
+  covers `lmstudio` and `llamacpp`. The tests assert the URL the stubbed `fetch` actually received
+  rather than the options object handed to the client — an options-level assertion passes with the
+  precedence inverted.
+
+- 8d1feaa: `PostAssistantReplyContext` now carries `usedTools`, and `@theokit/sdk-cache` stops caching
+  tool-using turns in plugin mode.
+
+  The cache's D266/EC-10 guard exists because replaying an answer produced by a `write_file` / HTTP
+  POST / payment call re-serves the text without the side effect having happened. The
+  `post_assistant_reply` hook had no tool signal to key on and passed a literal `false`, so the guard
+  never fired on the path that runs automatically — only a hand-written `cache.remember(..., {
+usedTools: true })` reached it.
+
+  The runtime derives the flag from the run's replayed event stream. A hook handler written against
+  the previous shape keeps working; code that CONSTRUCTS a `PostAssistantReplyContext` (test doubles,
+  custom emitters) now has to supply the field.
+
+- 9a27a72: Exposes the provider registry: `listProviders()` and `getProviderProfile(name)`.
+
+  The registry was `@internal`, so the SDK was the only thing that could answer "which providers
+  exist, and what does each one need?". `theokit` consequently kept its own hand-written list of
+  three — against the 46 registered here — and an agent declaring `ollama/qwen2.5:3b` routed to
+  whichever API key happened to be set rather than to Ollama (usetheokit/theokit#326).
+
+  A second table that nothing forces to agree with the first is not a cache, it is a future bug.
+  These two functions exist so there is one table, and the framework can stop guessing.
+
+  Both register the builtins before answering. Registration is lazy — it happens when an agent is
+  created, a run is routed, or a provider is defined — so a caller asking early would otherwise get
+  an empty registry and reasonably conclude the SDK knows nothing. Local providers (`ollama`,
+  `lmstudio`, `llamacpp`) come back with `authType: "none"`, which is what lets a consumer tell "no
+  credential needed" apart from "credential missing" without hardcoding names.
+
+- f692988: The reference docs no longer ship inside the package. `node_modules/@theokit/sdk/docs/` is gone, along with the `harness-capability-map.md` and `error-codes.md` files it carried — the `docs` entry was removed from the published `files` list and the build step that generated it was removed with it.
+
+  The exported TypeScript types are now the only reference surface, and they remain the canonical contract: every public primitive carries its import path, signature and JSDoc example, surfaced by your editor. Nothing about the runtime API changed.
+
+  The scaffolded agent context still ships, unchanged, under `claude-template/`.
+
+- 4556488: **`local.sessionDir` replaces `local.baseDir`** (#301). "Base directory" read as the directory the agent works in, in an interface whose `cwd` is the option that actually means that — so `baseDir: "./"` ran without error and wrote session transcripts into the caller's repository root. `baseDir` still works and still resolves to the same place; it emits a deprecation diagnostic, and `sessionDir` wins if both are set.
+
+  **`isValidTaskId` and `TASK_RESERVED_PREFIXES` now exist at runtime** (#279). The bundled `.d.ts` had declared both as values since 4.51.1 while `dist/index.js` exported neither, so `import { isValidTaskId } from "@theokit/sdk"` typechecked clean and threw at the call site.
+
+  **Thirteen `@theokit/sdk/persistence`, `@theokit/sdk/path-safety` and `@theokit/sdk/mcp-auth` symbols now arrive typed** (#280). Those re-exports resolved to no declaration at all, because each symbol carried `@internal` and `stripInternal` deletes it — while the public barrel went on naming it. They imported and ran, untyped: `atomicWriteText` in particular hid that it is `async`, so a caller could skip the `await` and watch a write report success before the bytes landed.
+
+  **`OTelSpan` and `TelemetryHandle` are exported** from the root entry. Types only; nothing is added to the bundle.
+
+- 566615c: BREAKING: `npx theokit-init-claude` and the bundled `claude-template/` are gone. The
+  agent skills they scaffolded now live in [`@theokit/skills`](https://www.npmjs.com/package/@theokit/skills):
+
+  ```bash
+  npx @theokit/skills
+  ```
+
+  The thirty per-module skills were authored here and copied into that package by a sync
+  script, so they existed twice and the copy was the worse of the two — the script
+  stripped YAML frontmatter, and the frontmatter is where the `paths:` globs live that
+  make a skill load only when you are editing something it covers. They are authored
+  there now, with the globs intact.
+
+  Three things a consumer gets that the old scaffold did not offer. It installs for
+  every tool rather than Claude Code alone: `.agents/skills/` is read by OpenAI Codex,
+  Gemini CLI, GitHub Copilot, Zed and Devin Desktop, and `.claude/skills/` by Claude
+  Code. It links instead of copying when it is a real dependency, so the skills follow
+  your lockfile rather than freezing at scaffold time. And `--check` fails in CI when
+  what is installed has drifted, which is the only thing that stops an instruction file
+  from quietly going stale — a stale one is followed exactly as diligently as a current
+  one.
+
+  The SDK tarball drops 328 KB. Nothing in `dist/` referenced the template; it was
+  scaffold material, never runtime.
+
+- 4397a90: `Theokit.subscribe` accepts an injected `fetch` and `WebSocket`.
+
+  Both were read off `globalThis` at call time, so the only way to exercise the SSE or WebSocket path —
+  in our own tests or in a consumer's — was to replace a global for the duration of the call. That is a
+  process-wide mutation to test one function, and it makes the transports untestable in any environment
+  where patching globals is not acceptable: a worker, a sandbox, an embedded runtime, or a suite running
+  files in parallel.
+
+  `SubscribeOptions` now takes optional `fetch` and `WebSocket`, each falling back to the global when
+  absent, so existing callers are unaffected. The SSE path, the WebSocket path and the automatic
+  transport selection all resolve through the same seam.
+
+  One case still requires replacing the global rather than injecting: asserting the error a caller gets
+  when no `WebSocket` exists at all. Node 22 ships a real global `WebSocket`, and a fallback cannot
+  express absence — only removal can. That single test says so where it stands.
+
+- 7c7b21a: `theokit init` gains four templates — `chatbot`, `multi-agent`, `rag-agent` and
+  `workflow-automation` — and its `telegram-bot` template now installs and
+  compiles. It imported `createAgentFactory`, which the SE36 rename replaced with
+  `AgentFactory.create`, and pinned `@theokit/gateway` to the SDK's own version, so
+  a scaffolded project failed at `pnpm install` before any code ran.
+
+  `@theokit/cli` exports the `eval.config.ts` contract its README tells you to use:
+  `EvalConfig`, `DatasetEntry`, `Scorer` and `Score`.
+
+  `@theokit/sdk` exports `Workflow`, `fn` and `agentStep` from the package root.
+  `CronCreateOptions.workflow` types against the copy in the cron chunk, while the
+  `./workflow` subpath emits its own declaration of the same class — so a workflow
+  built the documented way was rejected by `Cron.create` on a private-field
+  mismatch. Importing both from the root now gives one identity.
+
+### Patch Changes
+
+- 1cb6607: Adding a published sub-entry to the SDK now fails fast and names every file still missing, and the
+  ACP smoke test actually sends the request its name promises.
+
+  Thirty-four sub-entries are published, and adding one required editing four files that nothing forced
+  to agree: the package's `exports`, the bundler's entry list, the declaration-build include, and the
+  declaration-mirroring script's target list. Only the first omission failed quickly. Skipping the last
+  two broke nothing visible — output was emitted, typechecking passed, the whole suite passed — and the
+  only gate that noticed ran at pre-push, about ten minutes in, where the error surfaces on whoever
+  pushes next rather than on whoever caused it. A consistency check now derives the expected set from
+  `exports`, the file that decides what is actually published, and reports every place that disagrees.
+  It runs at the front of the validation chain, not at the end of it.
+
+  Separately, the ACP smoke test was named for initializing a session, prompting, cancelling and
+  shutting down, and its docblock promised a response with a stop reason. It never sent a prompt. Two
+  defects in one: a name that tells the reader a path is covered, and a real gap on the protocol's main
+  path. It now sends the request over the wire and asserts the stop reason it gets back — verified by
+  mutating the handler to return a different reason and watching the test fail.
+
+- 034da4d: A model id could stall the process for minutes. The Anthropic price lookup normalised dots with
+  `/(\d+)\.(\d+)/g`, which on a long run of digits containing no dot consumes to the end of the
+  string at every start position and backtracks — quadratic in a value the caller supplies.
+
+  Measured: 12,500 digits took 762 ms; 25,000 took 3 seconds; 200,000 took **154 seconds** with one
+  CPU pinned. For an SDK built to run inside a server handling other people's requests, that is a
+  denial of service reachable from a single field.
+
+  The same input now takes about 4 milliseconds. The pattern matches one dot between two digits
+  using lookarounds, so there is nothing for the engine to backtrack over.
+
+  One behaviour difference, and it is checked rather than assumed: a model id with two dots between
+  digits (`1.2.3`) normalised to `1-2.3` before and `1-2-3` now, because the old pattern swallowed
+  the middle digit into its first match. No id in the provider catalog has two — measured across all
+  34, of which 14 have exactly one.
+
+  Separately, reading a transcript's tail called `statSync(path)` and then `openSync(path)`, and the
+  size from the first call drove every read offset against the descriptor from the second. It now
+  sizes the descriptor it reads.
+
+- 803e3ef: `MessageBus.send` discarded the handler's promise. `MessageHandler` may return one and `request`
+  awaits it; only `send` dropped it, so a rejecting handler became an unhandled rejection — fatal
+  under Node's default `--unhandled-rejections=throw` — while `await bus.send(...)` resolved cleanly
+  and the sender learned nothing.
+
+  Fire-and-forget means the sender does not wait for the result. It does not mean nobody is told when
+  delivery fails. The rejection is now caught and reported, naming the target agent and the reason,
+  and `send` stays non-blocking.
+
+  `AgentMailbox.send` forwards into this path and is fixed with it.
+
+- ce6a591: Fix `ReferenceError: process is not defined` in the browser, which blanked every page of any app built on `theokit@0.48.x` (usetheokit/theokit#317).
+
+  `errors.ts` is imported by the client bindings framework consumers ship to the front end, and it pulls in the redaction and retry modules with it. Two of them read a bare `process.env` — one at module scope, in `internal/security/redact.ts` — so the read threw while the module graph was still evaluating, before a single component rendered. The page went blank with one console error naming no cause.
+
+  Environment reads on that path now go through `readEnv()`, which resolves `globalThis.process?.env?.[name]`: unchanged on the server, `undefined` in a browser, and still replaced at build time by bundlers that inline `process.env.X`. Redaction stays **enabled** when the flag cannot be read, since unreadable must mean unset rather than disabled.
+
+  `diagFailure` no longer relies on a `try/catch` swallowing the same ReferenceError to reach its fallback.
+
+  `tests/security/browser-safe-env.test.ts` walks the import graph reachable from `errors.ts` and fails on any bare `process` in it — a stronger guard than the two modules that happened to break this time.
+
+- aea04f4: Fifteen tests that quietly reported success on machines missing a native dependency now report as
+  skipped.
+
+  Each was shaped `if (!(await probe())) return;` as the first line of the test body. A guard written
+  that way returns before any assertion runs, and the runner counts the case as passed — so a machine
+  without `better-sqlite3`, without the vector stack, or running as root was indistinguishable from one
+  where every assertion held. The skip was invisible in the count, which is the only place anyone would
+  have looked.
+
+  Measured on the same six guards in one package, forced on:
+
+  ```
+  old shape   31 passed,  0 skipped
+  new shape   25 passed,  6 skipped
+  ```
+
+  Across all three packages the conversion moves fifteen cases from a silent pass to a reported skip.
+
+  A full triage of every occurrence of this shape was done before changing anything, because the shape
+  alone does not identify the defect. Of thirty-three occurrences, fifteen were silent skips; the other
+  eighteen are legitimate and untouched — seven are type narrowings placed immediately after an
+  assertion that has already reported the failure, and eleven are ordinary control flow inside
+  callbacks, loops and handlers.
+
+- 1471fd7: The `tests/chaos` and `tests/load` families no longer report resilience coverage they do not have.
+
+  Every file in both directories exercised `node:fs`, `node:http` and `node:child_process` without
+  importing a single line of SDK source, and two of their assertions could not fail at all:
+  `result.code !== undefined || result.signal !== null` is always true when `code` is `number | null`,
+  and `typeof process.uptime === "function"` cannot be false in a process alive enough to run the
+  assertion. The directory names promised that OOM, SIGKILL-mid-stream, filesystem partition and
+  generator leaks were covered against the product. They were not.
+
+  The OOM test now asserts what it observes: that the heap-capped child aborts rather than exiting
+  cleanly, and that its allocation loop never printed `survived`. Measured — V8's out-of-memory is a
+  fatal process abort, not a catchable exception, so the child's own `catch`/`exit(7)` never runs and
+  the assertion does not pretend otherwise. Verified to go red when the heap cap is raised so the child
+  survives.
+
+  The generator-leak test is rewritten against real SDK code. It previously asked
+  `FinalizationRegistry` whether a generator had been collected, behind a `globalThis.gc` guard nothing
+  in the repository satisfied, so it reported a pass without executing its assertion for its entire
+  life; supplying the flag makes it fail, and no window can fix that, because the specification gives
+  `FinalizationRegistry` no timing guarantee at all. It now asserts cleanup through the task event
+  stream's own subscriber count — deterministic, no GC and no timers — and it is verified by mutation:
+  removing the iterator's `return()` turns it red.
+
+  That rewrite also corrects the premise it was built on. Breaking out of a `for await` loop does not
+  leak a generator; the iteration protocol calls `.return()` on your behalf, on `break` and on `throw`
+  alike. Only an iterator taken by hand and abandoned escapes cleanup, and that is the shape now
+  asserted.
+
+  The scaffolds that remain unwired each carry a todo naming the SDK path they stand in for, an owner
+  and a sunset date, and each directory carries a README stating plainly what it does and does not
+  cover.
+
+- 521f8c7: A disposed `CloudAgent` now refuses `send()`, as `LocalAgent` already did.
+
+  `CloudAgent` tracked a `disposed` flag but consulted it only to make `dispose()` idempotent — `send()`
+  never checked it. So after disposing a cloud agent, sending still started a real run and resolved with
+  a live `CloudRun`, while the identical call on a local agent rejected. A caller reaching a torn-down
+  handle through a stale reference, a retry, or an `await using` scope that had already exited got work
+  started on an agent they believed was released.
+
+  `send()` now throws `AgentDisposedError` (code `agent_disposed`) before constructing anything, matching
+  `LocalAgent`. `dispose()` keeps its own idempotence, so `await using` double-dispatch is unaffected.
+
+  Thrown rather than returned as a failed run: the error is not retryable and a disposed handle never
+  becomes un-disposed, so a rejected run would invite retry loops around a condition that cannot clear.
+
+- d0c800c: A real cloud run now reports a `RunStatus` the public type actually declares
+  (#341). The SSE transport cast the server's terminal token straight into
+  `RunStatus`, and the server sends `FINISHED` while `RunStatus` is lowercase — so
+  `result.status === "finished"` never fired on a successful cloud run, and
+  `throwOnError`, which keys on `"error"`, never fired on a failed one. Silently,
+  on the primary cloud path.
+
+  Server tokens are now mapped case-insensitively onto `RunStatus`, and an
+  unrecognised one fails the run with an actionable message instead of defaulting
+  to `"finished"`. `EXPIRED` settles as `"error"`: a run that expired did not
+  finish. The wire-level `SDKStatusMessage.status` stays uppercase — that is its
+  declared union — but is validated rather than cast.
+
+- 969b36e: `Cron.create()` now accepts zero-padded fields and refuses malformed ranges, matching the scheduler
+  that actually runs the job.
+
+  The validator parsed each field shape differently. Literals and steps carried a `String(n) === field`
+  round-trip; ranges did not. So `"5abc * * * *"` was refused while `"1-5abc * * * *"` was accepted —
+  the same malformed input, two answers, decided by which shape the user happened to write it in. The
+  accepted ones did not become working jobs: they were refused later by croner at fire time, where the
+  failure is a scheduling error nobody is watching rather than a rejected call the caller can fix.
+
+  The round-trip also refused `"07 * * * *"`, because `String(7) !== "07"`. Measured against croner 9,
+  the scheduler this SDK fires jobs with: it accepts `"07 * * * *"` and fires it at :07, accepts
+  `"01-05"` and `"*/05"`, and refuses `"5abc"`, `"1-5abc"`, `"1abc-5"`, `"0x5"`, `"5.9"`, `"+5"` and
+  `"1e1"` as illegal characters. Validating stricter than the engine rejects schedules that would have
+  run correctly; validating looser only defers the failure. Both directions were wrong, in different
+  field shapes, for the same reason.
+
+  One digits-only predicate now decides every shape, reproducing croner's answer on each case above.
+  Zero-padded expressions that were previously rejected are accepted; malformed ranges that were
+  previously accepted are rejected at `Cron.create()` with `ConfigurationError` / `invalid_cron`, which
+  is where the caller can still do something about it.
+
+  Also removes a defensive branch in the same validator that no caller could reach: its only caller ran
+  with exactly five fields against a five-entry table, so the "field index out of range" guard stayed at
+  zero executions through 37 tests written specifically to enter it.
+
+- ba8ebeb: Remove four unused internal exports surfaced once the dead-code gate stopped
+  skipping `src/internal/` — `isSqliteVecLoaded`, `listNotes` (with its `NoteFile`
+  type), `MemoryFileEntry`, and the derived `SpanName` union. None had a caller;
+  all four lived behind `@internal`, so no public export changes.
+
+  Two docblocks corrected in the process. `session-loader` claimed to return
+  `MemoryFileEntry`-shaped records against a two-field type where the interface had
+  four, with the path field named differently. `span-names` described the removed
+  union as the mechanism preventing span-name drift; the `as const` map is what
+  does that, and emitters read keys off it.
+
+  The HITL approval middleware is now documented as not wired — it is constructed
+  nowhere outside its own test file — with the timeout-versus-denial semantics
+  pinned by characterization tests. Behaviour unchanged.
+
+- d610c2a: Device login now reports a non-JSON response as a typed error instead of a raw `SyntaxError`.
+
+  Every failure in the OAuth device flows is supposed to reach the caller as an `AuthCallbackError`
+  carrying a code the CLI can branch on. Three of the four entry points broke that contract: they
+  parsed the response with `res.json()`, so an endpoint answering with HTML — a captive portal, a
+  corporate proxy's sign-in page, a load balancer's error page — rejected with a `SyntaxError` that no
+  `catch` in the module handled. It escaped untyped past callers prepared only for `AuthCallbackError`.
+
+  Affected: `requestDeviceCode`, `requestOpenAIUsercode`, and the two-step poll inside
+  `openaiDeviceLogin`. The RFC 8628 poll loop was already safe and is unchanged.
+
+  The message now quotes the body (truncated), because "not JSON" and "not JSON, and it looks like a
+  proxy login page" are different diagnoses for whoever is holding the terminal — and sending someone
+  to debug the provider when the fault is their own network is the expensive kind of wrong.
+
+- e3f2a82: Public-API documentation reviewed file by file, and corrected wherever it disagreed
+  with the code. The docblocks ship in the `.d.ts`, so these read as behaviour changes
+  in an editor even though no behaviour changed.
+
+  The corrections that change what a caller would do:
+
+  - **`sdk-cache` documented its own premise backwards.** The header example labelled a
+    semantic hit as if it avoided the provider call. `asPlugin()` returns the cached
+    answer as `recalledContext`, which the agent loop injects as a `<memory-context>`
+    block _before_ the prompt — the request still goes to the provider. The two modes
+    are now labelled separately, with a table saying which one short-circuits and which
+    one seeds.
+  - **`sdk-handoff`'s five error classes said "throw".** Under the plugin wiring the
+    handler never throws; every failure becomes a tool result `{"ok":false,…}` handed
+    back to the model. Each class now says where it is actually observable. The header
+    also told readers to `import { Handoff } from "@theokit/sdk"`, from which it was
+    extracted.
+  - **`sdk-budget`'s `charge()` claimed idempotency across concurrent calls.** The mutex
+    serialises, it does not deduplicate: two identical calls record twice. Related, and
+    newly documented: with `maxUsd` set, a model missing from the pricing table denies
+    every request rather than passing it — and the table matches by exact string, so
+    `"openai/gpt-4o"` does not match `"gpt-4o"`.
+  - **The three `memory-*` adapters advertised an env-var fallback they do not read**,
+    and their peer dependencies are required rather than optional. Their behavioural
+    differences are now stated where they break the "interchangeable adapter"
+    assumption — honcho ignores `k` and always throws on `delete`; mem0 recalls across
+    sessions by design; supermemory ignores `sessionId` entirely.
+  - **`sdk-memory`'s `truncated` flag was documented as its own inverse**, and its
+    dreaming sweep claimed a mutex it never takes against the writer it names.
+  - **`sdk-tools`** corrected `run_vitest`'s unreachable `no_vitest` code, `truncation`'s
+    replacement-character claim, and two return shapes missing a live error code.
+  - **`acp`/`cli`** corrected sixteen statements including a named error class that is
+    not the one raised, a handler documented as calling `fork()` that refuses
+    unconditionally, handlers described as pure that mint ids and mutate a store, a
+    config loader credited to Zod in a package that does not import it, and a `--force`
+    scaffold described as atomic that deletes the destination before the rename.
+
+  Undocumented public symbols were documented across every package, with each claim
+  checked against the implementation rather than inferred from the name.
+
+- e368fc1: Every published declaration file now compiles without `skipLibCheck` (#345). The
+  DTS rollup emitted symbols as a re-export from a chunk while omitting them from
+  that chunk's `import`, and dropped type-only imports from external packages —
+  leaving 51 unresolved references across ten of the twelve packages. Nothing broke
+  at runtime, and `tsc` stayed green for anyone with `skipLibCheck` on, but a
+  consumer running type-aware lint saw every type reached through one degrade to
+  `error`.
+
+  The declarations are repaired at build time from the compiler's own diagnostics.
+  No source or API change.
+
+- 3ac2b08: `LiveAgentRegistry` is no longer offered as a constructible value by the published
+  declaration. The source exports it type-only — the runtime singleton is reached
+  via `Agent.registry` — but the DTS rollup emitted `declare class` and re-exported
+  it as a value, while `dist/index.js` never exported it at all. A consumer writing
+  `new LiveAgentRegistry()` typechecked and failed at runtime.
+- 29ebaa1: Three places where a value was reported that nobody had actually selected.
+
+  **An empty `POSTHOG_API_KEY` no longer masks a valid `POSTHOG_PROJECT_API_KEY`.** The adapter read
+  `POSTHOG_API_KEY ?? POSTHOG_PROJECT_API_KEY`, and `??` treats `""` as present. Leaving a variable
+  blank in a `.env` or a CI config is the ordinary way to say "unset", so a blank primary key silently
+  disabled telemetry while a working key sat in the sibling variable — and telemetry going quiet is the
+  one failure that reports itself as nothing at all. Empty and whitespace-only values now fall through.
+  The same trap on `POSTHOG_HOST` is closed with it.
+
+  **The provider inspector reports the model the route resolves to.** `extractModelName` documented
+  itself as surfacing the name from the prefix split and instead returned a hard-coded default, so a
+  route configured as `anthropic:claude-opus-4` with no explicit `route.model` reported
+  `claude-3-7-sonnet`. That field exists to let a caller confirm which model a route resolves to; a
+  wrong answer there is worse than no answer, because it is indistinguishable from a right one. The
+  name is now derived from the model id the route actually carries, and the default-model lookup that
+  produced the literal is deleted rather than left as a decoy.
+
+  **An errored ACP run no longer reaches the client as `end_turn`.** The stop-reason mapping fell
+  through to `end_turn` for any run status it did not recognise, so a failure was reported over the
+  wire as an ordinary completed turn — invisible to every ACP client, which is the swallowed-error
+  shape the project's error-handling rules forbid by name. The protocol's `StopReason` has no error
+  value, so an unmapped status now surfaces through the JSON-RPC error channel the handler already uses
+  for every other failure, with a message naming the status that was not mapped. A dead branch
+  returning `end_turn` twice is removed in the same pass.
+
+- 0bc18f6: Adds negative-case tests over two modules whose typed errors were never entered by any test.
+
+  A sweep of the SDK found 340 `throw new *Error` sites with roughly a third never executed. The error
+  hierarchy exists so callers can branch on a typed code, and the project's own testing rule requires a
+  negative case to assert the specific error and message rather than merely that something threw — so
+  an untested throw site is a contract nobody has checked.
+
+  The hook-source loader is now fully covered on its failure paths: an unreadable hooks file, malformed
+  JSON, a non-object root, a non-array event group, and an invalid command shape. Each asserts the
+  class, the code and a message substring. One pre-existing test that asserted only
+  `.rejects.toThrow(/hook/i)` is upgraded to the same standard — matching a regular expression against
+  a message is not the same as identifying which guard fired.
+
+  Agent-helper resolution gains the same treatment on four of its five uncovered throw sites. The
+  fifth is left untested on purpose and recorded: its condition cannot be false for any caller, because
+  a sibling predicate that feeds it returns a constant. Writing a test for it would require mocking
+  that predicate away in order to reach a line real callers cannot, which is the decoy pattern this
+  project has already removed three times.
+
+- b5b5e77: `humanizeModelName` stripped trailing slashes with a pattern that backtracks. On a model id ending
+  in a long run of slashes, the engine consumed to the end of the string at every start position:
+  25,000 slashes took half a second, 100,000 took **31 seconds** with one CPU pinned — to render a
+  label.
+
+  The trim is now a single linear pass. Behaviour is unchanged: a trailing slash is still stripped,
+  several are still stripped, and an id without one is untouched.
+
+- 14ccb69: A run that exhausts its iteration budget now says so (#338 item 4). It reported
+  `status: "error"` with an empty result and no error detail — byte-for-byte the
+  shape a provider rejection produces, so a caller could not tell "the model ran out
+  of turns" from "the provider refused the request". `RunResult.error` now carries
+  `code: "iteration_limit_reached"`, the limit that was hit, and the name of the
+  option that raises it.
+
+  `LocalOptions` documents two behaviours that were reported as surprises: a `shell`
+  tool is registered on every local agent even when you pass `tools: []`, and a
+  finished run writes a transcript with the full prompt and reply to
+  `.theokit/memory/sessions/` under the workspace. Behaviour unchanged; both now
+  appear where a consumer meets them.
+
+- fbf6721: Remove three unused error classes from the internal iteration-budget module
+  (`IterationBudgetExhaustedError`, `CompressionExhaustedError`,
+  `CompressionIneffectiveError`). They were never thrown: the budget reports
+  exhaustion by return value (`recordCompression()` answers
+  `{ allowed: false, reason }`), which is the shape the agent loop actually reads.
+  They were left over from an earlier exception-based design and advertised a
+  contract the module does not honour. No public export changes — all three lived
+  behind `@internal`.
+- 240ae12: `LocalSandbox` now appends the `...(truncated)` marker when a command's output exceeds
+  `maxOutputBytes`, as `ExecuteResult` has always documented.
+
+  Node caps `execFile`'s buffer AT `maxBuffer`, so for ASCII output the string came back exactly at
+  the cap — never _greater_ — and the length test that gated the marker never fired. Callers were
+  told to branch on a marker that was never written, and every derived helper (`readFile`, `glob`,
+  `grep`, `listDir`) returned a silent prefix. Since a cut command reports `exitCode: 1` like any
+  other failure, the marker is the only thing that distinguishes lost output from a failed command.
+
+  `LinuxSandbox` routes through the same `execute` and is fixed with it.
+
+- da98560: A malformed API key for a named provider is now refused when the agent is created, instead of failing
+  later wherever the key is first used.
+
+  The strict shape check existed and could never run. Deciding whether a key was headed for a provider
+  reused the predicate that decides whether a local runtime is available — and that one always answers
+  yes, because the SDK ships a local provider as a builtin. So the answer was no for every possible
+  input: the strict branch and the provider-prefix check were unreachable, and a key that could not
+  possibly work was accepted at the boundary.
+
+  The two questions are now answered separately. Whether to drive the real local runtime is still
+  decided where it always was. Whether a key reaches a provider that authenticates with it is decided by
+  that provider's own declared authentication type, so a provider that ignores keys entirely — the local
+  ones — accepts any shape, exactly as before.
+
+  Both unknowns stay permissive on purpose: an unrecognised model identifier or an unregistered provider
+  skips strictness. Rejecting a valid key blocks someone outright, while accepting a malformed one for a
+  provider we cannot identify only restores the previous behaviour for that case.
+
+  **This can newly reject keys that previously reached agent creation.** A short placeholder key paired
+  with a real provider prefix is the case to look for — two test suites in this repository were relying
+  on exactly that. Keys for local providers, fixture keys, and any setup with a base-URL override are
+  unaffected.
+
+  Also removes an authentication error that could not be raised: its condition depended on the same
+  always-true predicate, and the check that now does its job is the strict one above.
+
+- 510ee70: The MCP OAuth token store now honours `THEOKIT_HOME`. When the variable is set, the store lives at `$THEOKIT_HOME/mcp-tokens.json`; when it is not, it stays exactly where it was, at `~/.theokit/mcp-tokens.json`.
+
+  `internal/mcp/token-storage.ts` was the only module on the credential path that ignored the variable this SDK isolates state with, and the consequence was not confined to configuration preference. `vitest.setup.ts` isolates every test in `@theokit/sdk` by pointing `THEOKIT_HOME` at a fresh tmpdir; it backs `HOME` up and never sets it. A home-anchored module that ignored `THEOKIT_HOME` therefore resolved to the developer's real `~` while the suite believed it was isolated — and it did resolve there: a default-config run of the suite deposited four refresh-token entries (`test-srv`, `srv-2`, `srv-race`, `srv-roundtrip`) into `~/.theokit/mcp-tokens.json` at mode 0600, written by the OAuth golden tests. Every key in that file was verified to be a test fixture rather than a real credential, and this predates the per-call path resolution shipped earlier — the old module constant resolved to the same real home.
+
+  A suite that is wrong about its own isolation is a false green about the property the rest of its greens rest on, which is why this shipped as a defect rather than as a preference.
+
+  **This is the code catching up to a contract the SDK already published, not a new policy.** `src/project-env.ts:47-49` documents `THEOKIT_HOME` as _"Locates the SDK home — sessions, and the credential store beneath it"_, and lists it as a sovereign key precisely because it governs where credentials live. The public contract already said the token store sits under the variable. This module was the half that disagreed, so what changes here is not the promise — it is the code finally keeping it.
+
+  **The resolver adopted is `transcriptRoot()`'s, not `getTheokitHome(cwd)`'s.** The transcript is the sibling with the matching shape: home-anchored default, `THEOKIT_HOME` override, trimmed and empty-guarded — and its own docstring records that before M94 it ignored the variable, so "whoever set it had their state split in two silently", which is this defect verbatim. M94 ADR-2 already accepted that migration for identically-shaped state. `getTheokitHome(cwd)` falls back to `<cwd>/.theokit` instead, so adopting it would have moved the token file of everyone who does **not** set the variable — and to a _different place per working directory_, making whether you are logged in a property of which folder you launched from. That is a regression for every user, not a migration.
+
+  **The migration this does carry, stated rather than buried.** A user who already holds `~/.theokit/mcp-tokens.json` **and** sets `THEOKIT_HOME` stops seeing those tokens: `getTokens` returns `undefined`, the caller surfaces it as "not logged in", and the OAuth flow re-runs. Nothing is deleted and nothing is overwritten — the old file stays where it is and is found again the moment the variable is unset. No migration step is performed on the user's behalf, because silently relocating a credential file is a worse failure than a re-auth, and a store that moved a token without being asked would be indistinguishable from one that lost it. Users who do not set `THEOKIT_HOME` — the default — see no change at all.
+
+  **Two further consequences for those who do set it**, both on the directory-permission path rather than on path resolution.
+
+  The store no longer re-permissions a `THEOKIT_HOME` it did not create. `ensurePrivateStoreDir` chmods the store directory 0700, and that was written unconditional on purpose: `mkdir`'s mode applies only at creation, so a machine that ran an older build already has a loose `~/.theokit`, and a fix reaching only fresh installs misses the population that has the problem. But that reasoning names its own population — directories _this SDK_ created. Once `THEOKIT_HOME` is honoured, an unconditional chmod also reaches a root the operator chose and shares with sessions, transcripts, personality and credential-pool state, which `paths.ts` documents as a multi-tenant deployment knob and which no other consumer of the variable imposes a mode on. Measured: it silently demoted a 0775 `$THEOKIT_HOME` to 0700. The retro-fix now keeps its population and loses the one it never had; a directory the SDK creates is still born 0700 wherever it points.
+
+  The consequence of not repairing it is that `getTokens` **refuses** — a typed `CredentialError` naming the directory and the `chmod 700` that fixes it — rather than returning `undefined`, when `$THEOKIT_HOME` is group- or world-writable. That is the intended end state, and the two alternatives are worse: silently tightening the operator's root breaks a deployment to protect them from a choice they may have made deliberately, and silently returning the token hands the caller a refresh token that any local user could already have swapped. One asymmetry is left unfixed and is not hidden: the write path has no matching gate, so `setTokens` writes into such a directory and the next `getTokens` refuses it.
+
+  An empty or whitespace-only `THEOKIT_HOME` falls through to the home-anchored default. That guard is load-bearing in a way the sibling `HOME` guard is not: without it, `THEOKIT_HOME=""` resolves the store to a **cwd-relative** `mcp-tokens.json` and `THEOKIT_HOME="   "` to a directory literally named three spaces. Neither falls back to anything — both are new locations invented from an unusable value.
+
+  Pinned in both directions, per `rules/testing.md § 4.2`: one test asserts the store follows the override and leaves the home default untouched, one asserts the read path looks there too (the file is placed by hand rather than through `setTokens`, so a roundtrip cannot pass by having both halves agree on the wrong path), and two assert that an unusable value leaves the home default in place. Verified by mutation, six mutants and six deaths: removing the override branch, relaxing the empty guard, dropping the `.trim()`, hard-coding the old path back into the warning, chmodding unconditionally, and dropping the chmod entirely each kill a test named for the property it breaks. A seventh — guarding the chmod on "we just created it" as well — killed nothing, because a umask only clears bits and 0700 carries none in the group/other range, so `mkdir(0700)` is private under every umask. That clause was deleted rather than pinned with a test written to justify it.
+
+  The keytar-absent fallback warning now names the **resolved** store path instead of the literal `~/.theokit/mcp-tokens.json`. That literal was correct until this change; afterwards it would have sent anyone who sets `THEOKIT_HOME` to look at a file the store no longer writes, and a diagnostic that names the wrong location costs more than one that names none — the reader stops looking once they find it empty.
+
+- 1362583: The MCP OAuth token store now resolves its path when an operation runs — reading the same environment variable `os.homedir()` reads on that platform (`USERPROFILE` on Windows, `HOME` elsewhere), with `os.homedir()` itself as the fallback — instead of binding a path once when the module is first imported.
+
+  `internal/mcp/token-storage.ts` held `const FILE_PATH = join(homedir(), ".theokit", "mcp-tokens.json")` at module scope. A constant at module scope captures ambient global state at import, so the store kept reading and writing under whichever `HOME` was set at that moment and never noticed a later change. It made the module's correctness a property of _when_ it was imported, which is not a property a credential store should have.
+
+  Reading the environment first is not a stylistic preference, and **the variable read is per platform because `os.homedir()` itself is**: on POSIX it prefers `$HOME`, on Windows it reads `USERPROFILE` and never consults `HOME`. Mirroring that split keeps this a binding-time fix rather than a behaviour change. In a normal process on either platform the resolved path is identical to what shipped before.
+
+  They diverge in exactly one place — inside a worker thread, `process.env` is a JS-level copy while `os.homedir()` is a native call reading the real process environment, so a home moved inside a worker is invisible to `homedir()`.
+
+  An empty or whitespace-only value falls through to `homedir()`. Being precise about what that buys, because an earlier draft of this note overstated it: on POSIX it is close to a no-op, since `homedir()` returns the same empty value, and an empty home resolves the store to a CWD-relative `.theokit/mcp-tokens.json` either way. It earns its place on Windows and for a worker whose environment copy was blanked.
+
+  **The Windows OS is untested; the platform branch is not.** Every POSIX-mode test in `mcp-token-store-modes.test.ts` is guarded by `it.skipIf(!POSIX)` so it does not run on Windows, and CI runs ubuntu only, so nothing here exercises real Windows chmod semantics or libuv's `USERPROFILE` lookup. The branch SELECTION does run everywhere: one test spies `process.platform` and asserts the store follows `USERPROFILE` rather than `HOME`. The split itself is reasoned from `os.homedir()`'s documented per-platform source, not from a run on Windows.
+
+  The path is resolved once per operation and passed down, including into the directory-permission step. Resolving it per use would let a read and the write that follows it disagree if `HOME` moved in between, or lock down one directory while the token lands in another.
+
+  **Behaviour change, both directions.** A process that moves `HOME` after importing the SDK now has its tokens follow the new home. On the write path that is the safer reading — the alternative writes credentials to a location the caller no longer considers theirs. On the read path it has a cost worth naming: tokens stored under the previous home are no longer found, so `getTokens` returns `undefined` and the caller sees "not logged in" rather than an error. Following the current home is still the right trade for a credential store, but it converts a stale-write risk into a silent-re-auth one, and both sides are stated here rather than only the favourable one.
+
+  `THEOKIT_HOME` is deliberately not honoured by this store. `transcriptRoot()` does honour it and M94 ADR-2 accepted that migration for the sibling module; doing the same for credentials changes what existing token holders see, which is a product decision rather than a prerequisite for making this module independent of the execution model.
+
+  Found while measuring whether mutation testing is viable on this package: the directory-permission tests passed only because `vitest.config.ts` pins the `forks` pool with `fileParallelism: false`. A tool that controls test execution refused to start against that baseline. The suite now carries a regression test that holds under the default config **and** under `--pool=threads`.
+
+- 2cdadcc: The memory index's `LIKE` fallback — used when FTS5 cannot tokenise a query, which is the normal
+  path for CJK text — escaped `%` and `_` but not the backslash that its own `ESCAPE '\'` clause
+  depends on. A query containing a backslash produced a pattern where the inserted escape was
+  consumed escaping the user's backslash, leaving the next wildcard live:
+
+  ```
+  search for   x\%y
+  old pattern  %x\\%y%     the % is unescaped — matches anything between "x\" and "y"
+  ```
+
+  So a literal search silently became a scan, returning rows the caller never asked for. Escaping the
+  backslash first fixes it, and the rule now lives in one function with the ordering argument written
+  next to it.
+
+  Separately, `ContextManager` called `stat()` on each source file and discarded the result before
+  reading it. `readFile` already fails when the file is gone, so the extra lookup added nothing but a
+  window in which the path could resolve to a different file between the two calls. It is gone.
+
+- 1c94ad3: The "Missing API key" refusal now names the provider credential you actually have
+  (#338 item 5). With `OPENROUTER_API_KEY` exported and `THEOKIT_API_KEY` unset,
+  the old three-word message named neither — while the SDK consults that exact
+  variable a moment later to decide whether to drive a real runtime, so the
+  environment looks configured to whoever set it up. Reported as three hours of
+  diagnosis on the wrong cause.
+
+  Resolution is unchanged: a provider key is still not adopted from the
+  environment, because with two of them exported there is no non-arbitrary answer
+  to which one was meant. The message says where to put it instead. Names the
+  variables, never their values.
+
+- 3ad398d: `ModelSelection.url` names the endpoint a specific model lives at, and it was handed to every
+  provider in a fallback chain. A fallback therefore inherited the primary's host and could never
+  reach its own — so a configured failover silently retried the same dead endpoint instead of moving
+  on.
+
+  Measured against two servers with the primary refusing every request: with `model.url` set, the
+  primary received 6 requests and the fallback 0. Pointing each provider with its own
+  `*_API_BASE_URL` instead gave 3 and 1.
+
+  The per-call URL now reaches only the provider the model id names. Each fallback resolves its own
+  endpoint from its profile and its own `*_API_BASE_URL`, which is what makes a fallback a different
+  destination rather than a retry.
+
+- a8cf443: `ModelSelection.url` names the endpoint a call should reach, and it reached only two of the four
+  transport branches. On `anthropic_messages`, `bedrock` and the Responses API it was silently
+  dropped: a run explicitly aimed at a local host went to the vendor instead, with the caller's key,
+  and nothing said so.
+
+  Measured on the anthropic branch: the local server recorded zero requests and the run failed with
+  `Anthropic API error: auth_failed (HTTP 401)` — a 401 from `api.anthropic.com`, after the caller
+  had named a different host.
+
+  All four branches now honour it, and it outranks the process-wide `*_API_BASE_URL` on each, which
+  is the contract the field's own documentation states. Nothing changes when it is absent.
+
+- aadc9dd: Seventeen more negative-case tests now identify which failure they caught, and a registry test suite
+  stops sleeping to make timestamps differ.
+
+  Most of those assertions turned out to be under-asserting rather than untestable: twelve of them sat
+  on errors that were **already typed**, and simply checked that something threw. They now name the
+  class, the stable code and a message fragment — which means a change that swaps one failure for
+  another is caught, where before any error at all satisfied the test.
+
+  Four remain matched on a message fragment because the underlying error genuinely has no type yet, and
+  one of those is filed separately: a public entry point throwing a plain error gives callers nothing to
+  branch on but a string that changes whenever someone improves the wording.
+
+  Four more were reclassified out of scope after reading the source rather than the name: they raise
+  errors owned by Node, by the schema library, or by a database driver, and pinning a third-party class
+  buys little.
+
+  Separately, the live-agent-registry tests slept thirteen times — some to force last-used timestamps
+  apart so eviction ordering could be asserted, others to let fire-and-forget cleanup finish. Both are
+  now driven by the test clock, a mechanism this same file already used elsewhere and which needed no
+  production change. The file runs in a fraction of the time and no longer depends on how busy the
+  machine is.
+
+- a1cae95: Removes an unreachable `ollama` arm from the provider base-URL resolver. `OLLAMA_HOST` is unaffected
+  and keeps working exactly as before.
+
+  The router's base-URL env switch carried a `case "ollama"` returning `process.env.OLLAMA_HOST`. It
+  never ran. Ollama is served by its own native client, which the transport selector returns before the
+  OpenAI-compatible branch — the only place that switch is consulted — so the arm was unreachable from
+  the first line of the function containing it. Measured two ways: line coverage over the router and
+  provider suites puts the arm at 0 entries while all four siblings are entered, and a probe that
+  replaced its body with a throw was never triggered by any test, plugin profile or alias.
+
+  The one construction that could reach it is a provider profile whose `name` getter returns a
+  different value on successive reads — a profile contradicting itself. Run against the old code, that
+  path shows what the line actually did: it pointed the **OpenAI-compatible** transport at the Ollama
+  host, producing `…/v1/chat/completions` against an Ollama daemon. That is the failure mode ADR D191
+  exists to prevent — models emitting raw tool JSON as plain text. So this is not merely an inert line
+  being tidied away; it is a latent bug being removed on the only path that reached it.
+
+  The line also cost real time as a decoy: it reads exactly like the mechanism implementing
+  `OLLAMA_HOST` and is not. A repair pass mutated it, measured a green suite, and concluded the real
+  override was untested. The real one lives on the native branch and is now pinned by a test asserting
+  that an ollama request reaches `/api/chat` at the configured host, so the routing this removal
+  depends on cannot change unnoticed.
+
+- 8226bc6: Fourteen negative-case tests now identify which guard fired, and a scheduled job keeps test-order
+  independence honest.
+
+  Assertions that only checked "something threw" now assert the error class, its stable code and a
+  message substring — for concurrency validation, retry configuration, path traversal, filename
+  validation and credential loading. Each conversion was verified by mutating the production error's
+  code and watching the corresponding test fail, so the assertions are pinned to the real constants
+  rather than to a copy of them.
+
+  Forty-five remaining sites are deliberately left alone and grouped with reasons: ten raise validation
+  errors owned by a third-party schema library, thirteen surface Node's own errors, and twenty-two are
+  plain untyped errors in our code where there is no class or code to assert yet.
+
+  Separately, the suite runs one file at a time, and a comment in the configuration said that was
+  covering up a leak. Measured: with file-level parallelism restored the suite is fully green, twice
+  over — the two leaks that comment named have since been fixed. Restoring _within-file_ concurrency
+  plus randomised order does still fail, reproducibly, in one file that shares a mutable counter
+  between its cases; that is filed on its own and is not fixed here.
+
+  The default gate is unchanged. A separate weekly job runs the suite in shuffled order so the
+  remaining coupling keeps surfacing instead of staying suppressed by the serial default.
+
+  Also documented for contributors: what makes a wait trustworthy, and why a premise that justifies
+  deleting something needs checking in a way that a premise justifying keeping something does not.
+
+- e699569: **The repository moved to the official `usetheokit` organization.** Every `repository`, `bugs` and `homepage` field now points there, along with the README, `CONTRIBUTING.md`, `SECURITY.md` and the issue templates. Existing clones and any URL already published keep working — GitHub redirects a transferred repository permanently — so this is a correctness fix for the metadata npm renders, not a break.
+
+  **The Apache-2.0 text every package ships was replaced with the official one.** The copy distributed until now had paragraph 4(d) truncated: it read "except as required for describing the origin of the Work and reproducing the content of the NOTICE file", dropping "reasonable and customary use" from the licensed clause. §4(d) governs what a redistributor must do with attribution notices, and the omission narrowed it.
+
+  That matters more than a typo would. The manifests declare the SPDX identifier `Apache-2.0`, which is an assertion that the terms are _the_ Apache-2.0 terms — a licence scanner resolves the identifier and never reads the file. A consumer's compliance review, which does read the file, would find a body that no longer matches the identifier and has no name of its own. Every `LICENSE` in this repository is now byte-identical to the canonical text, with the appendix filled in.
+
+  Nothing else about the terms changed: the licence is the same licence it has always been meant to be, and no package changes what it grants.
+
+- 6950332: A `PermissionRule` argument matcher written as a predicate was invoked with `undefined` when the
+  call supplied no such argument. The string and RegExp forms already treated a missing argument as
+  "does not match"; the predicate branch returned before that guard.
+
+  Both directions were wrong, and the first is a permission escape: an allow rule like
+  `(v) => v !== "prod"` returns `true` for `undefined`, so a call that supplied nothing produced an
+  explicit allow — a matcher written to narrow, widening. A deny rule like `(v) => v.includes("rm")`
+  raised `TypeError` out of the permission gate instead of denying.
+
+  A rule that declares an argument is a rule about that argument. A call that omitted it no longer
+  satisfies the rule, whatever form the matcher takes.
+
+- 9e6828e: When the API key's own prefix or an explicit `providers.routes` entry overrides the provider named
+  in the model id, the SDK now says so once per process, naming both the provider asked for and the
+  one used.
+
+  The precedence itself is unchanged and deliberate: an explicitly-passed key is ground truth about
+  which endpoint will actually be reached, so a `sk-or-` key beats an `openai/...` prefix. What was
+  missing was the sentence. A caller writing `model: { id: "custom/model" }` and receiving
+  `openai API error: auth_failed` had no way to learn their prefix had been overruled, because the
+  error names only the winner.
+
+  Nothing is emitted when the model id carries no prefix, or when the prefix is what was used.
+
+- e3f2a82: Every symbol these packages declare in `exports` now reaches the `.d.ts` they publish.
+
+  Sixty-six declarations across twenty-three published files did not compile, and four entry
+  points silently omitted names their own barrel exports — `@theokit/sdk/internal/security`
+  dropped seven at once. Runtime was never affected; this is types-only. A consumer with
+  `skipLibCheck` on saw nothing, and a consumer running type-aware lint saw every type reached
+  through one of them degrade to `error`.
+
+  The cause was `stripInternal`, which deletes a declaration when the literal `@internal`
+  appears in ANY leading comment range of it. The tag was being used here to mean "outside the
+  semver contract" — `internal/persistence/sqlite-open.ts` said so in those words, on a subpath
+  the manifest publishes and a back-compat test pins. The compiler reads it as "erase this", and
+  the two meanings only diverge in the published artifact. It now says the semver exemption in
+  prose, and the tag is gone from the symbols that are published.
+
+  Two further mechanisms had the same cause and a wider blast radius. A tag in a BARREL header
+  deleted the first `export … from` beneath it; a tag in a MODULE header deleted the following
+  `import`, so `import { z } from "zod"` vanished and every type it bound became
+  `Cannot find name`. Nothing was added to any `exports` map and no `export` line changed — a
+  deleted import was never privacy, only a broken declaration.
+
+  `@theokit/sdk-handoff`'s `./internal` entry left `SDKAgent` and `CustomTool` unbound, from a
+  different defect: the declaration repair only ever looked at `exports["."]`, so it fixed each
+  package's main entry and shipped the rest unrepaired. It now covers every declared subpath, and
+  binds the side-effect import form (`import '@theokit/sdk';`) the rollup emits with the names
+  stripped out.
+
+  Three gates were widened or added so this cannot return silently: the declaration typecheck
+  now covers all 45 published entries rather than 12, a new export-parity check fails when a
+  source barrel exports a name the emit omits, and public-API documentation coverage is gated at
+  100%.
+
+  Two consequences worth naming rather than discovering. `coerceToKnownAgentRunErrorCode` — the
+  boundary helper the 4.x release notes point at as the migration path off the open
+  `AgentRunErrorCode` union — was tagged internal and therefore absent from the published types; it
+  is now exported and documented, which is a small addition to the public surface. And
+  `packages/sdk/typedoc.json` sets `excludeInternal: true`, so the generated API reference gains the
+  ~57 symbols whose tags were removed. That is the intended direction: those symbols are published,
+  and the reference now says so.
+
+- ac08996: `sanitizeIdentifier` now reports every rejection as `ConfigurationError` with code
+  `invalid_identifier`.
+
+  It used to throw two classes and the input chose which: a NUL, C0 control char or DEL produced
+  `PathTraversalError` (code `path_traversal`), everything else produced `invalid_identifier`. A
+  caller branching on the documented code — the shape an HTTP handler uses to answer 400 — rethrew
+  for exactly the input class an attacker controls, so a rejection surfaced as a 500 and the 400/500
+  split became an oracle for which branch was reached. The input was rejected either way; this was
+  never a traversal bypass.
+
+  The message still names the offending byte (`<nul-byte>`, `<control-char-0x1f>`), which is the part
+  the second class existed for. `@theokit/sdk/workflow` validates step ids through this function and
+  inherits the fix.
+
+- 96b28ba: Test-harness repairs: an unmeasurable socket probe now reports as skipped instead of passing, and a
+  fixed sleep is replaced by polling the real value.
+
+  The CLOSE_WAIT socket monitor returned a bare `null` when it could not measure — off Linux, or when
+  `ss` was unavailable — and the caller treated that as a pass. An environment where the probe could
+  not run was therefore indistinguishable from one where the assertion held. It now returns an explicit
+  unavailable result with a reason, the caller reports the case as skipped and names that reason, and
+  the assertion helper refuses an unavailable result rather than quietly doing nothing.
+
+  The same test slept a fixed 500ms to let the operating system finish tearing sockets down. The OS
+  decides that timing, not the test process, so the wait is now a poll against the real count with a
+  deadline. The threshold moves to the value the harness's own docblock documents; the number at the
+  call site had never matched it and never explained itself.
+
+  A shared polling helper replaces three more fixed sleeps in the semaphore tests, where the queue
+  depth is a real signal that can be waited on, and absorbs one hand-rolled poll loop that had already
+  been written by hand elsewhere.
+
+  Every change is verified by mutation rather than by construction: mutating the production semaphore's
+  pending-count turns the converted tests red, and three mutants of the socket monitor each kill the
+  test named for them.
+
+  Honest limit, recorded in the test and tracked separately: the CLOSE_WAIT assertion still cannot
+  detect a real leak. Removing the driver's own socket cleanup entirely leaves the count at zero,
+  because Node completes the FIN handshake on its own and the fixture server closes idle sockets. This
+  change makes the test honest about what it cannot measure; it does not give it detection power.
+
+- f53ee6a: A stream cut mid-flight now delivers the text that already arrived, instead of dropping it.
+
+  Measured on a 200-chunk answer severed just before its terminator: the provider sent 1490 characters
+  and the consumer received none. Truncated streams are routine — proxy timeouts, load-balancer idle
+  limits, mobile links — and every one of them turned a mostly-complete answer into nothing, the more
+  so the longer the answer. The run is still reported as errored; what the caller gets back is the
+  choice of whether a partial answer is usable.
+
+  A body read that fails mid-stream is also routed through the transport-error mapper, so it reads
+  `openai transport failure on /v1/chat/completions: terminated` and carries `code:
+"transport_failure"` instead of undici's bare `terminated` with no code. `RunResult.usage` is
+  documented as absent for such a run: the counts arrive with the terminating frame a severed
+  connection never delivers.
+
+- 1af99fa: `maxDelegationDepth` now bounds the delegation chain it always claimed to.
+
+  The check ran once at tool-construction time against a `parentDepth` argument nothing in the SDK
+  incremented, so under the documented `SubAgent.create(spec)` call it could never fire and a
+  subagent whose tools include another subagent recursed unbounded. Depth is now counted at dispatch
+  and travels with the run, so nesting is bounded without threading a counter by hand.
+
+  A caller that does thread `parentDepth` keeps its existing behaviour — the threaded value offsets
+  the chain depth, and an already-impossible spec is still refused at construction.
+
+- 8f8d3eb: Breaking out of a subscription now closes the underlying connection instead of leaving it open.
+
+  `Theokit.subscribe`'s SSE transport released its stream reader on exit but never cancelled it. Per
+  the Streams specification those are different operations: releasing detaches the reader and leaves
+  the stream — and therefore the `fetch` response and its socket — open until something else cancels it
+  or reads it to completion. So the ordinary consumer shape, breaking out of the loop early, left a
+  connection dangling every time. The WebSocket transport already closed its socket correctly; only the
+  SSE half was affected.
+
+  The reader is now cancelled on early exit, best-effort and skipped on natural completion, where the
+  stream is already finished and cancelling would only risk surfacing a spurious rejection.
+
+  This is the leak a load test in this repo has claimed to detect for some time and never could. That
+  test drove raw sockets with no SDK code in the path at all, and passed whether or not anything
+  cleaned up — measured by deleting its own cleanup call and watching the count stay at zero, twice.
+  Its claim is now withdrawn in the test itself and in that directory's README, and the real property
+  is asserted where the code actually lives: a test that drives the SSE and WebSocket transports
+  through injected mocks, with no network and no operating-system probing, and that fails when either
+  transport stops cleaning up.
+
+  Also included: the plugin manager's seven manifest-validation errors now each have a test asserting
+  the specific error class, code and message, plus cases each guard must accept — a guard tested only
+  on what it rejects cannot be told apart from one that rejects everything.
+
+- 883f473: Seventeen module docblocks that opened with `@theokit/...` are rewritten to open with a sentence.
+
+  A JSDoc block whose first line begins with `@` has no description: TypeScript parses the whole block
+  as that tag's value, so `getDocumentationComment()` returns nothing and editor tooltips, TypeDoc and
+  this repo's doc-coverage instrument all report the symbol as undocumented while the source plainly
+  documents it. The affected files are the `server/auth` and `subscription` surfaces; the same words
+  now appear in an order the tooling can read.
+
+  A new `quality:doc-tag-first` gate fails the build on the shape, so it cannot come back.
+
+- 36e5879: The task-registry tests wait for the state they need instead of sleeping.
+
+  Twelve waits in that suite were fixed sleeps between 10ms and 200ms, each chosen to be "long enough"
+  for the registry's fire-and-forget work to reach a state. The state is observable — the registry can
+  be asked for it — so the sleep was guessing at something the test could simply read. Under load those
+  guesses stop being long enough, which is how a suite acquires flakes that only appear on a busy
+  machine or a slow runner.
+
+  Each now polls the real state with a deadline. A passing run is never slower than the sleep it
+  replaced, because it returns the moment the state arrives; a state that genuinely never arrives fails
+  with the state it was waiting for, rather than an assertion on stale data.
+
+  The shared polling helper was widened to accept an asynchronous condition rather than growing a
+  second near-identical copy for the case where the value has to be awaited.
+
+- b68704b: `JsonFileTaskStore.list()` no longer hides tasks past the 256th file.
+
+  The 256-entry cap was applied to the raw directory listing, before `state`, `kind` and the
+  `submittedBefore` / `submittedAfter` window were considered — so past 256 task files the visible
+  set was an arbitrary, readdir-ordered subset, `submittedBefore` narrowed within that subset instead
+  of paging beyond it, and `evictTerminalOlderThan()` left eligible handles behind however many times
+  it was called.
+
+  The cap is now a bound on concurrent file reads, which is the cost it was meant to control, and
+  results come back newest-first so `submittedBefore` works as a cursor. Eviction sweeps the whole
+  directory: one call now means everything eligible is gone.
+
+- 9ab1f0d: The test suite runs its files in parallel again.
+
+  It had been pinned to one file at a time, with a comment explaining that the serialisation was holding
+  back two leaks: tests mutating the home directory environment variable, and a process-wide registry
+  accumulating entries across tests. Both were fixed elsewhere, and nobody went back to ask whether the
+  constraint still had a reason. It did not — what actually prevents the home-directory race is that
+  each file already gets its own subprocess, which is a separate setting and unchanged here.
+
+  One genuine coupling had to be removed first: a contract test kept a file-level counter that three of
+  its cases each expected a specific value from, which only holds if they run in declaration order. Each
+  case now owns its own identifier, so nothing is shared to race over.
+
+  Within-file concurrency stays capped at one, deliberately. The more aggressive configuration —
+  concurrent cases plus randomised order — remains a separate periodic probe rather than part of the
+  gate, and a test now pins that split so it cannot drift quietly.
+
+- 464c390: Repairs four quality gates that were measuring something other than what they claimed.
+
+  **The Portuguese-language lint no longer scans files git does not track.** It walked the tree with
+  `readdir` and skipped only dot-directories, so it flagged untracked files CI never sees — going red
+  on a developer's machine while CI stayed green — and simultaneously missed `.github/workflows/`,
+  which CI very much does have. A red that CI cannot reproduce is what teaches people to reach for
+  `--no-verify`. The scan is now driven by `git ls-files`, which fixes both halves at once: untracked
+  files disappear by construction, and tracked dot-directories come into scope. Portuguese text the
+  lint could not previously see in the CI workflow is translated as part of the change.
+
+  **The pre-push Biome gate has the same repair.** `biome check .` walked everything on disk;
+  `biome.json`'s `vcs.useIgnoreFile` skips gitignored files but not untracked-but-unignored ones, which
+  is exactly the class that broke the gate. Measured: the tracked-only scan and the walk-everything
+  scan process the same 1686 files on a clean tree, so scoping to tracked files costs no coverage.
+
+  **The pre-commit typecheck no longer typechecks all fifteen packages on every commit.** It is scoped
+  to the packages the diff actually touches, with a guard the item this came from insisted on: the run
+  reports how many packages it selected, and a selection of zero fails loudly instead of exiting 0.
+  That silent-zero case is real — a stale or unfetched ref makes the scoped filter select nothing while
+  turbo reports success — and swapping an expensive honest gate for a cheap silent one would have
+  reproduced the defect being repaired. The full unscoped verdict still runs at pre-push and in CI.
+
+  **Dead Vitest 4 settings are removed rather than migrated.** The config carried a `poolOptions` block
+  that Vitest 4 no longer reads, printing a deprecation warning on every run. Migrating those keys
+  would not have revived the knob they configured: `fileParallelism: false` overwrites the worker count
+  unconditionally, so the `SDK_TEST_MAX_FORKS` environment variable was inert by two independent paths.
+  The block and the variable are deleted, `fileParallelism: false` is kept (test-order safety currently
+  depends on it), and Vitest 4's actual replacement for the isolation setting is declared explicitly.
+
+- c7385d2: Test runs no longer claim every core on the host.
+
+  None of the package configs capped `maxWorkers`, so vitest's default applied: `os.availableParallelism()`,
+  one fork per core, each booting a full test environment. The repo's `test` script is
+  `turbo run test --filter='./packages/*'`, so that default is paid once per package _concurrently_ —
+  nproc forks times turbo's concurrency, on nproc cores. Measured on a 12-thread machine during an
+  unrelated investigation, two vitest pools alone were enough to reach load average 33.89 with the
+  desktop unusable; a full fan-out is several times that.
+
+  `@theokit/sdk` is the interesting case. B-104 recorded on 2026-08-19 that the `poolOptions.forks.*`
+  block was 100% dead in Vitest 4, deleted it, and noted that `fileParallelism: false` was forcing
+  `maxWorkers` to 1 unconditionally, so a fork-count knob could not act. B-059 then flipped
+  `fileParallelism` to `true` on 2026-08-20, which made the knob able to act again — and nothing
+  reintroduced one, so the package silently went back to the uncapped default. That comment has been
+  corrected along with the config; it claimed no knob existed, which is no longer true.
+
+  The cap leaves 4 cores free (`Math.max(2, cpus().length - 4)`), scaling with the runner rather than
+  hard-coding one machine's core count. It costs no wall-clock: measured in `theokit-ui`, the full
+  suite ran 73.96s at 4 workers against 74.36s at 12, so the parallelism above the cap was already
+  noise. Verified as resolved config rather than as file contents — `createVitest` reports
+  `maxWorkers: 8` on a 12-thread host, which is the formula, not the default.
+
+  This changes no published behaviour; it is test tooling only. Refs usetheokit/theokit-ui#51.
+
+- 9f5cc20: A test run can no longer write into the developer's real home directory.
+
+  The shared test setup gave every test an isolated `THEOKIT_HOME` in a fresh temporary directory, and
+  backed up `HOME` alongside it — but never actually set `HOME`. So any module reading `HOME` or
+  `os.homedir()` directly, instead of consulting `THEOKIT_HOME`, resolved to the real home and wrote
+  there. That was not hypothetical: the MCP token store did exactly this, and a real `~/.theokit`
+  credential file was observed accumulating test fixtures and changing timestamps across an afternoon
+  of runs.
+
+  That one module was fixed previously. This closes the gap itself, so the next module that reads the
+  home directory without going through `THEOKIT_HOME` cannot repeat it. Isolation is now enforced by
+  the setup rather than by each module remembering, which is the difference between a property and a
+  convention.
+
+  Verified the way the problem was originally found: the golden MCP suite was run with `HOME` pointed
+  at a throwaway sentinel directory, and nothing was written to it.
+
+  Also included: the dependency-boundary check now cruises the test tree as well as the source tree,
+  and the code-quality gate refuses to report success when it audited no languages at all — previously
+  a gate with nothing enabled returned a pass, which is indistinguishable from a clean run.
+
+- 5fac0f6: Test-suite hygiene: scratch directories are cleaned up, the working directory is no longer mutated
+  process-wide, and the agent registry starts empty in every test.
+
+  Fifty-nine test files created temporary directories and never removed them, so a full run left its
+  debris behind on every machine that executed it. Each now removes its directory when the test
+  finishes, through the same retry-hardened helper the workspace fixture already used — the retries
+  matter because a directory holding a file another handle has open cannot be removed on the first
+  attempt.
+
+  Three tests changed the process's working directory to exercise code that reads it. `process.chdir`
+  is process-wide, so a test doing that mutates the environment of every other test sharing the worker,
+  and the two production paths involved hardcode the current directory with no override to pass. They
+  now replace the reader rather than the process state. A lint test bans any future live `chdir` under
+  the test tree, so this does not return for a fourth time.
+
+  The agent registry is a process-wide map that does not follow the per-test home directory, so entries
+  accumulated across tests and individual files had taken to clearing it by hand — which only works for
+  the files that remember. It is now cleared by the shared setup, unconditionally.
+
+  One test file was removed rather than repaired: it exercised a locally-declared copy of a concurrency
+  helper instead of the real one, so nothing it asserted could fail when production changed. Its one
+  genuinely distinct assertion — that three tasks overlap under a barrier — moved to a test that drives
+  the real function, and was verified by stubbing that function to return nothing and watching four
+  tests die.
+
+- e685ccb: The model catalog was fetched with `res.text()` and written to the cache with no size limit. The
+  default source is trusted, but `THEOKIT_MODELS_URL` lets an operator point the fetch anywhere, and
+  a host serving a multi-gigabyte document would have been materialised in memory and then written
+  to disk.
+
+  The fetch now refuses anything over 32 MiB — roughly 40x the real catalog. The declared
+  `content-length` is checked before the body is read, and the received size is checked after,
+  because a server that omits or misstates the header is exactly the one worth bounding.
+
+  A refused catalog is handled the way every other refresh failure already is: the SDK keeps serving
+  the data it had, and says so.
+
+- 7fd8c7e: Removes two guards no caller could reach, makes `Batch`'s `concurrency` option actually bound
+  `onResult`, and stops three `Agent` APIs from accepting documented options they discarded.
+
+  **`concurrency` now bounds `onResult`.** The semaphore slot was released before the result callback
+  ran, so a batch configured with `concurrency: 2` could have any number of `onResult` callbacks in
+  flight at once. Callers using that option to protect a rate-limited downstream — the reason to set it
+  at all — were not protected. The callback now runs inside the slot it belongs to. A test that had
+  pinned the old behaviour as a contract is inverted, because it documented the bug as a promise.
+
+  **Three `Agent` APIs honour their options or stop accepting them.** `Agent.get` and `Agent.listRuns`
+  took a `cwd` and ignored it, so they answered about the wrong workspace; `Agent.list` took
+  `includeArchived`, `limit` and `cursor` and ignored all three. Each is now wired, with pagination
+  opt-in so the default ordering is unchanged. Two options are removed rather than half-implemented:
+  `prUrl`, which would need the on-disk registry to retain per-repo URLs, and `ListRunsOptions.runtime`,
+  which is redundant once an `agentId` pins the runtime. Silently discarding a documented option is
+  worse than not offering it, because the caller has no way to detect it.
+
+  **One unreachable guard is deleted.** The Vertex client's fetch wrapper branched on `URL` and
+  `Request` input forms its only caller never produces, and on a URL condition that caller always
+  satisfies. It is removed rather than annotated: a defensive branch nothing can reach is a decoy that
+  reads like working machinery, and this project has spent real time on several of them.
+
+- 60010b4: Provider-reported token usage is validated before it reaches `run.usage`, the cost calculation and
+  `@theokit/sdk-budget`.
+
+  A negative count used to be billed as a negative cost and moved a budget gate downward; a numeric
+  string was concatenated rather than summed, producing `"0100050"` where a total was intended. Both
+  now drop with a diagnostic naming the field, and a numeric string parses. Fractional counts are
+  floored rather than discarded.
+
+  Magnitude is deliberately not checked: any ceiling here would be invented, rejecting a legitimate
+  large batch while still passing anything just under it. That is a budget policy, and
+  `@theokit/sdk-budget` is where a cap belongs.
+
+- 25b7eee: `Workflow` is now one type across `@theokit/sdk` and `@theokit/sdk/workflow`.
+
+  The two entries were built by different declaration pipelines and each emitted its own
+  `declare class Workflow`. A class with a private field is compared nominally, so the documented
+  combination — `import { Workflow } from "@theokit/sdk/workflow"` passed to `Cron.create` from the
+  root — was rejected with "types have separate declarations of a private property '\_options'".
+  Nothing in-tree crosses that boundary, because in-tree code imports from `src/`.
+
+  Both entries now resolve to a single declaration, and a new `quality:dts-identity` gate fails the
+  build if any exported class is ever declared twice across published entries again.
+
 ## 4.53.0
 
 ### Minor Changes
@@ -473,7 +1561,7 @@
 
   The profile shipped `originator: "codex_cli_rs"` — the value the official Codex CLI sends for itself.
   Presenting another vendor's client name is a false statement of identity, and it diverged from the
-  prior art this provider was adapted from: Upstream sends its own name against the same endpoint,
+  prior art: third-party clients send their own name against the same endpoint,
   which also shows the route is not restricted to the official client.
 
   A test pinned the old value as the contract, which is how it survived review — correcting the
@@ -1077,7 +2165,7 @@ cwd })` previously compiled and was silently ignored — it hydrated the process
 
 ### Minor Changes
 
-- Data-provider fleet (agent-builder M45): 9 new first-party builtins on a data-only `openAiCompatibleProfile` base — `google` (DIRECT Gemini via the OpenAI-compat endpoint, `GOOGLE_API_KEY`/`GEMINI_API_KEY`; distinct from the `gemini` OpenRouter passthrough), `mistral`, `groq`, `cohere` (via `api.cohere.ai/compatibility/v1`), `deepinfra`, `together` (alias `togetherai`), `xai` (alias `grok`), `perplexity`, `cerebras` — each ~10 lines with source-cited values. Two defects fixed: the chat_completions URL-join no longer doubles version segments (`…/v1/v1/chat/completions` — every version-suffixed catalog baseUrl was broken for streaming) via version-segment detection + a data-only `ProviderProfile.chatCompletionsPath` escape (existing builtins byte-identical, contract-asserted), and Google is finally reachable (the `google-gemini` catalog entry was silently skipped by an alias collision). The `anthropic_messages` transport now consumes `extraHeaders` + the provider `transform` (mirror of the M41 chat_completions wiring) and the anthropic builtin ships `anthropic-beta: interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14` (the sanctioned behavior delta); openrouter gains theokit's own attribution headers (`HTTP-Referer: https://usetheo.dev`, `X-Title: theokit`); cerebras sends `X-Cerebras-3rd-Party-Integration: theokit`. A table-driven contract suite asserts identity + the EXACT wire URL and headers per provider. Values adapted from Upstream (MIT); see NOTICE.
+- Data-provider fleet (agent-builder M45): 9 new first-party builtins on a data-only `openAiCompatibleProfile` base — `google` (DIRECT Gemini via the OpenAI-compat endpoint, `GOOGLE_API_KEY`/`GEMINI_API_KEY`; distinct from the `gemini` OpenRouter passthrough), `mistral`, `groq`, `cohere` (via `api.cohere.ai/compatibility/v1`), `deepinfra`, `together` (alias `togetherai`), `xai` (alias `grok`), `perplexity`, `cerebras` — each ~10 lines with source-cited values. Two defects fixed: the chat_completions URL-join no longer doubles version segments (`…/v1/v1/chat/completions` — every version-suffixed catalog baseUrl was broken for streaming) via version-segment detection + a data-only `ProviderProfile.chatCompletionsPath` escape (existing builtins byte-identical, contract-asserted), and Google is finally reachable (the `google-gemini` catalog entry was silently skipped by an alias collision). The `anthropic_messages` transport now consumes `extraHeaders` + the provider `transform` (mirror of the M41 chat_completions wiring) and the anthropic builtin ships `anthropic-beta: interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14` (the sanctioned behavior delta); openrouter gains theokit's own attribution headers (`HTTP-Referer: https://usetheo.dev`, `X-Title: theokit`); cerebras sends `X-Cerebras-3rd-Party-Integration: theokit`. A table-driven contract suite asserts identity + the EXACT wire URL and headers per provider.
 
 ## 4.13.1
 
@@ -1089,7 +2177,7 @@ cwd })` previously compiled and was silently ignored — it hydrated the process
 
 ### Minor Changes
 
-- Model catalog enrichment (agent-builder M44): the vendored `provider-catalog.json` now carries OPTIONAL per-model data (`models` block — models.dev shape verbatim: `cost{input,output,cache_read,cache_write}` USD-per-1M, `limit{context,input,output}`, `modalities`, `tool_call`/`reasoning`/`structured_output`/`cache_control`, `release_date`, `status`), loaded into an internal model-info index keyed `provider/model` (entry id + aliases). Fully additive: entries without `models` behave byte-identically, `ProviderProfile` is untouched, the 10 builtins + all 43 catalog entries keep resolving, and a malformed model sub-entry drops that model with WARN keeping the provider. DRY reconciliation: `resolveModelCapabilities` is now catalog-backed (the hand-curated EXACT map migrated into the catalog and was deleted — parity-tested over the full old-map snapshot), and `getPricingEntry` gains a step-5 catalog fallback on total LiteLLM miss (provenance `pricingVersion:"catalog-vendored"`; the LiteLLM snapshot keeps absolute precedence — and the new drift advisory caught a real stale rate: `openai/o3` corrected 10/40 → 2/8). New on `@theokit/sdk/models`: `getModelInfo(modelId)` (the enriched per-model view) and `refreshModelCatalog({url?, force?})` — an EXPLICIT opt-in models.dev refresh with a 1h-TTL atomic disk cache under `~/.theokit/cache/models-dev/`, kill-switch `THEOKIT_DISABLE_MODELS_FETCH`, and the vendored catalog as offline fallback; startup and requests never touch the network. Mechanism adapted from Upstream's models.dev consumption (MIT); see NOTICE. Maintenance: `scripts/refresh-catalog.mjs` regenerates the curated vendored subset (30 models, +36KB).
+- Model catalog enrichment (agent-builder M44): the vendored `provider-catalog.json` now carries OPTIONAL per-model data (`models` block — models.dev shape verbatim: `cost{input,output,cache_read,cache_write}` USD-per-1M, `limit{context,input,output}`, `modalities`, `tool_call`/`reasoning`/`structured_output`/`cache_control`, `release_date`, `status`), loaded into an internal model-info index keyed `provider/model` (entry id + aliases). Fully additive: entries without `models` behave byte-identically, `ProviderProfile` is untouched, the 10 builtins + all 43 catalog entries keep resolving, and a malformed model sub-entry drops that model with WARN keeping the provider. DRY reconciliation: `resolveModelCapabilities` is now catalog-backed (the hand-curated EXACT map migrated into the catalog and was deleted — parity-tested over the full old-map snapshot), and `getPricingEntry` gains a step-5 catalog fallback on total LiteLLM miss (provenance `pricingVersion:"catalog-vendored"`; the LiteLLM snapshot keeps absolute precedence — and the new drift advisory caught a real stale rate: `openai/o3` corrected 10/40 → 2/8). New on `@theokit/sdk/models`: `getModelInfo(modelId)` (the enriched per-model view) and `refreshModelCatalog({url?, force?})` — an EXPLICIT opt-in models.dev refresh with a 1h-TTL atomic disk cache under `~/.theokit/cache/models-dev/`, kill-switch `THEOKIT_DISABLE_MODELS_FETCH`, and the vendored catalog as offline fallback; startup and requests never touch the network. Maintenance: `scripts/refresh-catalog.mjs` regenerates the curated vendored subset (30 models, +36KB).
 
 ## 4.12.2
 
@@ -1107,19 +2195,19 @@ cwd })` previously compiled and was silently ignored — it hydrated the process
 
 ### Minor Changes
 
-- Codex provider as a builtin (agent-builder M43): a new first-class `openai-chatgpt` builtin `ProviderProfile` routes `openai-chatgpt/<model>` ids to the ChatGPT "Codex" backend (`https://chatgpt.com/backend-api/codex`, `responses_api`). Its `transform.fetch` resolves the LIVE credential from the ambient store per HTTP request — a freshly-refreshed Bearer + a dynamic `ChatGPT-Account-Id` header — so a mid-turn token expiry refreshes transparently with NO agent rebuild, and a not-logged-in request fails fast (no placeholder on the wire). The ambient store is `~/.theokit/auth.json` with a `THEOKIT_HOME` override so a consumer points it at its own store. Two account_id lifecycle fixes ship alongside: `ensureFreshCredential` now PRESERVES a stored `account_id` across refresh (OpenAI's refresh JWTs carry no top-level `account_id`), and `openaiDeviceLogin` JWT-extracts `chatgpt_account_id` at login. Protocol values + the OAuth config adapted from Upstream (MIT); see NOTICE. Consumers add a provider in one SDK file; the Codex backend needs zero provider logic in the app.
+- Codex provider as a builtin (agent-builder M43): a new first-class `openai-chatgpt` builtin `ProviderProfile` routes `openai-chatgpt/<model>` ids to the ChatGPT "Codex" backend (`https://chatgpt.com/backend-api/codex`, `responses_api`). Its `transform.fetch` resolves the LIVE credential from the ambient store per HTTP request — a freshly-refreshed Bearer + a dynamic `ChatGPT-Account-Id` header — so a mid-turn token expiry refreshes transparently with NO agent rebuild, and a not-logged-in request fails fast (no placeholder on the wire). The ambient store is `~/.theokit/auth.json` with a `THEOKIT_HOME` override so a consumer points it at its own store. Two account_id lifecycle fixes ship alongside: `ensureFreshCredential` now PRESERVES a stored `account_id` across refresh (OpenAI's refresh JWTs carry no top-level `account_id`), and `openaiDeviceLogin` JWT-extracts `chatgpt_account_id` at login. Consumers add a provider in one SDK file; the Codex backend needs zero provider logic in the app.
 
 ## 4.11.1
 
 ### Patch Changes
 
-- Auth subsystem review fixes (agent-builder M42), grounded in Upstream's provider-auth model: (1) an oauth provider that resolves NO credential now fails fast with a `ConfigurationError` (the `MissingCredentialError` analog) instead of putting the `__oauth_lazy_token__` placeholder on the wire — Upstream never sends a placeholder; (2) `resolveCredential` no longer attributes a provider-less or mismatched-provider stored key to the requested provider (fail-closed — prevents cross-vendor key exposure, e.g. an Anthropic key POSTed to api.openai.com). The credential store/engine mechanics are unchanged.
+- Auth subsystem review fixes (agent-builder M42), grounded in the provider-auth model: (1) an oauth provider that resolves NO credential now fails fast with a `ConfigurationError` (the `MissingCredentialError` analog) instead of putting the `__oauth_lazy_token__` placeholder on the wire — a placeholder is never sent; (2) `resolveCredential` no longer attributes a provider-less or mismatched-provider stored key to the requested provider (fail-closed — prevents cross-vendor key exposure, e.g. an Anthropic key POSTed to api.openai.com). The credential store/engine mechanics are unchanged.
 
 ## 4.11.0
 
 ### Minor Changes
 
-- Auth subsystem (agent-builder M42): a new `@theokit/sdk/auth` sub-entry ships a credential store + OAuth engine, promoted DOWN from agent-builder's hardened M37 code, generalized to `provider: string` + a caller-supplied `CredentialStoreConfig` (no hardcoded client IDs). Public surface (`import { … } from "@theokit/sdk/auth"`): `resolveCredential(name)` returns a fresh (transparently-refreshed) `ResolvedCredential`; the credential store (`writeCredential`/`readAuthFile`/`readStoredOAuth`/`authFilePath`/`credentialHome`/`CredentialError`), the OAuth engine (`exchangeCode`/`refreshOAuthTokens`/`ensureFreshCredential`/`persistOAuthTokens`), the device flows (`deviceLogin`/`openaiDeviceLogin`/`requestDeviceCode`/`pollDeviceToken`/`requestOpenAIUsercode`/`parseJwtClaims`/`extractAccountId`), and the contract types (`CredentialStoreConfig`, `ResolvedCredential`, `StoredOAuthCredential`, `OAuthProviderConfig`, `OAuthTokens`, `HttpDeps`, `DeviceOAuthConfig`, `OpenAIDeviceConfig`, …). It sits at a dedicated sub-entry (DTS via tsc) — the same isolation as `@theokit/sdk/messages` / `/subscription` / `/sanitize` — because rollup-plugin-dts cannot bundle the modules into the main barrel. The credential store does an atomic O_EXCL + rename + fsync write at mode 0600 with 0700/0600 mode gates; the OAuth engine implements RFC 8628 device-grant + the OpenAI two-step headless flow + token exchange/refresh with in-flight-refresh coalescing (keyed by store path, rejected promise evicted — single-use refresh tokens are never double-spent) and a no-token-in-error discipline. The router's lazy-sentinel path now covers `oauth_device_code` / `oauth_external` so an oauth provider builds a client whose M41 `transform.fetch(ctx)` owns the fresh bearer at stream time — a mid-turn expiry refreshes without rebuilding the agent, and plain (api-key/env) profiles resolve byte-for-byte unchanged. Device-grant + JWT extraction + OpenAI two-step adapted from Upstream (MIT); see NOTICE.
+- Auth subsystem (agent-builder M42): a new `@theokit/sdk/auth` sub-entry ships a credential store + OAuth engine, promoted DOWN from agent-builder's hardened M37 code, generalized to `provider: string` + a caller-supplied `CredentialStoreConfig` (no hardcoded client IDs). Public surface (`import { … } from "@theokit/sdk/auth"`): `resolveCredential(name)` returns a fresh (transparently-refreshed) `ResolvedCredential`; the credential store (`writeCredential`/`readAuthFile`/`readStoredOAuth`/`authFilePath`/`credentialHome`/`CredentialError`), the OAuth engine (`exchangeCode`/`refreshOAuthTokens`/`ensureFreshCredential`/`persistOAuthTokens`), the device flows (`deviceLogin`/`openaiDeviceLogin`/`requestDeviceCode`/`pollDeviceToken`/`requestOpenAIUsercode`/`parseJwtClaims`/`extractAccountId`), and the contract types (`CredentialStoreConfig`, `ResolvedCredential`, `StoredOAuthCredential`, `OAuthProviderConfig`, `OAuthTokens`, `HttpDeps`, `DeviceOAuthConfig`, `OpenAIDeviceConfig`, …). It sits at a dedicated sub-entry (DTS via tsc) — the same isolation as `@theokit/sdk/messages` / `/subscription` / `/sanitize` — because rollup-plugin-dts cannot bundle the modules into the main barrel. The credential store does an atomic O_EXCL + rename + fsync write at mode 0600 with 0700/0600 mode gates; the OAuth engine implements RFC 8628 device-grant + the OpenAI two-step headless flow + token exchange/refresh with in-flight-refresh coalescing (keyed by store path, rejected promise evicted — single-use refresh tokens are never double-spent) and a no-token-in-error discipline. The router's lazy-sentinel path now covers `oauth_device_code` / `oauth_external` so an oauth provider builds a client whose M41 `transform.fetch(ctx)` owns the fresh bearer at stream time — a mid-turn expiry refreshes without rebuilding the agent, and plain (api-key/env) profiles resolve byte-for-byte unchanged.
 
 ## 4.10.1
 
@@ -1131,7 +2219,7 @@ cwd })` previously compiled and was silently ignored — it hydrated the process
 
 ### Minor Changes
 
-- Provider `transform` seam (agent-builder M41): `ProviderProfile` gains an optional `transform` (dynamic `headers(ctx)` + refresh-aware `fetch(ctx)`), fed through `selectTransport` into the `chat_completions` + `responses_api` transports — a provider can now own its per-request auth/headers. A profile without `transform` takes the static path byte-for-byte. Contract-shape adaptation of Upstream's provider `auth.loader` (MIT).
+- Provider `transform` seam (agent-builder M41): `ProviderProfile` gains an optional `transform` (dynamic `headers(ctx)` + refresh-aware `fetch(ctx)`), fed through `selectTransport` into the `chat_completions` + `responses_api` transports — a provider can now own its per-request auth/headers. A profile without `transform` takes the static path byte-for-byte.
 
 ## 4.9.1
 
@@ -1143,7 +2231,7 @@ cwd })` previously compiled and was silently ignored — it hydrated the process
 
 ### Minor Changes
 
-- `responses_api` transport (agent-builder M40): a `ResponsesApiClient` for the OpenAI Responses API (ChatGPT Codex backend + any responses provider). The `responses_api` apiMode was declared but had no transport (`selectTransport` threw); this ships it — body build + SSE state machine, consuming `baseUrl` + `extraHeaders`. Protocol shape adapted from Upstream's `openai-responses.ts` (MIT), recorded fixtures as golden tests.
+- `responses_api` transport (agent-builder M40): a `ResponsesApiClient` for the OpenAI Responses API (ChatGPT Codex backend + any responses provider). The `responses_api` apiMode was declared but had no transport (`selectTransport` threw); this ships it — body build + SSE state machine, consuming `baseUrl` + `extraHeaders`. Recorded fixtures serve as golden tests.
 
 ## 4.8.0
 

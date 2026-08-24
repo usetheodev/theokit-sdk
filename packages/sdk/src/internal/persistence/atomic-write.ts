@@ -160,9 +160,8 @@ export function atomicWriteTempTarget(name: string): string | undefined {
  * silently is the defect this parameter exists to close; hence the reassertion.
  *
  * It goes on the DESCRIPTOR, before the `rename`, never after: chmod-ing the final
- * final one would leave a window where it carries the `umask`'s mode — the anti-pattern
- * from `upstream/packages/core/src/fs-util.ts:110-114`. The chosen shape (mode as
- * `open` argument) is that of `upstream/network-proxy/src/certs.rs:687,783-791`.
+ * final one would leave a window where it carries the `umask`'s mode — a known anti-pattern.
+ * The chosen shape passes the mode as an `open` argument.
  *
  */
 export async function replaceFileAtomic(

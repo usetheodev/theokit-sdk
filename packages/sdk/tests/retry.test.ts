@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { AuthenticationError, RateLimitError } from "../src/errors.js";
+import { AuthenticationError, ConfigurationError, RateLimitError } from "../src/errors.js";
 import { Retry } from "../src/retry.js";
 
 /**
@@ -110,10 +110,26 @@ describe("Retry", () => {
   });
 
   it("test_withRetry_throws_on_invalid_retries", async () => {
-    await expect(Retry.create(async () => "x", { retries: -1 })).rejects.toThrow();
-    await expect(Retry.create(async () => "x", { retries: 1.5 })).rejects.toThrow();
+    // B-079 — was a bare `.rejects.toThrow()`. `resolveRetryOptions` throws
+    // `ConfigurationError` with `code: "invalid_retry_config"`
+    // (src/internal/runtime/retry/with-retry.ts).
+    await expect(Retry.create(async () => "x", { retries: -1 })).rejects.toThrow(
+      ConfigurationError,
+    );
+    await expect(Retry.create(async () => "x", { retries: -1 })).rejects.toMatchObject({
+      code: "invalid_retry_config",
+    });
+    await expect(Retry.create(async () => "x", { retries: 1.5 })).rejects.toThrow(
+      ConfigurationError,
+    );
+    await expect(Retry.create(async () => "x", { retries: 1.5 })).rejects.toMatchObject({
+      code: "invalid_retry_config",
+    });
     await expect(
       Retry.create(async () => "x", { retries: Number.POSITIVE_INFINITY }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(ConfigurationError);
+    await expect(
+      Retry.create(async () => "x", { retries: Number.POSITIVE_INFINITY }),
+    ).rejects.toMatchObject({ code: "invalid_retry_config" });
   });
 });

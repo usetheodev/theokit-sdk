@@ -1,13 +1,13 @@
 {
   "name": "@theokit/sdk-tools",
-  "version": "0.27.0",
+  "version": "0.27.1",
   "description": "Built-in tools for @theokit/sdk agents — file system, git, subprocess, search-text, vitest runner.",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/usetheodev/theokit-sdk#readme",
-  "bugs": "https://github.com/usetheodev/theokit-sdk/issues",
+  "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
+  "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/usetheodev/theokit-sdk.git",
+    "url": "git+https://github.com/usetheokit/theokit-sdk.git",
     "directory": "packages/sdk-tools"
   },
   "type": "module",
@@ -38,10 +38,10 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node ../../tools/repair-dts-imports.mjs .",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
+    "prepublishOnly": "node ../../tools/check-publish-no-workspace.mjs ."
   },
   "peerDependencies": {
     "@theokit/sdk": ">=4.19.3",
@@ -67,6 +67,7 @@
     "zod": "^4.0.0"
   },
   "publishConfig": {
+    "provenance": true,
     "access": "public"
   }
 }

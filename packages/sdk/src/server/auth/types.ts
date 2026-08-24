@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk/server/auth — orchestrator types (Path C Hybrid per G11)
+ * Orchestrator types (Path C Hybrid per G11) — `@theokit/sdk/server/auth`.
  *
  * Plan: g11-auth-architecture-implementation v1.4 (sha256 4d381020...)
  * Blueprint: g11-auth-architecture-decision v1.1 (SHIPPABLE 97.9)

@@ -18,12 +18,16 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
-
+import { describe, expect, it, onTestFinished } from "vitest";
 import { readJsonlTail } from "../src/internal/persistence/transcript-ops.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 function writeLines(name: string, records: readonly unknown[]): string {
   const dir = mkdtempSync(join(tmpdir(), "tail-marker-"));
+  const __dirCleanup1 = dir;
+  onTestFinished(() => {
+    removeTempDirRobustSync(__dirCleanup1);
+  });
   const path = join(dir, name);
   writeFileSync(path, `${records.map((r) => JSON.stringify(r)).join("\n")}\n`, "utf8");
   return path;

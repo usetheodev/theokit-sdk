@@ -21,6 +21,15 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "jina-embeddings-v2-small-en": 512,
 };
 
+/**
+ * Jina AI embeddings, over the standard OpenAI wire. Highest auto-select
+ * priority in the catalog (35), so it wins over OpenAI when both keys are
+ * present.
+ *
+ * Default `jina-embeddings-v3` at 1024 dimensions; the v2 models are 768 and
+ * 512. Reads `JINA_API_KEY`. No base-URL environment override is declared —
+ * point it elsewhere by passing `baseUrl` to `create`.
+ */
 export const jinaMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "jina",
   defaultModel: DEFAULT_JINA_EMBEDDING_MODEL,

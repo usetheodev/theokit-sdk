@@ -17,10 +17,12 @@
  *   - `{ ok: false, error: 'path_traversal' | 'forbidden_path' | 'timeout' |
  *        'no_vitest' | 'unparseable_output' }`
  *
- * Implementation note: invokes vitest via `npx --no-install vitest`. The
- * `--no-install` avoids the agent triggering a multi-megabyte download
- * mid-turn if vitest is missing — the tool fails cleanly with
- * `no_vitest` instead.
+ * Implementation note: invokes vitest via `npx --no-install vitest`. The `--no-install` avoids the
+ * agent triggering a multi-megabyte download mid-turn when vitest is missing. That case surfaces as
+ * `no_vitest` (#347), recognised from npm's own complaint on stderr — `npx` itself starts, so the
+ * spawn succeeds and only the text distinguishes a missing package from a run that produced no
+ * parseable JSON. A spawn failure (`npx` not on PATH) is `no_vitest` too. If npm ever rewords its
+ * message the case falls back to `unparseable_output`, with the real reason in the payload.
  */
 
 import { spawn } from "node:child_process";
@@ -46,6 +48,11 @@ export interface CreateRunVitestToolOptions {
   maxStdoutBytes?: number;
 }
 
+/**
+ * The fields lifted from vitest's JSON report. All optional, because the object is the report's own
+ * top level passed through unvalidated — a vitest version that renames a field yields `undefined`
+ * here rather than an error, so treat a missing `success` as unknown, never as failed.
+ */
 export interface VitestSummary {
   numTotalTests?: number;
   numPassedTests?: number;
@@ -53,6 +60,19 @@ export interface VitestSummary {
   success?: boolean;
 }
 
+/**
+ * Build the `run_vitest` tool: run the project's suite and return the counts rather than the log.
+ *
+ * A FAILING suite is `{ ok: true, summary }` with `success: false`. `ok` reports only that vitest
+ * ran; an agent that branches on `ok` reads a red suite as a green one. And the summary carries
+ * counts alone — which test failed, and why, is not in the result, so chasing a failure means falling
+ * back to `shell_exec`.
+ *
+ * Runs `npx --no-install vitest run --reporter=json`, so a project without vitest installed fails
+ * instead of downloading it mid-turn. That failure arrives as `no_vitest` (#347), as does `npx` not
+ * being on PATH. The remaining refusals are `path_traversal`, `forbidden_path` and `timeout`
+ * (default 120s, process group killed).
+ */
 export function createRunVitestTool(opts: CreateRunVitestToolOptions): CustomTool {
   const {
     projectRoot,
@@ -94,7 +114,34 @@ function validateVitestScope(path: string | undefined, projectRoot: string): str
   return checkPathScope(path, projectRoot);
 }
 
-function formatVitestResult(result: ProcessResult, timeoutMs: number): string {
+/**
+ * How npm and the shell say "the thing you asked me to run is not installed".
+ *
+ * `npx --no-install` starts, complains on stderr and exits non-zero with nothing on stdout, so
+ * without this the case reached `unparseable_output` — which reads as "vitest ran and printed
+ * something I could not parse" and sends a reader after a reporter or parser problem instead of a
+ * missing dependency (#347).
+ *
+ * Text matching, and honestly so: npm's wording is not a contract and a future version could phrase
+ * it differently. The failure mode of a miss is the OLD behaviour (`unparseable_output` with the
+ * real reason in `stderrPreview`), not a wrong answer, which is why the heuristic is worth having.
+ * The same idiom carries `git_diff`'s `not a git repository` detection.
+ */
+const VITEST_MISSING = [
+  /npx canceled due to missing packages/i,
+  /could not determine executable to run/i,
+  /vitest: (?:command )?not found/i,
+  /command not found: vitest/i,
+];
+
+/**
+ * Map a finished `npx vitest` process to the tool's JSON result.
+ *
+ * Exported for direct testing: the interesting branches are failures that would otherwise need a
+ * network-dependent `npx` run to reproduce, and a test that installs a package to assert an error
+ * is a flaky test.
+ */
+export function formatVitestResult(result: ProcessResult, timeoutMs: number): string {
   if (result.kind === "timeout") {
     return JSON.stringify({ ok: false, error: "timeout", timeoutMs });
   }
@@ -103,6 +150,9 @@ function formatVitestResult(result: ProcessResult, timeoutMs: number): string {
   }
   const summary = extractTrailingJson(result.stdout) as VitestSummary | null;
   if (summary === null) {
+    if (VITEST_MISSING.some((pattern) => pattern.test(result.stderr))) {
+      return JSON.stringify({ ok: false, error: "no_vitest", detail: result.stderr.slice(0, 500) });
+    }
     return JSON.stringify({
       ok: false,
       error: "unparseable_output",

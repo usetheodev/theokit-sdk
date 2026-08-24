@@ -1,26 +1,43 @@
+// Tail of the queue per key. Module-scoped on purpose — see `withCwdMutex` below, which is where
+// the contract is documented. Entries are never removed, so the Map holds one promise per distinct
+// key for the life of the process; keys are expected to come from a bounded set (a file path, a
+// subsystem name), not from unbounded user input.
+const tails = new Map<string, Promise<unknown>>();
+
 /**
- * Per-key serialization. Returns a promise that resolves after the previous
- * `withCwdMutex(key, fn)` call for the same key has completed. Prevents
- * read-modify-write races on `MEMORY.md` within a single process.
+ * Run `fn` after every earlier `withCwdMutex` call for the same `key` has settled, and return
+ * what `fn` returns.
  *
- * Multi-process safety is NOT covered (would need OS file locks — see
- * `withFileLock` in `./file-lock.ts`).
+ * Calls with the same key run strictly in the order they were made — FIFO, never concurrent.
+ * Calls with different keys never wait on each other. The key is an opaque string: two callers
+ * serialize against each other exactly when they pass equal keys, so a shared key IS the
+ * contract, and a mismatched one silently buys no protection at all.
  *
- * **Public utility (SDK 2.0 Phase 2 physical-survey unblock — see ADR-008).**
- * Extracted packages (`@theokit/sdk-budget`, `@theokit/sdk-memory`) consume
- * this via `import { withCwdMutex } from "@theokit/sdk"` to ensure the
- * cross-package mutex Map IS the same process-level registry (single source
- * of truth) — duplicating the impl per package would defeat the purpose
- * (each package would have its own Map; concurrent writes from different
- * packages would race).
+ * A rejection does not poison the queue. The next waiter runs whether the previous `fn` fulfilled
+ * or rejected, and the rejection is delivered only to the caller whose `fn` threw. This function
+ * neither retries nor swallows: the returned promise rejects with whatever `fn` rejected with.
  *
- * Stability guarantee: signature + semantics will not change before sdk-core
- * v3.0. The mutex Map is module-scoped — restart-on-import resets state.
+ * There is no timeout and no cancellation. An `fn` that never settles blocks that key for the
+ * lifetime of the process.
+ *
+ * **Scope — this is an in-process lock only.** State is a module-scoped Map, so it serializes
+ * callers that share one module instance and nothing else. Two processes, two worker threads, or
+ * two copies of the SDK resolved into the same tree do not see each other's queue. When the
+ * resource is a file that other processes can also write, use `withFileLock` from
+ * `./file-lock.ts` instead — it takes an OS-level lock and layers this mutex underneath, so it
+ * gives both guarantees. Reach for `withCwdMutex` directly when the shared state is in memory, or
+ * when the file is one only this process touches.
+ *
+ * Extracted packages (`@theokit/sdk-budget`, `@theokit/sdk-memory`) import this from
+ * `@theokit/sdk` rather than reimplementing it, precisely so the Map is the same one: a per-package
+ * copy would give each package its own queue and let their writes race.
+ *
+ * The Map is module-scoped, so nothing survives a process restart or a fresh module instance, and
+ * its entries are never removed — pass keys from a bounded set rather than from arbitrary input.
+ * Signature and semantics will not change before sdk-core v3.0.
  *
  * @public
  */
-const tails = new Map<string, Promise<unknown>>();
-
 export function withCwdMutex<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const prev = tails.get(key) ?? Promise.resolve();
   const next = prev.then(fn, fn); // run fn whether prev fulfilled or rejected

@@ -4,7 +4,7 @@ Built-in tools for `@theokit/sdk` agents. File system, git, subprocess, search-t
 
 Extracted from `@theokit/sdk@1.7.0` as part of the SDK 2.0 package split.
 
-See the [**Theo Harness Capability Map**](../../wiki/reference/harness-capability-map.md) for every tool + guard primitive (`buildRepoMap`, `isBlockedIp`, `screenedFetch`, `catastrophicShellReason`, ...) with import paths and examples.
+The exported TypeScript types cover every tool + guard primitive (`buildRepoMap`, `isBlockedIp`, `screenedFetch`, `catastrophicShellReason`, ...) with import paths and examples.
 
 ## Install
 
@@ -57,7 +57,7 @@ Sub-shell tools (`subprocess`, `git-diff`, `run-vitest`) use timeout + AbortCont
 
 ## How it fits with `@theokit/sdk`
 
-- **Foundation:** `defineTool` and `CustomTool` types come from `@theokit/sdk`.
+- **Foundation:** `Tool.create` and the `CustomTool` type come from `@theokit/sdk`.
 - **No kernel coupling:** sdk-tools never imports from `@theokit/sdk/internal/runtime` or the agent loop.
 - **Path-guard inline:** the small `isForbiddenPath` helper is inlined here (rather than importing from `@theokit/sdk/internal/security`) so sdk-tools is self-contained for the security-critical check.
 
@@ -76,6 +76,19 @@ import { createReadFileTool } from "@theokit/sdk-tools";
 ```
 
 See the monorepo `CHANGELOG.md` for the 1.x → 2.0 package-split migration notes.
+
+## API reference
+
+Every symbol this package exports, with the exact specifier to import it from, is in the generated
+capability map that ships inside `@theokit/sdk`:
+
+```
+node_modules/@theokit/sdk/docs/harness-capability-map.md   # symbol -> import specifier
+node_modules/@theokit/sdk/docs/error-codes.md              # every `code` an error can carry
+```
+
+Both are generated from the built type declarations, so they describe the version you installed
+rather than the version someone wrote a page about.
 
 ## License
 

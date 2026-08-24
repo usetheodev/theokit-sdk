@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk — Subscription type contract (G8 v1.7.0).
+ * Subscription type contract (G8 v1.7.0) — `@theokit/sdk`.
  *
  * Per ADRs D423 (resume token opaque), D424 (transport selection),
  * D426 (defineSubscription DSL shape).
@@ -174,7 +174,9 @@ export interface SubscriptionDescriptor<TInput = unknown, TOutput = unknown> {
  * Minimal structural Zod type used to avoid hard peer-dep import.
  * Mirrors the surface used by other SDK modules (e.g., `define-tool.ts`).
  *
- * @internal
+ * Emitted rather than erased: it appears in the signature of `defineSubscription`, which
+ * `@theokit/sdk/subscription` publishes, so a consumer's type-aware lint has to be able to
+ * resolve it.
  */
 export interface ZodLike<T> {
   safeParse(value: unknown): { success: true; data: T } | { success: false; error: unknown };

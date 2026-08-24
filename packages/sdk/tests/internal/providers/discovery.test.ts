@@ -41,10 +41,31 @@ afterEach(() => {
 
 describe("discoverProviderPlugins (T3.4)", () => {
   it("idempotent — second call no-op", async () => {
-    await discoverProviderPlugins();
-    await discoverProviderPlugins();
-    // No crash; nothing to assert beyond not throwing.
-    expect(true).toBe(true);
+    // B-064. The body used to end in `expect(true).toBe(true)` with "nothing to assert beyond not
+    // throwing" — but idempotence IS observable. `discoveryState.done` short-circuits at
+    // discovery.ts:92, and an untrusted plugin makes every scan emit a WARN. Counting those warnings
+    // is what makes removing the latch fail this test rather than pass it silently.
+    const dir = join(tmpHome, ".theokit", "plugins", "model-providers", "untrusted-probe");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "index.mjs"), "export default {};");
+    _resetDiscovery();
+
+    let warnings = 0;
+    const write = vi.spyOn(process.stderr, "write").mockImplementation(((chunk: string) => {
+      if (String(chunk).includes("untrusted-probe")) warnings += 1;
+      return true;
+    }) as never);
+
+    try {
+      await discoverProviderPlugins();
+      const afterFirst = warnings;
+      await discoverProviderPlugins();
+
+      expect(afterFirst, "the first call must actually scan the plugins root").toBe(1);
+      expect(warnings, "the second call must short-circuit and not re-scan").toBe(afterFirst);
+    } finally {
+      write.mockRestore();
+    }
   });
 
   it("no directory: no-op", async () => {

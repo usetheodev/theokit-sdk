@@ -43,8 +43,8 @@ export interface ProviderTransformContext {
  * M41 — the one OPTIONAL behavior seam on a provider profile. It lets a provider own its per-request auth:
  * `fetch` is the universal seam (a provider that returns its own fetch fully controls headers + refresh, for
  * every transport that accepts a fetch); `headers` is a convenience merged over `extraHeaders` on transports
- * that carry them (responses_api). This is the CONTRACT-shape adaptation of Upstream's provider `auth.loader`
- * (MIT © 2025 upstream — `packages/core/src/plugin/provider/*.ts`), retargeted to theokit's transport model.
+ * that carry them (responses_api). A provider owns its per-request auth material plus transparent token
+ * refresh, expressed against theokit's transport model.
  * Closes the gap where a `ProviderProfile` could only declare STATIC headers.
  *
  * @public
@@ -61,6 +61,25 @@ export interface ProviderTransform {
   fetch?(ctx: ProviderTransformContext): typeof fetch;
 }
 
+/**
+ * A data-only declaration of an LLM provider: its name, HTTP dialect, auth style, base URL and
+ * fallback models. There is nothing to implement — the router selects the transport from `apiMode` —
+ * so any OpenAI- or Anthropic-compatible endpoint (Groq, Together, Fireworks, a private gateway)
+ * becomes a provider without new code.
+ *
+ * A profile does nothing by itself. Wrap it with `Provider.create(profile)` and pass the resulting
+ * plugin to `Agent.create({ plugins: [...] })`; from there you route to it with the `provider/model`
+ * id prefix or through `providers.routes`.
+ *
+ * `name` is the routing prefix and `aliases` adds alternatives to it. `envVars` lists the environment
+ * variables that may supply the credential, and `authType` says what kind of credential that is.
+ *
+ * Reach for `transform` only when static data genuinely is not enough — a provider that computes
+ * headers per request or refreshes its own token. Leaving it absent keeps the profile on the pure
+ * data path. If you do supply `headers`, note that they are spread AFTER the transport's own
+ * `authorization` and `content-type`, so returning either key replaces the base header rather than
+ * adding to it.
+ */
 export interface ProviderProfile {
   name: string;
   apiMode: ApiMode;

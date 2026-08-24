@@ -57,6 +57,15 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: pnpm
+          # The cache key must change when the package manager does. setup-node keys the
+          # pnpm store on the lockfile alone, so a pnpm 9 -> 10 bump leaves the key
+          # identical and the job restores a store the new pnpm reads as inconsistent —
+          # `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE`, on a package the lockfile does list.
+          # package.json carries `packageManager`, so including it ties the cache to the
+          # pnpm that wrote it.
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            package.json
 
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
@@ -83,22 +92,110 @@ jobs:
       - name: Rebuild native bindings (better-sqlite3 ABI guard)
         run: pnpm rebuild better-sqlite3 || echo "::warning::native rebuild failed — preflight will surface details at test time"
 
-      # M75 — os 10 itLive de tests/linux-sandbox-integration.test.ts provam confinamento REAL de
-      # kernel (blocks writes outside the workspace, blocks network, seccomp blocks ptrace and AF_INET).
+      # M75 — the 10 itLive cases in tests/linux-sandbox-integration.test.ts prove REAL kernel
+      # confinement (blocks writes outside the workspace, blocks network, seccomp blocks ptrace and AF_INET).
       # Without bwrap they SKIP, and a skipped test is reported green: the M75 review proved by mutation
       # that, without this step, swapping buildSeccompFilter for a filter denying NOTHING passed.
       #
       # `apt install` alone is not enough: Ubuntu 24.04 blocks unprivileged user namespaces via
       # AppArmor and the active detection fails. The smoke test at the end FAILS the step if userns stays blocked —
       # without it we would be back to empty green.
+      #
+      # B-119 — this step is why two PRs burned 30 minutes each on 2026-08-19 without running a
+      # single test, and why the sibling repo `theokit` sat on it for 1h51 (no timeout-minutes
+      # there at all). MEASURED, run 32275461285 attempt 1, job `validate (node 22)`:
+      #
+      #   16:23:14  sudo apt-get update starts
+      #   16:23:44  Ign: azure.archive.ubuntu.com noble{,-updates,-backports,-security} InRelease
+      #             — four suites, four retries each, all ignored
+      #   16:23:52  apt falls back to the second entry of /etc/apt/apt-mirrors.txt and does get
+      #             the four InRelease files from archive.ubuntu.com
+      #   16:23:53  …and then nothing at all, for 1689 seconds
+      #   16:52:02  ##[error]The operation was canceled.        ← the 30m job cap, not a test
+      #
+      # Run 32293483907 attempt 1 has the same shape on `validate (node 22.12)`.
+      #
+      # apt cannot catch this itself: Acquire::http::Timeout measures socket INACTIVITY, and the
+      # mirror was not inactive, it was trickling. The successful re-run shows the trickle in its
+      # own log — "Fetched 50.2 kB in 50s (1008 B/s)". Only a wall-clock bound fires on that, so
+      # `timeout` supplies one at every level.
+      #
+      # What this now does, and what it does not do:
+      #   1. `command -v bwrap` short-circuits — free, and correct on the day the runner image
+      #      ships bubblewrap itself.
+      #   2. `apt-get update` leaves the critical path. It pulls ~9 MB of package indexes for four
+      #      suites, and that download is where the job hung. The package is 50.2 kB and, measured
+      #      in the successful re-run, installs zero dependencies ("0 upgraded, 1 newly installed"),
+      #      so the indexes were never needed for anything.
+      #   3. Every network call is bounded twice — by curl's own --max-time and by `timeout` — and
+      #      tried against two independent mirrors before apt is reached at all.
+      #   4. `timeout-minutes: 6` is the backstop for whatever the inner bounds miss. It converts a
+      #      30-minute job-level cancellation carrying no named cause into a step failure that says
+      #      which mirror, and leaves the rest of the job budget intact.
+      #
+      # Honest about scope: this removes the measured hang site and caps the blast radius at ~6
+      # minutes with a named cause. It cannot promise that no Ubuntu mirror is ever slow.
+      #
+      # The script below is byte-identical to the one in the `coverage` job. Keep it that way:
+      # the two jobs must install the same bubblewrap or the coverage floors drift against the
+      # suite they were calibrated on.
       - name: Install bubblewrap + enable unprivileged userns (kernel-confinement tests)
+        timeout-minutes: 6
         run: |
-          sudo apt-get update && sudo apt-get install -y bubblewrap
+          set -euo pipefail
+
+          # Pinned against the SIGNED archive index rather than against a mirror. As of
+          # 2026-08-19, dists/noble-updates/main/binary-amd64/Packages declares for this
+          # filename: Size 50178, SHA256 1b506492bd…62a, and Depends libc6 / libcap2 /
+          # libselinux1 — all three in the Ubuntu 24.04 base system. Both mirrors served
+          # exactly those bytes. dpkg is handed nothing that fails the checksum, so
+          # skipping apt costs no integrity.
+          BWRAP_DEB="bubblewrap_0.9.0-1ubuntu0.1_amd64.deb"
+          BWRAP_SHA256="1b506492bd9c7fd0cdb4f02ac822f1d3e336b0aead5113c1239baf8db5db562a"
+
+          install_bwrap() {
+            if command -v bwrap >/dev/null 2>&1; then
+              echo "→ bwrap already present — nothing to install"
+              return 0
+            fi
+
+            for host in azure.archive.ubuntu.com archive.ubuntu.com; do
+              echo "→ ${host}: fetching ${BWRAP_DEB} (50 kB, no dependencies to resolve)"
+              if timeout 70 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 60 \
+                   -o "/tmp/${BWRAP_DEB}" \
+                   "http://${host}/ubuntu/pool/main/b/bubblewrap/${BWRAP_DEB}" \
+                 && echo "${BWRAP_SHA256}  /tmp/${BWRAP_DEB}" | sha256sum --check --status \
+                 && sudo dpkg --install "/tmp/${BWRAP_DEB}"; then
+                return 0
+              fi
+              echo "::warning::${host} did not serve a verified bubblewrap .deb within 70s"
+            done
+
+            # Last resort, and the reason the pinned version above is safe to hardcode:
+            # Ubuntu drops superseded builds from pool/, so the day 0.9.0-1ubuntu0.2 is
+            # published the URLs 404 and this branch quietly restores the old behaviour —
+            # slower, but never red. Bounded, unlike the version it replaces.
+            echo "::warning::no mirror served the pinned .deb — falling back to apt-get, bounded at 5 minutes"
+            sudo timeout 180 apt-get update && sudo timeout 120 apt-get install -y bubblewrap
+          }
+
+          if ! install_bwrap; then
+            echo "::error::bubblewrap could not be installed — every Ubuntu mirror path was exhausted inside its time budget. This is an infrastructure failure, not a code defect: re-run the job. Measured 2026-08-20: a fallback mirror dribbled ~9 MB of apt indexes at 1008 B/s for 1689s and hit the 30-minute job cap, so this step fetches the pinned .deb directly and bounds every call twice."
+            exit 1
+          fi
+
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK: userns liberado"
 
       - name: Tests
         run: pnpm test
+
+      - name: E2E over a real socket (aimock)
+        # Consumes @theokit/sdk through its `exports` map and drives it against a local
+        # mock provider. Offline by construction: no key, no egress. Runs after Tests so
+        # the build it needs is already present.
+        run: pnpm run test:e2e
 
       - name: Publint
         run: pnpm validate:publint
@@ -114,6 +211,148 @@ jobs:
       # the declared budget at .bundle-budget.json fails CI before merge.
       - name: Bundle budget gate
         run: pnpm check:bundle
+
+  # B-075 — the coverage floors declared in packages/sdk/vitest.config.ts were enforced by
+  # nothing. `validate` does not call `quality:coverage`, and this workflow runs `pnpm test`
+  # rather than `pnpm validate`, so a number the project set for itself could sit below its
+  # own floor without a single gate noticing. It did, on 2026-08-18: branches 74.72% against
+  # a declared 75, reported to nobody. This job is what notices.
+  #
+  # A separate job rather than a step inside `validate`: the coverage report is a second full
+  # pass over the suite (measured 2026-08-19: 233s for `vitest run`, 366s with `--coverage`
+  # on an idle machine), and appending that to both Node legs would push a 6-minute job
+  # toward its 30-minute ceiling. As its own job it runs in parallel and costs a runner
+  # rather than wall-clock on the critical path. One Node version is enough — coverage is a
+  # property of which lines the tests reach, not of the runtime.
+  #
+  # It is also deliberately NOT in the pre-push `validate` chain. Measured on a shared
+  # developer checkout on 2026-08-19, four of nine `pnpm quality:coverage` runs died before
+  # producing a report with
+  #   Error: Something removed the coverage directory ".../packages/sdk/coverage/.tmp"
+  #   Vitest created earlier. Make sure you are not running multiple Vitests with the same
+  #   "coverage.reportsDirectory" at the same time.
+  # The runs that failed were on a machine where other vitest processes came and went, and
+  # the cause was NOT isolated — a genuine race inside the v8 provider and a second vitest
+  # sharing `packages/sdk/coverage` are both consistent with the evidence. A CI runner has
+  # exactly one vitest, which is the condition the message says is required; a developer
+  # machine with `test:watch` open does not. Putting a gate that dies ~40% of the time into
+  # a hook whose only escape is `--no-verify` would teach people to use `--no-verify`.
+  # The failure is fail-closed (exit 1, no report), so it can never pass a low number.
+  # If it recurs here, investigate the duplicate vitest install first: the lockfile carries
+  # vitest@4.1.8 twice (peered to @types/node 22.19.19 and 26.1.2) and
+  # @vitest/coverage-v8 is linked to only one of them.
+  coverage:
+    name: coverage floors
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Enable Corepack + pin pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+          # The cache key must change when the package manager does. setup-node keys the
+          # pnpm store on the lockfile alone, so a pnpm 9 -> 10 bump leaves the key
+          # identical and the job restores a store the new pnpm reads as inconsistent —
+          # `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE`, on a package the lockfile does list.
+          # package.json carries `packageManager`, so including it ties the cache to the
+          # pnpm that wrote it.
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            package.json
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # B-139: this job ran the sdk suite against an UNBUILT tree. The suite includes
+      # `tests/sdk-2-0-npm-publish-readiness.test.ts`, which asserts every extracted package
+      # emits `dist/index.js` — so it failed with "missing dist/index.js — run 'pnpm build'"
+      # for sdk-cache, sdk-tools and the rest, on every run since this job became required.
+      #
+      # The `validate` job has always built before testing. This one was written for parity of
+      # WHAT RUNS (see the bubblewrap comment below, which says exactly that) and the build was
+      # the one step the parity missed. Same command, same reason.
+      - name: Build
+        run: pnpm build
+
+      # Same ABI guard as the validate job: the preflight in vitest setup fails fast under
+      # CI=true instead of rebuilding, so the rebuild happens here or not at all.
+      - name: Rebuild native bindings (better-sqlite3 ABI guard)
+        run: pnpm rebuild better-sqlite3 || echo "::warning::native rebuild failed — preflight will surface details at test time"
+
+      # Same step as the validate job, for parity of WHAT RUNS. Without bubblewrap the ten
+      # kernel-confinement tests skip. The floors were calibrated on a machine without it, so
+      # this step can only move the measured number UP relative to the calibration — which is
+      # the safe direction for a floor, and the reason a first red run here would be a real
+      # signal rather than a mis-calibration.
+      #
+      # B-119 applies here exactly as it does to `validate`, and this job doubled its blast
+      # radius the moment it became a required check: the same dead mirror now fails two jobs
+      # instead of one. Script kept byte-identical to the `validate` copy — the full measurement
+      # and the reasoning are in the comment there.
+      - name: Install bubblewrap + enable unprivileged userns
+        timeout-minutes: 6
+        run: |
+          set -euo pipefail
+
+          # Pinned against the SIGNED archive index rather than against a mirror. As of
+          # 2026-08-19, dists/noble-updates/main/binary-amd64/Packages declares for this
+          # filename: Size 50178, SHA256 1b506492bd…62a, and Depends libc6 / libcap2 /
+          # libselinux1 — all three in the Ubuntu 24.04 base system. Both mirrors served
+          # exactly those bytes. dpkg is handed nothing that fails the checksum, so
+          # skipping apt costs no integrity.
+          BWRAP_DEB="bubblewrap_0.9.0-1ubuntu0.1_amd64.deb"
+          BWRAP_SHA256="1b506492bd9c7fd0cdb4f02ac822f1d3e336b0aead5113c1239baf8db5db562a"
+
+          install_bwrap() {
+            if command -v bwrap >/dev/null 2>&1; then
+              echo "→ bwrap already present — nothing to install"
+              return 0
+            fi
+
+            for host in azure.archive.ubuntu.com archive.ubuntu.com; do
+              echo "→ ${host}: fetching ${BWRAP_DEB} (50 kB, no dependencies to resolve)"
+              if timeout 70 curl --fail --silent --show-error --location \
+                   --connect-timeout 10 --max-time 60 \
+                   -o "/tmp/${BWRAP_DEB}" \
+                   "http://${host}/ubuntu/pool/main/b/bubblewrap/${BWRAP_DEB}" \
+                 && echo "${BWRAP_SHA256}  /tmp/${BWRAP_DEB}" | sha256sum --check --status \
+                 && sudo dpkg --install "/tmp/${BWRAP_DEB}"; then
+                return 0
+              fi
+              echo "::warning::${host} did not serve a verified bubblewrap .deb within 70s"
+            done
+
+            # Last resort, and the reason the pinned version above is safe to hardcode:
+            # Ubuntu drops superseded builds from pool/, so the day 0.9.0-1ubuntu0.2 is
+            # published the URLs 404 and this branch quietly restores the old behaviour —
+            # slower, but never red. Bounded, unlike the version it replaces.
+            echo "::warning::no mirror served the pinned .deb — falling back to apt-get, bounded at 5 minutes"
+            sudo timeout 180 apt-get update && sudo timeout 120 apt-get install -y bubblewrap
+          }
+
+          if ! install_bwrap; then
+            echo "::error::bubblewrap could not be installed — every Ubuntu mirror path was exhausted inside its time budget. This is an infrastructure failure, not a code defect: re-run the job. Measured 2026-08-20: a fallback mirror dribbled ~9 MB of apt indexes at 1008 B/s for 1689s and hit the 30-minute job cap, so this step fetches the pinned .deb directly and bounds every call twice."
+            exit 1
+          fi
+
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK: userns liberado"
+
+      # Fails when any of lines / functions / branches / statements falls below the floor
+      # declared in packages/sdk/vitest.config.ts. vitest prints
+      # "ERROR: Coverage for <metric> (X%) does not meet global threshold (Y%)" and exits 1.
+      - name: Coverage floors (packages/sdk)
+        run: pnpm quality:coverage
 
   # A dependency added in a pull request is reviewed for known vulnerabilities and
   # licence before it can merge, rather than after it is already in the lockfile.
@@ -164,4 +403,4 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          node scripts/check-no-reconsumed-changesets.mjs "origin/${BASE_REF}" "${HEAD_SHA}"
+          node tools/check-no-reconsumed-changesets.mjs "origin/${BASE_REF}" "${HEAD_SHA}"

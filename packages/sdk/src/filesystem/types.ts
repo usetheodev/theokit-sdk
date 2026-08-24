@@ -35,6 +35,18 @@ export interface WriteFileOptions {
   readonly expectedMtime?: number;
 }
 
+/**
+ * Construction options shared by every {@link FilesystemBackend}.
+ *
+ * `basePath` is resolved ONCE, at construction, and defaults to `process.cwd()`. Omitting it does
+ * not mean "no boundary" — it means the boundary is wherever the process happened to be standing,
+ * which is rarely what the caller intended and never what a reviewer can verify. Pass it explicitly.
+ *
+ * The boundary rejects lexical traversal AND symlink escape, raising
+ * {@link FilesystemSecurityError}. It is a boundary, not a sandbox: it constrains paths this
+ * backend resolves, and constrains nothing else the process can do. For untrusted code, run it in a
+ * container or VM.
+ */
 export interface FilesystemConfig {
   /** Boundary root. Every path is resolved within it; escapes are rejected. */
   readonly basePath?: string;

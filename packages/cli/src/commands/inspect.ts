@@ -15,8 +15,14 @@ import pc from "picocolors";
 import { listGatewayAdapters } from "../inspect/gateway.js";
 import { listPlugins } from "../inspect/plugins.js";
 
+/** Flags for {@link runInspect}. */
 export interface InspectOptions {
+  /** Emit the whole result as JSON. The human view hides empty sections; the JSON never does. */
   json?: boolean;
+  /**
+   * One of `all` | `providers` | `adapters` | `gateway` | `plugins`. Omitted behaves like `all`.
+   * `all` is accepted even though `--help` does not list it. Any other value exits 2.
+   */
   filter?: string;
 }
 
@@ -106,6 +112,21 @@ function formatHuman(r: InspectResult): string {
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * Print what this install can see: builtin LLM providers, embedding adapters, gateway packages, and
+ * user plugins.
+ *
+ * Read-only and side-effect free — plugin code is never executed, only its `PLUGIN.md` frontmatter is
+ * parsed, so it is safe in CI. What it reports is INSTALL-dependent, not absolute: gateways are
+ * probed by resolving `@theokit/gateway-*` from THIS package's location, and plugins are read from
+ * `~/.theokit/plugins/` plus `<cwd>/.theokit/plugins/`, so the answer changes with the working
+ * directory and the user.
+ *
+ * The human view omits any section that came back empty, which reads identically to "the section was
+ * filtered out". `--json` always carries all four keys.
+ *
+ * @returns 2 for an unknown `--filter`, 0 otherwise. Never non-zero for "nothing found".
+ */
 export async function runInspect(opts: InspectOptions): Promise<number> {
   // Validate filter.
   const VALID_FILTERS = new Set(["all", "providers", "adapters", "gateway", "plugins"]);

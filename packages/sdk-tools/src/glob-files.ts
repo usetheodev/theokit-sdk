@@ -51,6 +51,22 @@ export interface CreateGlobToolOptions {
   filesystem?: FilesystemProvider;
 }
 
+/**
+ * Build the `glob_files` tool: find files by the shape of their name. Use it when you know what the
+ * file is called, `search_text` when you know what is inside it, `read_file` when you know the path.
+ *
+ * The pattern is matched against paths relative to `cwd`, while the paths returned are relative to
+ * `projectRoot` — `{ pattern: "*.ts", cwd: "src" }` matches `index.ts` and returns `src/index.ts`.
+ * Only `*`, `**` and `?` are wildcards; braces and character classes are escaped to literals, so
+ * `*.{ts,js}` matches a file actually named that. Matching is anchored at both ends, which is why a
+ * bare `*.ts` sees only the top level of the search root and a leading `**` is usually what is meant.
+ *
+ * `node_modules`, `.git`, `dist` and `.theo` are skipped by name at any depth and cannot be
+ * re-enabled. Nothing else is filtered: this returns names, so a `.env` file is listed even though
+ * `read_file` would refuse to open it. An unreadable directory is skipped without a word rather than
+ * failing the call, so a permission problem looks like an empty directory. The only refusal is
+ * `path_traversal` on `cwd`; a pattern matching nothing is `{ ok: true, files: [] }`.
+ */
 export function createGlobTool(opts: CreateGlobToolOptions): CustomTool {
   const { projectRoot, filesystem } = opts;
 

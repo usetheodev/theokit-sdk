@@ -8,7 +8,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalFilesystem } from "@theokit/sdk/filesystem";
+import { FilesystemError, LocalFilesystem } from "@theokit/sdk/filesystem";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createEditFileTool } from "../src/edit-file.js";
@@ -80,8 +80,15 @@ describe("M15 review fix — edit_file backend classifies read failures like the
       filesystem: new LocalFilesystem({ basePath: root }),
     });
     // Reading a directory is not "file missing" — it must not masquerade as not_found.
+    // B-079 — was bare `.rejects.toThrow()`. `LocalFilesystem.readFile`'s
+    // `mapError` (local-filesystem.ts:159) wraps every non-ENOENT failure —
+    // including EISDIR — in the typed `FilesystemError`, code `filesystem_io`,
+    // specifically so a raw Node `SystemError` never leaks (per Rule 8).
     await expect(
       textHandler(tool)({ path: "plaindir", old_string: "a", new_string: "b" }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(FilesystemError);
+    await expect(
+      textHandler(tool)({ path: "plaindir", old_string: "a", new_string: "b" }),
+    ).rejects.toMatchObject({ code: "filesystem_io" });
   });
 });

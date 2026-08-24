@@ -42,7 +42,6 @@ import { LanceMemoryAdapter } from "../../src/internal/memory/lance-memory-adapt
 const LANCE_ENABLED = process.env.LANCE_E2E === "1";
 
 if (!LANCE_ENABLED) {
-  // eslint-disable-next-line no-console
   console.warn(
     "[lance-end-to-end.test] SKIPPED — set LANCE_E2E=1 to enable (requires `pnpm add @lancedb/lancedb`).",
   );

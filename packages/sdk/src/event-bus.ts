@@ -9,6 +9,22 @@ import { diag } from "./internal/diagnostics.js";
 
 type EventHandler<T> = (payload: T) => void;
 
+/**
+ * A typed publish/subscribe bus, parameterised by a map of event name to payload type.
+ *
+ * `publish` is SYNCHRONOUS: handlers run in subscription order before it returns, so a slow handler
+ * blocks the publisher. Each handler is invoked inside its own try/catch, so one that throws cannot
+ * stop the others — the error is written to the diagnostics channel and counted on
+ * `handlerErrorCount`. Assert on that counter in tests; a subscriber failing on every event is
+ * otherwise invisible.
+ *
+ * `subscribe` returns the unsubscribe function, which is the only way to detach a handler — there
+ * is no `off` taking the handler back. Handlers are held in a `Set` per event, so subscribing the
+ * same function reference twice registers it once.
+ *
+ * Payload objects are passed by reference to every handler; nothing here copies them, so a handler
+ * that mutates a payload mutates it for the handlers after it.
+ */
 export class EventBus<Events extends Record<string, unknown>> {
   private handlers = new Map<keyof Events, Set<EventHandler<never>>>();
   // M3 #64 — a swallowed handler error used to vanish without a trace (fail-loud

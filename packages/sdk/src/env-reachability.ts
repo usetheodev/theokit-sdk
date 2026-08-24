@@ -34,7 +34,16 @@ export interface EnvOptOut {
   readonly exitCriterion: string;
 }
 
-/** @public */
+/**
+ * The three lists the audit compares: every key the product declares, the subset an environment
+ * variable can set, and the documented exemptions.
+ *
+ * All three are matched by exact string equality, and `reachable` and `optOuts` are read as subsets
+ * of `keys` — an entry in either that is not in `keys` is what makes an opt-out stale, and an entry
+ * in `reachable` that is not in `keys` is simply ignored.
+ *
+ * @public
+ */
 export interface EnvReachabilityInput {
   /** Every configuration key the product declares. */
   readonly keys: readonly string[];
@@ -44,7 +53,15 @@ export interface EnvReachabilityInput {
   readonly optOuts: readonly EnvOptOut[];
 }
 
-/** @public */
+/**
+ * The two failures, reported separately because they have opposite fixes.
+ *
+ * A key in `unreachable` needs either an environment path or a documented opt-out. A key in
+ * `staleOptOuts` needs its opt-out DELETED — it exempts nothing, either because the key gained an
+ * environment path or because the key no longer exists. Both lists empty is the passing state.
+ *
+ * @public
+ */
 export interface EnvReachabilityAudit {
   /** Keys with neither an environment path nor a documented opt-out. */
   readonly unreachable: readonly string[];
@@ -53,6 +70,15 @@ export interface EnvReachabilityAudit {
 }
 
 /**
+ * Answer both halves of the reachability question in one call.
+ *
+ * A key counts as covered when it is in `reachable` OR carries an opt-out, so an opt-out silences
+ * the gap it was written for and nothing else. Assert on both returned lists: a suite that checks
+ * only `unreachable` still passes while the opt-outs rot, which is the half everyone forgets.
+ *
+ * This performs no I/O and reads no environment. The caller supplies its own key vocabulary,
+ * because a framework cannot enumerate a consumer's configuration keys.
+ *
  * @returns both axes, in the order the caller declared them — a stable order so a failure message
  *   does not change between runs for reasons unrelated to the code.
  * @public

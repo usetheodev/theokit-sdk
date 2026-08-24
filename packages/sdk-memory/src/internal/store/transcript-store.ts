@@ -40,6 +40,18 @@ export interface ActiveMemoryTranscript {
   }>;
 }
 
+/**
+ * Write one recall transcript to
+ * `<memory root>/transcripts/active-memory/<runId>.json`, creating the parent
+ * directories and replacing the file atomically.
+ *
+ * Never rejects. A failure is reported on stderr and swallowed, because losing a
+ * diagnostic file must not fail the agent run that produced it. That also means
+ * a successful resolution is not evidence the file was written.
+ *
+ * The run id is used verbatim in the file name — unlike the session summary
+ * writer, nothing sanitises it here, so pass an id you control.
+ */
 export async function persistActiveMemoryTranscript(
   cwd: string,
   transcript: ActiveMemoryTranscript,

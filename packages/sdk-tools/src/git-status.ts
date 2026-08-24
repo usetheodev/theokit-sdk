@@ -38,8 +38,12 @@ export interface CreateGitStatusToolOptions {
    * `SandboxBackend.execute`; omitted ⇒ the local `git` (unchanged).
    *
    * Symmetry with `createGitDiffTool`, flagged by the M76 review: without it `git_diff` would run
-   * confined and `git_status` not, in the same session — and the asymmetry would be invisible until someone
-   * notice that one of the two escapes the sandbox.
+   * confined and `git_status` not, in the same session — and the asymmetry would be invisible until
+   * someone noticed that one of the two escapes the sandbox.
+   *
+   * When set, the repository question is answered by the BACKEND (from git's own stderr), not by a
+   * probe of the host's filesystem. #346 — the host probe used to run first, so a session whose
+   * checkout lives inside the backend got `not_a_repo` for a repository that was there.
    */
   sandbox?: SandboxProvider;
   /**
@@ -60,6 +64,23 @@ export interface CreateGitStatusToolOptions {
   includeBranch?: boolean;
 }
 
+/**
+ * Build the `git_status` tool. Returns `git status --porcelain=v1` output, which is the reason to use
+ * this rather than a `shell_exec` of plain `git status`: the human format is not stable across git
+ * versions and the porcelain one is.
+ *
+ * The output arrives in a field named `diff`, shared with {@link createGitDiffTool} rather than named
+ * after what it holds.
+ *
+ * A missing `.git` is `{ ok: false, error: "not_a_repo" }` rather than an empty string, so the model
+ * cannot read "not a repository" as "nothing changed". The other refusals are `path_traversal`,
+ * `timeout` and `git_failed`.
+ *
+ * With `sandbox` the command itself runs through the injected backend — but the local `.git` probe
+ * runs BEFORE that branch, so a sandboxed status still requires `<projectRoot>/.git` to exist on the
+ * host. {@link createGitDiffTool} skips its equivalent probe when sandboxed. Configure both tools the
+ * same way in one session: one confined and one not is an asymmetry nothing surfaces.
+ */
 export function createGitStatusTool(opts: CreateGitStatusToolOptions): CustomTool {
   const { projectRoot, timeoutMs = 30_000, maxStdoutBytes = 5 * 1024 * 1024 } = opts;
 
@@ -77,20 +98,27 @@ export function createGitStatusTool(opts: CreateGitStatusToolOptions): CustomToo
         .describe("Optional project-relative path to scope the status report."),
     }),
     handler: async ({ path }, ctx) => {
-      // Outside a repository, `git status` writes to stderr and exits non-zero. Returning an empty string
-      // here would be worse than an error: the model would read it as "no changes" — indistinguishable from
-      // the happy path, and false. `error-handling.md` § 2 requires a typed error.
-      if (!existsSync(join(projectRoot, ".git"))) {
-        return JSON.stringify({ ok: false, error: "not_a_repo" });
-      }
-
+      // Security first, and independent of where the command runs (#346 — the host probe used to
+      // precede it, so a traversal attempt in a confined session was answered `not_a_repo`).
       const scopeCheck = checkPathScope(path, projectRoot);
       if (scopeCheck !== null) return scopeCheck;
 
       const args = buildArgs(path, opts.includeBranch !== false);
 
       if (opts.sandbox !== undefined) {
+        // #346 — the repository question is answered WHERE THE COMMAND RUNS, exactly as
+        // `diffViaSandbox` answers it. The host probe below would refuse a session whose checkout
+        // lives inside the backend, and refuse it with the one error that must never be wrong:
+        // `not_a_repo` exists so the model cannot read "no repository" as "nothing changed", and
+        // saying it about a repository with changes is worse than being unavailable.
         return statusViaSandbox(opts.sandbox, ctx, args, timeoutMs);
+      }
+
+      // Local path only. Outside a repository, `git status` writes to stderr and exits non-zero;
+      // returning an empty string would be worse than an error, since the model would read it as
+      // "no changes" — indistinguishable from the happy path, and false (`error-handling.md` § 2).
+      if (!existsSync(join(projectRoot, ".git"))) {
+        return JSON.stringify({ ok: false, error: "not_a_repo" });
       }
       const result = await runGitProcess(projectRoot, args, timeoutMs, maxStdoutBytes);
       return formatGitResult(result, timeoutMs);

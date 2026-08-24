@@ -85,11 +85,29 @@ describe("T3.4 — sleepWithAbort", () => {
     expect(Date.now() - start).toBeLessThan(500);
   });
 
-  it("resolves immediately when signal is already aborted", async () => {
+  it("resolves without ever arming a timer when the signal is already aborted", async () => {
+    // B-081. This asserted `Date.now() - start < 50`. The 50ms was not a property of the code — the
+    // code returns `Promise.resolve()` on the pre-aborted branch (retry.ts:70) and never touches a
+    // timer, so the honest budget is "zero macrotasks", not "some milliseconds". A 50ms window is
+    // both too generous (a regression that armed a 10ms timer would still pass) and too tight (one
+    // scheduling slice on a saturated host reddens it while the code is correct), and either way
+    // the failure would say nothing about the branch it is named for.
+    //
+    // Racing the sleep against a `setImmediate` marker asserts the real contract: a microtask-queue
+    // resolution always beats the check phase, so the sleep can only lose this race by scheduling
+    // work on the event loop — which is exactly the regression worth catching.
     const controller = new AbortController();
     controller.abort();
-    const start = Date.now();
-    await sleepWithAbort(5_000, controller.signal);
-    expect(Date.now() - start).toBeLessThan(50);
+
+    const winner = await Promise.race([
+      sleepWithAbort(5_000, controller.signal).then(() => "the sleep resolved"),
+      new Promise<string>((resolve) =>
+        setImmediate(() => resolve("a macrotask turn elapsed first")),
+      ),
+    ]);
+
+    expect(winner, "a pre-aborted sleep must resolve on the microtask queue, not via a timer").toBe(
+      "the sleep resolved",
+    );
   });
 });

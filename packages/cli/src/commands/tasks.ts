@@ -7,11 +7,15 @@
  * the CLI marks `cancelRequested: true` in the handle file, and the
  * owning process honors it at the next checkpoint (EC-7).
  *
- * Exit codes (consistent with the other subcommands in this package):
- *   0 — success
- *   2 — permission / I/O failure
+ * Exit codes:
+ *   0 — success, INCLUDING a cancel of an already-terminal task and an empty list
+ *   2 — the store directory could not be opened
  *   3 — invalid task id grammar (D368)
  *   4 — task not found
+ *
+ * These three commands are read-mostly and never start work: they observe a store some other process
+ * owns. An empty listing means "nothing in THIS store dir", which is usually a `THEOKIT_HOME`
+ * mismatch rather than an idle system.
  */
 
 import { join } from "node:path";
@@ -27,20 +31,39 @@ function isValidTaskId(id: string): boolean {
   return TASK_ID_GRAMMAR.test(id);
 }
 
+/** Flags for {@link runTasksList}. Filter values are passed through to the store unvalidated. */
 export interface TasksListOptions {
+  /** `queued` | `running` | `finished` | `error` | `cancelled`. An unknown value simply matches nothing. */
   state?: string;
+  /** `run` | `batch` | `workflow` | `cron` | `custom`. An unknown value simply matches nothing. */
   kind?: string;
+  /** Emit the raw handles as JSON. The table view is lossy — see {@link runTasksList}. */
   json?: boolean;
 }
 
+/** Flags for {@link runTasksInspect}. */
 export interface TasksInspectOptions {
+  /** Emit the raw handle as JSON instead of the labelled field list. */
   json?: boolean;
 }
 
+/** Flags for {@link runTasksCancel}. */
 export interface TasksCancelOptions {
+  /**
+   * Free-text reason, written to the task handle's `cancelReason` when this cancel actually
+   * changes something (#351 — it used to be accepted and read by nothing). A task that is already
+   * terminal is left untouched, reason or not.
+   */
   reason?: string;
 }
 
+/**
+ * Where the task store lives: `$THEOKIT_HOME/tasks` when `THEOKIT_HOME` is set and non-empty,
+ * otherwise `<cwd>/.theokit/tasks`.
+ *
+ * Read fresh on every command, so the CLI must run with the same `THEOKIT_HOME` and — on the
+ * fallback path — the same working directory as the process that owns the tasks.
+ */
 function resolveStoreDir(): string {
   const fromEnv = process.env.THEOKIT_HOME;
   if (typeof fromEnv === "string" && fromEnv.length > 0) return join(fromEnv, "tasks");
@@ -81,6 +104,15 @@ async function listHandles(store: TaskStore, opts: TasksListOptions): Promise<Ta
   return store.list(filter);
 }
 
+/**
+ * List tasks from the local `JsonFileTaskStore`, filtered by `--state` / `--kind`.
+ *
+ * The default table TRUNCATES the id to 24 characters and shows no timestamps — it is for scanning,
+ * not for scripting. Pass `--json` for the untruncated handles, including `result`, `error` and
+ * `cancelRequested`.
+ *
+ * Returns 2 when the store directory cannot be opened, otherwise 0 — an empty result is a success.
+ */
 export async function runTasksList(opts: TasksListOptions): Promise<number> {
   let store: TaskStore;
   try {
@@ -121,6 +153,12 @@ function printHandleDetails(handle: TaskHandle): void {
   }
 }
 
+/**
+ * Print one task handle by id.
+ *
+ * Returns 3 when `id` does not match `^[a-z0-9][a-z0-9_-]*$` (checked before the store is touched),
+ * 2 when the store cannot be opened, 4 when no such task exists, 0 otherwise.
+ */
 export async function runTasksInspect(id: string, opts: TasksInspectOptions): Promise<number> {
   if (!isValidTaskId(id)) {
     process.stderr.write(`tasks: invalid id grammar: ${id}\n`);
@@ -145,7 +183,18 @@ export async function runTasksInspect(id: string, opts: TasksInspectOptions): Pr
   return 0;
 }
 
-export async function runTasksCancel(id: string, _opts: TasksCancelOptions): Promise<number> {
+/**
+ * Ask for a task to stop. Best-effort and asynchronous — this never kills a process.
+ *
+ * Three outcomes, all exit 0: a task already `finished` / `error` / `cancelled` is left untouched; a
+ * `queued` task is transitioned to `cancelled` directly in the store, because no process owns it
+ * yet; a `running` task only gets `cancelRequested: true` written, and stops when its owner reaches
+ * its next checkpoint (EC-7). A `running` task whose owner is dead therefore stays `running` forever
+ * with the flag set — inspect it to see that state.
+ *
+ * Returns 3 for a malformed id, 2 when the store cannot be opened, 4 when the task does not exist.
+ */
+export async function runTasksCancel(id: string, opts: TasksCancelOptions): Promise<number> {
   if (!isValidTaskId(id)) {
     process.stderr.write(`tasks: invalid id grammar: ${id}\n`);
     return 3;
@@ -168,12 +217,21 @@ export async function runTasksCancel(id: string, _opts: TasksCancelOptions): Pro
   if (handle.state === "queued") {
     // Direct transition (no owning process AbortController to flip).
     const cancelledAt = Date.now();
-    await store.update(id, (h) => ({ ...h, state: "cancelled", cancelledAt }));
+    await store.update(id, (h) => ({
+      ...h,
+      state: "cancelled",
+      cancelledAt,
+      ...(opts.reason !== undefined ? { cancelReason: opts.reason } : {}),
+    }));
     process.stdout.write(`task ${id} cancelled (was queued)\n`);
     return 0;
   }
   // Running: set cancelRequested flag; owning process honors at next checkpoint.
-  await store.update(id, (h) => ({ ...h, cancelRequested: true }));
+  await store.update(id, (h) => ({
+    ...h,
+    cancelRequested: true,
+    ...(opts.reason !== undefined ? { cancelReason: opts.reason } : {}),
+  }));
   process.stdout.write(
     `cancel requested for task ${id}; the owning process will honor it at the next checkpoint\n`,
   );

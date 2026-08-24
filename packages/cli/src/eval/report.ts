@@ -6,6 +6,16 @@
 
 import type { EvalRunResult } from "./types.js";
 
+/**
+ * Render an {@link EvalRunResult} as the markdown report `theokit eval` writes.
+ *
+ * Pure — no I/O, deterministic, safe to snapshot in a test.
+ *
+ * The per-row table is LOSSY and says so nowhere in its own output: inputs are truncated to 60 UTF-16
+ * units and outputs to 80, `|` is escaped and newlines are flattened to spaces, and a row that
+ * errored shows `*error*` in place of its output. Read `EvalRunResult` itself when you need the full
+ * text; there is no flag that widens the table.
+ */
 export function formatReport(result: EvalRunResult): string {
   const lines: string[] = [];
   lines.push("# Eval Report");
@@ -40,9 +50,33 @@ export function formatReport(result: EvalRunResult): string {
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * Truncate to at most `max` UTF-16 code units, cutting only on a CHARACTER boundary (#342).
+ *
+ * `String.prototype.slice` counts code units, so a cut that lands between the halves of a
+ * surrogate pair keeps one half. A lone surrogate is not a Unicode scalar value: it has no UTF-8
+ * encoding, so a writer, a diff tool or a markdown renderer downstream either substitutes U+FFFD
+ * or rejects the file. Any dataset with emoji, astral CJK or mathematical alphanumerics hits it.
+ *
+ * The budget stays in code UNITS, deliberately — it exists to keep the markdown table narrow, and
+ * a surrogate pair does occupy two of them. What changes is where the cut may fall: this walks the
+ * string by code point (the default string iterator) and stops before the first one that would not
+ * fit, so the result is at most `max` units and always well-formed.
+ *
+ * NOT grapheme segmentation. `Intl.Segmenter` would additionally keep a ZWJ sequence (a family
+ * emoji, a flag) or a combining mark whole, which renders better — but splitting one produces a
+ * VALID string that merely looks odd, while splitting a surrogate pair produces an invalid one.
+ * Only the second is a correctness defect, and this fixes exactly that.
+ */
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
-  return `${s.slice(0, max - 1)}…`;
+  const budget = max - 1; // one unit reserved for the ellipsis
+  let out = "";
+  for (const ch of s) {
+    if (out.length + ch.length > budget) break;
+    out += ch;
+  }
+  return `${out}…`;
 }
 
 function escapeMd(s: string): string {

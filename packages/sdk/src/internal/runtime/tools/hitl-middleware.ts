@@ -5,6 +5,25 @@
  * yields control to a caller-provided `approve` callback, and
  * resumes or aborts based on the result. Fail-closed on error (EC-4).
  *
+ * NOT WIRED (measured 2026-08-20, B-141). Nothing constructs `HitlMiddleware`
+ * outside `tests/hitl/hitl-middleware.test.ts`: it is absent from the tool
+ * dispatch path, from the public barrel, and from every other file in the
+ * monorepo — a case-insensitive grep for "hitl" across every package source
+ * tree returns this file alone. The behaviour below is correct and covered; it
+ * is simply not reachable by anyone using the SDK. Left in place rather than
+ * deleted because whether the SDK should offer an approval gate is a product
+ * decision, not a cleanup call — but recorded here so a passing test suite is
+ * not read as a shipped feature.
+ *
+ * OPEN QUESTION for whoever wires it: `shouldProceed` answers `boolean`, so a
+ * timeout and an explicit refusal arrive at the caller as the same `false`.
+ * "A human said no" and "nobody was there" are different facts, and a retry
+ * policy cannot act on the difference. `HitlTimeoutError` below was declared to
+ * carry it and is thrown by nothing. Fail-closed on timeout is right and should
+ * survive any change here; whether the REASON survives with it is the part that
+ * is unsettled. Two characterization tests pin the current answer so a change
+ * has to be deliberate — see `tests/hitl/hitl-middleware.test.ts` (B-141).
+ *
  * @internal
  */
 

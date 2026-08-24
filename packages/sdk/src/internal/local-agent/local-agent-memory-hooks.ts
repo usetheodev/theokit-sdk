@@ -50,6 +50,25 @@ export async function applyPreUserSendHook(args: {
 }
 
 /**
+ * Whether `run` called at least one tool, read off its replayed event stream.
+ *
+ * A stream that cannot be replayed (a backend without buffering, a run already consumed) yields
+ * `false`: a consumer treats that as "safe to cache", which is the wrong way to be wrong, so the
+ * limitation is stated on {@link PostAssistantReplyContext.usedTools} rather than hidden. Every
+ * local run buffers (ADR 0006).
+ */
+async function runCalledATool(run: Run): Promise<boolean> {
+  try {
+    for await (const event of run.stream()) {
+      if ((event as { type?: string }).type === "tool_call") return true;
+    }
+  } catch {
+    // Replay is best-effort; a backend that cannot replay must not break the reply path.
+  }
+  return false;
+}
+
+/**
  * Wrap a `Run` so `post_assistant_reply` fires once after `wait()`.
  * Fire-and-forget — errors are surfaced to stderr (EC-O) so the caller
  * never blocks on memory sync. Returns a Proxy preserving all other
@@ -72,6 +91,12 @@ export function wrapRunWithPostReplyHook(args: {
       reply: replyText,
       agentId: args.agentId,
       runId: result.id,
+      // #358 — whether this reply is safely replayable. A consumer (the semantic cache) must not
+      // re-serve an answer produced by a tool call, and had nothing to key on. The run knows:
+      // `stream()` replays its buffered events after `wait()` (ADR 0006), so a `tool_call` among
+      // them is the signal. Computed here, inside a path that only runs when a hook is registered
+      // and is already fire-and-forget, so it never lands on the caller's critical path.
+      usedTools: await runCalledATool(args.run),
       ...(args.options.memoryContext !== undefined
         ? { memoryContext: args.options.memoryContext }
         : {}),

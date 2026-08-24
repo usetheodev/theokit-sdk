@@ -6,8 +6,9 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { createMcpClient } from "../../src/internal/mcp/client.js";
+import { removeTempDirRobustSync } from "../helpers/temp-workspace.js";
 
 // A node MCP mock that replies {tools:[]} to every JSON-RPC request. A per-process
 // counter file makes the FIRST spawn (n=0) exit WITHOUT replying the moment it sees a
@@ -50,6 +51,10 @@ describe("MCP stdio reconnect-after-drop (#59)", () => {
 
   it("reconnects on the next request after a drop (re-spawn + re-initialize)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "mcp-reconnect-"));
+    const __dirCleanup1 = dir;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__dirCleanup1);
+    });
     const counterFile = join(dir, "count");
     writeFileSync(counterFile, "0");
     const client = createMcpClient("reconnecter", {
@@ -72,6 +77,10 @@ describe("MCP stdio reconnect-after-drop (#59)", () => {
 
   it("a timed-out server is reconnectable on the next request (not permanently wedged)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "mcp-timeout-reconnect-"));
+    const __dirCleanup2 = dir;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__dirCleanup2);
+    });
     const counterFile = join(dir, "count");
     writeFileSync(counterFile, "0");
     // Mock: first spawn (n=0) reads but NEVER replies (forces a request timeout);
@@ -134,6 +143,10 @@ describe("MCP stdio reconnect-after-drop (#59)", () => {
     // A transient outage longer than the per-cycle bound must NOT permanently
     // wedge the client — a later request must re-arm and reconnect.
     const dir = mkdtempSync(join(tmpdir(), "mcp-rearm-"));
+    const __dirCleanup3 = dir;
+    onTestFinished(() => {
+      removeTempDirRobustSync(__dirCleanup3);
+    });
     const counterFile = join(dir, "count");
     writeFileSync(counterFile, "0");
     const script = `

@@ -29,7 +29,7 @@ interface MemoryReadResult {
   linesReturned: number;
   /** Total lines in the file (after the read). */
   totalLines: number;
-  /** True when fewer lines were returned than the requested `lines` AND EOF was hit. */
+  /** True when content remains after the returned slice, i.e. `remainingLines > 0`. */
   truncated: boolean;
   /** Lines past the returned slice that remain in the file. */
   remainingLines: number;
@@ -44,8 +44,8 @@ interface MemoryReadResult {
  * - `from` is 1-indexed.
  * - `lines` defaults to 200 (`DEFAULT_MEMORY_READ_LINES`).
  * - Returns up to EOF when the requested slice extends past file end.
- * - Sets `truncated: true` when fewer lines were returned than requested AND
- *   there's still content past the slice. (At EOF, `truncated: false`.)
+ * - Sets `truncated: true` whenever content remains past the returned slice,
+ *   whether or not the slice was shorter than requested. (At EOF, `false`.)
  *
  * Iter 55 (Stage 3 source-move #12): hybrid copy from sdk-core's
  * `internal/memory/storage/reader.ts`. sdk-core retains its copy for
@@ -59,6 +59,15 @@ interface MemoryReadResult {
 
 export const DEFAULT_MEMORY_READ_LINES = 200;
 
+/**
+ * Inputs for {@link readMemoryFileBounded}. `relPath` is resolved against `cwd`,
+ * and this function performs no containment check of its own — a `relPath`
+ * containing `..` escapes. The `memory_get` tool validates containment before
+ * calling in.
+ *
+ * `from` is 1-indexed and clamped to at least 1; `lines` defaults to 200 and is
+ * clamped to at least 1.
+ */
 export interface ReadFileOptions {
   cwd: string;
   relPath: string;
@@ -66,6 +75,20 @@ export interface ReadFileOptions {
   lines?: number;
 }
 
+/**
+ * Read a bounded slice of a text file and report what was left behind.
+ *
+ * A single trailing newline is not counted as a line, so `totalLines` matches
+ * what an editor shows. `from` past the end of the file is not an error: it
+ * returns an empty slice with `linesReturned: 0`.
+ *
+ * `truncated` means content remains after the returned slice — it is exactly
+ * `remainingLines > 0`. It does not mean fewer lines were returned than
+ * requested: a full 200-line slice of a 1000-line file is `truncated: true`,
+ * and a short slice that reached the end is `truncated: false`.
+ *
+ * Rejects with the underlying filesystem error when the file cannot be read.
+ */
 export async function readMemoryFileBounded(opts: ReadFileOptions): Promise<MemoryReadResult> {
   const absolutePath = resolvePath(opts.cwd, opts.relPath);
   const raw = await readFile(absolutePath, "utf8");

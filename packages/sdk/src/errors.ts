@@ -1,3 +1,4 @@
+import { readEnv } from "./internal/env.js";
 import { defaultRetriableForCode } from "./internal/runtime/retry/default-retriable.js";
 import { redactSecrets } from "./internal/security/redact.js";
 import type { RunOperation } from "./types/run.js";
@@ -23,10 +24,14 @@ export type ErrorCode =
   | "unknown";
 
 /**
- * Codes used by {@link AgentRunError} (Production-Readiness #3, ADR D311).
+ * T1.1 — closed literal union for `AgentRunError.code`. The previous
+ * `(string & {})` escape hatch let arbitrary strings slip into the type
+ * surface and defeated exhaustive `switch (code)` discrimination. This is
+ * the canonical closed form. `AgentRunErrorCode` is re-aliased below for
+ * source-level back-compat.
  *
- * Superset of {@link ErrorCode} extended with codes that do NOT originate
- * from a provider HTTP response:
+ * Superset of {@link ErrorCode}, extended with codes that do NOT originate from a
+ * provider HTTP response (Production-Readiness #3, ADR D311):
  *
  * - `quota_exceeded` — billing limit hit (provider 402 or signalled error)
  * - `tool_runtime_error` — custom tool handler threw inside dispatch
@@ -34,19 +39,6 @@ export type ErrorCode =
  * - `invalid_model` — model id rejected by provider (400 "model not found")
  * - `safety_blocked` — provider safety filter blocked req or resp
  * - `provider_unreachable` — DNS/TCP/timeout/5xx at transport boundary
- *
- * The `& {}` tail keeps the literal-union ergonomics (autocomplete) while
- * accepting any string for forward compatibility with constructor calls
- * that pass arbitrary code values (legacy callers).
- *
- * @public
- */
-/**
- * T1.1 — closed literal union for `AgentRunError.code`. The previous
- * `(string & {})` escape hatch let arbitrary strings slip into the type
- * surface and defeated exhaustive `switch (code)` discrimination. This is
- * the canonical closed form. `AgentRunErrorCode` is re-aliased below for
- * source-level back-compat.
  *
  * Adding a new code: append the literal here AND audit every `switch (err.code)`
  * in callers. Type-checker enforces the audit via the `default: assertNever(code)`
@@ -95,10 +87,17 @@ const KNOWN_AGENT_RUN_ERROR_CODES = new Set<string>([
 /**
  * T1.1 boundary helper — coerce an arbitrary string (typically arriving from
  * a downstream `RunErrorDetail.code` or a deserialized cloud response) into a
- * `KnownAgentRunErrorCode`. Unknown strings collapse to `"unknown"` so the
- * closed type contract holds without forcing every caller to switch.
+ * `KnownAgentRunErrorCode`.
  *
- * @internal
+ * A string that is not one of the known codes collapses to `"unknown"`, and so
+ * does `undefined` — the parameter is optional precisely so a caller can forward
+ * an absent `code` without a guard. The closed type contract therefore holds at
+ * the boundary without forcing every caller to switch.
+ *
+ * This is the migration path the 4.x release notes point at for code that used
+ * to rely on `AgentRunErrorCode` being an open string union.
+ *
+ * @public
  */
 export function coerceToKnownAgentRunErrorCode(code: string | undefined): KnownAgentRunErrorCode {
   if (code !== undefined && KNOWN_AGENT_RUN_ERROR_CODES.has(code)) {
@@ -402,7 +401,7 @@ function addOptionalFields(json: Record<string, unknown>, err: AgentRunError): v
 function sanitizeMetadata(meta: ErrorMetadata | undefined): ErrorMetadata | undefined {
   if (meta === undefined) return undefined;
   const { raw, ...rest } = meta;
-  const debugRaw = process.env.THEOKIT_DEBUG_RAW_ERRORS === "1";
+  const debugRaw = readEnv("THEOKIT_DEBUG_RAW_ERRORS") === "1";
   if (debugRaw && raw !== undefined) {
     const redactedRaw =
       typeof raw === "string" ? redactSecrets(raw) : redactSecrets(safeStringify(raw));
@@ -654,12 +653,6 @@ export class BudgetExceededError extends TheokitAgentError {
 }
 
 /**
- * Thrown when `CloudAgent.send({ budget })` is invoked (D388). Cloud
- * budget surface waits for Theo PaaS GA.
- *
- * @public
- */
-/**
  * T1.6 — Thrown when a consumer calls `agent.send()` or any method
  * on an agent that has already been `dispose()`d. Pre-T1.6 this was
  * a generic `new Error("Agent has been disposed")` — consumers
@@ -680,6 +673,20 @@ export class AgentDisposedError extends TheokitAgentError {
   }
 }
 
+/**
+ * Thrown when a budget operation is requested on a `CloudAgent` (D388). The cloud budget surface
+ * waits for Theo PaaS GA, so the operation is not merely failing — it does not exist yet.
+ *
+ * Not retryable: `isRetryable` is `false`, and retrying cannot change the outcome until the
+ * feature ships. Catch it by `instanceof`, or by `code === "budget_op_unsupported"` when the
+ * error has crossed a serialization boundary that dropped the prototype. `operation` carries the
+ * name that was refused and is interpolated into the message.
+ *
+ * The local agent does not raise this — the same call against a local agent runs the budget path
+ * normally.
+ *
+ * @public
+ */
 export class UnsupportedBudgetOperationError extends TheokitAgentError {
   override readonly name: string = "UnsupportedBudgetOperationError";
   readonly operation: string;

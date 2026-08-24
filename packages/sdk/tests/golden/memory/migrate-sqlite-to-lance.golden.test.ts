@@ -1,9 +1,10 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { isLanceAvailable } from "../../../src/internal/memory/lance-index.js";
 import { migrateSqliteToLance } from "../../../src/internal/memory/migrate-sqlite-to-lance.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Migration CLI tests — Phase 5.2 of v1.2 plan (ADR D44).
@@ -19,6 +20,10 @@ describe("migrateSqliteToLance (ADR D44)", () => {
   const logs: string[] = [];
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-migrate-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     logs.length = 0;
   });
   afterEach(() => {

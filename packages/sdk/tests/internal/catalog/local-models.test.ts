@@ -14,6 +14,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ConfigurationError } from "../../../src/errors.js";
 import { listLocalModelsViaOpenAiCompat } from "../../../src/internal/catalog/local-models.js";
 
 const realFetch = global.fetch;
@@ -78,7 +79,19 @@ describe("listLocalModelsViaOpenAiCompat (D184)", () => {
       new Response("Internal Server Error", { status: 500 }),
     );
 
-    await expect(listLocalModelsViaOpenAiCompat("http://localhost:11434")).rejects.toThrow();
+    // B-079 — was bare `.rejects.toThrow()`, despite the test's own name
+    // already naming the class. `mapOllamaHttpError` does not special-case
+    // 500 + "internal server error", so it falls through to the typed
+    // `ConfigurationError` (local-models.ts:61) with code
+    // `local_provider_http_error`. Single call — `mockResolvedValueOnce` only
+    // covers one invocation; a second call would hit the default (unrelated)
+    // mock and assert the wrong path.
+    let rejectedWith: unknown;
+    await listLocalModelsViaOpenAiCompat("http://localhost:11434").catch((err) => {
+      rejectedWith = err;
+    });
+    expect(rejectedWith).toBeInstanceOf(ConfigurationError);
+    expect((rejectedWith as { code?: string }).code).toBe("local_provider_http_error");
   });
 
   it("malformed JSON body → empty array (defensive)", async () => {

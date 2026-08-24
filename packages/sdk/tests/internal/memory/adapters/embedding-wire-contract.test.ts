@@ -47,17 +47,22 @@ function capture(): { sent: Captured[]; fetchImpl: typeof fetch } {
  * a process-wide cache (T4.4), so reusing one string makes the second adapter call a cache hit that
  * issues no HTTP request at all — which reads as "the adapter sent nothing" and would quietly
  * hollow out this whole file.
+ *
+ * B-059: the probe text used to come from a file-level mutable `probeCounter` incremented by every
+ * `it()` body. Under intra-file concurrency (shuffled + parallel), concurrent bodies raced the
+ * increment, so a test could observe a different `probe-N` than the one its own assertion hardcoded
+ * — reproduced 3/3 runs under `vitest.shuffle.config.ts`. The fix removes the shared counter: each
+ * call site now owns its probe text and passes it in explicitly, so there is no mutable state for
+ * concurrent test bodies to race.
  */
-let probeCounter = 0;
-
 async function embedOnce(
   adapter: { create: (o: never) => Promise<{ embed: (t: string[]) => Promise<unknown> }> },
   options: Record<string, unknown>,
+  probeText: string,
 ): Promise<Captured> {
   const { sent, fetchImpl } = capture();
   const runtime = await adapter.create({ ...options, fetch: fetchImpl } as never);
-  probeCounter += 1;
-  await runtime.embed([`probe-${probeCounter}`]);
+  await runtime.embed([probeText]);
   const only = sent[0];
   if (only === undefined) throw new Error("adapter issued no request");
   return only;
@@ -66,22 +71,27 @@ async function embedOnce(
 describe("theokit#159 — embedding adapter wire contracts", () => {
   it("jina matches its documented contract end to end", async () => {
     // The one of the four that genuinely fits the shared OpenAI-compatible runtime.
-    const req = await embedOnce(jinaMemoryEmbeddingProviderAdapter, {
-      apiKey: "jina-key",
-      model: "jina-embeddings-v3",
-    });
+    const req = await embedOnce(
+      jinaMemoryEmbeddingProviderAdapter,
+      { apiKey: "jina-key", model: "jina-embeddings-v3" },
+      "probe-jina-contract",
+    );
 
     expect(req.url).toBe("https://api.jina.ai/v1/embeddings");
     expect(req.headers.authorization).toBe("Bearer jina-key");
-    expect(req.body).toEqual({ model: "jina-embeddings-v3", input: ["probe-1"] });
+    expect(req.body).toEqual({ model: "jina-embeddings-v3", input: ["probe-jina-contract"] });
   });
 
   it("azure-openai authenticates with api-key and keeps the deployment in the path", async () => {
-    const req = await embedOnce(azureOpenAiMemoryEmbeddingProviderAdapter, {
-      apiKey: "azure-key",
-      baseUrl: "https://my-resource.openai.azure.com",
-      model: "text-embedding-3-large",
-    });
+    const req = await embedOnce(
+      azureOpenAiMemoryEmbeddingProviderAdapter,
+      {
+        apiKey: "azure-key",
+        baseUrl: "https://my-resource.openai.azure.com",
+        model: "text-embedding-3-large",
+      },
+      "probe-azure-contract",
+    );
 
     // Fixed by theokit#128: the deployment really is substituted into the path.
     expect(req.url).toBe(
@@ -94,31 +104,33 @@ describe("theokit#159 — embedding adapter wire contracts", () => {
     expect(req.headers.authorization).toBeUndefined();
 
     // The deployment is already in the path, so `model` has no place in the body.
-    expect(req.body).toEqual({ input: ["probe-2"] });
+    expect(req.body).toEqual({ input: ["probe-azure-contract"] });
   });
 
   it("cohere speaks the /v2/embed request shape", async () => {
-    const req = await embedOnce(cohereMemoryEmbeddingProviderAdapter, {
-      apiKey: "cohere-key",
-      model: "embed-english-v3.0",
-    });
+    const req = await embedOnce(
+      cohereMemoryEmbeddingProviderAdapter,
+      { apiKey: "cohere-key", model: "embed-english-v3.0" },
+      "probe-cohere-contract",
+    );
 
     expect(req.url).toBe("https://api.cohere.com/v2/embed");
 
     // theokit#159 — `/v2/embed` names the payload `texts` and requires `input_type`.
     expect(req.body).toEqual({
       model: "embed-english-v3.0",
-      texts: ["probe-3"],
+      texts: ["probe-cohere-contract"],
       input_type: "search_document",
       embedding_types: ["float"],
     });
   });
 
   it("gemini targets the /v1beta/openai compat surface", async () => {
-    const req = await embedOnce(geminiMemoryEmbeddingProviderAdapter, {
-      apiKey: "gemini-key",
-      model: "text-embedding-004",
-    });
+    const req = await embedOnce(
+      geminiMemoryEmbeddingProviderAdapter,
+      { apiKey: "gemini-key", model: "text-embedding-004" },
+      "probe-gemini-contract",
+    );
 
     // theokit#159 — the compat surface lives under `/v1beta/openai/`; `/v1/embeddings` 404'd.
     expect(req.url).toBe("https://generativelanguage.googleapis.com/v1beta/openai/embeddings");
@@ -155,10 +167,11 @@ describe("theokit#159 — embedding adapter wire contracts", () => {
   it("the OpenAI default is unchanged for every provider that does speak it", async () => {
     // The counterproof for the dialect hooks: adding them must not alter the seven providers that
     // were always correct. Defaults are exactly the previous behaviour.
-    const req = await embedOnce(jinaMemoryEmbeddingProviderAdapter, {
-      apiKey: "k",
-      model: "jina-embeddings-v3",
-    });
+    const req = await embedOnce(
+      jinaMemoryEmbeddingProviderAdapter,
+      { apiKey: "k", model: "jina-embeddings-v3" },
+      "probe-jina-default-check",
+    );
 
     expect(Object.keys(req.headers).sort()).toEqual(["authorization", "content-type"]);
     expect(Object.keys(req.body).sort()).toEqual(["input", "model"]);

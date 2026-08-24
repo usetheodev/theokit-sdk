@@ -24,6 +24,6 @@ pnpm dev
 
 ## Next steps
 
-- Add custom tools via `defineTool` (see `@theokit/sdk` docs).
+- Add custom tools with `Tool.create({ name, description, inputSchema, handler })`.
 - Switch to a local Ollama model by setting `AGENT_MODEL=ollama/llama3.2:3b`.
 - Wire to a chat platform via `@theokit/gateway`.

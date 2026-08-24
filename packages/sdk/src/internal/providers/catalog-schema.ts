@@ -3,17 +3,32 @@ import { z } from "zod";
 /**
  * M44 — the per-model catalog sub-schema. Field names mirror models.dev VERBATIM (snake_case) so
  * `scripts/refresh-catalog.mjs` regenerates the vendored data mechanically from `api.json` with zero
- * renaming (ADR D1; Upstream keeps the raw shape on disk and maps at load — `core/src/models-dev.ts`).
+ * renaming (ADR D1).
  * TOLERANT by design: every field optional, unknown keys ignored — models.dev adds fields over time and
  * additive drift must never break the loader (Blueprint §6.4).
  *
  * theokit extensions beyond models.dev: `structured_output` / `cache_control` (both already exist on the
  * SDK's `ModelCapabilities`; models.dev has no such flags).
  *
- * @internal
+ * Semver-exempt: nothing here is declared in `package.json` `exports`. `MODALITIES` is nonetheless
+ * reachable from published declarations through the type graph, so it must be EMITTED.
+ *
+ * NOTE — no internal-visibility tag in this block. `tsconfig.base.json` sets `stripInternal: true`,
+ * and TypeScript scans EVERY leading comment range of the declaration that follows; the tag that
+ * used to sit here deleted the `MODALITIES` declaration below from the emitted `.d.ts`.
  */
 
 export const MODALITIES = ["text", "audio", "image", "video", "pdf"] as const;
+
+/**
+ * One input or output medium a model accepts or produces.
+ *
+ * The union is derived from `MODALITIES`, so it is closed: a models.dev entry whose
+ * `modalities.input` or `modalities.output` array contains a string outside this set fails
+ * `catalogModelSchema.safeParse`, and `patchIndexFromApiJson` drops that single model rather
+ * than the whole payload. Widening the catalog to a new medium means adding it to `MODALITIES`
+ * first — nothing else in the schema enumerates media.
+ */
 export type Modality = (typeof MODALITIES)[number];
 
 const costSchema = z
@@ -60,5 +75,34 @@ export const catalogModelSchema = z
   })
   .loose();
 
+/**
+ * One model entry as it is stored in the vendored catalog and as models.dev publishes it.
+ *
+ * Every field is optional, so an entry that carries only `name` still parses. Reading a value
+ * therefore means handling `undefined` at each level — `model.cost?.cache_read`, not
+ * `model.cost.cache_read`. Field names are models.dev's own snake_case, kept verbatim so the
+ * refresh script can copy `api.json` across without renaming.
+ *
+ * The schema is loose rather than strict: unknown keys survive parsing and stay on the returned
+ * object instead of being rejected or dropped. That is what lets models.dev add a field without
+ * breaking the loader — the cost is that a typo in a key name parses silently, so a caller
+ * cannot use "it parsed" as evidence that a field it expected was present.
+ *
+ * `structured_output` and `cache_control` are theokit's own additions; models.dev publishes
+ * neither.
+ */
 export type CatalogModel = z.infer<typeof catalogModelSchema>;
+
+/**
+ * Per-token pricing for one model, in USD per 1M tokens (models.dev's unit — not per token, and
+ * not per 1K).
+ *
+ * `input` and `output` are required and non-negative; the two cache buckets are optional and
+ * absent for models that do not price caching separately. Absent is not zero: a missing
+ * `cache_read` means the catalog says nothing about the cost of a cache hit, so a caller that
+ * defaults it to 0 is asserting free cache reads on its own authority.
+ *
+ * Like `CatalogModel`, the shape is loose — unknown pricing keys published upstream are kept on
+ * the parsed value.
+ */
 export type CatalogModelCost = z.infer<typeof costSchema>;

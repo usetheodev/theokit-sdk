@@ -11,23 +11,30 @@
  * window counts, because it is the one signal that does not lie.
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 import {
   acquireSessionWriter,
   HEARTBEAT_WINDOW_MS,
   SessionBusyError,
   sessionHasWriter,
 } from "../src/internal/persistence/session-writer.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 const acquired: Array<{ release: () => Promise<void> }> = [];
 afterEach(async () => {
   for (const l of acquired.splice(0)) await l.release();
 });
 
-const newPath = (): string => join(mkdtempSync(join(tmpdir(), "m95-lease-")), "s.jsonl");
+const newPath = (): string => {
+  const d = mkdtempSync(join(tmpdir(), "m95-lease-"));
+  onTestFinished(() => {
+    removeTempDirRobustSync(d);
+  });
+  return join(d, "s.jsonl");
+};
 
 /** Writes a `.lock` with an arbitrary owner, simulating a process that died. */
 function lockOwnedBy(path: string, owner: { pid: number; hostname: string; mtime: number }): void {
@@ -99,10 +106,16 @@ describe("M95 — when a lock is reclaimable", () => {
   });
 
   it("release removes the lock", async () => {
+    // B-008. The re-acquisition below IS an oracle — a release that keeps the lock makes it reject
+    // with SessionBusyError, measured. But the test is named for the lock being REMOVED, and
+    // re-acquisition cannot tell removal from truncation: an empty lock file reads as corrupt, which
+    // this suite treats as stale, so it would be re-acquired just the same. The file check is the
+    // claim in the title; the re-acquisition stays because it covers what callers depend on.
     const p = newPath();
     const lease = await acquireSessionWriter(p);
     await lease.release();
-    // After release, another acquisition succeeds — the proof that the lock is gone.
+
+    expect(existsSync(`${p}.writer.lock`), "release must unlink the lock file").toBe(false);
     acquired.push(await acquireSessionWriter(p));
   });
 });

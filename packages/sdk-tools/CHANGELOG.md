@@ -1,5 +1,220 @@
 # Changelog
 
+## 0.27.1
+
+### Patch Changes
+
+- e3f2a82: Public-API documentation reviewed file by file, and corrected wherever it disagreed
+  with the code. The docblocks ship in the `.d.ts`, so these read as behaviour changes
+  in an editor even though no behaviour changed.
+
+  The corrections that change what a caller would do:
+
+  - **`sdk-cache` documented its own premise backwards.** The header example labelled a
+    semantic hit as if it avoided the provider call. `asPlugin()` returns the cached
+    answer as `recalledContext`, which the agent loop injects as a `<memory-context>`
+    block _before_ the prompt — the request still goes to the provider. The two modes
+    are now labelled separately, with a table saying which one short-circuits and which
+    one seeds.
+  - **`sdk-handoff`'s five error classes said "throw".** Under the plugin wiring the
+    handler never throws; every failure becomes a tool result `{"ok":false,…}` handed
+    back to the model. Each class now says where it is actually observable. The header
+    also told readers to `import { Handoff } from "@theokit/sdk"`, from which it was
+    extracted.
+  - **`sdk-budget`'s `charge()` claimed idempotency across concurrent calls.** The mutex
+    serialises, it does not deduplicate: two identical calls record twice. Related, and
+    newly documented: with `maxUsd` set, a model missing from the pricing table denies
+    every request rather than passing it — and the table matches by exact string, so
+    `"openai/gpt-4o"` does not match `"gpt-4o"`.
+  - **The three `memory-*` adapters advertised an env-var fallback they do not read**,
+    and their peer dependencies are required rather than optional. Their behavioural
+    differences are now stated where they break the "interchangeable adapter"
+    assumption — honcho ignores `k` and always throws on `delete`; mem0 recalls across
+    sessions by design; supermemory ignores `sessionId` entirely.
+  - **`sdk-memory`'s `truncated` flag was documented as its own inverse**, and its
+    dreaming sweep claimed a mutex it never takes against the writer it names.
+  - **`sdk-tools`** corrected `run_vitest`'s unreachable `no_vitest` code, `truncation`'s
+    replacement-character claim, and two return shapes missing a live error code.
+  - **`acp`/`cli`** corrected sixteen statements including a named error class that is
+    not the one raised, a handler documented as calling `fork()` that refuses
+    unconditionally, handlers described as pure that mint ids and mutate a store, a
+    config loader credited to Zod in a package that does not import it, and a `--force`
+    scaffold described as atomic that deletes the destination before the rename.
+
+  Undocumented public symbols were documented across every package, with each claim
+  checked against the implementation rather than inferred from the name.
+
+- e368fc1: Every published declaration file now compiles without `skipLibCheck` (#345). The
+  DTS rollup emitted symbols as a re-export from a chunk while omitting them from
+  that chunk's `import`, and dropped type-only imports from external packages —
+  leaving 51 unresolved references across ten of the twelve packages. Nothing broke
+  at runtime, and `tsc` stayed green for anyone with `skipLibCheck` on, but a
+  consumer running type-aware lint saw every type reached through one degrade to
+  `error`.
+
+  The declarations are repaired at build time from the compiler's own diagnostics.
+  No source or API change.
+
+- 434b25f: `edit_file` wrote its backup to `<path>.bak` with `copyFile`, and the project-root guard that
+  validates `path` never looked at that second path. An attacker who could place a file inside the
+  workspace ahead of the edit — which is the ordinary situation for an agent working on a repository
+  it did not write — could plant a symlink there and have the backup written through it, anywhere on
+  the filesystem the process could reach.
+
+  Reproduced before the fix: a symlink at `<path>.bak` pointing outside the project root received the
+  file's contents, and `edit_file` reported success.
+
+  The backup is now opened with `O_NOFOLLOW`, so the kernel refuses a symlink outright rather than a
+  check deciding it is safe and the write happening a moment later. An existing **regular** `.bak` is
+  still overwritten, so the documented behaviour is unchanged for every legitimate edit.
+
+  When the path is refused, the tool returns `{ ok: false, error: "unsafe_backup_path" }` and **does
+  not perform the edit**. An edit that silently proceeded without the backup the caller asked for
+  would be the quieter bug.
+
+- 9e1b0f7: `git_status` with an injected sandbox now asks the backend whether there is a repository, instead of
+  probing the host.
+
+  A session whose checkout lives inside the backend got `{ ok: false, error: "not_a_repo" }` for a
+  repository that was perfectly present where the command would have run — while `git_diff`,
+  configured identically in the same session, worked. `not_a_repo` exists so the model cannot read "no
+  repository" as "nothing changed", so being wrong about it is worse than being unavailable.
+
+  The path-scope check also moves ahead of the probe: a traversal attempt in a confined session used
+  to be answered `not_a_repo` rather than `path_traversal`.
+
+- aadc9dd: Seventeen more negative-case tests now identify which failure they caught, and a registry test suite
+  stops sleeping to make timestamps differ.
+
+  Most of those assertions turned out to be under-asserting rather than untestable: twelve of them sat
+  on errors that were **already typed**, and simply checked that something threw. They now name the
+  class, the stable code and a message fragment — which means a change that swaps one failure for
+  another is caught, where before any error at all satisfied the test.
+
+  Four remain matched on a message fragment because the underlying error genuinely has no type yet, and
+  one of those is filed separately: a public entry point throwing a plain error gives callers nothing to
+  branch on but a string that changes whenever someone improves the wording.
+
+  Four more were reclassified out of scope after reading the source rather than the name: they raise
+  errors owned by Node, by the schema library, or by a database driver, and pinning a third-party class
+  buys little.
+
+  Separately, the live-agent-registry tests slept thirteen times — some to force last-used timestamps
+  apart so eviction ordering could be asserted, others to let fire-and-forget cleanup finish. Both are
+  now driven by the test clock, a mechanism this same file already used elsewhere and which needed no
+  production change. The file runs in a fraction of the time and no longer depends on how busy the
+  machine is.
+
+- 8226bc6: Fourteen negative-case tests now identify which guard fired, and a scheduled job keeps test-order
+  independence honest.
+
+  Assertions that only checked "something threw" now assert the error class, its stable code and a
+  message substring — for concurrency validation, retry configuration, path traversal, filename
+  validation and credential loading. Each conversion was verified by mutating the production error's
+  code and watching the corresponding test fail, so the assertions are pinned to the real constants
+  rather than to a copy of them.
+
+  Forty-five remaining sites are deliberately left alone and grouped with reasons: ten raise validation
+  errors owned by a third-party schema library, thirteen surface Node's own errors, and twenty-two are
+  plain untyped errors in our code where there is no class or code to assert yet.
+
+  Separately, the suite runs one file at a time, and a comment in the configuration said that was
+  covering up a leak. Measured: with file-level parallelism restored the suite is fully green, twice
+  over — the two leaks that comment named have since been fixed. Restoring _within-file_ concurrency
+  plus randomised order does still fail, reproducibly, in one file that shares a mutable counter
+  between its cases; that is filed on its own and is not fixed here.
+
+  The default gate is unchanged. A separate weekly job runs the suite in shuffled order so the
+  remaining coupling keeps surfacing instead of staying suppressed by the serial default.
+
+  Also documented for contributors: what makes a wait trustworthy, and why a premise that justifies
+  deleting something needs checking in a way that a premise justifying keeping something does not.
+
+- e699569: **The repository moved to the official `usetheokit` organization.** Every `repository`, `bugs` and `homepage` field now points there, along with the README, `CONTRIBUTING.md`, `SECURITY.md` and the issue templates. Existing clones and any URL already published keep working — GitHub redirects a transferred repository permanently — so this is a correctness fix for the metadata npm renders, not a break.
+
+  **The Apache-2.0 text every package ships was replaced with the official one.** The copy distributed until now had paragraph 4(d) truncated: it read "except as required for describing the origin of the Work and reproducing the content of the NOTICE file", dropping "reasonable and customary use" from the licensed clause. §4(d) governs what a redistributor must do with attribution notices, and the omission narrowed it.
+
+  That matters more than a typo would. The manifests declare the SPDX identifier `Apache-2.0`, which is an assertion that the terms are _the_ Apache-2.0 terms — a licence scanner resolves the identifier and never reads the file. A consumer's compliance review, which does read the file, would find a body that no longer matches the identifier and has no name of its own. Every `LICENSE` in this repository is now byte-identical to the canonical text, with the appendix filled in.
+
+  Nothing else about the terms changed: the licence is the same licence it has always been meant to be, and no package changes what it grants.
+
+- f7311b0: When a tool's output exceeds its budget, the full untruncated output is written to an overflow
+  file. That file's name was `overflow-<timestamp>-<8 hex characters>.txt`: eight characters is 32
+  bits, and the rest of the name is a clock reading anyone can predict. The write itself followed
+  symlinks, so a guessed name planted ahead of time would have received the content — and by
+  construction that content is the largest thing the tool produced.
+
+  The name now carries a full UUID, and the file is created exclusively (`O_CREAT|O_EXCL`), which
+  POSIX requires to fail when the path already exists, symlinks included. There is no longer a window
+  between deciding a path is safe and writing to it.
+
+  No behaviour changes for any caller: the overflow path is still returned in the truncation trailer,
+  and it is still unique per truncation.
+
+- f692988: The reference docs no longer ship inside the package. `node_modules/@theokit/sdk/docs/` is gone, along with the `harness-capability-map.md` and `error-codes.md` files it carried — the `docs` entry was removed from the published `files` list and the build step that generated it was removed with it.
+
+  The exported TypeScript types are now the only reference surface, and they remain the canonical contract: every public primitive carries its import path, signature and JSDoc example, surfaced by your editor. Nothing about the runtime API changed.
+
+  The scaffolded agent context still ships, unchanged, under `claude-template/`.
+
+- 131b497: `run_vitest` now reports `no_vitest` when vitest is not installed, as its contract always said.
+
+  `npx --no-install` starts, complains on stderr and exits non-zero with nothing on stdout, so the
+  case reached `unparseable_output` — which reads as "vitest ran and printed something I could not
+  parse", sending a reader after a reporter or parser problem instead of a missing dependency.
+  `no_vitest` was reachable only when the `npx` binary itself could not be spawned.
+
+  The detection is text matching on npm's complaint, and npm's wording is not a contract: if it ever
+  changes, the case falls back to the old `unparseable_output` with the real reason in the payload
+  rather than to a wrong answer.
+
+- 3ecc956: The barrel-export smoke test now asserts behaviour, not just that a name is a function.
+
+  It was flagged as redundant with four build gates that supposedly enforce the same public surface.
+  Measured, the four do not reach this package at all: two are filtered to a different package by name,
+  one hardcodes a path under that package, and the fourth's configuration declares only two workspaces,
+  neither of them this one. Proved by renaming an exported factory and running all four — every one
+  stayed green, and only this test noticed.
+
+  So deleting it would have removed the only coverage of that surface. It keeps its export checks and
+  gains a case that invokes a factory and asserts the tool descriptor it returns — name, description,
+  input schema and handler — which is the behavioural assertion no build gate can make.
+
+- c7385d2: Test runs no longer claim every core on the host.
+
+  None of the package configs capped `maxWorkers`, so vitest's default applied: `os.availableParallelism()`,
+  one fork per core, each booting a full test environment. The repo's `test` script is
+  `turbo run test --filter='./packages/*'`, so that default is paid once per package _concurrently_ —
+  nproc forks times turbo's concurrency, on nproc cores. Measured on a 12-thread machine during an
+  unrelated investigation, two vitest pools alone were enough to reach load average 33.89 with the
+  desktop unusable; a full fan-out is several times that.
+
+  `@theokit/sdk` is the interesting case. B-104 recorded on 2026-08-19 that the `poolOptions.forks.*`
+  block was 100% dead in Vitest 4, deleted it, and noted that `fileParallelism: false` was forcing
+  `maxWorkers` to 1 unconditionally, so a fork-count knob could not act. B-059 then flipped
+  `fileParallelism` to `true` on 2026-08-20, which made the knob able to act again — and nothing
+  reintroduced one, so the package silently went back to the uncapped default. That comment has been
+  corrected along with the config; it claimed no knob existed, which is no longer true.
+
+  The cap leaves 4 cores free (`Math.max(2, cpus().length - 4)`), scaling with the runner rather than
+  hard-coding one machine's core count. It costs no wall-clock: measured in `theokit-ui`, the full
+  suite ran 73.96s at 4 workers against 74.36s at 12, so the parallelism above the cap was already
+  noise. Verified as resolved config rather than as file contents — `createVitest` reports
+  `maxWorkers: 8` on a 12-thread host, which is the formula, not the default.
+
+  This changes no published behaviour; it is test tooling only. Refs usetheokit/theokit-ui#51.
+
+- e1fe586: `view_image` checked a file's size with one path lookup and read its bytes with another. Between
+  the two, the path could resolve to something else — so the size cap, which is the only thing
+  keeping an unbudgeted image out of an LLM's context, described a file that was not the one
+  returned.
+
+  It now opens the file once and both sizes and reads through that descriptor. A descriptor cannot
+  be swapped, so the two operations describe the same file by construction rather than by a check
+  that can be outrun.
+
+  The descriptor is closed on every path, including the early return when the image is over the cap.
+
 ## 0.27.0
 
 ### Minor Changes

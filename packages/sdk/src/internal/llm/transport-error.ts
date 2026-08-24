@@ -21,7 +21,7 @@
  *
  * @internal
  */
-import { NetworkError } from "../../errors.js";
+import { NetworkError, TheokitAgentError } from "../../errors.js";
 
 /** Did the error come from an `abort()` rather than a network failure? */
 function ehAbort(err: unknown): boolean {
@@ -40,7 +40,10 @@ export function wrapTransportError(
   ctx: { providerId: string; endpoint: string },
 ): unknown {
   if (ehAbort(err)) return err;
-  if (err instanceof NetworkError) return err;
+  // Any SDK error already carries a mapped message and code — a provider's 429 or context-length
+  // refusal must not be relabelled "transport failure" on its way out (#371 widened this from
+  // `NetworkError` to the whole hierarchy when the SSE read started routing through here).
+  if (err instanceof TheokitAgentError) return err;
   const detail = err instanceof Error ? err.message : String(err);
   return new NetworkError(`${ctx.providerId} transport failure on ${ctx.endpoint}: ${detail}`, {
     code: "transport_failure",

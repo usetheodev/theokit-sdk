@@ -30,11 +30,22 @@ export interface DedupResult {
   duplicatesRemoved: number;
 }
 
+/**
+ * A group of facts the REM phase judged related. `representativeText` is the
+ * text of the longest member, used as the cluster's heading in the consolidated
+ * note — longest, not most central, so it is a readable label rather than a
+ * centroid. `members` includes that fact as well.
+ */
 export interface Cluster {
   representativeText: string;
   members: ReadonlyArray<MemoryFact>;
 }
 
+/**
+ * What {@link remPhase} produced. Every input fact appears in exactly one
+ * cluster, so a fact related to nothing comes back as a cluster of one — the
+ * count is not a count of *interesting* groupings.
+ */
 export interface ClusterResult {
   clusters: Cluster[];
 }
@@ -65,8 +76,11 @@ export async function lightPhase(
 
 // T4.6 — cap facts per sweep to prevent O(N²) blowup. 500 facts →
 // 125K comparisons (acceptable). 5000 facts → 12.5M (unacceptable).
-// When facts exceed the cap, a deterministic subsample is taken so the
-// sweep is bounded. The remaining facts are carried to the next sweep.
+// Over the cap, the clustering considers the FIRST `maxFactsPerSweep`
+// facts and ignores the rest. It is deterministic (same input, same
+// subset) but positional: nothing carries the remainder into a later
+// sweep, so facts past the cap are never clustered while the ones
+// before them stay in place.
 const DEFAULT_MAX_FACTS_PER_SWEEP = 500;
 
 /** REM phase — single-link agglomerative clustering by cosine similarity. */
@@ -77,8 +91,7 @@ export async function remPhase(
   maxFactsPerSweep: number = DEFAULT_MAX_FACTS_PER_SWEEP,
 ): Promise<ClusterResult> {
   if (facts.length === 0) return { clusters: [] };
-  // T4.6 — cap: subsample when facts exceed budget. Deterministic
-  // sort by text hash so the same input always picks the same subset.
+  // T4.6 — cap: take the leading window when facts exceed the budget.
   const capped = facts.length > maxFactsPerSweep ? facts.slice(0, maxFactsPerSweep) : facts;
   const vectors = await embedding.embed(capped.map((f) => f.text));
   const clusterOfIdx = unionFindByPairs(vectors, threshold);

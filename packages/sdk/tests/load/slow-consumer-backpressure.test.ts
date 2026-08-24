@@ -34,4 +34,8 @@ describe.skipIf(SKIP_LOAD)("T0.3 slow-consumer backpressure scaffold", () => {
     // payload + V8 noise. T6.2 tightens to producer/consumer specific bounds.
     expect(endRss - startRss).toBeLessThan(50 * 1024 * 1024);
   }, 60_000);
+
+  it.todo(
+    "the SDK stream wire holds RSS under 1000 slow consumers — owner B-037, sunset 2026-11-19 (T6.2)",
+  );
 });

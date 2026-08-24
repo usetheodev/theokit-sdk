@@ -115,7 +115,7 @@ describe("discoverSkills (M4-1)", () => {
     }
   });
 
-  it("skips a subdir symlinked outside the root (symlink-escape guard)", async () => {
+  it("skips a subdir symlinked outside the root (symlink-escape guard)", async (ctx) => {
     const base = await mkdtemp(join(tmpdir(), "skills-symlink-"));
     try {
       const root = join(base, "skills");
@@ -128,7 +128,8 @@ describe("discoverSkills (M4-1)", () => {
       try {
         await symlink(join(outside, "evil"), join(root, "escape"));
       } catch {
-        return; // platform without symlink permission — skip assertion
+        // Platform without symlink permission: report SKIPPED, never PASS.
+        ctx.skip("filesystem or platform refused symlink() creation");
       }
       const skills = await discoverSkills(root);
       expect(skills.map((s) => s.name)).toEqual(["real"]);

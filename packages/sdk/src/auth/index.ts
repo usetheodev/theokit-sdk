@@ -5,7 +5,7 @@
  * coalescing). Generalized to `provider: string` + a caller-supplied `CredentialStoreConfig` — no hardcoded
  * client IDs. `resolveCredential(name)` returns a fresh (auto-refreshed) `ResolvedCredential`; an oauth
  * provider composes it into its `ProviderProfile.transform.fetch` so the router obtains the fresh bearer at
- * stream time. Contract shape + device flows adapted from Upstream (MIT); see the NOTICE file.
+ * stream time.
  *
  * Exposed as a dedicated sub-entry (DTS built via tsc) — the same isolation the SDK uses for `messages` /
  * `subscription` / `sanitize`, because rollup-plugin-dts cannot bundle these modules into the main barrel.

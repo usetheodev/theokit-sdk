@@ -24,6 +24,7 @@ import {
   exchangeCode,
   refreshOAuthTokens,
 } from "../../../src/internal/auth/oauth-engine.js";
+import { AuthCallbackError } from "../../../src/server/auth/errors.js";
 
 /**
  * M42 — ported from agent-builder `oauth.test.ts` + `oauth-device.test.ts`. Injected fake fetch + fixed
@@ -243,9 +244,20 @@ describe("oauth-engine — ensureFreshCredential (skew / refresh / coalescing)",
         return okJson({ access_token: "AFTER", refresh_token: "r", expires_in: 3600 });
       }) as unknown as typeof fetch,
     };
-    await expect(
-      ensureFreshCredential(oauthCred(FIXED_NOW), { config, store }, deps),
-    ).rejects.toThrow();
+    // B-079 — was bare `.rejects.toThrow()`. `postGrant` throws the typed
+    // `AuthCallbackError` (oauth-engine.ts:80) on a non-ok token response,
+    // with a fixed code (`oauth_token_exchange_failed`, shared by every
+    // failure in this function) and a message that names the actual status.
+    // ONE call only — the test's own `call === 2` assertion below depends on
+    // exactly one failed + one successful fetch.
+    let rejectedWith: unknown;
+    await ensureFreshCredential(oauthCred(FIXED_NOW), { config, store }, deps).catch((err) => {
+      rejectedWith = err;
+    });
+    expect(rejectedWith).toBeInstanceOf(AuthCallbackError);
+    expect((rejectedWith as { code?: string }).code).toBe("oauth_token_exchange_failed");
+    expect((rejectedWith as Error).message).toContain("HTTP 500");
+
     const out = await ensureFreshCredential(oauthCred(FIXED_NOW), { config, store }, deps);
     expect(out.apiKey).toBe("AFTER");
     expect(call).toBe(2);

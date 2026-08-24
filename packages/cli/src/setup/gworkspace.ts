@@ -10,6 +10,13 @@
  * `accounts add` so the SDK-branded experience matches `theokit init` /
  * `theokit dev`.
  *
+ * Needs: a `credentials.json` for a Desktop-type OAuth client that YOU downloaded from Google Cloud
+ * Console (this command never creates one), and network access to run `npx` against the upstream
+ * package. Nothing here reads an environment variable.
+ *
+ * Exit codes: `0` success; `2` when the credentials file is missing, unparseable, a Web-type client,
+ * or its path was rejected; otherwise the upstream command's own exit code.
+ *
  * Per ADR D344 v1.2: credentials live at upstream's default `~/.google-mcp/`.
  * Per ADR D345 v1.2: OAuth is fully delegated to upstream.
  *
@@ -29,17 +36,20 @@ const DEFAULT_CREDS_FILENAME = "credentials.json";
 
 const PROBE_TIMEOUT_MS = 10_000;
 
+/** Flags for {@link runGworkspaceSetup}. */
 export interface GworkspaceSetupOptions {
-  /** Comma-separated list of scopes to grant write access to (calendar,drive,sheets,docs,gmail). */
-  writable?: string;
-  /** When true, runs `npx google-workspace-mcp status` after setup. */
+  /**
+   * Run `npx google-workspace-mcp status` INSTEAD of the setup flow, not after it: when true, the
+   * function returns the probe's exit code and never runs `setup` or `accounts add`.
+   */
   probe?: boolean;
-  /** When true, refuses interactive prompts. */
+  /** Validate + stage credentials, print the manual next step, and return 0 without spawning anything. */
   nonInteractive?: boolean;
-  /** Override path to credentials.json. Default ~/.google-mcp/credentials.json. */
+  /** Override the credentials path. Default `~/.google-mcp/credentials.json`. A relative path resolves against cwd. */
   credentialsPath?: string;
 }
 
+/** Result of {@link checkCredentialsFile}. `path` is the resolved path, except on `rejected_path` where it is the raw input. */
 type CredentialsCheckOutcome =
   | { kind: "ok"; path: string }
   | { kind: "missing"; path: string }
@@ -48,11 +58,11 @@ type CredentialsCheckOutcome =
   | { kind: "rejected_path"; path: string; reason: string };
 
 /**
- * Validate the file at `credentialsPath`. Public for tests.
+ * Reject a path that contains a `..` segment.
  *
- * - EC-2: rejects malformed JSON with a parse-error message.
- * - EC-1 (MUST FIX): rejects Web-type OAuth client (has `.web` key instead of `.installed`).
- * - Path traversal: rejects paths outside the user's home (defense in depth — D80).
+ * A literal-substring test, not a containment test: it looks for `..` only. An ABSOLUTE path outside
+ * the home directory (`/etc/passwd`) contains no `..` and passes — this narrows the shapes a
+ * traversal can take, it does not confine the path to any root.
  *
  * @internal
  */
@@ -100,6 +110,18 @@ function validateOAuthShape(parsed: unknown, resolved: string): CredentialsCheck
   return { kind: "ok", path: resolved };
 }
 
+/**
+ * Classify the credentials file at `credentialsPath` before anything is shelled out to upstream.
+ *
+ * Never throws — every failure is one of the {@link CredentialsCheckOutcome} variants, each of which
+ * has a matching operator-facing message in `describeOutcome`:
+ * `rejected_path` (the path contains `..`), `missing`, `malformed` (unreadable or not JSON, or JSON
+ * without an `installed` block), `wrong_type` (a Web-type client — `web` present, `installed`
+ * absent, which is EC-1 and the failure upstream would only surface as a cryptic 401 much later).
+ *
+ * `ok` means the file parses and carries an `installed` object. It does NOT mean the client id is
+ * valid, enabled, or scoped for anything — only the live upstream call can tell you that.
+ */
 export function checkCredentialsFile(credentialsPath: string): CredentialsCheckOutcome {
   if (isPathTraversal(credentialsPath)) {
     return { kind: "rejected_path", path: credentialsPath, reason: "path traversal" };
@@ -180,6 +202,30 @@ async function runInteractiveSetup(): Promise<number> {
   return 0;
 }
 
+/**
+ * Validate Google credentials, then hand the OAuth dance to upstream `google-workspace-mcp`.
+ *
+ * Side effects, in order: creates `~/.google-mcp/` (mode 0700, failure ignored); validates the
+ * credentials file and STOPS with 2 if it is not a Desktop OAuth client; best-effort `chmod 600` on
+ * it (ignored on Windows/FAT32, EC-6); then one of three exits — probe, non-interactive, or the
+ * interactive `npx <upstream> setup` followed by `accounts add default`.
+ *
+ * Two things surprise callers. `--probe` REPLACES the setup instead of following it. And
+ * `~/.google-mcp/` is created even when `credentialsPath` points somewhere else entirely.
+ *
+ * SCOPES ARE NOT NARROWED HERE, and nothing in this command can narrow them. OAuth is delegated
+ * upstream (ADR D345), and the upstream MCP server asks for every scope it supports at the consent
+ * screen — there is no per-product grant to choose. Write access is decided later, at runtime, by
+ * `googleWorkspace({ writable: true })` in your own code. A `--writable <products>` flag used to be
+ * advertised here and granted nothing (#351); it was removed rather than left implying a choice the
+ * consent screen does not offer.
+ *
+ * The interactive path spawns `npx` with inherited stdio and no timeout, so it blocks on the
+ * upstream prompts; only the probe is bounded (10s, then SIGTERM).
+ *
+ * @returns 0, 2 for a credentials problem, or the upstream command's exit code (1 when `npx` itself
+ * could not be spawned).
+ */
 export async function runGworkspaceSetup(opts: GworkspaceSetupOptions): Promise<number> {
   const credentialsPath = resolveCredentialsPath(opts);
 
@@ -219,14 +265,6 @@ export async function runGworkspaceSetup(opts: GworkspaceSetupOptions): Promise<
 
   const interactiveCode = await runInteractiveSetup();
   if (interactiveCode !== 0) return interactiveCode;
-
-  if (typeof opts.writable === "string" && opts.writable.length > 0) {
-    process.stdout.write(
-      `\n${pc.yellow("note:")} you passed --writable=${opts.writable}. ` +
-        `The upstream MCP server does not narrow scopes — all scopes are granted at consent.\n` +
-        `Write tools are gated at runtime by ${pc.bold("googleWorkspace({ writable: true })")} in your code.\n`,
-    );
-  }
 
   process.stdout.write(
     `\n${pc.green("✓")} gworkspace setup complete.\n` +

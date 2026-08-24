@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://github.com/usetheodev/theokit-sdk">
+  <a href="https://github.com/usetheokit/theokit-sdk">
     <img src="https://raw.githubusercontent.com/usetheodev/theokit-sdk/main/assets/logo.png" alt="TheoKit" height="96" />
   </a>
 </p>
@@ -13,7 +13,7 @@
     Same agent surface, local or cloud. No vendor lock-in.
   </p>
   <p align="center">
-    <a href="https://github.com/usetheodev/theokit-sdk/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-DE2329?style=flat-square"></a>
+    <a href="https://github.com/usetheokit/theokit-sdk/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-DE2329?style=flat-square"></a>
     <img alt="TypeScript" src="https://img.shields.io/badge/typescript-5.8%2B-3178C6?style=flat-square&logo=typescript&logoColor=white">
     <img alt="Node" src="https://img.shields.io/badge/node-22.12%2B-339933?style=flat-square&logo=node.js&logoColor=white">
     <img alt="Status" src="https://img.shields.io/badge/status-public%20beta-orange?style=flat-square">
@@ -24,19 +24,24 @@
 
 > **Public beta.** APIs may change before general availability.
 
-For the full reference, see the [root README](https://github.com/usetheodev/theokit-sdk#readme) and the [**Harness Capability Map**](https://github.com/usetheodev/theokit-sdk/blob/main/wiki/reference/harness-capability-map.md). The exported TypeScript types are the canonical contract.
+For the full reference, see the [root README](https://github.com/usetheokit/theokit-sdk#readme). The exported TypeScript types are the canonical contract.
 
 ## Capability map
 
-New here? The [**Theo Harness Capability Map**](https://github.com/usetheodev/theokit-sdk/blob/main/wiki/reference/harness-capability-map.md) is the discovery front-door — every harness primitive with its import path, signature, and a one-line example (find `compactTranscript`, `buildRepoMap`, `isTransientError`, `@theokit/sdk/persistence`, ... without reading source). The exported TypeScript types are the canonical contract.
+New here? The exported TypeScript types are the discovery front-door and the canonical contract — every harness primitive with its import path, signature and JSDoc example (`compactTranscript`, `buildRepoMap`, `isTransientError`, `@theokit/sdk/persistence`, ...), surfaced by your editor.
 
-It also **ships inside this package** — no network needed, and pinned to the version you installed:
+Two references ship inside the package — no network, pinned to the version you installed, and both
+GENERATED from the built declarations so they cannot drift from what you actually got:
 
 ```
-node_modules/@theokit/sdk/docs/harness-capability-map.md   # every public primitive + import path
-node_modules/@theokit/sdk/docs/error-codes.md              # AgentRunError.code reference
-node_modules/@theokit/sdk/claude-template/                 # agent context (npx theokit-init-claude)
+node_modules/@theokit/sdk/docs/harness-capability-map.md   # every public symbol + its exact import specifier
+node_modules/@theokit/sdk/docs/error-codes.md              # every `code` an error can carry, and where it is raised
 ```
+
+If you are an agent: read the capability map before writing an import. Several symbols are reachable
+from more than one specifier, and a class emitted into a subpath entry is a DISTINCT nominal type
+from the one in the root bundle — import a symbol and everything you pass it to from the same
+specifier, or the call fails on a private field.
 
 Agents that consume documentation should prefer the machine-readable corpora on the docs site ([llmstxt.org](https://llmstxt.org) convention): [`llms.txt`](https://docs.usetheo.dev/llms.txt) (curated index) and [`llms-full.txt`](https://docs.usetheo.dev/llms-full.txt) (every page inlined).
 

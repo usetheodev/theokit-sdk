@@ -56,8 +56,11 @@ describe("sdk-core Memory class peer routing (iter 77, Phase 4 #2)", () => {
       });
     });
 
-    it("test_opens_sqlite_default_when_native_stack_available", async () => {
-      if (!(await hasNativeStack())) return;
+    it("test_opens_sqlite_default_when_native_stack_available", async (ctx) => {
+      // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+      // having asserted nothing, so a machine without the capability looked identical to one
+      // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+      if (!(await hasNativeStack())) ctx.skip();
       const idx = await Memory.openIndex({ cwd });
       const status = idx.status();
       expect(status.backend).toBe("fts-only");
@@ -65,8 +68,11 @@ describe("sdk-core Memory class peer routing (iter 77, Phase 4 #2)", () => {
       await idx.close();
     });
 
-    it("test_sync_search_status_lifecycle_routes_through_peer_FTS_only", async () => {
-      if (!(await hasNativeStack())) return;
+    it("test_sync_search_status_lifecycle_routes_through_peer_FTS_only", async (ctx) => {
+      // B-126: was `if (...) return;` — a guard that returns from the test body reports PASS
+      // having asserted nothing, so a machine without the capability looked identical to one
+      // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
+      if (!(await hasNativeStack())) ctx.skip();
       const idx = await Memory.openIndex({ cwd });
       // Empty corpus (no seeded MEMORY.md) — sync returns zero counts.
       const sync = await idx.sync();

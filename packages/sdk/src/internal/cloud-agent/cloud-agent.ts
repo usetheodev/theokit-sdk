@@ -4,6 +4,7 @@ import {
   type GenerateRunResult,
 } from "../../agent-generate.js";
 import {
+  AgentDisposedError,
   ConfigurationError,
   UnknownAgentError,
   UnsupportedRunOperationError,
@@ -105,6 +106,15 @@ export class CloudAgent implements SDKAgent {
   }
 
   async send(message: string | SDKUserMessage, options: SendOptions = {}): Promise<Run> {
+    // B-094 — a disposed handle refuses work, matching `LocalAgent` (local-agent-send.ts:129). This
+    // class already tracked `disposed` but consulted it only to make `dispose()` idempotent, so a
+    // caller reaching a torn-down cloud agent — a stale reference, a retry, an `await using` scope
+    // that already exited — got a live CloudRun while the local twin rejected.
+    //
+    // Thrown rather than returned as a failed Run: `AgentDisposedError` is not retryable, and a
+    // disposed handle never becomes un-disposed, so a rejected Run would invite retry loops around a
+    // condition that cannot clear.
+    if (this.disposed) throw new AgentDisposedError(this.agentId);
     // Custom inline tools are local-only — cloud agents reject per-call
     // tools the same way creation-time tools are rejected (handlers cannot
     // cross the wire). Mirror the ConfigurationError code so callers can

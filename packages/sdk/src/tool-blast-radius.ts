@@ -22,14 +22,38 @@ import type { DeclaredAction } from "./blast-radius.js";
  * `JSON.stringify` both ignore symbol keys, so a tool serialised on its way to the model carries
  * none of it. A string key would also risk colliding with a property the tool already has.
  *
- * @internal
+ * Exported because the `@public` `WithBlastRadius<T>` below uses it as a COMPUTED
+ * KEY. A computed key is part of the type it keys, so the emitted declaration
+ * names this const — and a name the declaration file does not carry is a broken
+ * reference (#335). `Symbol.for` keeps it a registry symbol, so an exported
+ * binding does not weaken the property-hiding this comment describes: the value
+ * was always retrievable by any code that knows the string.
+ *
+ * @public
  */
-const DECLARED = Symbol.for("@theokit/sdk.blastRadius");
+export const DECLARED: unique symbol = Symbol.for("@theokit/sdk.blastRadius") as typeof DECLARED;
 
-/** @public */
+/**
+ * A tool that may carry a blast-radius declaration under {@link DECLARED}.
+ *
+ * The property is OPTIONAL in the type, so a plain tool is assignable to it and the type alone
+ * never proves a declaration was made. `describeAction` is what tells the two apart at runtime.
+ *
+ * @public
+ */
 export type WithBlastRadius<T> = T & { readonly [DECLARED]?: DeclaredAction };
 
 /**
+ * Declare what a tool reaches, for the approval layer rather than for the model.
+ *
+ * This MUTATES `tool` — it defines a symbol-keyed property on the object it was given and hands
+ * the same reference back, so every existing reference to that tool sees the declaration too.
+ * Calling it again on the same tool replaces the previous declaration; the property is
+ * `configurable`, so re-declaring never throws.
+ *
+ * The declaration is invisible to `Object.keys` and `JSON.stringify` because the key is a symbol,
+ * which is what keeps it out of anything serialised into a prompt.
+ *
  * @returns the same tool, with its action declared. The tool is not otherwise altered — the model
  *   must see exactly what it saw before.
  * @public
@@ -50,6 +74,13 @@ export function withBlastRadius<T extends object>(
 }
 
 /**
+ * Read back the action a tool declared, if any.
+ *
+ * This is how an approval layer obtains the `action` for `evaluateBlastRadius`. An `undefined`
+ * result means nobody has reviewed this tool's reach, which is a different fact from a tool that
+ * declared a narrow scope — decide what to do with the unreviewed case explicitly rather than
+ * treating it as harmless.
+ *
  * @returns the declared action, or `undefined` when the tool never declared one — NOT an empty
  *   action. "Never declared" and "declared as reaching nothing" are different facts, and collapsing
  *   them is how an unreviewed tool passes as harmless.

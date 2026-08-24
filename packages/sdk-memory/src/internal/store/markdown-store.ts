@@ -40,14 +40,25 @@ const MEMORY_MD_HEADER =
   "# Memory\n\n> Auto-managed by @theokit/sdk. Edit freely — the SDK reads from here.\n";
 const FACTS_HEADING = "## Facts";
 
+/**
+ * The memory root for a workspace: `<cwd>/.theokit/memory`. Every other path in
+ * this package is derived from it, and `memory_get` refuses to read outside it.
+ * Pure path computation — nothing is created on disk.
+ */
 export function memoryDir(cwd: string): string {
   return join(cwd, ".theokit", "memory");
 }
 
+/** Path to `MEMORY.md`, the single file holding the flat `## Facts` list. Pure path computation. */
 export function memoryMdPath(cwd: string): string {
   return join(memoryDir(cwd), "MEMORY.md");
 }
 
+/**
+ * Path to `<memory root>/notes`, where per-topic notes and the consolidated
+ * notes written by a dreaming sweep live. Pure path computation — the directory
+ * may not exist.
+ */
 export function notesDir(cwd: string): string {
   return join(memoryDir(cwd), "notes");
 }
@@ -80,11 +91,17 @@ export function appendFactToMarkdown(cwd: string, fact: MemoryFact): Promise<voi
   });
 }
 
+/** One note discovered under `notes/`: its file name without the `.md` suffix, and its absolute path. */
 export interface NoteFile {
   slug: string;
   path: string;
 }
 
+/**
+ * List the `.md` files directly under `notes/`. Returns `[]` when the directory
+ * does not exist, so a workspace that has never written a note is not an error.
+ * Does not recurse into sub-directories.
+ */
 export async function listNotes(cwd: string): Promise<NoteFile[]> {
   let entries: string[] = [];
   try {
@@ -139,6 +156,15 @@ export async function readFacts(cwd: string, config: MemoryConfig): Promise<Memo
   return readFactsFromMarkdown(cwd);
 }
 
+/**
+ * Append a fact, honouring the `enabled` gate on {@link MemoryConfig}: when
+ * memory is disabled the call resolves without touching disk. This is the entry
+ * point for configuration-aware callers; `appendFactToMarkdown` is the same
+ * write without the gate.
+ *
+ * The write itself is atomic and serialised per memory root, and the fact text
+ * passes through secret redaction first.
+ */
 export async function appendFact(
   cwd: string,
   config: MemoryConfig,

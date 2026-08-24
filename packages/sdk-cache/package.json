@@ -1,13 +1,13 @@
 {
   "name": "@theokit/sdk-cache",
-  "version": "0.3.2",
+  "version": "1.0.0",
   "description": "Semantic LLM response cache for @theokit/sdk — vector + FTS hybrid lookup, in-memory + JSON file stores, plugin integration.",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/usetheodev/theokit-sdk#readme",
-  "bugs": "https://github.com/usetheodev/theokit-sdk/issues",
+  "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
+  "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/usetheodev/theokit-sdk.git",
+    "url": "git+https://github.com/usetheokit/theokit-sdk.git",
     "directory": "packages/sdk-cache"
   },
   "type": "module",
@@ -38,16 +38,23 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node ../../tools/repair-dts-imports.mjs .",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "node ../../scripts/check-publish-no-workspace.mjs ."
+    "prepublishOnly": "node ../../tools/check-publish-no-workspace.mjs ."
   },
   "peerDependencies": {
+    "@opentelemetry/api": "^1.9.0",
     "@theokit/sdk": ">=4.0.0",
     "zod": "^4.0.0"
   },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^4.1.8",
@@ -55,6 +62,7 @@
     "zod": "^4.0.0"
   },
   "publishConfig": {
+    "provenance": true,
     "access": "public"
   }
 }

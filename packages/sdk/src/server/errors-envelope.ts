@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk/server/errors-envelope — G5 T2.2 boundary translation.
+ * G5 T2.2 boundary translation — `@theokit/sdk/server/errors-envelope`.
  *
  * Per plan g5-error-envelope-cross-layer v1.0 § Phase 2 / T2.2.
  * Blueprint ADR D3 — SDK keeps the 15+ Error class hierarchy internally;

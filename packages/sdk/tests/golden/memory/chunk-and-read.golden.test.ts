@@ -1,13 +1,13 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
-
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { chunkMarkdown } from "../../../src/internal/memory/storage/chunk-markdown.js";
 import {
   DEFAULT_MEMORY_READ_LINES,
   readMemoryFileBounded,
 } from "../../../src/internal/memory/storage/reader.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Phase 2 T2.1 — chunkMarkdown + bounded reader.
@@ -62,6 +62,10 @@ describe("readMemoryFileBounded", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-reader-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
   });
 
   it("returns a bounded slice with line numbers", async () => {

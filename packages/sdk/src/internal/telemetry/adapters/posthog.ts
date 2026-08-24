@@ -30,6 +30,15 @@ interface OTelTraceApi {
 
 let registeredHere = false;
 
+/**
+ * B-123 — `??` does not treat `""` as absent, so a blank env var (the ordinary
+ * way to "leave it unset" in a `.env` or CI config) masks a correctly set
+ * sibling variable. Treats an empty or whitespace-only value as absent.
+ */
+function presentEnv(value: string | undefined): string | undefined {
+  return value !== undefined && value.trim().length > 0 ? value : undefined;
+}
+
 export const posthogAdapter: TelemetryAdapter = {
   moduleName: "posthog-node",
   displayName: "PostHog",
@@ -39,13 +48,14 @@ export const posthogAdapter: TelemetryAdapter = {
     const ph = safeRequire<PostHogModule>("posthog-node");
     const otel = safeRequire<{ trace: OTelTraceApi }>("@opentelemetry/api");
     if (ph === undefined || otel === undefined) return;
-    const key = process.env.POSTHOG_API_KEY ?? process.env.POSTHOG_PROJECT_API_KEY;
+    const key =
+      presentEnv(process.env.POSTHOG_API_KEY) ?? presentEnv(process.env.POSTHOG_PROJECT_API_KEY);
     if (typeof key !== "string" || key.length === 0) {
       // No PostHog key — skip silently (don't error).
       return;
     }
     const client = new ph.PostHog(key, {
-      host: process.env.POSTHOG_HOST ?? "https://us.i.posthog.com",
+      host: presentEnv(process.env.POSTHOG_HOST) ?? "https://us.i.posthog.com",
     });
 
     const provider = otel.trace.getTracerProvider();

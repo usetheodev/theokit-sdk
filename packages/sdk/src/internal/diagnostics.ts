@@ -133,7 +133,11 @@ export function diagFailure(message: string): void {
     }
   }
   try {
-    process.stderr.write(`${message}\n`);
+    // `globalThis.process?.stderr` rather than a bare `process`: in a browser the bare form is a
+    // ReferenceError that the catch below would swallow — working by accident, on an exception used
+    // as ordinary control flow. Optional chaining states the intent: write to stderr where one
+    // exists, stay silent where none does.
+    globalThis.process?.stderr?.write(`${message}\n`);
   } catch {
     // Nothing left to try. Observability never breaks the run.
   }

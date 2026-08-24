@@ -6,9 +6,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-/**
- * M53 — bubblewrap argv + honest detection, faithful to Codex's Linux sandbox
- * (`upstream/linux-sandbox/src/bwrap.rs` + `upstream/sandboxing/src/bwrap.rs`).
+/*
+ * M53 — bubblewrap argv + honest detection.
  *
  * HONEST SCOPE: filesystem confinement + network isolation via bwrap, PLUS the second stage —
  * a cBPF seccomp syscall filter (`agents/sandbox/seccomp.ts`), wired in `agents/sandbox/backend.ts`
@@ -66,6 +65,15 @@ export function writableRootsFor(mode: SandboxMode, cwd: string): readonly strin
   }
 }
 
+/**
+ * Everything {@link buildBwrapArgv} needs besides the {@link SandboxMode}.
+ *
+ * Only `cwd` is required, and it is resolved to an absolute path before any bind
+ * is emitted. The defaults are the restrictive ones in one direction and the
+ * permissive one in the other: omitting `network` emits `--unshare-net` (no
+ * network), while omitting `env` means the child INHERITS the parent
+ * environment — bwrap only clears it when an allowlist is supplied.
+ */
 export interface BwrapArgvOptions {
   /** Workspace root — the single RW bind under `workspace-write` (protocol.rs:1189-1200). */
   cwd: string;
@@ -137,6 +145,24 @@ export interface BwrapProbes {
   userns: (bin: string) => boolean;
 }
 
+/**
+ * Result of {@link detectBwrap} / {@link detectBwrapMemoized}, discriminated on
+ * `ok`: `{ ok: true, bin }` carries the absolute path of the validated `bwrap`,
+ * `{ ok: false, reason }` a human-readable cause — "bwrap not found in PATH",
+ * "bwrap at <bin> lacks --perms support (too old)",
+ * "user namespaces unavailable (container/kernel restriction)",
+ * "bwrap probe failed: <err>", or (memoized only)
+ * "bwrap disappeared from <bin> after detection".
+ *
+ * `reason` is prose for a warning line. It is not a stable code — do not branch
+ * on it.
+ *
+ * `ok: false` is an ordinary outcome rather than an error: bubblewrap is
+ * Linux-only, so failing detection on macOS, on Windows, or inside a container
+ * without user namespaces is expected. Detection NEVER throws, so wrapping it in
+ * `try`/`catch` catches nothing; callers warn and fall back to an unconfined
+ * `LocalSandbox`.
+ */
 export type BwrapDetection = { ok: true; bin: string } | { ok: false; reason: string };
 
 /** Honest detection — fail-closed on every probe; NEVER throws (callers WARN + fall back). */
@@ -227,9 +253,8 @@ export const realProbes: BwrapProbes = {
  * assumption — that the event fires **once per TURN**, not per session. Invalidating there would
  * re-probe every turn, exactly the behavior memoization exists to eliminate.
  *
- * The reference does not invalidate either: Codex's only real cache is a write-once `OnceLock`
- * (`upstream/linux-sandbox/src/launcher.rs:52`), and its expensive probe runs once per process,
- * only to print a UI warning (`sandboxing/src/bwrap.rs:40-72`).
+ * A write-once cache is sufficient here: the expensive probe runs once per process,
+ * only to print a UI warning.
  *
  * **The price, stated plainly — in BOTH directions.** The original m71-cost-per-turn#ADR-1 declared
  * only one of them; the M71 review (F-perf-9) showed the omitted one was precisely the one with a

@@ -12,6 +12,9 @@ export default defineConfig({
     compaction: "src/compaction.ts",
     // M2-4: model-capabilities catalog — leaf module; DTS via tsc (tsconfig.tools-dts.json).
     models: "src/models.ts",
+    // The provider registry as public API — a sub-entry so the barrel's module graph is untouched
+    // (adding it there changed load order and broke an unrelated cron test).
+    providers: "src/providers.ts",
     // M4-1: skills discovery + <skills> block — reaches internal/runtime/skills; DTS via tsc.
     skills: "src/skills.ts",
     // M4-2: project-instruction reader/writer — reaches internal/runtime/context; DTS via tsc.
@@ -79,6 +82,7 @@ export default defineConfig({
       errors: "src/errors.ts",
       "subagents-loader": "src/subagents-loader.ts",
       cron: "src/cron.ts",
+      workflow: "src/workflow.ts",
       "server/auth/index": "src/server/auth/index.ts",
       "server/errors-envelope": "src/server/errors-envelope.ts",
     },

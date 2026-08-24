@@ -6,22 +6,29 @@ name: Release
 # vehicle for multi-package per-package release notes + sequential publish.
 # (Backend-DX, gateways, react, rag, voice, google-workspace skill were
 # extracted to sibling repos — plan monorepo-cohesion-split, 2026-06-18.)
-# Auth is NPM_TOKEN (granular automation token) via NODE_AUTH_TOKEN — see the
-# publish step below for the full rationale. OIDC trusted-publisher binding is
-# NOT configured for @theokit/*.
+# Auth is OIDC. No NODE_AUTH_TOKEN, no NPM_TOKEN: each of the twelve packages
+# carries a Trusted Publisher connection on npmjs.com naming this repository and
+# this file, and npm mints a short-lived credential per job. Provenance is
+# declared per package via `publishConfig.provenance: true`, not by an env var.
+# The publish step below carries the full rationale.
 #
-# This comment used to claim the opposite ("NPM_TOKEN intentionally NOT used —
-# token env disables OIDC silently"), contradicting the step it describes. The
-# publish here failed from ~2026-07-24 with E404 on the PUT of @theokit/sdk; the
-# cause was an expired NPM_TOKEN, renewed 2026-08-06, after which 4.40.0
-# published from CI unchanged. A header asserting the token was unused is the
-# worst possible thing to read while debugging a token failure. Keep this block
-# and the publish step in agreement, or delete this one — a header that
-# disagrees with the code it summarizes is worse than no header.
+# This header has now been wrong in BOTH directions, which is why it is worth the
+# space. It first claimed NPM_TOKEN was unused while the step used it — the worst
+# thing to read while debugging the expired-token E404s of 2026-07-24 and
+# 2026-08-11. It was corrected to describe the token, and then the step moved to
+# OIDC and left the header describing the token again (#370): the fix was real,
+# the description of it was not, and a reader checking the header would have
+# concluded provenance was still impossible here.
 #
-# NOT related: usetheodev/theokit#169 is a different repo's release.yml failing
-# with EUNKNOWNCONFIG (--git-checks) from a pnpm 9.15 / npm >= 11 conflict via
-# its own `npm install -g npm@latest` step. This workflow has no such step.
+# Keep this block and the publish step in agreement, or delete this one. A header
+# that disagrees with the code it summarizes is worse than no header, and this
+# file has proved that twice.
+#
+# RELATED, as of the pipeline standardisation: usetheokit/theokit#169 was that
+# repository's release.yml failing with EUNKNOWNCONFIG (--git-checks) from an
+# `npm install -g npm@latest` step. This workflow now installs npm too — pinned to
+# 11.9.0, which is exactly the version that clears the OIDC floor without crossing
+# into the npm 12 behaviour that caused #169. See the step for the measurements.
 
 on:
   push:
@@ -62,14 +69,51 @@ jobs:
           # which pushes through the GitHub API instead. See the pin note below.
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-        with:
-          version: 9.15.0
+        # No `version:` here on purpose. The action reads `packageManager` from
+        # package.json, which is already the single authority on the pnpm version.
+        # Pinning it a second time in this file creates two places to update, and
+        # once they disagree action-setup aborts with ERR_PNPM_BAD_PM_VERSION.
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version-file: '.nvmrc'
           cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
+          # The cache key must change when the package manager does. setup-node keys the
+          # pnpm store on the lockfile alone, so a pnpm 9 -> 10 bump leaves the key
+          # identical and the job restores a store the new pnpm reads as inconsistent —
+          # `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE`, on a package the lockfile does list.
+          # package.json carries `packageManager`, so including it ties the cache to the
+          # pnpm that wrote it.
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            package.json
+          # NO `registry-url`. It looks harmless and is not: setup-node writes
+          # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` into an npmrc
+          # UNCONDITIONALLY and points NPM_CONFIG_USERCONFIG at it, then exports
+          # NODE_AUTH_TOKEN only if the caller supplied one — which, under OIDC,
+          # nobody does. The job would publish with a config declaring a credential
+          # that does not exist. registry.npmjs.org is already the default, and
+          # `publishConfig.access: public` in each manifest covers the scope.
+
+      # THE STEP WITHOUT WHICH THE OIDC CONFIGURATION IS CORRECT AND USELESS.
+      # setup-node ships whatever npm the Node release bundles, and Node 22 bundles
+      # npm 10.9.7. OIDC needs npm >= 11.5.1: an older npm does not know what to do
+      # with `id-token: write`, looks for a credential, finds none, and the registry
+      # answers `E404 Not Found - PUT` — which is exactly the error this workflow
+      # hit twice on an expired token, and both releases were then completed by hand
+      # from a developer machine.
+      #
+      # Pinned exactly, and NOT to 12.x. npm 12 breaks this path in two places:
+      #   1. It rejects the `--no-git-checks` flag changesets passes through, with
+      #      EUNKNOWNCONFIG, where every earlier npm ignored it.
+      #   2. It returns an ARRAY from `npm info --json` where earlier npm returned an
+      #      object. changesets reads `response.pkgInfo.versions || []`; on an array
+      #      that is `undefined`, so every package looks unpublished and it tries to
+      #      publish all twelve. Nothing errors — it just republishes.
+      # 11.9.0 is the newest npm that clears the OIDC floor and avoids both.
+      # Measured in theokit-di; see that repository's release.yml for the numbers.
+      - name: Install an npm that speaks OIDC (>= 11.5.1) but tolerates the publish flags
+        run: npm install -g npm@11.9.0 # zizmor: ignore[adhoc-packages] — bootstrapping npm itself; no lockfile can cover it
 
       - run: pnpm install --frozen-lockfile
 
@@ -160,29 +204,25 @@ jobs:
           version: pnpm changeset version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Auth via granular npm automation token (NODE_AUTH_TOKEN; setup-node wired
-          # the registry .npmrc to read it).
+          # AUTHENTICATION IS OIDC, NOT A TOKEN, as of this change. Each of the
+          # twelve packages carries a Trusted Publisher connection on npmjs.com
+          # naming this repository and THIS FILE. npm mints a short-lived
+          # credential for the individual job, scoped to that package; it cannot be
+          # exported or replayed, and it cannot expire between releases.
           #
-          # PROVENANCE IS ENABLED (B-112, 2026-08-11). It was disabled with the reason
-          # "npm refuses provenance attestation for PRIVATE source repositories (E422)
-          # — this repo is currently private". Measured: `gh repo view` answers PUBLIC.
-          # The precondition the comment itself named as the migration trigger was
-          # already met and nothing had acted on it, so the block was describing a
-          # repository that no longer exists. `id-token: write` is already granted
-          # above, which is the other half provenance needs.
+          # That last property is the reason. This publish step failed twice on an
+          # expired NPM_TOKEN (E404 on PUT, 2026-07-24 and 2026-08-11) and both
+          # releases were finished by hand from a laptop. A credential that does not
+          # exist cannot expire.
           #
-          # What it buys: a consumer can verify the tarball was built by THIS workflow
-          # from THIS commit, instead of trusting that whoever held the token was us.
-          # That matters here more than usually — this publish step has failed twice on
-          # an expired token (E404 on PUT, 2026-07-24 and 2026-08-11) and both releases
-          # were then completed by hand from a developer machine.
+          # NPM_TOKEN is not merely unnecessary here — it is harmful. The npm CLI
+          # prefers token auth over the OIDC token from `id-token: write`, so
+          # setting it silently disables the trusted-publisher binding and takes
+          # provenance with it.
           #
-          # REMAINING, and deliberately not done here: the tokenless OIDC binding. It is
-          # configured per package at npmjs.com/package/<pkg>/settings, not in this file,
-          # so it cannot land in a commit. Until it does, NPM_TOKEN stays the auth and
-          # stays the failure mode. Provenance is the half that IS in our control.
-          NPM_CONFIG_PROVENANCE: "true"
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # NPM_CONFIG_PROVENANCE is gone for the same reason it left the other
+          # repositories: `publishConfig.provenance: true` now sits in all twelve
+          # manifests, so provenance is declared beside the package it describes.
 
       # B-114 — an exit code is not evidence a ref transferred. git contacts the remote BEFORE
       # `pre-push` runs, the hook can take minutes, and the idle connection is dropped before the
@@ -195,4 +235,4 @@ jobs:
       # which pushes through the GitHub API and does not have this SIGPIPE path at all.
       - name: verify release refs reached the remote
         if: steps.changesets.outputs.published == 'true'
-        run: node scripts/verify-release-refs.mjs
+        run: node tools/verify-release-refs.mjs

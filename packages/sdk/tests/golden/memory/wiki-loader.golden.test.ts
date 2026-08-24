@@ -1,11 +1,11 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
 import { wikiDir } from "../../../src/internal/memory/storage/wiki-loader.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Phase 10 T10.1 — wiki supplement indexing + corpus filtering.
@@ -17,6 +17,10 @@ describe("memory-wiki supplements", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-wiki-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await mkdir(memoryDir(cwd), { recursive: true });
     await mkdir(wikiDir(cwd), { recursive: true });
   });

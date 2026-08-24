@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RateLimitError } from "../src/errors.js";
 import { setDiagnosticsSink } from "../src/internal/diagnostics.js";
@@ -26,7 +26,6 @@ const rate429 = (): RateLimitError =>
 /** A transport that only fails. No credential and no provider are required. */
 const alwaysFails = (error: unknown): LlmClient => ({
   name: "fake",
-  // eslint-disable-next-line @typescript-eslint/require-await
   // biome-ignore lint/correctness/useYield: a transport that ONLY fails — not emitting is the point
   async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
     throw error;
@@ -62,7 +61,11 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
     setDiagnosticsSink((m) => seen.push(m));
 
     const client = new RetryingLlmClient(alwaysFails(rate429()), { rng: () => 0 });
-    await expect(drain(client)).rejects.toThrow();
+    // B-079 — was bare `.rejects.toThrow()`. The mock always fails with the
+    // typed `RateLimitError` this file constructs (`rate429()`); the exhausted
+    // client re-throws it verbatim, so class + code are stable identifiers.
+    await expect(drain(client)).rejects.toThrow(RateLimitError);
+    await expect(drain(client)).rejects.toMatchObject({ code: "openai_rate_limit" });
 
     const first = seen.find((m) => m.includes("retry"));
     expect(first, "no retry diagnostic was emitted").toBeDefined();
@@ -76,11 +79,39 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
   });
 
   it("test_with_no_sink_installed_nothing_reaches_the_terminal", async () => {
-    // The library does not own the host's stdout (theokit#147). With no sink, silence.
-    const client = new RetryingLlmClient(alwaysFails(rate429()), { rng: () => 0 });
-    await expect(drain(client)).rejects.toThrow();
-    // Reaching here without throwing already proves emission does not depend on an installed sink.
-    expect(true).toBe(true);
+    // B-066. The test is named for silence ON THE TERMINAL and used to end in
+    // `expect(true).toBe(true)` — it never observed the channel it claims stays quiet. Its comment
+    // said "reaching here without throwing already proves emission does not depend on an installed
+    // sink", which proves the retry path runs, not that nothing was written. Spying the real stream
+    // is what makes a regression to `console.error` fail this test instead of passing it.
+    //
+    // The assertion demands TOTAL silence rather than the absence of writes matching /retry/. The
+    // narrower form was the first fix and it weakens exactly when it matters: a regression that
+    // wrote "rate limited, backing off" would satisfy it while violating the test's name.
+    setDiagnosticsSink(undefined);
+    const writes: string[] = [];
+    const err = vi.spyOn(process.stderr, "write").mockImplementation(((c: string) => {
+      writes.push(String(c));
+      return true;
+    }) as never);
+    const out = vi.spyOn(process.stdout, "write").mockImplementation(((c: string) => {
+      writes.push(String(c));
+      return true;
+    }) as never);
+
+    try {
+      const client = new RetryingLlmClient(alwaysFails(rate429()), { rng: () => 0 });
+      // B-079 — was bare `.rejects.toThrow()`. Same typed `RateLimitError` as above.
+      await expect(drain(client)).rejects.toThrow(RateLimitError);
+
+      expect(
+        writes,
+        "with no sink installed the library must not write to the host's terminal",
+      ).toEqual([]);
+    } finally {
+      err.mockRestore();
+      out.mockRestore();
+    }
   });
 
   it("test_first_attempt_success_emits_no_noise", async () => {
@@ -89,7 +120,6 @@ describe("theokit-sdk#165 — the retry must be observable", () => {
 
     const ok: LlmClient = {
       name: "fake",
-      // eslint-disable-next-line @typescript-eslint/require-await
       // biome-ignore lint/correctness/useYield: returns without emitting an event
       async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
         return { stopReason: "stop", text: "", toolCalls: [] } as unknown as LlmFinish;

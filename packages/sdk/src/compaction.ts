@@ -335,6 +335,20 @@ export interface EffectiveContextWindow {
 }
 
 /**
+ * Absolute cap on a declared context window, applied when no catalog entry exists to compare against.
+ *
+ * **10M**, not 2M. The first version used 2M on the rationale that it sat "comfortably above the
+ * largest published window" — adversarial review measured the opposite: Llama 4 Scout publishes
+ * **10M**, and it arrives precisely via OpenRouter, the provider **without** a catalog, which is the
+ * case this cap exists to cover. The user would have silently lost 80% of the declared window.
+ *
+ * The cap still serves what motivates it — one extra zero on 400k gives 4M, which passes; two zeros
+ * give 40M, which does not. A limit that rejects legitimate configuration is worse than no limit,
+ * because failing OPEN is visible when it happens and silently losing 80% is not.
+ */
+export const ABSOLUTE_CONTEXT_WINDOW_CAP = 10_000_000;
+
+/**
  * Resolve the window to budget against — the fail-SAFE replacement for reading the catalog directly.
  *
  * Today `post-run-lifecycle.ts` reads `getCatalogModelInfo(model)?.limit?.context` and, when that is
@@ -356,20 +370,6 @@ export interface EffectiveContextWindow {
  *
  * Pure — no catalog lookup, no I/O. The caller supplies the numbers, mirroring `shouldCompact`.
  */
-/**
- * Absolute cap on a declared context window, applied when no catalog entry exists to compare against.
- *
- * **10M**, not 2M. The first version used 2M on the rationale that it sat "comfortably above the
- * largest published window" — adversarial review measured the opposite: Llama 4 Scout publishes
- * **10M**, and it arrives precisely via OpenRouter, the provider **without** a catalog, which is the
- * case this cap exists to cover. The user would have silently lost 80% of the declared window.
- *
- * The cap still serves what motivates it — one extra zero on 400k gives 4M, which passes; two zeros
- * give 40M, which does not. A limit that rejects legitimate configuration is worse than no limit,
- * because failing OPEN is visible when it happens and silently losing 80% is not.
- */
-export const ABSOLUTE_CONTEXT_WINDOW_CAP = 10_000_000;
-
 export function resolveEffectiveContextWindow(
   input: EffectiveContextWindowInput,
 ): EffectiveContextWindow {

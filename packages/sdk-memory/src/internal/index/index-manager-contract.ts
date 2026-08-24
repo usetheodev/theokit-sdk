@@ -45,6 +45,14 @@ export interface MemorySearchHit {
   citation: string;
 }
 
+/**
+ * A snapshot of index health. `backend` is `hybrid` when a vector index is live
+ * and `fts-only` when the index can do text search only, which is what an index
+ * opened without an embedding runtime reports.
+ *
+ * `lastSyncMs` is present only after a `sync()` in this process; it is not
+ * persisted, so a freshly opened index omits it however recently it was synced.
+ */
 export interface IndexStatus {
   backend: "fts-only" | "hybrid";
   filesIndexed: number;
@@ -52,6 +60,17 @@ export interface IndexStatus {
   lastSyncMs?: number;
 }
 
+/**
+ * Search tuning. `maxResults` defaults to 10 and is floored at 1. `minScore`
+ * defaults to 0 and is compared against the combined score, not the text or
+ * vector score alone. `sources` filters by corpus; omitting it searches all
+ * three.
+ *
+ * The two weights only matter on a hybrid index — with no vector index every
+ * vector score is 0, so raising `vectorWeight` only scales the text score down.
+ * They are normalised by their sum, so `{vectorWeight: 6, textWeight: 4}`
+ * behaves the same as the defaults.
+ */
 export interface SearchOptions {
   maxResults?: number;
   minScore?: number;
@@ -65,6 +84,15 @@ export interface SearchOptions {
 /** Vector backend selector. SQLite default; Lance opt-in (ADR D43). */
 export type MemoryBackend = "sqlite-vec" | "lance";
 
+/**
+ * Options for `IndexManager.open`.
+ *
+ * Passing `embedding` is what turns on vector search; without it the index is
+ * text-only. The Lance backend requires it and refuses to open without one.
+ *
+ * `filePath` means different things per backend: on `sqlite-vec` it is the
+ * database file, on `lance` it is the storage directory.
+ */
 export interface OpenIndexOptions {
   cwd: string;
   filePath?: string;

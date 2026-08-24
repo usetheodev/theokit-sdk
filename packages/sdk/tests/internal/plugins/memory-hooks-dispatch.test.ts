@@ -143,6 +143,7 @@ describe("PluginManager memory-hook dispatch (T2.1)", () => {
       reply: "hello",
       agentId: "ag",
       runId: "rn",
+      usedTools: false,
     });
     expect(seen.length).toBe(2);
     expect(seen[0]?.reply).toBe("hello");
@@ -171,6 +172,7 @@ describe("PluginManager memory-hook dispatch (T2.1)", () => {
       reply: "hello",
       agentId: "ag",
       runId: "rn",
+      usedTools: false,
     });
     expect(calls).toEqual(["survived"]);
     expect(stderr).toHaveBeenCalledWith(expect.stringContaining("sync down"));

@@ -15,7 +15,7 @@ import { getProviderProfile } from "./registry.js";
  * NEVER fetches at startup or per-request — the vendored catalog + any existing disk cache are the offline
  * base, and every failure mode fails CLOSED back to them (ROADMAP constraint: no runtime hard network dep).
  *
- * Mechanism adapted from Upstream's models.dev consumption (MIT © 2025 upstream — `core/src/models-dev.ts`):
+ * The models.dev consumption mechanism:
  * disk cache with mtime TTL, atomic tempfile+rename write, corrupt-cache delete-and-fall-through, kill-switch
  * env. Library adaptations: NO background refresh loop (a consumer composes refresh with the SDK's cron);
  * TTL 1h (not 5min — no background refresher to keep it warm); no cross-process flock v1 (atomic rename +
@@ -25,9 +25,40 @@ import { getProviderProfile } from "./registry.js";
  */
 
 const DEFAULT_URL = "https://models.dev/api.json";
+
+/**
+ * Ceiling on a fetched catalog, before it is parsed or written to the cache.
+ *
+ * The response body was read with `res.text()` and persisted with no bound, so a host serving a
+ * multi-gigabyte document would have been materialised in memory and then written to disk. The
+ * default URL is trusted, but `THEOKIT_MODELS_URL` lets an operator point this anywhere, and a
+ * limit is the difference between "we only fetch from a host we trust" and "we cannot be hurt by
+ * one we do not".
+ *
+ * 32 MiB is roughly 40x the real catalog (~800 KiB in 2026-08), so it bounds the failure without
+ * being a number anyone has to tune when models.dev grows.
+ */
+const MAX_CATALOG_BYTES = 32 * 1024 * 1024;
 const TTL_MS = 60 * 60 * 1000; // 1 hour
 const FETCH_TIMEOUT_MS = 10_000;
 
+/**
+ * Arguments to `refreshModelCatalog`, the SDK's only network trigger for model metadata.
+ *
+ * `url` wins over the `THEOKIT_MODELS_URL` environment variable, which in turn wins over
+ * `https://models.dev/api.json`. A non-default URL gets its own cache file, named by a hash of
+ * the URL, so switching sources never reads another source's cache.
+ *
+ * `force` skips only the freshness check — it does not skip the kill switch. When
+ * `THEOKIT_DISABLE_MODELS_FETCH` is set to anything other than an empty string, `"0"` or
+ * `"false"`, the call returns `source: "skipped"` with no fetch and no cache read, whatever
+ * `force` says.
+ *
+ * Without `force`, a cache file whose mtime is under an hour old is served directly and no
+ * request is made.
+ *
+ * `deps` exists so tests can drive the fetch and the clock; production leaves it unset.
+ */
 export interface RefreshModelCatalogOptions {
   /** Override the source URL (`THEOKIT_MODELS_URL` env also honored). */
   url?: string;
@@ -37,6 +68,25 @@ export interface RefreshModelCatalogOptions {
   deps?: { fetch?: typeof fetch; now?: () => number };
 }
 
+/**
+ * What `refreshModelCatalog` did. It never throws on a failed refresh, so this is the only place
+ * the outcome is reported.
+ *
+ * `source` is `"network"` only when a request succeeded, its body parsed as JSON, and the models
+ * were patched in. Every failure path — kill switch aside — returns `"cache"`: an HTTP error
+ * after retries, a timeout, an unparseable body, or a patch that threw. `"cache"` therefore means
+ * "serving what was already there", which may be a fresh cache, a stale one, or nothing but the
+ * vendored catalog. Read `models` to tell those apart. `"skipped"` means the kill switch was set.
+ *
+ * `models` counts the models patched into the index during this call, not the catalog's size. It
+ * counts each model once even when the provider has aliases and the model is written under several
+ * index keys, and it excludes models whose payload failed schema validation and models under
+ * providers the SDK does not know. It is 0 whenever there was no cache to fall back on, and 0 for
+ * `"skipped"`.
+ *
+ * A cache write that fails is logged and otherwise ignored: the result can still say `"network"`
+ * with the data live in memory and nothing on disk.
+ */
 export interface RefreshModelCatalogResult {
   /** Where the data came from: a fresh network fetch, the still-fresh disk cache, or skipped entirely. */
   source: "network" | "cache" | "skipped";
@@ -44,7 +94,7 @@ export interface RefreshModelCatalogResult {
   models: number;
 }
 
-/** The cache file for a source URL (custom URLs get a hash-suffixed name, mirroring Upstream). */
+/** The cache file for a source URL (custom URLs get a hash-suffixed name). */
 export function cachePathFor(url: string): string {
   // M44 L8 fix — honor the SDK home override so tests and multi-home setups never touch the real ~/.theokit.
   const base = process.env.THEOKIT_HOME?.trim() || join(homedir(), ".theokit");
@@ -164,7 +214,7 @@ export function loadCacheIntoIndex(url: string = DEFAULT_URL): number {
   try {
     parsed = JSON.parse(body);
   } catch {
-    // corrupt cache: delete and fall through to the vendored catalog (Upstream's delete-and-fall-through).
+    // corrupt cache: delete and fall through to the vendored catalog.
     // M44 L9 fix — only a PARSE failure is cache corruption; a patch error must never delete a valid cache.
     try {
       unlinkSync(path);
@@ -207,7 +257,7 @@ export async function refreshModelCatalog(
   const path = cachePathFor(url);
   const now = opts.deps?.now ?? (() => Date.now());
 
-  // TTL gate: a fresh cache serves without network (mtime freshness, Upstream's gate).
+  // TTL gate: a fresh cache serves without network (mtime freshness).
   if (opts.force !== true) {
     try {
       const age = now() - statSync(path).mtimeMs;
@@ -228,11 +278,21 @@ export async function refreshModelCatalog(
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r;
       },
-      // 2 transient retries with backoff (Upstream does the same); every error here is worth one more try —
+      // 2 transient retries with backoff; every error here is worth one more try —
       // the whole call is already fail-closed at the caller.
       { retries: 2, isRetryable: () => true, initialDelayMs: 200 },
     );
+    const declaredLength = Number(res.headers.get("content-length") ?? Number.NaN);
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_CATALOG_BYTES) {
+      throw new Error(`catalog too large: ${declaredLength} bytes declared`);
+    }
     body = await res.text();
+    // Checked again after reading: `content-length` is the server's claim, and a server that
+    // omits it or lies about it is exactly the one worth bounding. Both checks are cheap and
+    // neither alone is sufficient.
+    if (body.length > MAX_CATALOG_BYTES) {
+      throw new Error(`catalog too large: ${body.length} bytes received`);
+    }
     JSON.parse(body); // validate before persisting — never cache garbage
   } catch (err) {
     diag(

@@ -5,14 +5,18 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { resolveImports } from "../../../src/internal/runtime/context/context-import-resolver.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 describe("resolveImports (T2.1)", () => {
   let tmp: string;
   beforeEach(async () => {
     tmp = await mkdtemp(join(tmpdir(), "theokit-ctx-import-"));
+    const __tmpCleanup1 = tmp;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__tmpCleanup1);
+    });
   });
   afterEach(() => {});
 

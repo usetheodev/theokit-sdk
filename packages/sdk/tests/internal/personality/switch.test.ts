@@ -5,12 +5,12 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ConfigurationError } from "../../../src/errors.js";
 import { PersonalityRegistry } from "../../../src/internal/personality/registry.js";
 import { PersonalityStore } from "../../../src/internal/personality/store.js";
 import { performPersonalitySwitch } from "../../../src/internal/personality/switch.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 async function buildRegistry(presets: Record<string, string>): Promise<{
   cwd: string;
@@ -18,6 +18,10 @@ async function buildRegistry(presets: Record<string, string>): Promise<{
   store: PersonalityStore;
 }> {
   const cwd = await mkdtemp(join(tmpdir(), "theokit-switch-"));
+  const __cwdCleanup1 = cwd;
+  onTestFinished(async () => {
+    await removeTempDirRobust(__cwdCleanup1);
+  });
   const dir = join(cwd, ".theokit/personalities");
   await mkdir(dir, { recursive: true });
   for (const [name, body] of Object.entries(presets)) {

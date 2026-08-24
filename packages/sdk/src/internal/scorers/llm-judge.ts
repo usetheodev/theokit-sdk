@@ -6,7 +6,11 @@
  * structured judge prompt, parses score from the response. Returns 0 (with
  * diagnostic reason) on any parse failure.
  *
- * @internal
+ * NOTE — no internal-visibility tag in this block. `tsconfig.base.json` sets `stripInternal: true`,
+ * and TypeScript scans EVERY leading comment range of the declaration that follows, including the
+ * import right below this one. The tag that used to sit here deleted that import from the emitted
+ * `.d.ts`, leaving the types it binds unresolvable for any consumer running type-aware lint
+ * (usetheodev/theokit-sdk#283 records the same trap on a declaration).
  */
 
 import type { ModelSelection } from "../../types/agent.js";

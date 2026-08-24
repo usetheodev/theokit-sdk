@@ -22,14 +22,14 @@ Then DM your bot in Telegram. Every message gets streamed through the agent.
 ## What this does
 
 - `GatewayRunner` + `TelegramAdapter` handle the platform plumbing.
-- `createAgentFactory` keeps one persistent agent per chat (memory + state
-  preserved across turns).
+- `AgentFactory.create` captures the shared config once; `factory.getOrCreate`
+  keeps one persistent agent per chat, so memory and state survive across turns.
 - Each inbound message → `agent.send` → reply back via `ctx.reply`.
 
 ## Customize
 
 - Switch model: `AGENT_MODEL=ollama/llama3.2:3b` for local Ollama.
-- Add custom tools: import `defineTool` from `@theokit/sdk` and pass via
-  `createAgentFactory({ tools: [...] })`.
+- Add custom tools: `Tool.create({ name, description, inputSchema, handler })`
+  from `@theokit/sdk`, passed as `AgentFactory.create({ tools: [...] })`.
 - Slash commands: `runner.command("name", handler)` — see
   `@theokit/gateway` docs.

@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk/server/auth — typed error classes
+ * Typed error classes — `@theokit/sdk/server/auth`.
  *
  * Plan T1.2 + v1.1 EC-1 (AuthCancelledError for OAuth provider error response RFC 6749 §4.1.2.1).
  */

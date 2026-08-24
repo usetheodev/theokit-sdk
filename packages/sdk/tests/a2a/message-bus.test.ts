@@ -68,12 +68,20 @@ describe("MessageBus", () => {
 
   it("fire-and-forget does not wait for handler", async () => {
     const bus = new MessageBus();
+    let handled = false;
     bus.register("lazy", async () => {
       await new Promise((r) => setTimeout(r, 100));
+      handled = true;
     });
+    // B-063. This used to end in `expect(true).toBe(true)`, so the test named a timing property and
+    // observed nothing: making `send` await the 100ms handler left it green. `handled` is the
+    // oracle — it is still false only because `send` returned before the handler did.
+    //
+    // An earlier version of this fix also bounded `Date.now()` elapsed under 50ms. That was
+    // dropped: it kills no mutant this assertion does not already kill, and it puts a wall clock
+    // in a unit test, which `.claude/rules/testing.md` § 6 names as an anti-pattern.
     await bus.send("a", "lazy", { type: "ping", payload: null });
-    // send is fire-and-forget — handler may not have finished
-    // but the send itself resolved without waiting
-    expect(true).toBe(true);
+
+    expect(handled, "send must resolve without waiting for the 100ms handler").toBe(false);
   });
 });

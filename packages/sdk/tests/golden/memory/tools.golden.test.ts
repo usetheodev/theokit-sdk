@@ -1,13 +1,13 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { ConfigurationError } from "../../../src/errors.js";
 import type { EmbeddingRuntime } from "../../../src/internal/memory/embedding-adapter.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
 import { createMemoryGetTool, createMemorySearchTool } from "../../../src/internal/memory/tools.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
  * Phase 6 T6.1 — memory_search + memory_get tools.
@@ -40,6 +40,10 @@ describe("memory_search tool", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-memtool-"));
+    const __cwdCleanup1 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup1);
+    });
     await mkdir(join(cwd, ".theokit", "memory"), { recursive: true });
     await writeFile(
       memoryMdPath(cwd),
@@ -95,6 +99,10 @@ describe("memory_get tool", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-memget-"));
+    const __cwdCleanup2 = cwd;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__cwdCleanup2);
+    });
     await mkdir(join(cwd, ".theokit", "memory"), { recursive: true });
     const lines = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n");
     await writeFile(memoryMdPath(cwd), `${lines}\n`, "utf8");

@@ -55,6 +55,32 @@ export function shouldUseFixtureMode(apiKey: string | undefined): boolean {
 }
 
 /**
+ * The provider credentials `shouldUseRealLocalRuntime` consults by name.
+ *
+ * Exported so the "Missing API key" refusal can name the ones the caller actually set (#338 item
+ * 5). The list used to live only inside the predicate below, which meant a caller with
+ * `OPENROUTER_API_KEY` set and `THEOKIT_API_KEY` unset was refused by a message naming neither —
+ * the SDK checks this exact variable a few lines down to decide the runtime, so the environment
+ * looks configured to the person who set it up. Reported as a three-hour diagnosis.
+ *
+ * One list, two readers: a variable added here is recognised by the predicate AND named by the
+ * error on the same commit, which is the only way the two stay in step.
+ */
+export const PROVIDER_CREDENTIAL_ENV_VARS: readonly string[] = [
+  "ANTHROPIC_API_KEY",
+  "OPENAI_API_KEY",
+  "OPENROUTER_API_KEY",
+];
+
+/** Those of {@link PROVIDER_CREDENTIAL_ENV_VARS} that are non-empty in this process. */
+export function presentProviderCredentialEnvVars(): readonly string[] {
+  return PROVIDER_CREDENTIAL_ENV_VARS.filter((name) => {
+    const value = process.env[name];
+    return typeof value === "string" && value.length > 0;
+  });
+}
+
+/**
  * Returns `true` when the local runtime should drive the real LLM agent
  * loop instead of the deterministic fixture responder. Real mode requires
  * a non-fixture API key AND at least one provider env credential.
@@ -72,11 +98,7 @@ export function shouldUseRealLocalRuntime(apiKey: string | undefined): boolean {
   // unconditionally; the actual call will surface a typed
   // `ollama_unreachable` if Ollama is not running.
   return (
-    (typeof process.env.ANTHROPIC_API_KEY === "string" &&
-      process.env.ANTHROPIC_API_KEY.length > 0) ||
-    (typeof process.env.OPENAI_API_KEY === "string" && process.env.OPENAI_API_KEY.length > 0) ||
-    (typeof process.env.OPENROUTER_API_KEY === "string" &&
-      process.env.OPENROUTER_API_KEY.length > 0) ||
+    presentProviderCredentialEnvVars().length > 0 ||
     isAwsBedrockAuthAvailable() ||
     isGcpVertexAuthAvailable() ||
     isLocalNoAuthProviderAvailable()

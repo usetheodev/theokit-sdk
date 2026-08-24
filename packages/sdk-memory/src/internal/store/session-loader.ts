@@ -29,6 +29,11 @@ export interface SessionFile {
   relPath: string;
 }
 
+/**
+ * List the session summaries under `sessions/`, with each path expressed
+ * relative to the memory root so the index can store a stable `sessions/<id>.md`.
+ * Returns `[]` when the directory does not exist. Does not recurse.
+ */
 export async function discoverSessionFiles(cwd: string): Promise<SessionFile[]> {
   let entries: string[];
   try {

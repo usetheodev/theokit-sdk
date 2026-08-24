@@ -6,8 +6,7 @@ import { symlinkSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import {
   DEFAULT_DISCOVERY_SPECS,
   findGitRoot,
@@ -15,11 +14,16 @@ import {
   walkUpForFile,
   walkUpForGlob,
 } from "../../../src/internal/runtime/context/context-discovery.js";
+import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 describe("context-discovery (T1.1)", () => {
   let tmp: string;
   beforeEach(async () => {
     tmp = await mkdtemp(join(tmpdir(), "theokit-ctx-discovery-"));
+    const __tmpCleanup1 = tmp;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__tmpCleanup1);
+    });
   });
   afterEach(() => {
     // best-effort cleanup; tmp dir auto-collected
@@ -60,15 +64,16 @@ describe("context-discovery (T1.1)", () => {
     expect(found[1]).toContain(`${tmp}/AGENTS.md`);
   });
 
-  it("walkUpForFile stops at git root", async () => {
+  it("walkUpForFile stops at git root", async (ctx) => {
     await mkdir(join(tmp, ".git"), { recursive: true });
     // File ABOVE the git root should NOT be discovered.
     const parentFile = join(tmp, "..", `outside-${Date.now()}.md`);
     try {
       writeFileSync(parentFile, "should-not-see");
     } catch {
-      // permissions — skip if filesystem rejects
-      return;
+      // Filesystem refused the write above the git root: report SKIPPED, never
+      // PASS — the assertion below would otherwise be silently unexercised.
+      ctx.skip("filesystem refused writing a probe file above the git root");
     }
     const found = walkUpForFile(tmp, "AGENTS.md", tmp);
     expect(found).toEqual([]);

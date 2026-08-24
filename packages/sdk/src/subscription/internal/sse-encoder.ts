@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk — W3C SSE encoder (G8 internal).
+ * W3C SSE encoder (G8 internal) — `@theokit/sdk`.
  *
  * Per ADR D428 (W3C wire format, independent of D38 a peer vendor AI Data Stream).
  *

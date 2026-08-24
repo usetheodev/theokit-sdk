@@ -28,13 +28,39 @@
 import type { BudgetCheck, BudgetTotal, BudgetTracker, BudgetUsageEvent } from "@theokit/sdk";
 import { BUILTIN_PRICING, computeUsdCost, type ModelPricing } from "./usd-pricing.js";
 
-/** Options for `createUsdBudgetTracker`. */
+/**
+ * Options for {@link createUsdBudgetTracker}. Omitting all of them builds a tracker that counts and
+ * never denies.
+ *
+ * @public
+ */
 export interface UsdBudgetTrackerOptions {
-  /** Hard ceiling on total tokens (input + output combined). */
+  /**
+   * Ceiling on total tokens, input and output combined. `check()` denies with
+   * `reason: "token_limit"` once the running total REACHES it (`>=`, not `>`).
+   */
   readonly maxTokens?: number;
-  /** Hard ceiling on cumulative USD spend. */
+  /**
+   * Ceiling on cumulative USD. `check()` denies with `reason: "cost_limit"` once the total reaches
+   * it.
+   *
+   * TRAP — setting this makes an UNPRICED MODEL DENY EVERYTHING. If any tracked event names a model
+   * absent from the pricing table, the total cost becomes permanently unknown, and a cap that
+   * cannot be verified fails CLOSED: every subsequent `check()` returns
+   * `{ allowed: false, reason: "cost_limit", detail: "cost unknown — …" }`. This is intentional
+   * (better than spending unbounded), but it means a model id that merely differs in spelling from
+   * a {@link BUILTIN_PRICING} key halts the agent. Supply `pricing` for anything not in that table,
+   * or leave `maxUsd` unset and gate on `maxTokens`.
+   */
   readonly maxUsd?: number;
-  /** Optional override map — model id → pricing entry. Merged onto BUILTIN_PRICING. */
+  /**
+   * Per-model prices, spread OVER {@link BUILTIN_PRICING} — so an entry here replaces a built-in of
+   * the same key, and built-ins you do not name are kept.
+   *
+   * Keys are matched EXACTLY against `BudgetUsageEvent.model`. There is no prefix, alias or
+   * provider-stripping logic: `"gpt-4o"` does not match the built-in `"openai/gpt-4o"`. Use the
+   * same id string you pass to `Agent.create({ model })`.
+   */
   readonly pricing?: Readonly<Record<string, ModelPricing>>;
 }
 
@@ -77,9 +103,35 @@ function evaluateTokenCap(maxTokens: number | undefined, totalTokens: number): B
 }
 
 /**
- * Build a fresh USD-aware tracker. The returned object exposes the
- * `BudgetTracker` contract PLUS `getTotalUsd()` + `nextIteration()`
- * helpers for explicit iteration counting.
+ * Build a `BudgetTracker` that caps an agent run on tokens, on USD, or on both.
+ *
+ * ```ts
+ * const agent = await Agent.create({
+ *   model: { id: "openai/gpt-4o-mini" },
+ *   budgetTracker: createUsdBudgetTracker({ maxUsd: 0.5 }),
+ * });
+ * ```
+ *
+ * The agent loop drives it: `track()` on every usage event, `nextIteration()` once per turn, and
+ * `check()` before each turn — a denial halts the loop. Everything is per-instance and in-memory,
+ * so one tracker is one run; reuse it across runs and the caps carry over.
+ *
+ * Three things a caller gets wrong here:
+ *
+ * - **`getTotal()` has no cost in it.** It returns `{ tokens, iterations }` only, and
+ *   `BudgetTotal.costUsd` is always `undefined` however much was spent. USD comes from the extra
+ *   `getTotalUsd()` on the returned object, which is `number | undefined` — `undefined` meaning
+ *   UNKNOWN, never zero.
+ * - **Unknown cost is a one-way door.** The first event naming a model outside the pricing table
+ *   makes `getTotalUsd()` `undefined` for the rest of the run; a later priced event does not
+ *   restore it. Combined with `maxUsd`, that also denies every later `check()` — see
+ *   {@link UsdBudgetTrackerOptions.maxUsd}.
+ * - **There is no iteration cap.** `iterations` is counted and reported, and nothing ever gates on
+ *   it. Use `createCounterBudgetTracker` from `@theokit/sdk` when you need `maxIterations`.
+ *
+ * `check()` evaluates the cost cap first, so a run breaching both caps reports `"cost_limit"`.
+ * `track()` never throws and never rejects input — a non-finite or non-positive `tokens` is
+ * discarded, silently.
  */
 export function createUsdBudgetTracker(
   options: UsdBudgetTrackerOptions = {},

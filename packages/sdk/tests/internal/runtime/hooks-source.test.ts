@@ -49,6 +49,12 @@ function writeJson(content: unknown): void {
   writeFileSync(join(dir, ".theokit", "hooks.json"), JSON.stringify(content), "utf8");
 }
 
+/** Writes the raw text at `.theokit/hooks.json` — used for malformed-JSON cases writeJson can't produce. */
+function writeRawJson(text: string): void {
+  mkdirSync(join(dir, ".theokit"), { recursive: true });
+  writeFileSync(join(dir, ".theokit", "hooks.json"), text, "utf8");
+}
+
 function writeMd(slug: string, frontmatter: Record<string, unknown>): void {
   mkdirSync(join(dir, ".theokit", "hooks"), { recursive: true });
   const lines = ["---"];
@@ -141,7 +147,71 @@ describe("loadHookConfig — Claude-Code JSON (canonical)", () => {
     writeJson({
       hooks: { PreToolUse: [{ hooks: [{ type: "webhook", command: "x" }] }] },
     });
-    await expect(loadHookConfig(dir)).rejects.toThrow(/hook/i);
+    await expect(loadHookConfig(dir)).rejects.toMatchObject({
+      name: "ConfigurationError",
+      code: "hooks_unsupported_type",
+      message: expect.stringContaining('only { "type": "command" } is supported'),
+    });
+  });
+
+  it("test_an_empty_command_string_is_rejected_as_a_typed_configuration_error", async () => {
+    writeJson({
+      hooks: { PreToolUse: [{ hooks: [{ type: "command", command: "" }] }] },
+    });
+    await expect(loadHookConfig(dir)).rejects.toMatchObject({
+      name: "ConfigurationError",
+      code: "hooks_invalid_command",
+      message: expect.stringContaining('"command" must be a non-empty string'),
+    });
+  });
+
+  it("test_a_missing_command_field_is_rejected_the_same_way_as_an_empty_one", async () => {
+    writeJson({
+      hooks: { PreToolUse: [{ hooks: [{ type: "command" }] }] },
+    });
+    await expect(loadHookConfig(dir)).rejects.toMatchObject({
+      name: "ConfigurationError",
+      code: "hooks_invalid_command",
+    });
+  });
+
+  it("test_an_unreadable_hooks_json_fails_with_a_typed_read_error_not_a_raw_fs_error", async () => {
+    // existsSync(jsonPath) is true (a directory sits there), but readFile on a
+    // directory fails with EISDIR — this is the read-failure branch, distinct
+    // from "file absent" (empty config) and "malformed JSON" (parse branch).
+    mkdirSync(join(dir, ".theokit", "hooks.json"), { recursive: true });
+    await expect(loadHookConfig(dir)).rejects.toMatchObject({
+      name: "ConfigurationError",
+      code: "hooks_read_error",
+      message: expect.stringContaining("Failed to read hooks config"),
+    });
+  });
+
+  it("test_malformed_json_text_is_rejected_as_a_typed_parse_error", async () => {
+    writeRawJson("{ not valid json,,,");
+    await expect(loadHookConfig(dir)).rejects.toMatchObject({
+      name: "ConfigurationError",
+      code: "hooks_json_invalid",
+      message: expect.stringContaining("Invalid JSON in hooks config"),
+    });
+  });
+
+  it("test_a_non_object_json_root_is_rejected_as_a_typed_shape_error", async () => {
+    writeRawJson(JSON.stringify(["not", "an", "object"]));
+    await expect(loadHookConfig(dir)).rejects.toMatchObject({
+      name: "ConfigurationError",
+      code: "hooks_json_invalid",
+      message: expect.stringContaining("expected an object at the root"),
+    });
+  });
+
+  it("test_a_non_array_event_group_is_rejected_as_a_typed_shape_error", async () => {
+    writeJson({ hooks: { PreToolUse: "not-an-array" } });
+    await expect(loadHookConfig(dir)).rejects.toMatchObject({
+      name: "ConfigurationError",
+      code: "hooks_json_invalid",
+      message: expect.stringContaining("expected an array at hooks.PreToolUse"),
+    });
   });
 });
 

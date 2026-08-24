@@ -79,17 +79,21 @@ describe("sdk-memory index-manager-dispatch (iter 70)", () => {
       });
     });
 
-    it("test_openLanceIndex_propagates_lance_backend_unavailable_when_peer_missing", async () => {
-      if (isLanceAvailable()) return; // skip when peer IS installed
-      const stubEmbedding = {
-        embed: async () => [],
-        dimension: 3,
-        providerId: "stub",
-        model: "stub",
-      } as never;
-      await expect(openLanceIndex({ cwd, embedding: stubEmbedding })).rejects.toMatchObject({
-        message: expect.stringContaining("`@lancedb/lancedb` is not installed"),
-      });
-    });
+    // Only meaningful when the optional peer is ABSENT. When it is installed the runner must
+    // report SKIPPED — a bare `return` here reported PASS for an assertion that never ran.
+    it.skipIf(isLanceAvailable())(
+      "test_openLanceIndex_propagates_lance_backend_unavailable_when_peer_missing",
+      async () => {
+        const stubEmbedding = {
+          embed: async () => [],
+          dimension: 3,
+          providerId: "stub",
+          model: "stub",
+        } as never;
+        await expect(openLanceIndex({ cwd, embedding: stubEmbedding })).rejects.toMatchObject({
+          message: expect.stringContaining("`@lancedb/lancedb` is not installed"),
+        });
+      },
+    );
   });
 });

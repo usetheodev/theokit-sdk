@@ -37,12 +37,13 @@ import {
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 describe("@theokit/sdk/internal/persistence sub-path (Stage 3 prep — iter 32)", () => {
-  it("test_subpath_resolves_at_import_time", () => {
-    // If the sub-path isn't declared in package.json `exports`, Node ESM
-    // throws ERR_PACKAGE_PATH_NOT_EXPORTED at import time. Reaching this
-    // line means the resolution succeeded.
-    expect(true).toBe(true);
-  });
+  // B-061. This file used to open with `test_subpath_resolves_at_import_time`, whose body was
+  // `expect(true).toBe(true)`. The repair replaced it with a presence check over all 16 imported
+  // names — and review showed every one of those names is already asserted, more strongly
+  // (`typeof === "function"`), by the seven tests below. Dropping a symbol from the barrel fails
+  // `test_sqlite_helpers_exported` and its siblings, not silently. The test case was therefore
+  // redundant in both forms and is gone; the module-level import above is what proves the sub-path
+  // resolves, and it runs before any test in this file.
 
   it("test_cwd_mutex_exported_for_extracted_packages", () => {
     expect(typeof withCwdMutex).toBe("function");

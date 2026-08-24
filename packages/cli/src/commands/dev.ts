@@ -2,6 +2,10 @@
  * `theokit dev` — run the project's entry under `tsx --watch` with stdio
  * forwarding and graceful shutdown (T4.1, ADR D197).
  *
+ * Exit codes: `2` when no entry file can be resolved; `1` when `tsx` cannot be spawned; otherwise
+ * the CHILD process's exit code, so a crashing agent makes `theokit dev` exit non-zero for reasons
+ * that have nothing to do with the CLI.
+ *
  * @internal
  */
 
@@ -10,11 +14,29 @@ import pc from "picocolors";
 import { resolveEntry } from "../dev/entry-resolver.js";
 import { startRunner } from "../dev/runner.js";
 
+/** Flags for {@link runDev}. */
 export interface DevOptions {
+  /** Entry file. Default: `package.json` `main`, then `src/index.ts` and siblings. */
   entry?: string;
+  /**
+   * Env file passed to `tsx --env-file`, relative to cwd. Default `.env`.
+   *
+   * Silently skipped when the file does not exist — including a `--env` you named yourself, so a
+   * typo looks exactly like "my variables are not loading".
+   */
   env?: string;
 }
 
+/**
+ * Resolve the entry, spawn `tsx --watch` on it, and block until that child exits.
+ *
+ * The child inherits this process's stdio and environment, and `SIGINT`/`SIGTERM` are forwarded to
+ * it as `SIGTERM` with a 5s grace period before `SIGKILL`. `tsx` comes from THIS package's
+ * `node_modules`, not the project's, so the version is fixed regardless of the consumer's lockfile.
+ *
+ * @returns 2 for an unresolvable entry, 1 when the spawn fails, otherwise the child's exit code
+ * (130 when it died from a signal).
+ */
 export async function runDev(opts: DevOptions): Promise<number> {
   let entry: string;
   try {

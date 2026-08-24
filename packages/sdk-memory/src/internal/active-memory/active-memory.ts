@@ -74,6 +74,11 @@ const HISTOGRAM_MEMORY_RECALL_DURATION_MS = "theokit_memory_recall_duration_ms";
 // `@theokit/sdk` is already a peerDependency of this package, and both types are
 // erased at build time, so this costs nothing at runtime.
 
+/**
+ * Tuning for one recall attempt. Recall is off unless `enabled` is exactly
+ * `true`, so an options object that omits it disables recall rather than
+ * enabling it with defaults.
+ */
 export interface ActiveMemoryOptions {
   /** Whether active recall is enabled. Default `false`. */
   enabled?: boolean;
@@ -87,6 +92,16 @@ export interface ActiveMemoryOptions {
   recentUserTurns?: number;
 }
 
+/**
+ * Everything {@link runActiveMemory} needs for one attempt. Only `userText`,
+ * `priorMessages`, `index` and `options` are required; the rest add breaker,
+ * cache, transcript persistence and telemetry, each of which is inert when
+ * omitted.
+ *
+ * `index` is accepted as `undefined` on purpose — an agent with memory
+ * configured but no index open is a normal state, and it produces a `skipped`
+ * result rather than an error.
+ */
 export interface RunActiveMemoryArgs {
   userText: string;
   priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>;
@@ -126,6 +141,30 @@ const DEFAULTS: Required<Omit<ActiveMemoryOptions, "enabled">> = {
   recentUserTurns: 2,
 };
 
+/**
+ * Run one blocking recall before the system prompt is assembled, and report what
+ * happened. Never throws for a recall failure: a search that times out or
+ * rejects comes back as a `timeout` or `error` status with no summary, and the
+ * agent run continues without memory.
+ *
+ * The order of the short-circuits decides what a caller sees. Recall disabled or
+ * no index gives `skipped` with no search. An open circuit breaker gives
+ * `skipped` too. A cache hit returns the earlier result as-is, which means it
+ * also returns that result's `status` and `durationMs` — a cached `no-recall`
+ * looks exactly like a fresh one. An empty query gives `no-recall`.
+ *
+ * Only a real search reaches the breaker: `timeout` records a timeout, `ok` and
+ * `no-recall` record a success, and `error` records neither, so a provider that
+ * keeps throwing will not trip the breaker.
+ *
+ * `timeoutMs` bounds how long this waits, not how long the search runs — the
+ * underlying `index.search` is left running when the timer wins. The search asks
+ * the index for at most 5 hits regardless of options.
+ *
+ * Cache entries are keyed by tenant as well as by query text, so two callers
+ * with the same question and different `userId` / `namespace` / `scope` never
+ * share an entry.
+ */
 export async function runActiveMemory(args: RunActiveMemoryArgs): Promise<ActiveMemoryResult> {
   const started = Date.now();
   // T0.1 — `memory.recall` span emitted around the entire body so skipped /

@@ -22,6 +22,14 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "mistral-embed": 1024,
 };
 
+/**
+ * Mistral embeddings, over the standard OpenAI wire. One model only,
+ * `mistral-embed` at 1024 dimensions; any other id is refused with
+ * `embedding_unknown_model`.
+ *
+ * Reads `MISTRAL_API_KEY` and honours `MISTRAL_API_BASE_URL`. Priority 18, just
+ * below OpenAI.
+ */
 export const mistralMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "mistral",
   defaultModel: DEFAULT_MISTRAL_EMBEDDING_MODEL,

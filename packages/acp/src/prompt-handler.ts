@@ -1,6 +1,9 @@
 /**
- * ACP prompt handler — extracts user text, drives `agent.send`, translates
- * stream via `translator.ts`, returns `PromptResponse` with stop reason.
+ * ACP prompt handler — extracts user text, installs the permission veto, drives `agent.send`,
+ * translates the stream via `translator.ts`, and answers with a `PromptResponse` stop reason.
+ *
+ * Order matters and is load-bearing: the prompt is validated and the veto is installed BEFORE the
+ * run starts, so a prompt that cannot be gated never reaches a tool.
  *
  * @internal
  */
@@ -10,7 +13,7 @@ import type { Run } from "@theokit/sdk";
 import { ACP_ERR, type AcpError } from "./lifecycle.js";
 import { installPermissionPlugin } from "./permission-plugin.js";
 import { extractPrompt } from "./prompt-extract.js";
-import type { AcpSession, SessionStore } from "./session-store.js";
+import { type AcpSession, armTurn, type SessionStore } from "./session-store.js";
 import { translateStream } from "./translator.js";
 import type { PermissionMode } from "./types.js";
 
@@ -24,13 +27,36 @@ interface HandlePromptDeps {
   log: (msg: string) => void;
 }
 
-function mapStopReason(runStatus: string, errorCode?: string): acp.StopReason {
+/**
+ * B-125 — an unmapped error code used to fall through to `"end_turn"`, so an
+ * errored run was reported to the ACP client as ordinary success. `undefined`
+ * now means "no mapping" and MUST NOT be treated as `end_turn` by the caller —
+ * `StopReason` has no "error" value, so an unmapped status has to surface
+ * through the protocol's `{ error: AcpError }` channel instead (see
+ * `runPrompt`).
+ */
+function mapStopReason(runStatus: string, errorCode?: string): acp.StopReason | undefined {
   if (errorCode === "aborted" || runStatus === "cancelled") return "cancelled";
   if (errorCode === "safety_blocked") return "refusal";
   if (errorCode === "context_length_exceeded" || errorCode === "max_tokens") return "max_tokens";
   if (errorCode === "max_iterations") return "max_turn_requests";
   if (runStatus === "finished") return "end_turn";
-  return "end_turn";
+  return undefined;
+}
+
+/** Thrown by `runPrompt` when a run ends in a status/error-code combination
+ * `mapStopReason` cannot place. Caught by `handlePrompt`'s existing failure
+ * path and turned into a JSON-RPC `{ error: AcpError }`, never into a
+ * fabricated `end_turn`. */
+class UnmappedRunStatusError extends Error {
+  constructor(runStatus: string, errorCode: string, detail: string | undefined) {
+    super(
+      `run ended in status "${runStatus}" with unmapped error code "${errorCode}"${
+        detail !== undefined ? `: ${detail}` : ""
+      }`,
+    );
+    this.name = "UnmappedRunStatusError";
+  }
 }
 
 function isAbortError(err: unknown): boolean {
@@ -60,13 +86,16 @@ async function runPrompt(
   params: acp.PromptRequest,
   deps: HandlePromptDeps,
 ): Promise<acp.StopReason> {
-  const run: Run = await session.agent.send(text, { signal: session.abortController.signal });
+  // #349 — a fresh abort scope per turn. Both the send and the translator read THIS signal, so a
+  // cancel of an earlier turn cannot reach into this one.
+  const signal = armTurn(session);
+  const run: Run = await session.agent.send(text, { signal });
   try {
     await translateStream({
       messages: run.stream(),
       conn: deps.conn,
       sessionId: params.sessionId,
-      signal: session.abortController.signal,
+      signal,
       log: deps.log,
     });
   } catch (err) {
@@ -76,7 +105,11 @@ async function runPrompt(
   const result = await run.wait();
   const errorCode =
     result.status === "error" && result.error !== undefined ? (result.error.code ?? "") : "";
-  return mapStopReason(result.status, errorCode);
+  const stopReason = mapStopReason(result.status, errorCode);
+  if (stopReason === undefined) {
+    throw new UnmappedRunStatusError(result.status, errorCode, result.error?.message);
+  }
+  return stopReason;
 }
 
 /**
@@ -105,6 +138,21 @@ async function installPermissionOrError(
   }
 }
 
+/**
+ * Run one ACP `session/prompt` turn to completion and report why it stopped.
+ *
+ * Steps, each able to end the turn: look the session up, flatten the prompt to text, install the
+ * permission plugin, `agent.send`, translate the stream, await the run, map its status.
+ *
+ * Errors returned (never thrown): `INVALID_SESSION` for an id this process has not loaded;
+ * `INVALID_REQUEST` for a prompt with no text or one over `maxPromptBytes`; `INTERNAL_ERROR` when
+ * the permission veto cannot be installed, when `agent.send` throws, or when the run ends in a
+ * status/error-code pair ACP has no stop reason for.
+ *
+ * An abort — from `session/cancel` or from an already-aborted session — is NOT an error: it answers
+ * `{ stopReason: "cancelled" }`. A mid-stream translator failure is logged and does not fail the
+ * turn: the run is still awaited and its own status decides the stop reason.
+ */
 export async function handlePrompt(
   params: acp.PromptRequest,
   deps: HandlePromptDeps,
@@ -129,7 +177,8 @@ export async function handlePrompt(
   } catch (err) {
     if (isAbortError(err)) return { response: { stopReason: "cancelled" } };
     const msg = err instanceof Error ? err.message : String(err);
-    deps.log(`[acp] agent.send threw: ${msg}`);
+    const label = err instanceof UnmappedRunStatusError ? "run ended unmapped" : "agent.send threw";
+    deps.log(`[acp] ${label}: ${msg}`);
     return { error: { code: ACP_ERR.INTERNAL_ERROR, message: msg } };
   }
 }

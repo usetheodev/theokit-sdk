@@ -1,5 +1,92 @@
 # Changelog — @theokit/sdk-memory
 
+## 0.3.2
+
+### Patch Changes
+
+- e3f2a82: Public-API documentation reviewed file by file, and corrected wherever it disagreed
+  with the code. The docblocks ship in the `.d.ts`, so these read as behaviour changes
+  in an editor even though no behaviour changed.
+
+  The corrections that change what a caller would do:
+
+  - **`sdk-cache` documented its own premise backwards.** The header example labelled a
+    semantic hit as if it avoided the provider call. `asPlugin()` returns the cached
+    answer as `recalledContext`, which the agent loop injects as a `<memory-context>`
+    block _before_ the prompt — the request still goes to the provider. The two modes
+    are now labelled separately, with a table saying which one short-circuits and which
+    one seeds.
+  - **`sdk-handoff`'s five error classes said "throw".** Under the plugin wiring the
+    handler never throws; every failure becomes a tool result `{"ok":false,…}` handed
+    back to the model. Each class now says where it is actually observable. The header
+    also told readers to `import { Handoff } from "@theokit/sdk"`, from which it was
+    extracted.
+  - **`sdk-budget`'s `charge()` claimed idempotency across concurrent calls.** The mutex
+    serialises, it does not deduplicate: two identical calls record twice. Related, and
+    newly documented: with `maxUsd` set, a model missing from the pricing table denies
+    every request rather than passing it — and the table matches by exact string, so
+    `"openai/gpt-4o"` does not match `"gpt-4o"`.
+  - **The three `memory-*` adapters advertised an env-var fallback they do not read**,
+    and their peer dependencies are required rather than optional. Their behavioural
+    differences are now stated where they break the "interchangeable adapter"
+    assumption — honcho ignores `k` and always throws on `delete`; mem0 recalls across
+    sessions by design; supermemory ignores `sessionId` entirely.
+  - **`sdk-memory`'s `truncated` flag was documented as its own inverse**, and its
+    dreaming sweep claimed a mutex it never takes against the writer it names.
+  - **`sdk-tools`** corrected `run_vitest`'s unreachable `no_vitest` code, `truncation`'s
+    replacement-character claim, and two return shapes missing a live error code.
+  - **`acp`/`cli`** corrected sixteen statements including a named error class that is
+    not the one raised, a handler documented as calling `fork()` that refuses
+    unconditionally, handlers described as pure that mint ids and mutate a store, a
+    config loader credited to Zod in a package that does not import it, and a `--force`
+    scaffold described as atomic that deletes the destination before the rename.
+
+  Undocumented public symbols were documented across every package, with each claim
+  checked against the implementation rather than inferred from the name.
+
+- e368fc1: Every published declaration file now compiles without `skipLibCheck` (#345). The
+  DTS rollup emitted symbols as a re-export from a chunk while omitting them from
+  that chunk's `import`, and dropped type-only imports from external packages —
+  leaving 51 unresolved references across ten of the twelve packages. Nothing broke
+  at runtime, and `tsc` stayed green for anyone with `skipLibCheck` on, but a
+  consumer running type-aware lint saw every type reached through one degrade to
+  `error`.
+
+  The declarations are repaired at build time from the compiler's own diagnostics.
+  No source or API change.
+
+- e699569: **The repository moved to the official `usetheokit` organization.** Every `repository`, `bugs` and `homepage` field now points there, along with the README, `CONTRIBUTING.md`, `SECURITY.md` and the issue templates. Existing clones and any URL already published keep working — GitHub redirects a transferred repository permanently — so this is a correctness fix for the metadata npm renders, not a break.
+
+  **The Apache-2.0 text every package ships was replaced with the official one.** The copy distributed until now had paragraph 4(d) truncated: it read "except as required for describing the origin of the Work and reproducing the content of the NOTICE file", dropping "reasonable and customary use" from the licensed clause. §4(d) governs what a redistributor must do with attribution notices, and the omission narrowed it.
+
+  That matters more than a typo would. The manifests declare the SPDX identifier `Apache-2.0`, which is an assertion that the terms are _the_ Apache-2.0 terms — a licence scanner resolves the identifier and never reads the file. A consumer's compliance review, which does read the file, would find a body that no longer matches the identifier and has no name of its own. Every `LICENSE` in this repository is now byte-identical to the canonical text, with the appendix filled in.
+
+  Nothing else about the terms changed: the licence is the same licence it has always been meant to be, and no package changes what it grants.
+
+- c7385d2: Test runs no longer claim every core on the host.
+
+  None of the package configs capped `maxWorkers`, so vitest's default applied: `os.availableParallelism()`,
+  one fork per core, each booting a full test environment. The repo's `test` script is
+  `turbo run test --filter='./packages/*'`, so that default is paid once per package _concurrently_ —
+  nproc forks times turbo's concurrency, on nproc cores. Measured on a 12-thread machine during an
+  unrelated investigation, two vitest pools alone were enough to reach load average 33.89 with the
+  desktop unusable; a full fan-out is several times that.
+
+  `@theokit/sdk` is the interesting case. B-104 recorded on 2026-08-19 that the `poolOptions.forks.*`
+  block was 100% dead in Vitest 4, deleted it, and noted that `fileParallelism: false` was forcing
+  `maxWorkers` to 1 unconditionally, so a fork-count knob could not act. B-059 then flipped
+  `fileParallelism` to `true` on 2026-08-20, which made the knob able to act again — and nothing
+  reintroduced one, so the package silently went back to the uncapped default. That comment has been
+  corrected along with the config; it claimed no knob existed, which is no longer true.
+
+  The cap leaves 4 cores free (`Math.max(2, cpus().length - 4)`), scaling with the runner rather than
+  hard-coding one machine's core count. It costs no wall-clock: measured in `theokit-ui`, the full
+  suite ran 73.96s at 4 workers against 74.36s at 12, so the parallelism above the cap was already
+  noise. Verified as resolved config rather than as file contents — `createVitest` reports
+  `maxWorkers: 8` on a 12-thread host, which is the formula, not the default.
+
+  This changes no published behaviour; it is test tooling only. Refs usetheokit/theokit-ui#51.
+
 ## 0.3.1
 
 ### Patch Changes

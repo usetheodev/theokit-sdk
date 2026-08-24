@@ -26,6 +26,23 @@ interface KeyState {
 const DEFAULT_MAX_TIMEOUTS = 3;
 const DEFAULT_COOLDOWN_MS = 60_000;
 
+/**
+ * Stops calling a recall path that keeps timing out.
+ *
+ * After `maxTimeouts` consecutive timeouts on a key (default 3) the breaker
+ * opens and {@link CircuitBreaker.shouldSkip} reports `true` until `cooldownMs`
+ * has elapsed (default 60s). The first `shouldSkip` after the cooldown closes
+ * the breaker and resets the counter, so it re-opens only after another full run
+ * of timeouts.
+ *
+ * It counts timeouts, not failures. An error recorded by neither
+ * `recordTimeout` nor `recordSuccess` leaves the counter where it was, so a call
+ * path that throws rather than hanging will never trip it.
+ *
+ * State is per key and held in this instance, which is what keeps two agents in
+ * one process from sharing a counter. Construct one per agent and pass a stable
+ * key.
+ */
 export class CircuitBreaker {
   private readonly states = new Map<string, KeyState>();
 

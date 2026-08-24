@@ -23,13 +23,19 @@ import { AuthenticationError } from "../../errors.js";
  * driven by a caller-supplied {@link CredentialStoreConfig} (no hardcoded `.agent-builder`/`auth.json` /
  * `AGENT_BUILDER_HOME`). The security-critical file mechanics are ported VERBATIM (ADR D3 of the M42 plan):
  * atomic O_EXCL + rename + fsync write, 0700/0600 mode gates, `env` is always a PARAMETER (never an ambient
- * `process.env` read). Contract SHAPE adapted from Upstream's provider `auth.loader` (MIT © 2025 upstream).
+ * `process.env` read).
  *
  * The env-precedence + key-prefix-inference + declared-provider rungs of the agent-builder resolver are
  * APP POLICY and deliberately stay UP in the consumer; this module owns only the on-disk store + the
  * `api|oauth` discriminated union. See {@link resolveCredential} (SDK) for the store-read + refresh path.
  *
- * @internal
+ * Re-exported from `@theokit/sdk/auth`, and therefore PUBLIC, under semver.
+ *
+ * NOTE — no internal-visibility tag in this block. `tsconfig.base.json` sets `stripInternal: true`,
+ * and TypeScript scans EVERY leading comment range of the declaration that follows, including the
+ * import right below this one. The tag that used to sit here deleted that import from the emitted
+ * `.d.ts`, leaving the types it binds unresolvable for any consumer running type-aware lint
+ * (usetheodev/theokit-sdk#283 records the same trap on a declaration).
  */
 import type {
   CredentialStoreConfig,
@@ -81,7 +87,7 @@ export class CredentialError extends AuthenticationError {
 }
 
 /**
- * The on-disk store — a discriminated union on `type` (Upstream `Info` shape). A legacy file with NO
+ * The on-disk store — a discriminated union on `type`. A legacy file with NO
  * `type` (or `type: 'api'`) is the API-key variant — read unchanged, no migration. The `oauth` variant
  * carries the token pair + expiry.
  */
@@ -107,12 +113,6 @@ const oauthFileSchema = z
 // oauth first (it requires `type: 'oauth'`); a legacy `{provider?, api_key}` falls through to api.
 const fileSchema = z.union([oauthFileSchema, apiFileSchema]);
 
-/**
- * Read the credential file. Absent ⇒ `undefined` (the normal case). Present-but-wrong is a typed error
- * naming the file: a malformed credential store must not surface as a raw parse crash. Enforces the
- * 0700 dir / 0600 file mode gates (ported verbatim — a writable dir lets an attacker swap the file for a
- * symlink to their own account).
- */
 /**
  * The 0700-dir / 0600-file mode gates (ported verbatim). The DIRECTORY matters as much as the file:
  * `mkdirSync(mode)` applies only at creation, so a pre-existing store dir keeps whatever mode it had, and a
@@ -183,6 +183,12 @@ function parseStoredFile(raw: string, path: string): StoredCredential {
   }
 }
 
+/**
+ * Read the credential file. Absent ⇒ `undefined` (the normal case). Present-but-wrong is a typed error
+ * naming the file: a malformed credential store must not surface as a raw parse crash. Enforces the
+ * 0700 dir / 0600 file mode gates (ported verbatim — a writable dir lets an attacker swap the file for a
+ * symlink to their own account).
+ */
 export function readAuthFile(
   config: CredentialStoreConfig,
   env: Record<string, string | undefined> = {},
@@ -221,13 +227,6 @@ function isOAuthWrite(
   return "type" in c && c.type === "oauth";
 }
 
-/**
- * Persist a credential atomically at mode `0600`. Ported VERBATIM (ADR D3): write to a random-named temp
- * file in the same directory with `wx` (O_EXCL), fsync, close, chmod, then `rename` (atomic on POSIX) —
- * so a crash mid-write leaves whatever was there untouched, and a pre-planted symlink cannot capture the
- * key. The api variant persists the unchanged `{provider, api_key}` (back-compat, no `type` key); the
- * oauth variant persists `{type:'oauth', provider, access, refresh, expires, account_id?}`.
- */
 /** Build the on-disk JSON payload for the credential variant, validating non-empty tokens. */
 function buildStorePayload(
   cred: { provider: string; apiKey: string } | StoredOAuthCredential,
@@ -253,6 +252,13 @@ function buildStorePayload(
   return { provider: cred.provider, api_key: cred.apiKey };
 }
 
+/**
+ * Persist a credential atomically at mode `0600`. Ported VERBATIM (ADR D3): write to a random-named temp
+ * file in the same directory with `wx` (O_EXCL), fsync, close, chmod, then `rename` (atomic on POSIX) —
+ * so a crash mid-write leaves whatever was there untouched, and a pre-planted symlink cannot capture the
+ * key. The api variant persists the unchanged `{provider, api_key}` (back-compat, no `type` key); the
+ * oauth variant persists `{type:'oauth', provider, access, refresh, expires, account_id?}`.
+ */
 export function writeCredential(
   cred: { provider: string; apiKey: string } | StoredOAuthCredential,
   config: CredentialStoreConfig,

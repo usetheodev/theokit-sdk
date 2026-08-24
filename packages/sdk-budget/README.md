@@ -4,6 +4,15 @@ USD-cost-aware `BudgetTracker` impls for [`@theokit/sdk`](https://www.npmjs.com/
 Consumes the kernel-facing `BudgetTracker` port (SDK 2.0 Phase 2 / T2.1 —
 ADR D1, interface inversion).
 
+## Install
+
+```bash
+pnpm add @theokit/sdk-budget
+```
+
+`@theokit/sdk` (>=4.0.0) is a peer dependency — install it alongside. Nothing else is required:
+this package has no runtime dependencies of its own.
+
 ```ts
 import { Agent } from "@theokit/sdk";
 import { createUsdBudgetTracker } from "@theokit/sdk-budget";
@@ -103,6 +112,19 @@ subsystem uses. No double-mutex hazard.
 - v0.2: Pluggable pricing source (fetch live rates).
 - v0.3: Ledger persistence (Postgres / SQLite adapters).
 - v0.4: Per-user / per-tenant budget aggregation.
+
+## API reference
+
+Every symbol this package exports, with the exact specifier to import it from, is in the generated
+capability map that ships inside `@theokit/sdk`:
+
+```
+node_modules/@theokit/sdk/docs/harness-capability-map.md   # symbol -> import specifier
+node_modules/@theokit/sdk/docs/error-codes.md              # every `code` an error can carry
+```
+
+Both are generated from the built type declarations, so they describe the version you installed
+rather than the version someone wrote a page about.
 
 ## License
 

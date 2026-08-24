@@ -29,35 +29,52 @@ interface MemoryDb {
   loadExtension(path: string): void;
 }
 
-/**
- * Vector index helpers (ADR D2 + D4 of memory-system-peer-project-parity).
- *
- * Embeddings live in `embeddings(chunk_id, vec)` — a `vec0` virtual table
- * provided by the sqlite-vec extension. Embedding identity (providerId +
- * model + dimension) lives in the `meta` table; mismatches force a full
- * re-embed sweep (EC-1).
- *
- * Iter 67 (Stage 3 source-move #24): hybrid copy from sdk-core's
- * `internal/memory/vec-index.ts`. sdk-core retains its copy for v1.x
- * sqlite-vec back-compat; sdk-memory ships the canonical copy that
- * future `index-manager.ts` move will compose with as a sibling.
- * Dependency chain (both sibling, both moved):
- * - `EmbeddingRuntime` from `./embedding-adapter.js` (moved iter 45)
- * - `MemoryDb` from `./index-db.js` (moved iter 65)
- *
- * @internal
- */
+// Vector index helpers (ADR D2 + D4 of memory-system-peer-project-parity).
+//
+// Embeddings live in `embeddings(chunk_id, vec)` — a `vec0` virtual table
+// provided by the sqlite-vec extension. Embedding identity (providerId +
+// model + dimension) lives in the `meta` table; mismatches force a full
+// re-embed sweep (EC-1).
+//
+// Iter 67 (Stage 3 source-move #24): hybrid copy from sdk-core's
+// `internal/memory/vec-index.ts`. sdk-core retains its copy for v1.x
+// sqlite-vec back-compat; sdk-memory ships the canonical copy that
+// future `index-manager.ts` move will compose with as a sibling.
+// Dependency chain (both sibling, both moved):
+// - `EmbeddingRuntime` from `./embedding-adapter.js` (moved iter 45)
+// - `MemoryDb` from `./index-db.js` (moved iter 65)
 
+/**
+ * `meta` table key holding the id of the embedding provider that produced the
+ * vectors currently on disk (for example `openai`, `ollama`).
+ */
 export const META_KEY_PROVIDER_ID = "embedding.providerId";
+/** `meta` table key holding the embedding model id the vectors were produced with. */
 export const META_KEY_MODEL = "embedding.model";
+/** `meta` table key holding the vector width the `embeddings` vec0 table was created with. */
 export const META_KEY_DIMENSION = "embedding.dimension";
 
+/**
+ * The three facts that decide whether the vectors already stored are still
+ * usable: who produced them, with which model, at which width. A change in any
+ * of the three invalidates every vector in the index, because embeddings from
+ * different models are not comparable and a different width will not even fit
+ * the vec0 table.
+ */
 export interface EmbeddingIdentity {
   providerId: string;
   model: string;
   dimension: number;
 }
 
+/**
+ * Read the embedding identity recorded in the `meta` table.
+ *
+ * Returns `undefined` when the index has never been embedded, and also when the
+ * record is incomplete or unusable: any of the three keys missing, or a stored
+ * dimension that is not a finite number greater than zero. Callers treat that as
+ * "no identity" and write a fresh one rather than trying to repair it.
+ */
 export function readEmbeddingIdentity(db: MemoryDb): EmbeddingIdentity | undefined {
   const get = (key: string): string | undefined => {
     const row = db.prepare("SELECT value FROM meta WHERE key = ?").get(key);
@@ -72,6 +89,11 @@ export function readEmbeddingIdentity(db: MemoryDb): EmbeddingIdentity | undefin
   return { providerId, model, dimension };
 }
 
+/**
+ * Record the embedding identity in the `meta` table, upserting each of the three
+ * keys. Call this after {@link createVectorIndex}, so that a later open can tell
+ * whether the vectors on disk match the runtime it has been handed.
+ */
 export function writeEmbeddingIdentity(db: MemoryDb, identity: EmbeddingIdentity): void {
   const stmt = db.prepare(
     "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -81,14 +103,35 @@ export function writeEmbeddingIdentity(db: MemoryDb, identity: EmbeddingIdentity
   stmt.run(META_KEY_DIMENSION, String(identity.dimension));
 }
 
+/**
+ * Compare two embedding identities field by field. All three fields must be
+ * equal; there is no tolerance on dimension, because a mismatch there is a hard
+ * failure at the vec0 table rather than a quality regression.
+ */
 export function identityMatches(a: EmbeddingIdentity, b: EmbeddingIdentity): boolean {
   return a.providerId === b.providerId && a.model === b.model && a.dimension === b.dimension;
 }
 
+/**
+ * Drop the `embeddings` table, discarding every stored vector. `IndexManager`
+ * calls this when {@link identityMatches} reports that the persisted identity
+ * differs from the embedding runtime it was opened with; the next `sync()` then
+ * re-embeds the whole corpus. The `chunks` and `files` tables are untouched, so
+ * the text index survives the drop.
+ */
 export function dropVectorIndex(db: MemoryDb): void {
   db.exec("DROP TABLE IF EXISTS embeddings");
 }
 
+/**
+ * Create the `embeddings` vec0 virtual table at the given vector width, if it
+ * does not exist already. Requires the sqlite-vec extension to be loaded into
+ * `db` first (see `loadSqliteVecExtension`) — without it SQLite has no `vec0`
+ * module and the statement fails.
+ *
+ * `IF NOT EXISTS` means this will NOT widen an existing table: to change the
+ * dimension, call {@link dropVectorIndex} first.
+ */
 export function createVectorIndex(db: MemoryDb, dimension: number): void {
   db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS embeddings USING vec0(
     chunk_id INTEGER PRIMARY KEY,
@@ -103,6 +146,13 @@ export function packVector(vec: ReadonlyArray<number>): Buffer {
   return Buffer.from(f32.buffer);
 }
 
+/**
+ * Store the vector for one chunk, replacing any vector already held for it.
+ *
+ * Implemented as DELETE followed by INSERT because vec0 virtual tables do not
+ * support `ON CONFLICT`. The chunk id is bound as a BigInt: vec0 v0.1.9 rejects
+ * a JavaScript number for its primary-key column.
+ */
 export function upsertEmbedding(db: MemoryDb, chunkId: number, vec: ReadonlyArray<number>): void {
   // sqlite-vec vec0 virtual tables don't support UPSERT — emulate via
   // DELETE-then-INSERT. vec0 REJECTS JS Number for chunk_id columns; it
@@ -112,11 +162,25 @@ export function upsertEmbedding(db: MemoryDb, chunkId: number, vec: ReadonlyArra
   db.prepare("INSERT INTO embeddings (chunk_id, vec) VALUES (?, ?)").run(id, packVector(vec));
 }
 
+/**
+ * One row of a vec0 KNN result: the chunk id and its raw distance from the query
+ * vector. Distance is the sqlite-vec convention — lower is closer — and is NOT a
+ * similarity score. `IndexManager` maps it to `1 / (1 + distance)` before
+ * blending it with the text score.
+ */
 export interface VectorHitRow {
   chunk_id: number;
   distance: number;
 }
 
+/**
+ * Run a k-nearest-neighbour query against the `embeddings` table and return the
+ * matches ordered by ascending distance (closest first).
+ *
+ * `query` must have the same width the table was created with. Both the query
+ * vector and `k` are bound in the form vec0 expects — the vector as a packed
+ * Float32 blob, `k` as a BigInt.
+ */
 export function vectorSearch(
   db: MemoryDb,
   query: ReadonlyArray<number>,
@@ -134,6 +198,7 @@ export function vectorSearch(
   return rows.map((row) => ({ chunk_id: Number(row.chunk_id), distance: Number(row.distance) }));
 }
 
+/** Inputs for {@link embedMissingChunks}: the open database and the embedding runtime to call. */
 export interface EmbedAllArgs {
   db: MemoryDb;
   runtime: EmbeddingRuntime;

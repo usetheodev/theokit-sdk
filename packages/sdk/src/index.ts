@@ -54,7 +54,7 @@ export {
   describeCredential,
 } from "./credential-presence.js";
 // Semantic cache — EXTRACTED to `@theokit/sdk-cache` (SDK 2.0 split, Phase 3 / T3.1).
-// Consumers: `import { Cache, CacheEmbedderError, CacheInvalidTtlError } from "@theokit/sdk-cache"`.
+// Consumers: `import { Cache, CacheInvalidTtlError } from "@theokit/sdk-cache"`.
 // Cron façade
 export { Cron } from "./cron.js";
 export { type DefineProviderOptions, Provider } from "./define-provider.js";
@@ -151,6 +151,11 @@ export { withCwdMutex } from "./internal/persistence/cwd-mutex.js";
 // .asPlugin() factories without reaching into ./internal/plugins sub-path.
 export {
   type HookName,
+  // #335 — named here because the PUBLIC `Plugin` union references it in the
+  // `createProvider` position. The DTS rollup emits an exported type's body but
+  // treeshakes a non-exported type that body names, so leaving this out of the
+  // barrel published a declaration referring to a type it never declared.
+  type MemoryProviderFactory,
   Plugin,
   type PluginContext,
   type PostAssistantReplyContext,
@@ -390,3 +395,21 @@ export {
   type WiredEntity,
   type WiringRecordInput,
 } from "./wiring-record.js";
+/**
+ * Workflow, exported from the ROOT and not only from `@theokit/sdk/workflow`.
+ *
+ * Both this entry and `@theokit/sdk/workflow` now resolve to ONE declaration, so the documented
+ * combination typechecks:
+ *
+ *     import { Workflow } from "@theokit/sdk/workflow";
+ *     import { Cron } from "@theokit/sdk";
+ *     await Cron.create({ cron: "@hourly", workflow: pipeline });
+ *
+ * It did not until #361. The two entries were built by different DTS pipelines and each emitted its
+ * own `declare class Workflow`; a class with a private field is compared nominally, so the call was
+ * rejected with "types have separate declarations of a private property '_options'" and SE35's
+ * workflow-per-fire target was unreachable from outside the package. Nothing in-tree crosses that
+ * boundary — in-tree code imports from `src/` — which is why it survived to a release.
+ * `quality:dts-identity` now fails the build on the shape.
+ */
+export { agentStep, fn, Workflow } from "./workflow.js";

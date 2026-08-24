@@ -1,6 +1,13 @@
 /**
  * D220 — Lazy-loaded OTel `handoff.transfer` span emitter.
  *
+ * Emitted ONLY when `@opentelemetry/api` resolves from THIS package's directory.
+ * It is an optional peer dependency: not installed for you, and under an isolated
+ * node_modules layout a copy installed for some other package is not visible here.
+ * When the require fails, `getTracer` caches `null` and every span becomes a no-op
+ * — silently, with no warning, unlike `@theokit/sdk`'s own tracer, which prints one
+ * when `telemetry.enabled = true` and OTel is absent.
+ *
  * @internal
  */
 

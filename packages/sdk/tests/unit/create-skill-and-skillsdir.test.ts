@@ -1,10 +1,10 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-
+import { describe, expect, it, onTestFinished } from "vitest";
 import { Skill } from "../../src/create-skill.js";
 import { SkillsManager } from "../../src/internal/runtime/skills/skills-manager.js";
+import { removeTempDirRobust } from "../helpers/temp-workspace.js";
 
 /**
  * M22 — inline `Skill.create()` + custom `skillsDir`. Inline skills need no SKILL.md; a custom dir
@@ -77,6 +77,10 @@ describe("M22 — SkillsManager inline + skillsDir", () => {
 
   it("discovers skills from a CUSTOM skillsDir instead of .theokit/skills", async () => {
     const dir = await mkdtemp(join(tmpdir(), "m22-skills-"));
+    const __dirCleanup1 = dir;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__dirCleanup1);
+    });
     await writeSkill(dir, "research", "Research a topic");
     const mgr = new SkillsManager("/unused-cwd", undefined, true, dir);
     await mgr.initialize();
@@ -86,6 +90,10 @@ describe("M22 — SkillsManager inline + skillsDir", () => {
 
   it("merges inline over discovered — inline wins on a name conflict", async () => {
     const dir = await mkdtemp(join(tmpdir(), "m22-skills-"));
+    const __dirCleanup2 = dir;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__dirCleanup2);
+    });
     await writeSkill(dir, "shared", "the FILE version");
     const inline = [
       Skill.create({ name: "shared", description: "the INLINE version", instructions: "x" }),
@@ -121,6 +129,10 @@ describe("SE20 — SkillsManager.get(name) (full body)", () => {
 
   it("reads a filesystem skill's body from its SKILL.md (frontmatter stripped)", async () => {
     const dir = await mkdtemp(join(tmpdir(), "se20-skills-"));
+    const __dirCleanup3 = dir;
+    onTestFinished(async () => {
+      await removeTempDirRobust(__dirCleanup3);
+    });
     await writeSkill(dir, "research", "Research a topic");
     const mgr = new SkillsManager("/unused-cwd", undefined, true, dir);
     await mgr.initialize();

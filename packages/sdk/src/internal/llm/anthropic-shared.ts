@@ -64,10 +64,6 @@ export function mapAnthropicStopReason(reason: string | null): LlmStopReason {
 }
 
 /**
- * Convert an SDK `LlmMessage` to the Anthropic Messages wire shape.
- * Identical across the three Anthropic-compatible clients (D289/D292).
- */
-/**
  * theokit#122 — replay an extended-thinking block WITH its signature.
  *
  * Anthropic verifies the signature against the text, so both must go back byte-identically or the
@@ -103,6 +99,10 @@ function partToWireBlock(part: LlmContentPart): Record<string, unknown> | undefi
   };
 }
 
+/**
+ * Convert an SDK `LlmMessage` to the Anthropic Messages wire shape.
+ * Identical across the three Anthropic-compatible clients (D289/D292).
+ */
 export function toAnthropicWireMessage(message: LlmMessage): Record<string, unknown> {
   const role = message.role === "system" ? "user" : message.role;
   // theokit#122 — `filter` drops the blocks the mapper declined to serialize.
@@ -112,11 +112,6 @@ export function toAnthropicWireMessage(message: LlmMessage): Record<string, unkn
   return { role, content };
 }
 
-/**
- * Build the common body shape for Anthropic Messages requests. Caller
- * is responsible for adding wire-specific fields (`anthropic_version`,
- * `model`, `stream`, etc.).
- */
 /**
  * Issue a POST to an Anthropic-compatible Messages endpoint with the
  * standard auth + content-type headers. Caller maps non-2xx via its own
@@ -220,6 +215,11 @@ function thinkingBudgetTokens(effort: string): number {
   return 4096;
 }
 
+/**
+ * Build the common body shape for Anthropic Messages requests. Caller
+ * is responsible for adding wire-specific fields (`anthropic_version`,
+ * `model`, `stream`, etc.).
+ */
 export function buildAnthropicCommonBody(request: LlmRequest): {
   max_tokens: number;
   messages: Array<Record<string, unknown>>;

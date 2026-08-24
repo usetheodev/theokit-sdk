@@ -48,6 +48,14 @@ export interface ProviderRouterOptions {
    * `rate_limit` RunEvent. Wired from `SendOptions.onRunEvent` at the run boundary.
    */
   onRateLimit?: (info: { attempt: number; retryAfterMs?: number }) => void;
+  /**
+   * #332 — the endpoint THIS call should reach, from `ModelSelection.url`.
+   *
+   * It outranks the provider's base-URL env var deliberately. `OLLAMA_HOST` and friends are
+   * process-wide, so with the env var winning, whoever set it for one model would keep hijacking
+   * every other one — which is the bug this field exists to end, wearing a hat.
+   */
+  baseUrl?: string;
 }
 
 /**
@@ -66,17 +74,26 @@ function buildChain(options: ProviderRouterOptions): LlmClient[] {
 
   const seen = new Set<string>();
   const clients: LlmClient[] = [];
-  const addClient = (name: ProviderName): void => {
+  // `perCallBaseUrl` reaches ONLY the provider the model id names. It comes from
+  // `ModelSelection.url`, documented above as "the endpoint THIS call should reach" — and a
+  // fallback provider is a different endpoint by definition. Handing it to every client made a
+  // fallback inherit the primary's host, so it could never reach its own: measured at primary 6
+  // requests / fallback 0 (B-151). The irony was on the record — this field exists to stop a
+  // process-wide setting hijacking models it was not meant for, and within a chain it was doing
+  // exactly that itself.
+  const addClient = (name: ProviderName, perCallBaseUrl?: string): void => {
     const lowered = name.toLowerCase();
     if (seen.has(lowered)) return;
     seen.add(lowered);
-    const client = buildClient(lowered, options);
+    const client = buildClient(lowered, options, perCallBaseUrl);
     // D14: wrap every resolved client with the fault-injection decorator.
     // The wrapper is a cheap noop unless `NODE_ENV=test` AND
     // `THEOKIT_TEST_RESPONSE_OVERRIDE` are both set — production is unaffected.
     if (client !== undefined) clients.push(maybeWrapWithFaultInjection(client));
   };
-  addClient(options.primary);
+  addClient(options.primary, options.baseUrl);
+  // No `perCallBaseUrl`: each fallback resolves its own endpoint from its profile and its own
+  // `*_API_BASE_URL`, which is what makes a fallback a different destination rather than a retry.
   for (const fallback of options.fallback ?? []) addClient(fallback);
   if (clients.length === 0) {
     throw new ConfigurationError(
@@ -88,7 +105,11 @@ function buildChain(options: ProviderRouterOptions): LlmClient[] {
   return clients;
 }
 
-function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmClient | undefined {
+function buildClient(
+  name: string,
+  routerOptions: ProviderRouterOptions,
+  perCallBaseUrl?: string,
+): LlmClient | undefined {
   const baseProfile = getProviderProfile(name);
   if (baseProfile === undefined) return undefined;
   // theokit#58 follow-up: per-run route opt-in clones the resolved profile with
@@ -110,16 +131,16 @@ function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmCli
     return new RetryingLlmClient(
       new PoolAwareLlmClient(
         ambient,
-        (apiKey) => selectTransport(profile, apiKey),
+        (apiKey) => selectTransport(profile, apiKey, perCallBaseUrl),
         undefined,
         resilience,
       ),
     );
   }
   const poolKeys = filterPoolKeys(routerOptions.apiKeys?.[name]);
-  const noAuthOverride = maybeBuildNoAuthTransport(profile, poolKeys);
+  const noAuthOverride = maybeBuildNoAuthTransport(profile, poolKeys, perCallBaseUrl);
   if (noAuthOverride !== undefined) return noAuthOverride;
-  return buildPoolOrSingle({ name, profile, poolKeys, routerOptions });
+  return buildPoolOrSingle({ name, profile, poolKeys, routerOptions, perCallBaseUrl });
 }
 
 /**
@@ -130,6 +151,7 @@ function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmCli
 function maybeBuildNoAuthTransport(
   profile: ProviderProfile,
   poolKeys: string[] | undefined,
+  baseUrl?: string,
 ): LlmClient | undefined {
   if (profile.authType !== "none" || poolKeys === undefined || poolKeys.length === 0) {
     return undefined;
@@ -137,7 +159,7 @@ function maybeBuildNoAuthTransport(
   warnNoAuthApiKeysIgnoredOnce(profile.name);
   const sentinel = sentinelForNoAuth(profile);
   if (sentinel === undefined) return undefined;
-  return selectTransport(profile, sentinel);
+  return selectTransport(profile, sentinel, baseUrl);
 }
 
 /** Pool path for ≥2 keys; single-key fast path otherwise; sentinel fallback. */
@@ -146,8 +168,10 @@ function buildPoolOrSingle(args: {
   profile: ProviderProfile;
   poolKeys: string[] | undefined;
   routerOptions: ProviderRouterOptions;
+  /** `ModelSelection.url`, and ONLY for the provider the model id names — see `addClient`. */
+  perCallBaseUrl: string | undefined;
 }): LlmClient | undefined {
-  const { name, profile, poolKeys, routerOptions } = args;
+  const { name, profile, poolKeys, routerOptions, perCallBaseUrl } = args;
   if (poolKeys !== undefined && poolKeys.length >= 2) {
     const strategy = routerOptions.credentialPoolStrategy?.[name] ?? "fill_first";
     const entries = poolKeys.map((accessToken, priority) =>
@@ -162,7 +186,7 @@ function buildPoolOrSingle(args: {
     return new RetryingLlmClient(
       new PoolAwareLlmClient(
         pool,
-        (apiKey) => selectTransport(profile, apiKey),
+        (apiKey) => selectTransport(profile, apiKey, perCallBaseUrl),
         undefined,
         resilience,
       ),
@@ -182,17 +206,23 @@ function buildPoolOrSingle(args: {
   // M93 — the ONE-key arm returned the RAW transport, with no retry at all. A pool of 1 key is a
   // pool of size 1: what changes between 1 and 2 keys is whether there is somewhere to rotate to, not
   // whether resilience exists. The typical consumer resolves exactly one credential and always landed here.
-  return new RetryingLlmClient(selectTransport(profile, apiKey));
+  return new RetryingLlmClient(selectTransport(profile, apiKey, perCallBaseUrl));
 }
 
+/**
+ * Base-URL override read from the environment, for the providers that document one.
+ *
+ * `ollama` is deliberately absent. It never reached this switch: `selectTransport` returns
+ * `OllamaNativeClient` for it before the `chat_completions` body runs, so `OLLAMA_HOST` is read at
+ * that earlier branch instead. The arm that used to sit here was unreachable and read like the
+ * mechanism implementing `OLLAMA_HOST` — a decoy that cost a measurement pass (B-097).
+ */
 function resolveBaseUrlEnvOverride(providerName: string): string | undefined {
   switch (providerName) {
     case "openai":
       return process.env.OPENAI_API_BASE_URL;
     case "openrouter":
       return process.env.OPENROUTER_API_BASE_URL;
-    case "ollama":
-      return process.env.OLLAMA_HOST;
     case "lmstudio":
       return process.env.LMSTUDIO_HOST;
     case "llamacpp":
@@ -287,7 +317,12 @@ function resolveApiKey(envVars: ReadonlyArray<string>): string | undefined {
  * EC-3 fix: exhaustive switch with actionable error on unsupported apiMode.
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 4-mode transport ladder (chat_completions / anthropic_messages / responses_api / bedrock) + Ollama native dispatch (D191) + per-provider envOverride is one cohesive switch — splitting hurts readability and obscures the dispatch contract.
-function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
+function selectTransport(
+  profile: ProviderProfile,
+  apiKey: string,
+  /** #332 — the endpoint THIS call should reach; outranks the provider's base-URL env var. */
+  baseUrl?: string,
+): LlmClient {
   // M41 — the optional provider `transform` seam (refresh-aware `fetch` + dynamic `headers` from the resolved
   // bearer). Invoked LAZILY, per-branch, ONLY by the transports that consume it (chat_completions +
   // responses_api) — so a transform's side effects (e.g. a token refresh) never fire for a transport that
@@ -329,11 +364,11 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     return construct(opts);
   };
 
-  // M42 review MEDIUM-1 — mirror Upstream's auth model (packages/llm/src/route/auth.ts): a provider's auth
+  // M42 review MEDIUM-1 — the auth model: a provider's auth
   // resolves to real headers at request time or FAILS with `MissingCredentialError` — it NEVER puts a
   // placeholder on the wire. theokit builds an oauth provider's client with the `__oauth_lazy_token__`
-  // placeholder (so the sync router can construct it), then the provider's `transform` (the theokit analog of
-  // Upstream's `Auth.apply`) supplies the real bearer via fetch or an authorization header. If it supplies
+  // placeholder (so the sync router can construct it), then the provider's `transform`
+  // supplies the real bearer via fetch or an authorization header. If it supplies
   // neither, fail fast here with the MissingCredentialError analog instead of POSTing the placeholder upstream.
   const assertOAuthResolved = (t: {
     fetch?: typeof fetch;
@@ -356,7 +391,7 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     // models to emit raw tool JSON as plain text — confirmed via peer-project
     // upstream warning and our own dogfood of telegram-pro.
     if (profile.name === "ollama") {
-      const ollamaBase = process.env.OLLAMA_HOST ?? profile.baseUrl;
+      const ollamaBase = baseUrl ?? process.env.OLLAMA_HOST ?? profile.baseUrl;
       return new OllamaNativeClient({ apiKey, baseUrl: ollamaBase });
     }
     const opts: ConstructorParameters<typeof OpenAIClient>[0] = { apiKey };
@@ -376,11 +411,14 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
       opts.organization = process.env.OPENAI_ORGANIZATION;
     }
     // Honor explicit base URL overrides for cloud providers + the local
-    // `authType: "none"` family (D182, D188, D189). All four `_HOST` /
+    // `authType: "none"` family (D188, D189). All four `_HOST` /
     // `_API_BASE_URL` vars are intentionally separate so users can mix
-    // remote-box pointing without disturbing the others.
+    // remote-box pointing without disturbing the others. Ollama is NOT one of
+    // them here — it returns above, and reads `OLLAMA_HOST` on that branch.
     const envOverride = resolveBaseUrlEnvOverride(profile.name);
     if (envOverride !== undefined) opts.baseUrl = envOverride;
+    // #332 — last, so the model's own endpoint outranks the process-wide env var above.
+    if (baseUrl !== undefined) opts.baseUrl = baseUrl;
     // M41 — feed the provider transform: `fetch` (refresh-aware transport) + `headers` merged over the
     // profile's static `extraHeaders`. OpenAIClient now honors `extraHeaders` (was ignored) — additive-safe:
     // no builtin sets it on chat_completions.
@@ -397,7 +435,11 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
       return new VertexRouterClient(realKey !== undefined ? { apiKey: realKey } : {});
     }
     const opts: ConstructorParameters<typeof AnthropicClient>[0] = { apiKey };
-    opts.baseUrl = process.env.ANTHROPIC_API_BASE_URL ?? profile.baseUrl;
+    // `baseUrl` first, matching the chat_completions branch and the field's own contract:
+    // `ModelSelection.url` is "the endpoint THIS call should reach" and outranks the process-wide
+    // env var. It reached only `ollama` and `chat_completions`; here a run aimed at localhost went
+    // to api.anthropic.com with the caller's key and said nothing (B-150).
+    opts.baseUrl = baseUrl ?? process.env.ANTHROPIC_API_BASE_URL ?? profile.baseUrl;
     // M45 — feed the provider transform + static extraHeaders (mirror of the M41 chat_completions wiring),
     // so anthropic_messages providers can carry headers (anthropic-beta) and refresh-aware fetches (M46).
     return comTransform(opts, (o) => new AnthropicClient(o));
@@ -406,7 +448,13 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     // D301: dedicated Bedrock InvokeModel client. apiKey from env when set;
     // strip the lazy sentinel so client triggers @aws/bedrock-token-generator (D287).
     const realKey = apiKey === "__bedrock_lazy_token__" ? undefined : apiKey;
-    return new BedrockAnthropicClient(realKey !== undefined ? { apiKey: realKey } : {});
+    // `BedrockAnthropicClient` accepts `baseUrl` (bedrock-anthropic.ts:40) and the router never
+    // passed it, so `model.url` was silently dropped on this branch too (B-150). Absent, the
+    // client still derives the regional endpoint from the model id, as before.
+    return new BedrockAnthropicClient({
+      ...(realKey !== undefined ? { apiKey: realKey } : {}),
+      ...(baseUrl !== undefined ? { baseUrl: baseUrl } : {}),
+    });
   }
   if (profile.apiMode === "responses_api") {
     // M40 — the OpenAI Responses-API transport (ChatGPT Codex backend + any responses provider). Consumes
@@ -421,7 +469,10 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
         : undefined;
     return new ResponsesApiClient({
       apiKey,
-      ...(profile.baseUrl !== undefined ? { baseUrl: profile.baseUrl } : {}),
+      // Per-call URL first, same contract as every other branch (B-150).
+      ...((baseUrl ?? profile.baseUrl) !== undefined
+        ? { baseUrl: (baseUrl ?? profile.baseUrl) as string }
+        : {}),
       ...(mergedHeaders !== undefined ? { extraHeaders: mergedHeaders } : {}),
       ...(t.fetch !== undefined ? { fetch: t.fetch } : {}),
       providerName: profile.name,

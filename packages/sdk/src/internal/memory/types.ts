@@ -92,21 +92,3 @@ export interface MemoryReadResult {
   /** Slice text (joined with `\n`). */
   text: string;
 }
-
-/**
- * Lightweight reference to a markdown file in the memory corpus.
- *
- * Mirrors peer-project's `MemoryFileEntry`.
- *
- * @internal
- */
-export interface MemoryFileEntry {
-  /** Absolute path on disk. */
-  path: string;
-  /** Path relative to the memory root (e.g. "MEMORY.md", "notes/foo.md"). */
-  relPath: string;
-  /** ms-since-epoch mtime. */
-  mtime: number;
-  /** sha256 of the file content; recomputed on each read. */
-  hash: string;
-}

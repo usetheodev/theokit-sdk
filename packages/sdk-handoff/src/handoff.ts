@@ -4,7 +4,8 @@
  *
  * Usage:
  *
- *   import { Agent, Handoff } from "@theokit/sdk";
+ *   import { Agent } from "@theokit/sdk";
+ *   import { Handoff } from "@theokit/sdk-handoff";
  *
  *   const billing = await Agent.create({
  *     name: "billing",
@@ -27,11 +28,25 @@
  * @public
  */
 
-import { Plugin, type PluginContext, type SDKAgent } from "@theokit/sdk";
+import { ConfigurationError, Plugin, type PluginContext, type SDKAgent } from "@theokit/sdk";
 import type { ZodType } from "zod";
+import { slugifyAgentName } from "./internal/slugify-agent-name.js";
 import type { HandoffDescriptor, HandoffOptions } from "./types/handoff.js";
 
-/** Recommended system-prompt prefix for senders (D215 / EC-13). */
+/**
+ * Prose to prepend to a SENDING agent's `systemPrompt` so the model knows the `transfer_to_*` tools
+ * exist and what they mean.
+ *
+ * ```ts
+ * systemPrompt: `${RECOMMENDED_HANDOFF_PROMPT_PREFIX}\n\nYou triage support requests.`
+ * ```
+ *
+ * Nothing applies it for you — neither {@link Handoff.create} nor {@link Handoff.asPlugin} touches
+ * the system prompt, so omitting it is legal and usually shows up as a model that never transfers.
+ * Only the sender needs it; the receiver is unaware it was handed a conversation.
+ *
+ * @public
+ */
 export const RECOMMENDED_HANDOFF_PROMPT_PREFIX = `
 You can transfer the conversation to other specialist agents when their
 expertise matches the user's request. Invoke the appropriate
@@ -39,26 +54,68 @@ transfer_to_<agent> tool with a short reason. The receiving agent will
 take over the conversation; do not duplicate their work.
 `.trim();
 
+/**
+ * Peer-to-peer delegation: one agent hands the conversation to another and stops.
+ *
+ * A handoff is not a subagent call. A subagent runs, returns a result, and the parent continues; a
+ * handoff TRANSFERS the turn — the target answers the user directly and the source does not resume.
+ * Reach for it when the right responder is a different agent (billing, escalation, a specialist),
+ * and for a tool-shaped "go find this out and come back", use `agents` / `Tool.create` instead.
+ *
+ * Two entry points, and they are not interchangeable:
+ *
+ * - {@link Handoff.create} builds one descriptor, for `Agent.create({ handoffs: [...] })`. A bare
+ *   `SDKAgent` in that array is auto-wrapped, so call this explicitly only to customise (input
+ *   schema, filter, callback).
+ * - {@link Handoff.asPlugin} installs a whole set as a plugin, which is the SDK 2.x+ shape and what
+ *   the README's migration section points at.
+ *
+ * A namespace class: `new Handoff()` is a compile error, matching `Agent.create` / `Tool.create`.
+ */
 export class Handoff {
   private constructor() {}
 
   /**
-   * Build a `HandoffDescriptor` for a target agent. Wrap with custom options
-   * (filter / inputType / callback / whitelist / etc); pass to
-   * `Agent.create({ handoffs: [...] })`.
+   * Describe one handoff target. Pass the result inside `Handoff.asPlugin({ targets })` or
+   * `Agent.create({ handoffs })`.
    *
-   * Raw `SDKAgent` instances in `handoffs[]` are auto-wrapped by the runtime
-   * — call `Handoff.create()` explicitly only when you need to customize.
+   * ```ts
+   * Handoff.create(billing, { toolName: "escalate_billing" })
+   * ```
+   *
+   * A bare `SDKAgent` in either array is auto-wrapped with empty options, so call this explicitly
+   * only to customise — see {@link HandoffOptions}, and note that `tools` there is currently
+   * ignored.
+   *
+   * The tool the model sees is named `transfer_to_<slug>`, where the slug comes from the target's
+   * `name` (falling back to its `agentId`, then to `"anonymous"`) with a leading `agent-` stripped,
+   * every run of characters OUTSIDE `[A-Za-z0-9_-]` folded to a single `_`, leading and trailing
+   * `_` trimmed, and a 64-char truncation. Hyphens and underscores are preserved, so `"billing EU"`
+   * and `"billing (EU)"` both become `billing_EU` while `"billing-EU"` stays distinct. Two targets
+   * whose names collapse to the same slug are NOT caught here — the collision is raised later, when
+   * the set is normalised.
+   *
+   * Throws `ConfigurationError` with `code: "handoff_target_required"` for a null/undefined target,
+   * and `code: "handoff_target_invalid"` for anything without a `send` method. It validates the
+   * target only, never the options.
    */
   static create<TInput extends ZodType = ZodType>(
     target: SDKAgent,
     options: HandoffOptions<TInput> = {} as HandoffOptions<TInput>,
   ): HandoffDescriptor<TInput> {
     if (target === undefined || target === null) {
-      throw new Error("Handoff.create: target agent is required");
+      // B-135: typed rather than bare, because `Handoff.create` is `@public` and a caller could
+      // otherwise only distinguish these two refusals by matching the message string — which is not
+      // a contract. Additive, not breaking: `ConfigurationError extends TheokitAgentError extends
+      // Error`, and the messages are unchanged.
+      throw new ConfigurationError("Handoff.create: target agent is required", {
+        code: "handoff_target_required",
+      });
     }
     if (typeof target.send !== "function") {
-      throw new Error("Handoff.create: target must be an SDKAgent instance");
+      throw new ConfigurationError("Handoff.create: target must be an SDKAgent instance", {
+        code: "handoff_target_invalid",
+      });
     }
     const resolvedToolName = options.toolName ?? `transfer_to_${slugifyName(target)}`;
     return {
@@ -69,19 +126,47 @@ export class Handoff {
   }
 
   /**
-   * Plugin-based wiring (SDK 2.x preferred). Wraps `targets` in synthetic
-   * `transfer_to_<receiver>` tools and registers them via `ctx.registerTool`
-   * at agent init time.
+   * Expose each target as a `transfer_to_<receiver>` tool on the host agent — the SDK 2.x way to
+   * wire handoffs.
    *
-   * Replaces the legacy `Agent.create({ handoffs: [...] })` option (which is
-   * still supported as a transitional convenience while sdk-handoff is
-   * installed — the framework lazy-imports the tool-injector at runtime).
+   * ```ts
+   * const support = await Agent.create({
+   *   name: "support",
+   *   systemPrompt: `${RECOMMENDED_HANDOFF_PROMPT_PREFIX}\n\nYou answer support requests.`,
+   *   plugins: [Handoff.asPlugin({ parentAgentId: "support", targets: [billing] })],
+   * });
+   * ```
    *
-   * @example
-   *   const support = await Agent.create({
-   *     name: "support",
-   *     plugins: [Handoff.asPlugin({ parentAgentId: "support", targets: [billing] })],
-   *   });
+   * Pass `parentAgentId` — it defaults to `"anonymous"`, and it is what self-reference detection
+   * and the chain trace compare against, so leaving it out weakens both. `maxHandoffDepth` defaults
+   * to 5.
+   *
+   * Four behaviours that are easy to be surprised by:
+   *
+   * - **`maxHandoffDepth: 0`, or an empty `targets`, registers NOTHING** and returns a plugin that
+   *   silently does nothing. There is no error and no warning; the model simply never sees a
+   *   transfer tool.
+   * - **Registration is awaited.** `register()` returns a promise that settles once the tools are
+   *   registered, and the plugin manager awaits it — so the transfer tools exist before the first
+   *   `send()`, and a failure in the lazy import or in target validation reaches the caller.
+   *   Before #355 it returned immediately and both of those were untrue.
+   * - **The receiver gets the user's LAST message, not the whole conversation.** The tool handler
+   *   forwards the supervisor's transcript, from which the dispatcher takes the most recent user
+   *   turn (#354 — before that it forwarded nothing, and the receiver was sent the literal string
+   *   `` `(Handoff from <sender> — no prior user message in history.)` ``). That placeholder is
+   *   still what a receiver gets when there genuinely is no prior user turn. Anything beyond the
+   *   last question has to be in the target's own system prompt, or you drive the handoff yourself
+   *   with {@link handoffTo}, which passes an explicit message through.
+   * - **The handoff tool never throws at the caller.** Every failure — loop detected, depth
+   *   exceeded, disposed receiver, `isEnabled` false, input that fails `inputType` — is caught
+   *   inside the tool handler and returned to the MODEL as
+   *   `{"ok":false,"error":"<ErrorName>","message":"…"}`. The exported error classes are real, but
+   *   in this wiring they never reach your `try`/`catch`; watch the tool results instead.
+   *
+   * A self-referencing target and two targets resolving to the same tool name are both rejected —
+   * from `register`, which the plugin manager awaits — so `HandoffSelfReferenceError` and
+   * `HandoffNameCollisionError` reject the `Agent.create` you can `catch` around (#355; they used
+   * to arrive as an unhandled rejection instead, leaving an agent silently without handoff tools).
    */
   static asPlugin(opts: AsPluginOptions): Plugin {
     const parent = opts.parentAgentId ?? "anonymous";
@@ -91,53 +176,88 @@ export class Handoff {
       name: `handoff-${parent}`,
       version: "1.0.0",
       kind: "general" as const,
-      register(ctx: PluginContext): void {
+      // #355 — `async`, and the promise is RETURNED. The plugin contract types `register` as
+      // `(ctx) => void | Promise<void>` and the manager awaits it, so returning it is all this
+      // needed. It used to run an unawaited async IIFE and return immediately: the tools appeared a
+      // module-load later, so whether they existed for the first `send()` depended on timing no
+      // caller controls, and `normalizeHandoffs`' validation errors became unhandled rejections
+      // that could not be caught around `Agent.create`.
+      //
+      // The import stays lazy — deferring it until `register` runs is what keeps the cold path
+      // lean, and that never required leaving it unawaited INSIDE `register`.
+      async register(ctx: PluginContext): Promise<void> {
         if (maxDepth === 0 || targets.length === 0) return;
-        // Lazy import — keeps cold path lean if asPlugin is constructed but
-        // its register hook is never invoked (e.g., disabled by config).
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        void (async () => {
-          const { normalizeHandoffs, buildHandoffTool } = await import(
-            "./internal/tool-injector.js"
-          );
-          const normalized = normalizeHandoffs(parent, targets);
-          for (const { descriptor } of normalized) {
-            ctx.registerTool(buildHandoffTool(parent, descriptor, maxDepth));
-          }
-        })();
+        const { normalizeHandoffs, buildHandoffTool } = await import("./internal/tool-injector.js");
+        const normalized = normalizeHandoffs(parent, targets);
+        for (const { descriptor } of normalized) {
+          ctx.registerTool(buildHandoffTool(parent, descriptor, maxDepth));
+        }
       },
     });
   }
 }
 
 /**
- * Options for `Handoff.asPlugin()`. `parentAgentId` defaults to `"anonymous"`;
- * pass the host agent's `name` for correct loop detection in chains.
+ * Options for {@link Handoff.asPlugin}.
+ *
+ * @public
  */
 export interface AsPluginOptions {
+  /**
+   * Agents this one may transfer to. A bare `SDKAgent` is auto-wrapped; use
+   * {@link Handoff.create} for a customised entry.
+   *
+   * An EMPTY array registers no tools at all and produces a plugin that does nothing — silently.
+   */
   readonly targets: ReadonlyArray<SDKAgent | HandoffDescriptor>;
+  /**
+   * Identity of the HOST agent, as it will appear in the chain trace. Default `"anonymous"`.
+   *
+   * Self-reference detection compares `target.agentId` against this exact string, so a default
+   * `"anonymous"` means an agent listing itself among `targets` is NOT caught, and the pair-loop
+   * guard is the only thing left between you and a recursion.
+   */
   readonly parentAgentId?: string;
+  /**
+   * Maximum hops in one chain before `HandoffLoopError`. Default 5. `0` disables handoffs entirely
+   * rather than allowing zero hops.
+   *
+   * The counter is created FRESH for each tool invocation, so it bounds one dispatch, not the whole
+   * `send()` — cross-tool depth accumulation is not implemented. In practice a single invocation
+   * makes one hop, so this rarely fires; the pair guard (same sender → same receiver twice) is what
+   * actually catches ping-pong.
+   */
   readonly maxHandoffDepth?: number;
 }
 
 function slugifyName(agent: SDKAgent): string {
   const candidate = (agent as unknown as { name?: string }).name ?? agent.agentId ?? "anonymous";
-  return (
-    candidate
-      .replace(/^agent-/i, "")
-      .replace(/[^a-zA-Z0-9_-]+/g, "_")
-      .replace(/^_+|_+$/g, "")
-      .slice(0, 64) || "anonymous"
-  );
+  return slugifyAgentName(candidate);
 }
 
 /**
- * Imperative escape hatch (D225). Useful for tests / programmatic flows
- * that need deterministic handoff without LLM routing.
+ * Hand `message` to `target` right now and return its reply text — no LLM routing, no tool call.
  *
- * NOTE: this is a STANDALONE helper rather than a method on `SDKAgent`
- * to avoid invasive refactor of the agent class. Behavior is identical
- * to invoking the corresponding synthetic tool would be.
+ * ```ts
+ * const reply = await handoffTo(triage, billing, "refund for order 42");
+ * ```
+ *
+ * Use it for tests and for flows where YOU decide the destination. Unlike the plugin wiring, this
+ * passes the message through verbatim, so the receiver actually sees what the user said.
+ *
+ * It THROWS, where the tool-based path swallows: a disposed receiver raises
+ * `HandoffReceiverDisposedError`, `isEnabled: false` raises a plain `Error`, and an
+ * `inputType` that rejects raises a plain `Error` wrapping the Zod message. Depth is fixed at 5 and
+ * the chain state is fresh per call, so `HandoffLoopError` is unreachable here and only the
+ * same-pair guard can fire — within a single call, never across calls.
+ *
+ * A receiver that does not finish cleanly does not throw either: you get the sentinel string
+ * `` `(Handoff target <id> returned status=<status>)` `` as the reply. Check for it if the
+ * distinction matters.
+ *
+ * Standalone rather than a method on `SDKAgent` so the agent class need not know about handoffs.
+ *
+ * @public
  */
 export async function handoffTo(
   sender: SDKAgent,

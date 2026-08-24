@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Cron } from "../../../src/cron.js";
+import { UnknownAgentError } from "../../../src/errors.js";
 import { type CronFireHandler, setCronFireHandler } from "../../../src/internal/cron/scheduler.js";
 import { clearJobs } from "../../../src/internal/cron/store.js";
 
@@ -65,6 +66,9 @@ describe("real cron scheduler", () => {
       agent: { local: { cwd: process.cwd() } },
     });
     await Cron.delete(job.id);
-    await expect(Cron.get(job.id)).rejects.toThrow();
+    // B-079 — was bare `.rejects.toThrow()`. `Cron.get` on a missing job throws
+    // the typed `UnknownAgentError` (cron.ts:83) with code `unknown_cron_job`.
+    await expect(Cron.get(job.id)).rejects.toThrow(UnknownAgentError);
+    await expect(Cron.get(job.id)).rejects.toMatchObject({ code: "unknown_cron_job" });
   });
 });

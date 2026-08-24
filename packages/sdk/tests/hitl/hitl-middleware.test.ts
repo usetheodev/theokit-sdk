@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { HitlMiddleware } from "../../src/internal/runtime/tools/hitl-middleware.js";
+import {
+  HitlMiddleware,
+  HitlTimeoutError,
+} from "../../src/internal/runtime/tools/hitl-middleware.js";
 
 describe("HitlMiddleware", () => {
   it("allows unlisted tools without calling approve", async () => {
@@ -43,6 +46,52 @@ describe("HitlMiddleware", () => {
     });
     const result = await mw.shouldProceed("execute", { command: "slow" });
     expect(result).toBe(false);
+  });
+
+  // B-141 — these two pin the CURRENT semantics of a timeout, which are not
+  // obviously the right ones. They are written as characterization tests, not as
+  // endorsement: if someone changes the timeout to carry its reason to the
+  // caller, these should fail and be rewritten, rather than the change landing
+  // silently. See the module docblock for the open question.
+  it("reports an approval timeout with the same value as an explicit denial", async () => {
+    // Arrange — one reviewer says no; one never answers.
+    const denies = vi.fn().mockResolvedValue(false);
+    const neverAnswers = vi.fn().mockImplementation(() => new Promise<boolean>(() => {}));
+    const onDenial = new HitlMiddleware({ tools: ["deploy"], approve: denies, timeoutMs: 50 });
+    const onTimeout = new HitlMiddleware({
+      tools: ["deploy"],
+      approve: neverAnswers,
+      timeoutMs: 50,
+    });
+
+    // Act
+    const denied = await onDenial.shouldProceed("deploy", { env: "prod" });
+    const timedOut = await onTimeout.shouldProceed("deploy", { env: "prod" });
+
+    // Assert — both false, so a caller holding the result cannot tell "a human
+    // refused" from "nobody was there". Fail-closed is correct; losing the
+    // reason is the part that is open.
+    expect(denied).toBe(false);
+    expect(timedOut).toBe(false);
+    expect(timedOut).toBe(denied);
+  });
+
+  it("never throws HitlTimeoutError, though the class exists to describe a timeout", async () => {
+    // Arrange
+    const neverAnswers = vi.fn().mockImplementation(() => new Promise<boolean>(() => {}));
+    const mw = new HitlMiddleware({ tools: ["deploy"], approve: neverAnswers, timeoutMs: 50 });
+
+    // Act
+    const settled = await mw.shouldProceed("deploy", {}).then(
+      (value) => ({ threw: false as const, value }),
+      (error: unknown) => ({ threw: true as const, error }),
+    );
+
+    // Assert — the declared error type is not on this path. Asserting it here
+    // means a future wiring that starts throwing it has to come past this test.
+    expect(settled.threw).toBe(false);
+    expect(settled).not.toBeInstanceOf(HitlTimeoutError);
+    expect(new HitlTimeoutError("deploy", 50).code).toBe("hitl_timeout");
   });
 
   it("passes tool name and input to approve callback", async () => {

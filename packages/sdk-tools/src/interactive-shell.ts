@@ -36,8 +36,6 @@ export interface CreateInteractiveShellToolOptions {
   interactive: InteractiveProvider<unknown>;
 }
 
-/** Map the SDK's typed interactive errors to the tool's `{ ok: false, error }` JSON. Re-throws anything
- *  else (a real bug), per the sdk-tools "JSON on user mistakes, throw on SDK bugs" contract. */
 /**
  * U-2 — a session cap carries `max` and `liveSessionIds`, and those are the only fields the model
  * can act on: without them "interactive_unavailable" cannot be told apart from a missing backend,
@@ -55,6 +53,8 @@ function capFields(err: object): { max: number; liveSessionIds: readonly string[
   return { max: e.max, liveSessionIds: e.liveSessionIds as readonly string[] };
 }
 
+/** Map the SDK's typed interactive errors to the tool's `{ ok: false, error }` JSON. Re-throws anything
+ *  else (a real bug), per the sdk-tools "JSON on user mistakes, throw on SDK bugs" contract. */
 function toErrorJson(err: unknown): string {
   // Before the superclass branch: `MaxSessionsError extends InteractiveUnavailableError`, so
   // matching the parent first flattened the subclass and dropped what made it actionable.

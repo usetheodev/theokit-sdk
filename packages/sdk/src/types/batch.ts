@@ -40,6 +40,12 @@ export interface BatchOptions extends AgentOptions {
   /**
    * Maximum parallel agents. Default 4 (ADR D136). Must be a positive
    * integer. Capped to `prompts.length` to avoid spinning idle workers.
+   *
+   * Bounds the WHOLE per-item lifecycle, including `onResult`: a prompt's
+   * concurrency slot is not released until its `onResult` callback (if any)
+   * has finished (B-110). A caller doing anything stateful in `onResult` —
+   * writing a file, appending to a shared buffer, rate-limiting an API — can
+   * rely on at most `concurrency` such callbacks running at once.
    */
   concurrency?: number;
   /** Optional filter applied post-collection. Return `false` to discard. */
@@ -47,7 +53,7 @@ export interface BatchOptions extends AgentOptions {
   /**
    * Streaming callback fired once per completed prompt (success OR failure).
    * Caller exceptions are caught + logged to stderr without poisoning
-   * the batch (EC-5).
+   * the batch (EC-5). Bounded by `concurrency` — see its doc.
    */
   onResult?: (result: BatchResult) => void | Promise<void>;
   /** Progress callback fired after each result. */

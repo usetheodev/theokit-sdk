@@ -33,6 +33,19 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "thenlper/gte-base": 768,
 };
 
+/**
+ * Open-weight embedding models (BGE, E5, GTE, MiniLM) hosted by DeepInfra.
+ * Reach for it when you want a specific open model — particularly a multilingual
+ * one — behind a hosted API rather than running it yourself.
+ *
+ * Its endpoint is `/v1/openai/embeddings`, not the canonical `/v1/embeddings`;
+ * the wire format is otherwise OpenAI-shaped. Reads `DEEPINFRA_API_KEY` and
+ * honours `DEEPINFRA_API_BASE_URL`. Priority 13.
+ *
+ * Dimensions vary sharply across the ten models it knows (384 to 1024), and
+ * switching between them invalidates an existing vector index — the index drops
+ * every vector and re-embeds on the next sync.
+ */
 export const deepinfraMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "deepinfra",
   defaultModel: DEFAULT_DEEPINFRA_EMBEDDING_MODEL,

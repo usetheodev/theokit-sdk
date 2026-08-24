@@ -18,6 +18,15 @@
 
 export type ContextMatchReason = "empty" | "ambiguous" | "not_found";
 
+/**
+ * Thrown by {@link replaceUnique} when the replacement cannot be made safely. `reason` names the
+ * case: `empty` (no target given), `ambiguous` (the target matched in more than one place, so nothing
+ * was replaced), `not_found` (no rung of the ladder matched).
+ *
+ * `ambiguous` is the one worth handling apart from the others. It says the caller's target text is
+ * too short, not that the file lacks it, so the remedy is more surrounding context rather than a
+ * different search.
+ */
 export class ContextMatchError extends Error {
   readonly reason: ContextMatchReason;
   constructor(reason: ContextMatchReason, message: string) {

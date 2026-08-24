@@ -1,6 +1,6 @@
 # ACP registry manifest
 
-`agent.json` is the entry-point for the public Agent Client Protocol marketplace (Zed, Cursor, Claude Desktop, etc.).
+`agent.json` is the entry-point for the public Agent Client Protocol marketplace.
 
 ## Install in Zed
 

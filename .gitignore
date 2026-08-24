@@ -62,10 +62,20 @@ docs/evalscope/
 .claude.backup-*/
 
 # SDK runtime state generated at workspace cwd by Agent.create / Cron.create /
-# memory writes. Test fixtures under tests/fixtures/repos/*/.theokit are
-# explicitly tracked and exempt from this ignore.
+# memory writes.
 /packages/sdk/.theokit/
 /examples/*/.theokit/
+
+# Test fixtures under tests/fixtures/repos/*/.theokit ARE tracked — a contract
+# test reads `.theokit/rules/*.md` out of them. The exemption used to be
+# asserted by the comment above and implemented nowhere: the bare `.theokit/`
+# rule near the top of this file matches at any depth, so the fixture's rule
+# files were ignored, existed only on machines where someone had run the suite,
+# and the contract test failed in CI and in every fresh checkout while passing
+# locally. Git cannot re-include a file whose parent DIRECTORY is excluded, so
+# the directory chain has to be unexcluded first — hence two lines, not one.
+!/packages/sdk/tests/fixtures/repos/*/.theokit/
+!/packages/sdk/tests/fixtures/repos/*/.theokit/**
 .gstack/
 
 # Local backups (e.g., .claude.previous.bak/, CLAUDE.md.bak from migrations)
@@ -81,6 +91,7 @@ architecture-output/
 # DB + SVG figures + REPORT.md; reproducible by re-running /loop-codebase-architect.
 # The durable report is preserved under .claude/knowledge-base/reviews/.
 architect-output/
+test-pyramid-output
 
 # loop-codebase-architect transient loop state
 .claude/codebase-architect-loop.local*.md
@@ -118,7 +129,16 @@ deadcode-output/
 .next/
 **/.next/
 
-# Build artifact — root docs/ copied into the package so npm `files` can ship them
-# (see packages/sdk/scripts/copy-docs.mjs). Source of truth stays at repo-root docs/.
-packages/sdk/docs/
 refactor/
+
+BACKLOG.md
+BACKLOG-ARCHIVE.md
+
+# Stryker mutation testing — transient sandbox (a full copy of src/) + tool reports.
+# Both are machine-generated per run. Left untracked they make the working tree dirty,
+# which breaks the clean-tree pre-condition of cycle-release and cycle-code-quality;
+# biome reads this file (biome.json vcs.useIgnoreFile) so this also stops the formatter
+# from linting a generated copy of the source.
+.stryker-tmp/
+packages/*/reports/
+reports/

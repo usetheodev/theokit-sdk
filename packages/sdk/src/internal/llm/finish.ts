@@ -1,4 +1,5 @@
 import { isPlainObject, tryJson } from "../../sanitize/coerce.js";
+import { diag } from "../diagnostics.js";
 import type { LlmFinish, LlmRequest, LlmStopReason, LlmToolCallPart } from "./types.js";
 
 /**
@@ -55,6 +56,51 @@ export function mapOpenAIFinish(reason: string): LlmStopReason {
 }
 
 /**
+ * A provider-reported token count, or `undefined` when what arrived is not one.
+ *
+ * Accepts a non-negative finite number, and a numeric STRING — providers returning numeric JSON
+ * fields as strings is not exotic, and untreated it produced `"0" + "100" + "050"` where a sum was
+ * intended, feeding `"0100050"` to pricing (#372). Fractional values are floored: a count is a
+ * count, and discarding one because a provider sent `12.7` would lose real usage.
+ *
+ * Rejects negatives, `NaN`, `Infinity` and anything non-numeric. A negative count is the dangerous
+ * one: it moves a budget gate DOWNWARD, so the guard exists to protect spend accounting, not to
+ * tidy types.
+ *
+ * MAGNITUDE IS DELIBERATELY NOT CHECKED. `9e15` tokens is absurd and yields an absurd cost, but any
+ * ceiling here would be invented — it would reject a legitimate large batch while still passing
+ * anything just under it. "How much is too much" is a budget policy, and `@theokit/sdk-budget` is
+ * where a cap belongs and already lives.
+ */
+function asTokenCount(value: unknown): number | undefined {
+  const n = typeof value === "string" ? Number(value) : value;
+  if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return undefined;
+  return Math.floor(n);
+}
+
+/** The `LlmFinish` fields that carry a token count — the ones {@link assign} may write. */
+type TokenField =
+  | "inputTokens"
+  | "outputTokens"
+  | "cacheReadTokens"
+  | "cacheWriteTokens"
+  | "reasoningTokens";
+
+/** Set `key` on `finish` when `value` survives {@link asTokenCount}; report it on stderr when it does not. */
+function assign(finish: LlmFinish, key: TokenField, value: unknown): void {
+  if (value === undefined) return;
+  const count = asTokenCount(value);
+  if (count === undefined) {
+    diag(
+      `[theokit-sdk] provider reported an unusable ${key} (${String(value)}) — dropping it. ` +
+        `Usage and cost for this turn will be incomplete.\n`,
+    );
+    return;
+  }
+  finish[key] = count;
+}
+
+/**
  * Build the provider-agnostic `LlmFinish` shape from accumulator state.
  * Shared between the Anthropic and OpenAI stream parsers so the two
  * implementations don't drift on token-usage fields.
@@ -78,11 +124,14 @@ export function makeLlmFinish(state: {
     text: state.text,
     toolCalls: state.toolCalls,
   };
-  if (state.inputTokens !== undefined) finish.inputTokens = state.inputTokens;
-  if (state.outputTokens !== undefined) finish.outputTokens = state.outputTokens;
-  if (state.cacheReadTokens !== undefined) finish.cacheReadTokens = state.cacheReadTokens;
-  if (state.cacheWriteTokens !== undefined) finish.cacheWriteTokens = state.cacheWriteTokens;
-  if (state.reasoningTokens !== undefined) finish.reasoningTokens = state.reasoningTokens;
+  // #372 — validate at the boundary (`error-handling.md` § 2). Everything below arrives from a
+  // provider's JSON and reaches `run.usage`, the cost calculation and `@theokit/sdk-budget` with no
+  // check of its own further down.
+  assign(finish, "inputTokens", state.inputTokens);
+  assign(finish, "outputTokens", state.outputTokens);
+  assign(finish, "cacheReadTokens", state.cacheReadTokens);
+  assign(finish, "cacheWriteTokens", state.cacheWriteTokens);
+  assign(finish, "reasoningTokens", state.reasoningTokens);
   if (state.thinking !== undefined) finish.thinking = state.thinking;
   return finish;
 }

@@ -46,12 +46,16 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
- * Duplicated lines across `packages/*​/src`, as measured on 2026-08-17.
+ * Duplicated lines across `packages/*​/src`, as measured on 2026-08-22.
  *
- * 3647 across 93 clones. Pinned exactly: the point is that it cannot grow, and a
+ * 3333 across 110 clones. Pinned exactly: the point is that it cannot grow, and a
  * budget with slack in it is slack someone will spend.
+ *
+ * Was 3647 on 2026-08-17. Extracting the agent-name slug rule out of its two copies
+ * (`sdk-handoff`) dropped it by 314, and the gate's own message asks for the new figure to
+ * be pinned — a budget that keeps the old slack lets the duplication come back unnoticed.
  */
-const BUDGET_LINES = Number(process.env.MAX_DUPLICATED_LINES ?? 3647);
+const BUDGET_LINES = Number(process.env.MAX_DUPLICATED_LINES ?? 3333);
 
 const out = mkdtempSync(join(tmpdir(), "jscpd-gate-"));
 try {

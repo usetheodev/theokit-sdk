@@ -34,7 +34,11 @@ fi
 # sha) carries no tree to validate and is skipped; an empty stdin means git told us nothing, so the
 # gate runs.
 introduces_new_commits() {
-  local _lref lsha _rref _rsha saw_ref=0
+  local _lref lsha _rref _rsha saw_ref=0 verdict=1
+  # Read EVERY ref before answering. Returning from inside this loop leaves git
+  # writing ref lines into a pipe nobody drains, and git dies of SIGPIPE — exit
+  # 141, after the gates have already passed, with nothing pushed and no error
+  # message to explain it. The loop is cheap; the early return was not.
   while read -r _lref lsha _rref _rsha; do
     [ -z "${lsha:-}" ] && continue
     case "$lsha" in
@@ -43,10 +47,11 @@ introduces_new_commits() {
     esac
     saw_ref=1
     if [ -n "$(git rev-list "$lsha" --not --remotes=origin 2>/dev/null | head -1)" ]; then
-      return 0
+      verdict=0
     fi
   done
-  [ "$saw_ref" -eq 1 ] && return 1 || return 0
+  [ "$saw_ref" -eq 1 ] || verdict=0
+  return "$verdict"
 }
 
 if ! introduces_new_commits; then

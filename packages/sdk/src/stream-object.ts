@@ -99,6 +99,19 @@ interface StreamObjectDeps {
  * addition of intermediate `partial` events emitted from incremental parsing
  * of accumulating text deltas during the agent loop.
  *
+ * REACHED BY DYNAMIC IMPORT — do not delete on a dead-code report (B-140).
+ * `agent.ts` loads this module lazily to keep it off the eager path:
+ *
+ *     streamObjectImport ??= import("./stream-object.js");
+ *     const { streamObjectImpl } = await streamObjectImport;
+ *
+ * `knip` resolves imports statically and does not follow a destructure off a
+ * dynamic-import promise, so it reports this export as unused on every run. It
+ * is not: removing it breaks `Agent.streamObject`. That is why this file is
+ * named in `knip.json`'s ignore list rather than cleaned up — the entry is a
+ * tool limitation, not a suppression of a real finding, and the difference is
+ * the whole reason this comment exists.
+ *
  * @internal
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: streaming loop interleaves text-delta accumulation, partial-parse attempts, retries, and final dispose — splitting harms locality of the iterator contract.

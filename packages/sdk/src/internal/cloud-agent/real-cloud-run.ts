@@ -179,7 +179,7 @@ class RealCloudRun extends FixtureRunBase {
     parsed: Record<string, unknown>,
   ): { finalText?: string; finalStatus?: RunStatus } {
     if (eventName === "status") {
-      this.script.events.push(this.buildStatusEvent(parsed.status as string));
+      this.script.events.push(this.buildStatusEvent(parsed.status));
       this.notifyNewEvents();
       return {};
     }
@@ -191,7 +191,7 @@ class RealCloudRun extends FixtureRunBase {
     }
     if (eventName === "result") {
       const update: { finalText?: string; finalStatus?: RunStatus } = {
-        finalStatus: (parsed.status as RunStatus | undefined) ?? "finished",
+        finalStatus: parsed.status === undefined ? "finished" : toRunStatus(parsed.status),
       };
       if (typeof parsed.result === "string") update.finalText = parsed.result;
       return update;
@@ -199,12 +199,12 @@ class RealCloudRun extends FixtureRunBase {
     return {};
   }
 
-  private buildStatusEvent(status: string): SDKStatusMessage {
+  private buildStatusEvent(status: unknown): SDKStatusMessage {
     return {
       type: "status",
       agent_id: this.agentId,
       run_id: this.id,
-      status: status as SDKStatusMessage["status"],
+      status: toWireStatus(status),
     };
   }
 
@@ -227,6 +227,75 @@ class RealCloudRun extends FixtureRunBase {
     }
     this.transitionTo("error" satisfies RunStatus);
   }
+}
+
+/**
+ * The server's terminal token, mapped onto `RunStatus` (#341).
+ *
+ * This module's own contract comment says the server sends `CREATING|RUNNING|FINISHED|ERROR`, and
+ * `RunStatus` is lowercase — so the previous `parsed.status as RunStatus` put `"FINISHED"` into a
+ * union that has no such member. Nothing noticed: the cast satisfied the compiler, `transitionTo`
+ * assigned whatever arrived and `buildResult` copied it into `RunResult`. For a consumer that means
+ * `result.status === "finished"` never fires on a successful cloud run and `throwOnError`, which
+ * keys on `"error"`, never fires on a failed one — silently, on the primary cloud path.
+ *
+ * `EXPIRED` is a member of the wire-level status union but has no `RunStatus` of its own. A run that
+ * expired did not finish, so it settles as `"error"`: the alternative is reporting an unknown
+ * outcome as success, which is the failure mode this whole function exists to remove.
+ *
+ * An unrecognised token THROWS rather than defaulting. Defaulting to `"finished"` would take a
+ * response we do not understand and report it as the best possible outcome
+ * (`rules/error-handling.md` § 2 — validate at the boundary, fail fast, fail clear). The throw is
+ * caught by the run's own transport catch, which settles the run as an error carrying the message.
+ */
+const SERVER_STATUS_TO_RUN_STATUS: Readonly<Record<string, RunStatus>> = {
+  creating: "running",
+  running: "running",
+  finished: "finished",
+  error: "error",
+  cancelled: "cancelled",
+  expired: "error",
+};
+
+/**
+ * The same token, kept in the wire-level union `SDKStatusMessage["status"]` — which is UPPERCASE by
+ * declaration, deliberately: it is the transport's own vocabulary, not `RunStatus`. Normalising it
+ * to lowercase would break the contract this SDK publishes for the event stream.
+ *
+ * Validated rather than cast for the reason in `toRunStatus` above: `status as
+ * SDKStatusMessage["status"]` put whatever the server said into a closed union that consumers
+ * switch on. Two contracts, one boundary, one place that decides what a status token means.
+ */
+const WIRE_STATUSES: readonly SDKStatusMessage["status"][] = [
+  "CREATING",
+  "RUNNING",
+  "FINISHED",
+  "ERROR",
+  "CANCELLED",
+  "EXPIRED",
+];
+
+function toWireStatus(token: unknown): SDKStatusMessage["status"] {
+  if (typeof token === "string") {
+    const upper = token.toUpperCase();
+    const match = WIRE_STATUSES.find((candidate) => candidate === upper);
+    if (match !== undefined) return match;
+  }
+  throw new NetworkError(
+    `Cloud Run stream reported an unrecognised status ${JSON.stringify(token)}; expected one of ${WIRE_STATUSES.join(", ")} (case-insensitive)`,
+    { code: "cloud_run_unknown_status" },
+  );
+}
+
+function toRunStatus(token: unknown): RunStatus {
+  if (typeof token === "string") {
+    const mapped = SERVER_STATUS_TO_RUN_STATUS[token.toLowerCase()];
+    if (mapped !== undefined) return mapped;
+  }
+  throw new NetworkError(
+    `Cloud Run stream reported an unrecognised status ${JSON.stringify(token)}; expected one of ${Object.keys(SERVER_STATUS_TO_RUN_STATUS).join(", ")} (case-insensitive)`,
+    { code: "cloud_run_unknown_status" },
+  );
 }
 
 function safeParse(data: string): Record<string, unknown> | undefined {

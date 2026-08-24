@@ -55,11 +55,6 @@ export interface ShellOutput {
 }
 
 /**
- * Single step inside an agent turn.
- *
- * @public
- */
-/**
  * Result of a tool invocation. Pairs with the preceding `toolCall` step
  * by `callId`. `isError: true` when the tool returned a failure result.
  *
@@ -75,6 +70,24 @@ export interface ToolResult {
   isError: boolean;
 }
 
+/**
+ * A single step inside an agent turn, discriminated by `type`: an assistant message, a tool call, the
+ * tool result that pairs with it, or a thinking block.
+ *
+ * It reaches a caller by two routes that are NOT the same set. `Run.conversation()` returns the
+ * accumulated steps of a finished turn and includes `thinkingMessage`. `SendOptions.onStep` fires
+ * live while the turn runs and emits `assistantMessage`, `toolCall` and `toolResult` — but never
+ * `thinkingMessage`, which the loop builds only into the accumulated conversation. A UI that wants
+ * reasoning as it happens should read the `thinking-delta` / `thinking-completed` variants of
+ * `InteractionUpdate` through `onDelta` instead.
+ *
+ * `toolCall` and its `toolResult` arrive as an ordered pair matched by `callId`; a call whose result
+ * never came back has no `toolResult` step, so do not assume they alternate. Where a
+ * `thinkingMessage` exists it precedes the `assistantMessage` of the same turn — that is the order
+ * the provider requires of the message the block belongs to, not a presentation choice.
+ *
+ * @public
+ */
 export type ConversationStep =
   | { type: "assistantMessage"; message: AssistantMessage }
   | { type: "toolCall"; message: ToolCall }

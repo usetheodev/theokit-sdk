@@ -22,7 +22,7 @@
  * @internal
  */
 
-import { closeSync, openSync, readFileSync, readSync, statSync, writeSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readFileSync, readSync, writeSync } from "node:fs";
 
 import { TheokitAgentError } from "../../errors.js";
 
@@ -108,7 +108,6 @@ export function forkTranscript(
 export interface ReadJsonlTailOptions {
   /** Maximum records to return, counted from the END. */
   readonly maxRecords?: number;
-  /** Stop once a line contains this marker (exclusive). */
   /**
    * Start the window AFTER the last record whose `subtype` (or `type`) equals this.
    *
@@ -130,8 +129,13 @@ const TAIL_CHUNK = 64 * 1024;
  * be cut in half when the read stopped before the start of the file; that is why it is discarded.
  */
 function readRawTail(path: string, want: number): { lines: string[]; bytesRead: number } {
-  const size = statSync(path).size;
+  // Opened FIRST, then sized through the descriptor. `statSync(path)` followed by
+  // `openSync(path)` resolves the name twice, and `size` is what drives every read offset below —
+  // so a path that changed between the two calls would have the loop seeking by one file's length
+  // inside another (CodeQL js/file-system-race #19). `fstat` on the open fd describes the file
+  // being read, by construction.
   const fd = openSync(path, "r");
+  const size = fstatSync(fd).size;
   let bytesRead = 0;
   let tail = "";
   let pos = size;
@@ -158,14 +162,6 @@ function nonEmptyLines(text: string): string[] {
 }
 
 /**
- * Read the LAST records of a JSONL file without loading the whole thing.
- *
- * Reads fixed-size chunks backwards from EOF until enough newlines have been seen. A session
- * transcript grows without bound; loading megabytes to show the last three turns is the cost this
- * exists to avoid — and a `slice` over a full read would be that same cost with a better name.
- */
-
-/**
  * Whether a raw JSONL line IS the marker record, rather than a line that talks about it.
  *
  * Matches on the record's own discriminants (`subtype`, then `type`) — the fields that identify
@@ -185,6 +181,13 @@ function isMarkerRecord(line: string, marker: string): boolean {
   return record.subtype === marker || record.type === marker;
 }
 
+/**
+ * Read the LAST records of a JSONL file without loading the whole thing.
+ *
+ * Reads fixed-size chunks backwards from EOF until enough newlines have been seen. A session
+ * transcript grows without bound; loading megabytes to show the last three turns is the cost this
+ * exists to avoid — and a `slice` over a full read would be that same cost with a better name.
+ */
 export function readJsonlTail<T = Record<string, unknown>>(
   path: string,
   options: ReadJsonlTailOptions = {},

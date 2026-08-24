@@ -4,7 +4,13 @@
  * and yields a stream of `LlmEvent`s plus a final `LlmFinish` shape that
  * the agent loop converts into our `SDKMessage` events.
  *
- * @internal
+ * Semver-exempt: nothing here is declared in `package.json` `exports`. These types are nonetheless
+ * reachable from published declarations through the type graph, so they must be EMITTED.
+ *
+ * NOTE — no internal-visibility tag in this block. `tsconfig.base.json` sets `stripInternal: true`,
+ * and TypeScript scans EVERY leading comment range of the declaration that follows. The tag that
+ * used to sit here deleted `LlmTool` from the emitted `.d.ts` while `LlmRequest`, which names it,
+ * survived — a declaration that does not compile for any consumer running type-aware lint.
  */
 
 export interface LlmTool {

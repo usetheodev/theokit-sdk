@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Codemod for the @theokit/sdk 2.x -> 3.0 migration (SE36): rewrites every removed public factory (defineTool, createSquad, defineProvider, withRetry, ...) to its uniform X.create() namespace form, in both imports and call sites. Purely syntactic (jscodeshift, --parser=ts).",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "transform.mjs",
   "bin": {

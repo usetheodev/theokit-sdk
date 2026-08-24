@@ -88,13 +88,32 @@ const b = await Agent.create({ plugins: [sharedPlugin] });
 
 ## Failure modes
 
-| HTTP status | Maps to | Trips breaker? |
+| What was thrown | Maps to | Trips breaker? |
 |---|---|---|
 | 401 / 403 | `auth_failed` | no |
 | 429 | `rate_limited` | **no** (EC-K) |
 | 404 | `not_found` | no |
 | 5xx | `network` | yes |
-| Network/timeout | `network` | yes |
+| No status, message contains "network" | `network` | yes |
+| No status, any other message (e.g. `"fetch failed"`) | `unknown` | **no** |
+
+The status is read from `.status`, `.statusCode`, `.response.status`, or an `errorCode` of the form
+`HTTP_<nnn>` — the last is what `mem0ai` actually attaches. Transport failures are recognised only
+by the literal substring `network` in the message, so a DNS or connection error worded differently
+lands in `unknown` and leaves the breaker closed.
+
+## API reference
+
+Every symbol this package exports, with the exact specifier to import it from, is in the generated
+capability map that ships inside `@theokit/sdk`:
+
+```
+node_modules/@theokit/sdk/docs/harness-capability-map.md   # symbol -> import specifier
+node_modules/@theokit/sdk/docs/error-codes.md              # every `code` an error can carry
+```
+
+Both are generated from the built type declarations, so they describe the version you installed
+rather than the version someone wrote a page about.
 
 ## License
 
