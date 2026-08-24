@@ -51,10 +51,31 @@ function txCookieSecret<TSession>(opts: DefineAuthOptions<TSession>): string {
       return sess.secret;
     }
   }
-  // Defensive fallback. Apps without SessionManager.secret pattern should
-  // explicitly pass an env-backed secret OR rely on this dev-only fallback
-  // (will fail in production scrutiny — flagged by future audit).
-  return process.env.THEOKIT_OAUTH_TX_SECRET ?? "DEV_ONLY_INSECURE_OAUTH_TX_SECRET_REPLACE_IN_PROD";
+  const fromEnv = process.env.THEOKIT_OAUTH_TX_SECRET;
+  if (fromEnv) return fromEnv;
+
+  // The comment that used to sit here said this fallback "will fail in production scrutiny —
+  // flagged by future audit". This is that audit, and the fallback is now refused where it matters.
+  //
+  // The cookie this secret encrypts carries `state` and `pkceVerifier` — the two values that make
+  // an authorization-code flow safe against CSRF and code interception. Encrypting them with a
+  // constant published inside the package protects nothing from anyone who can read npm.
+  //
+  // `AuthSecretTooShortError` never caught it: the constant is 48 characters, and that guard checks
+  // LENGTH, not provenance.
+  //
+  // Refused in production only. Blocking it everywhere would break every `pnpm dev`, and the risk
+  // is a deployed app rather than a laptop. The branch above (`opts.session.secret`) stays for
+  // callers who wire one, though `SessionManager` declares no such field today.
+  if (process.env.NODE_ENV === "production") {
+    throw new AuthConfigError(
+      "missing_tx_secret",
+      "No OAuth transaction secret is configured. Set THEOKIT_OAUTH_TX_SECRET to a 32+ character " +
+        "random value — e.g. `openssl rand -hex 32`. Refusing to encrypt the transaction cookie " +
+        "with the development fallback, which ships inside this package and protects nothing.",
+    );
+  }
+  return "DEV_ONLY_INSECURE_OAUTH_TX_SECRET_REPLACE_IN_PROD";
 }
 
 function defineAuth<TSession>(opts: DefineAuthOptions<TSession>): AuthOrchestrator<TSession> {
@@ -117,11 +138,16 @@ function defineAuth<TSession>(opts: DefineAuthOptions<TSession>): AuthOrchestrat
     // Build response with Set-Cookie + redirect
     const headers = new Headers();
     headers.set("Location", authUrl.toString());
-    const { encodeTransaction } = await import("./oauth-transaction-store.js");
+    const { encodeTransaction, COOKIE_NAME } = await import("./oauth-transaction-store.js");
     const encodedTx = await encodeTransaction(tx, txSecret);
+    // COOKIE_NAME, never a literal: this header used to be written by hand as `theo_oauth_tx=`,
+    // while the store reads the `__Host-` prefixed name — so `finishSignIn` never found the cookie
+    // and every sign-in failed at the callback. One constant, one name.
+    //
+    // The `__Host-` prefix requires exactly what is set below: `Secure`, `Path=/`, and NO `Domain`.
     headers.set(
       "Set-Cookie",
-      `theo_oauth_tx=${encodedTx}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600`,
+      `${COOKIE_NAME}=${encodedTx}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=600`,
     );
 
     return new Response(null, { status: 302, headers });

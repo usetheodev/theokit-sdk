@@ -27,7 +27,8 @@ export type RunEvent =
   | RunCompactionFallbackEvent
   | RunTripwireEvent
   | RunCompletionCheckEvent
-  | RunMcpServerFailedEvent;
+  | RunMcpServerFailedEvent
+  | RunMcpServerReadyEvent;
 
 /**
  * theokit#188 — an MCP server was configured but its tools could not be listed, so NONE of its
@@ -47,6 +48,34 @@ export interface RunMcpServerFailedEvent {
   readonly serverName: string;
   /** Why listing failed — a spawn error, a handshake timeout, a protocol error. */
   readonly message: string;
+}
+
+/**
+ * usetheokit/theokit#426 — an MCP server came up, and these are the tools it delivered.
+ *
+ * The sibling of {@link RunMcpServerFailedEvent}, emitted from the same function, on the other
+ * branch. Without it a consumer could see what was CONFIGURED and what BROKE, and could not tell a
+ * server that came up with twelve tools from one that came up with none — which is exactly the case
+ * an operator opens a server-status panel to find. `tools: []` on a healthy server is a real and
+ * previously unreportable state.
+ *
+ * An EVENT rather than a getter, because the state is scoped to the run: with
+ * `mcpLifecycle: "run"` a server may not exist by the time anyone asks, so a getter would have to
+ * answer about something already gone. This says what was true when the run started.
+ *
+ * Emitted once per successfully-listed server per run.
+ */
+export interface RunMcpServerReadyEvent {
+  readonly type: "mcp_server_ready";
+  /** The server as named in the MCP configuration — the key a consumer already lists it under. */
+  readonly serverName: string;
+  /**
+   * The tool names the server reported, as IT names them.
+   *
+   * Not the `mcp_<server>_<tool>` form the model sees: that spelling is sanitized for the provider,
+   * and a consumer matching it back to a server's own documentation would have to undo the mangling.
+   */
+  readonly tools: readonly string[];
 }
 
 /**
