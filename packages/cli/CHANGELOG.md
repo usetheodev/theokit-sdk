@@ -1,5 +1,244 @@
 # Changelog
 
+## 4.0.0
+
+### Major Changes
+
+- 0258f3c: Two `theokit` flags that were advertised in `--help` and read by nothing now behave.
+
+  `tasks cancel --reason <r>` records the reason: `TaskHandle` gains a `cancelReason` field, written
+  alongside `cancelledAt` for a queued task and alongside `cancelRequested` for a running one. A task
+  that is already terminal is left untouched, reason or not.
+
+  **Breaking:** `theokit init --here` is removed. It never scaffolded into the current directory, and
+  the writer cannot honour it — the tree is built in a temp directory and moved into place with `rm` +
+  `rename`, so a destination equal to `cwd` would mean deleting the directory the process is running
+  in. An unknown-option error is immediate and clear where silence was not.
+
+- 89b25f1: **Breaking:** `theokit setup gworkspace --writable <products>` is removed.
+
+  It granted nothing. The value was never parsed, never validated and never reached upstream; its
+  entire effect was a note printed after the OAuth flow had already completed, and only on one of the
+  three code paths. A permissions flag that does not affect permissions misleads in the dangerous
+  direction — a user reading `--help` concludes they chose a narrow grant while the consent screen
+  grants every scope upstream asks for.
+
+  Scope narrowing is not something this command can do: OAuth is delegated upstream (ADR D345) and
+  the upstream server offers no per-product grant. That fact now lives in the command's own
+  documentation, where it applies to every path rather than to one printed note.
+
+### Minor Changes
+
+- 7c7b21a: `theokit init` gains four templates — `chatbot`, `multi-agent`, `rag-agent` and
+  `workflow-automation` — and its `telegram-bot` template now installs and
+  compiles. It imported `createAgentFactory`, which the SE36 rename replaced with
+  `AgentFactory.create`, and pinned `@theokit/gateway` to the SDK's own version, so
+  a scaffolded project failed at `pnpm install` before any code ran.
+
+  `@theokit/cli` exports the `eval.config.ts` contract its README tells you to use:
+  `EvalConfig`, `DatasetEntry`, `Scorer` and `Score`.
+
+  `@theokit/sdk` exports `Workflow`, `fn` and `agentStep` from the package root.
+  `CronCreateOptions.workflow` types against the copy in the cron chunk, while the
+  `./workflow` subpath emits its own declaration of the same class — so a workflow
+  built the documented way was rejected by `Cron.create` on a private-field
+  mismatch. Importing both from the root now gives one identity.
+
+### Patch Changes
+
+- cdb517f: `theokit init` now exits 2 for a symlinked destination, not 1.
+
+  `theokit --help` publishes `0=success · 1=unknown error · 2=user error`, and a CI job branching on
+  that pair routed a plain user mistake to the branch that pages someone. Four of the scaffolder's
+  five coded refusals mapped to 2; `dest_is_symlink` was missing from the hand-written copy of that
+  list and fell through.
+
+  The list now lives with the scaffolder as a typed union, so adding a refusal without deciding its
+  exit code does not compile.
+
+- e3f2a82: Public-API documentation reviewed file by file, and corrected wherever it disagreed
+  with the code. The docblocks ship in the `.d.ts`, so these read as behaviour changes
+  in an editor even though no behaviour changed.
+
+  The corrections that change what a caller would do:
+
+  - **`sdk-cache` documented its own premise backwards.** The header example labelled a
+    semantic hit as if it avoided the provider call. `asPlugin()` returns the cached
+    answer as `recalledContext`, which the agent loop injects as a `<memory-context>`
+    block _before_ the prompt — the request still goes to the provider. The two modes
+    are now labelled separately, with a table saying which one short-circuits and which
+    one seeds.
+  - **`sdk-handoff`'s five error classes said "throw".** Under the plugin wiring the
+    handler never throws; every failure becomes a tool result `{"ok":false,…}` handed
+    back to the model. Each class now says where it is actually observable. The header
+    also told readers to `import { Handoff } from "@theokit/sdk"`, from which it was
+    extracted.
+  - **`sdk-budget`'s `charge()` claimed idempotency across concurrent calls.** The mutex
+    serialises, it does not deduplicate: two identical calls record twice. Related, and
+    newly documented: with `maxUsd` set, a model missing from the pricing table denies
+    every request rather than passing it — and the table matches by exact string, so
+    `"openai/gpt-4o"` does not match `"gpt-4o"`.
+  - **The three `memory-*` adapters advertised an env-var fallback they do not read**,
+    and their peer dependencies are required rather than optional. Their behavioural
+    differences are now stated where they break the "interchangeable adapter"
+    assumption — honcho ignores `k` and always throws on `delete`; mem0 recalls across
+    sessions by design; supermemory ignores `sessionId` entirely.
+  - **`sdk-memory`'s `truncated` flag was documented as its own inverse**, and its
+    dreaming sweep claimed a mutex it never takes against the writer it names.
+  - **`sdk-tools`** corrected `run_vitest`'s unreachable `no_vitest` code, `truncation`'s
+    replacement-character claim, and two return shapes missing a live error code.
+  - **`acp`/`cli`** corrected sixteen statements including a named error class that is
+    not the one raised, a handler documented as calling `fork()` that refuses
+    unconditionally, handlers described as pure that mint ids and mutate a store, a
+    config loader credited to Zod in a package that does not import it, and a `--force`
+    scaffold described as atomic that deletes the destination before the rename.
+
+  Undocumented public symbols were documented across every package, with each claim
+  checked against the implementation rather than inferred from the name.
+
+- e368fc1: Every published declaration file now compiles without `skipLibCheck` (#345). The
+  DTS rollup emitted symbols as a re-export from a chunk while omitting them from
+  that chunk's `import`, and dropped type-only imports from external packages —
+  leaving 51 unresolved references across ten of the twelve packages. Nothing broke
+  at runtime, and `tsc` stayed green for anyone with `skipLibCheck` on, but a
+  consumer running type-aware lint saw every type reached through one degrade to
+  `error`.
+
+  The declarations are repaired at build time from the compiler's own diagnostics.
+  No source or API change.
+
+- 63a77c6: `theokit eval --output report.md` no longer emits a lone UTF-16 surrogate when a
+  dataset input or model output is truncated (#342). The cut counted code units, so
+  a boundary landing between the halves of an emoji kept one half — a lone
+  surrogate has no UTF-8 encoding, so writers and markdown renderers downstream
+  either substitute U+FFFD or reject the file.
+
+  Truncation now cuts only on a character boundary. The width budget stays in code
+  units, since it exists to keep the table narrow; what changed is where the cut may
+  fall.
+
+- 1ac974f: **`@theokit/sdk-pty` declares its licence.** Every published version up to now shipped with no `license` field in the manifest. npm reads the field, not the directory, so the tarball was all-rights-reserved to whoever installed it — the terms were sitting in the `LICENSE` file it already shipped, saying nothing. The field now says `Apache-2.0`, which is what that file has always been and what all eleven sibling packages declare.
+
+  **Four packages now ship the licence they declare.** `@theokit/cli`, `@theokit/memory-honcho`, `@theokit/memory-mem0` and `@theokit/memory-supermemory` declared `Apache-2.0` and listed `LICENSE` in `files`, and no such file existed. npm omits a declared-but-absent path in silence, so every published tarball asserted the licence while carrying none of its terms — and §4(a) requires a copy to travel with the distribution. The file is there now, byte-identical to the one the other packages ship.
+
+  **Six packages complete the rest of their published metadata.** Each field is here for what its absence costs a consumer:
+
+  - `homepage` and `bugs` — the npm page renders both; without them someone who hits a defect has no route back to the project.
+  - `engines.node` — npm warns on an unsupported runtime only when the range is declared. `@theokit/sdk-pty` declared none, so a Node 18 install failed later and somewhere unrelated.
+  - `sideEffects` — a bundler keeps every module of a package that stays silent. Declared only after checking: a clean scan of each built ESM entry found zero top-level statements, the residual hits being closing tokens of declarations. `@theokit/sdk` keeps its path-array form, which is the honest shape for a package whose agent entry registers on import.
+  - `publishConfig.access` — a scoped package defaults to `restricted`. Three declared none and reached npm public only because the release flow supplied the flag; the manifest states it now instead of depending on how it is invoked.
+  - `@theokit/sdk-pty` also ships its `CHANGELOG.md`, which existed on disk and was absent from `files`.
+
+  The gate that should have caught any of this covered three packages out of twelve, by way of a hand-written list. It now derives the list from `packages/`, asserts the whole contract, and fails when the sweep discovers nothing rather than passing by having nothing to check.
+
+- e699569: **The repository moved to the official `usetheokit` organization.** Every `repository`, `bugs` and `homepage` field now points there, along with the README, `CONTRIBUTING.md`, `SECURITY.md` and the issue templates. Existing clones and any URL already published keep working — GitHub redirects a transferred repository permanently — so this is a correctness fix for the metadata npm renders, not a break.
+
+  **The Apache-2.0 text every package ships was replaced with the official one.** The copy distributed until now had paragraph 4(d) truncated: it read "except as required for describing the origin of the Work and reproducing the content of the NOTICE file", dropping "reasonable and customary use" from the licensed clause. §4(d) governs what a redistributor must do with attribution notices, and the omission narrowed it.
+
+  That matters more than a typo would. The manifests declare the SPDX identifier `Apache-2.0`, which is an assertion that the terms are _the_ Apache-2.0 terms — a licence scanner resolves the identifier and never reads the file. A consumer's compliance review, which does read the file, would find a body that no longer matches the identifier and has no name of its own. Every `LICENSE` in this repository is now byte-identical to the canonical text, with the appendix filled in.
+
+  Nothing else about the terms changed: the licence is the same licence it has always been meant to be, and no package changes what it grants.
+
+- f692988: The reference docs no longer ship inside the package. `node_modules/@theokit/sdk/docs/` is gone, along with the `harness-capability-map.md` and `error-codes.md` files it carried — the `docs` entry was removed from the published `files` list and the build step that generated it was removed with it.
+
+  The exported TypeScript types are now the only reference surface, and they remain the canonical contract: every public primitive carries its import path, signature and JSDoc example, surfaced by your editor. Nothing about the runtime API changed.
+
+  The scaffolded agent context still ships, unchanged, under `claude-template/`.
+
+- c7385d2: Test runs no longer claim every core on the host.
+
+  None of the package configs capped `maxWorkers`, so vitest's default applied: `os.availableParallelism()`,
+  one fork per core, each booting a full test environment. The repo's `test` script is
+  `turbo run test --filter='./packages/*'`, so that default is paid once per package _concurrently_ —
+  nproc forks times turbo's concurrency, on nproc cores. Measured on a 12-thread machine during an
+  unrelated investigation, two vitest pools alone were enough to reach load average 33.89 with the
+  desktop unusable; a full fan-out is several times that.
+
+  `@theokit/sdk` is the interesting case. B-104 recorded on 2026-08-19 that the `poolOptions.forks.*`
+  block was 100% dead in Vitest 4, deleted it, and noted that `fileParallelism: false` was forcing
+  `maxWorkers` to 1 unconditionally, so a fork-count knob could not act. B-059 then flipped
+  `fileParallelism` to `true` on 2026-08-20, which made the knob able to act again — and nothing
+  reintroduced one, so the package silently went back to the uncapped default. That comment has been
+  corrected along with the config; it claimed no knob existed, which is no longer true.
+
+  The cap leaves 4 cores free (`Math.max(2, cpus().length - 4)`), scaling with the runner rather than
+  hard-coding one machine's core count. It costs no wall-clock: measured in `theokit-ui`, the full
+  suite ran 73.96s at 4 workers against 74.36s at 12, so the parallelism above the cap was already
+  noise. Verified as resolved config rather than as file contents — `createVitest` reports
+  `maxWorkers: 8` on a 12-thread host, which is the formula, not the default.
+
+  This changes no published behaviour; it is test tooling only. Refs usetheokit/theokit-ui#51.
+
+- Updated dependencies [1cb6607]
+- Updated dependencies [034da4d]
+- Updated dependencies [803e3ef]
+- Updated dependencies [2ba468b]
+- Updated dependencies [92a9d6a]
+- Updated dependencies [2c33d98]
+- Updated dependencies [ce6a591]
+- Updated dependencies [aea04f4]
+- Updated dependencies [1471fd7]
+- Updated dependencies [0258f3c]
+- Updated dependencies [521f8c7]
+- Updated dependencies [d0c800c]
+- Updated dependencies [969b36e]
+- Updated dependencies [ba8ebeb]
+- Updated dependencies [d610c2a]
+- Updated dependencies [e3f2a82]
+- Updated dependencies [e368fc1]
+- Updated dependencies [3ac2b08]
+- Updated dependencies [d485b4e]
+- Updated dependencies [29ebaa1]
+- Updated dependencies [0bc18f6]
+- Updated dependencies [b5b5e77]
+- Updated dependencies [14ccb69]
+- Updated dependencies [fbf6721]
+- Updated dependencies [1ac974f]
+- Updated dependencies [240ae12]
+- Updated dependencies [da98560]
+- Updated dependencies [181967f]
+- Updated dependencies [510ee70]
+- Updated dependencies [1362583]
+- Updated dependencies [f33b52b]
+- Updated dependencies [2cdadcc]
+- Updated dependencies [1c94ad3]
+- Updated dependencies [398e7a0]
+- Updated dependencies [3ad398d]
+- Updated dependencies [a8cf443]
+- Updated dependencies [aadc9dd]
+- Updated dependencies [a1cae95]
+- Updated dependencies [8226bc6]
+- Updated dependencies [e699569]
+- Updated dependencies [8d1feaa]
+- Updated dependencies [6950332]
+- Updated dependencies [9e6828e]
+- Updated dependencies [9a27a72]
+- Updated dependencies [e3f2a82]
+- Updated dependencies [f692988]
+- Updated dependencies [ac08996]
+- Updated dependencies [4556488]
+- Updated dependencies [566615c]
+- Updated dependencies [96b28ba]
+- Updated dependencies [f53ee6a]
+- Updated dependencies [1af99fa]
+- Updated dependencies [8f8d3eb]
+- Updated dependencies [4397a90]
+- Updated dependencies [883f473]
+- Updated dependencies [36e5879]
+- Updated dependencies [b68704b]
+- Updated dependencies [7c7b21a]
+- Updated dependencies [9ab1f0d]
+- Updated dependencies [464c390]
+- Updated dependencies [c7385d2]
+- Updated dependencies [9f5cc20]
+- Updated dependencies [5fac0f6]
+- Updated dependencies [e685ccb]
+- Updated dependencies [7fd8c7e]
+- Updated dependencies [60010b4]
+- Updated dependencies [25b7eee]
+  - @theokit/sdk@4.54.0
+  - @theokit/acp@4.0.0
+
 ## 3.0.2
 
 ### Patch Changes
