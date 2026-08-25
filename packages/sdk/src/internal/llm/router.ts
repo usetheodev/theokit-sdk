@@ -475,6 +475,9 @@ function selectTransport(
         : {}),
       ...(mergedHeaders !== undefined ? { extraHeaders: mergedHeaders } : {}),
       ...(t.fetch !== undefined ? { fetch: t.fetch } : {}),
+      // usetheokit/theokit-sdk#383 — forwarded only when the profile declares it, so a provider that
+      // has not been measured against `reasoning.context` keeps the request it had.
+      ...(profile.encryptedReasoning === true ? { encryptedReasoning: true } : {}),
       providerName: profile.name,
     });
   }

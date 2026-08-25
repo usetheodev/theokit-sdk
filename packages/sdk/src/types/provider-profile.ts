@@ -114,4 +114,17 @@ export interface ProviderProfile {
    * Default off — only enable for routes/models known to leak (e.g. a qwen3-coder profile variant).
    */
   extractToolCallsFromContent?: boolean;
+  /**
+   * Opt-in encrypted-reasoning carry for `apiMode: "responses_api"` (usetheokit/theokit-sdk#383).
+   * When `true`, the request adds `include: ["reasoning.encrypted_content"]` and
+   * `reasoning.context: "all_turns"`, and the transport replays the ciphertext the provider returned
+   * so the model does not re-derive its chain of thought on every round of a turn.
+   *
+   * Default off, and deliberately per-profile rather than per-`apiMode`: `include` is a documented
+   * Responses-API field but `reasoning.context` is not, so a provider that validates strictly
+   * answers it with `400`. Enable it only for a backend measured to accept both — the builtin
+   * `openai-chatgpt` profile is one, because issue #383 captured OpenAI Codex sending exactly these
+   * fields to that endpoint. Ignored by every other `apiMode`.
+   */
+  encryptedReasoning?: boolean;
 }
