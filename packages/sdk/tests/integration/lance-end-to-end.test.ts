@@ -1,16 +1,24 @@
 /**
- * LanceDB integration test — env-gated `LANCE_E2E=1`.
+ * LanceDB integration test — gated on whether the optional peer is INSTALLED.
  *
- * Validates the full roundtrip with the real `@lancedb/lancedb` peer
- * installed: `IndexManager.open({ backend: "lance" }) → addFacts → recall
- * → assertions`. Without LANCE_E2E=1, the entire suite is skipped with a
- * warn so the default test run remains fast and dep-free.
+ * Validates the full roundtrip with the real `@lancedb/lancedb` peer:
+ * `IndexManager.open({ backend: "lance" }) → addFacts → recall → assertions`.
  *
- * To run:
+ * It used to be gated on `LANCE_E2E=1`, an opt-in nobody sets, "so the default test run remains
+ * fast and dep-free". Neither half held any longer. `@lancedb/lancedb` resolves in this workspace
+ * today, and the whole file runs in 1.58s — so the flag was not buying speed or independence, it
+ * was buying silence: thirteen passing tests of a memory backend that had not executed since
+ * 2026-08-20, in no local run and no pre-push gate.
+ *
+ * `isLanceAvailable()` is the honest condition and the one the manifest already states — the peer
+ * is declared `optional`, so "present" is exactly when these tests can mean anything. Its failure
+ * direction is correct: a module it cannot resolve reads as SKIP, never as run. That is the shape
+ * `ollama-probe.ts` established one directory over.
+ *
+ * To run where the peer is absent:
  *   pnpm add @lancedb/lancedb --filter @theokit/sdk
- *   LANCE_E2E=1 pnpm --filter @theokit/sdk test -- tests/integration/lance-end-to-end.test.ts
  *
- * 10 test cases:
+ * 13 test cases:
  *   1. addFacts then recall returns semantic match
  *   2. recall filters by namespace
  *   3. recall filters by scope
@@ -39,11 +47,12 @@ import { IndexManager } from "../../src/internal/memory/index-manager.js";
 import { isLanceAvailable, LanceIndex } from "../../src/internal/memory/lance-index.js";
 import { LanceMemoryAdapter } from "../../src/internal/memory/lance-memory-adapter.js";
 
-const LANCE_ENABLED = process.env.LANCE_E2E === "1";
+const LANCE_ENABLED = isLanceAvailable();
 
 if (!LANCE_ENABLED) {
   console.warn(
-    "[lance-end-to-end.test] SKIPPED — set LANCE_E2E=1 to enable (requires `pnpm add @lancedb/lancedb`).",
+    "[lance-end-to-end.test] SKIPPED — @lancedb/lancedb is not installed (it is an OPTIONAL peer). " +
+      "Run `pnpm add @lancedb/lancedb --filter @theokit/sdk` to exercise the Lance backend.",
   );
 }
 
