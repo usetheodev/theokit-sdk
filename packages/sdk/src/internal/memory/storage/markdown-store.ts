@@ -1,9 +1,10 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { ConfigurationError } from "../../../errors.js";
 import { replaceFileAtomic } from "../../persistence/atomic-write.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
-import { type MemoryConfig, type MemoryFact, redactSecrets } from "../types.js";
+import { MEMORY_KINDS, type MemoryConfig, type MemoryFact, redactSecrets } from "../types.js";
 
 /**
  * Markdown-first memory storage (ADR D1 of memory-system-peer-project-parity).
@@ -58,11 +59,39 @@ export function appendFactToMarkdown(cwd: string, fact: MemoryFact): Promise<voi
     } catch {
       raw = "";
     }
-    const sanitized = redactSecrets(fact.text);
+    // Validate at the boundary (`error-handling.md` § 2): a kind outside the four would be written
+    // to a file recall later trusts, so it is refused here rather than stored and believed.
+    if (fact.kind !== undefined && !MEMORY_KINDS.includes(fact.kind)) {
+      throw new ConfigurationError(
+        `Unknown memory fact kind "${fact.kind}". Expected one of: ${MEMORY_KINDS.join(", ")}.`,
+        { code: "invalid_memory_kind" },
+      );
+    }
+    // `modified` is stamped HERE and never read from `fact` — see the field's docblock.
+    const sanitized = redactSecrets(fact.text) + factMeta(fact, new Date());
     const next = insertFactBullet(raw, sanitized);
     await mkdir(memoryDir(cwd), { recursive: true });
     await replaceFileAtomic(path, next);
   });
+}
+
+/**
+ * The metadata a typed fact carries at the END of its bullet (#389).
+ *
+ * An HTML comment, for three reasons. It is invisible in rendered markdown, so `## Facts` stays the
+ * human-readable list its header promises. A hand-written bullet never produces one by accident, so
+ * an untyped fact cannot be mistaken for a typed one. And if a human deletes it while editing, the
+ * fact degrades to untyped — which is the correct direction to fail, since a kind is never inferred.
+ *
+ * Anchored to end-of-line: a bullet that merely MENTIONS a marker mid-sentence is the user's own
+ * prose and survives verbatim.
+ */
+const FACT_META = /\s*<!--\s*theokit:fact\s+kind=([a-z]+)(?:\s+modified=(\S+))?\s*-->$/;
+
+/** Render the trailing metadata for a typed fact; `""` when it has no kind. */
+function factMeta(fact: MemoryFact, now: Date): string {
+  if (fact.kind === undefined) return "";
+  return `  <!-- theokit:fact kind=${fact.kind} modified=${now.toISOString()} -->`;
 }
 
 function parseFactsSection(raw: string): MemoryFact[] {
@@ -76,7 +105,23 @@ function parseFactsSection(raw: string): MemoryFact[] {
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.startsWith("- "))
-    .map((line) => ({ text: line.slice(2).trim() }));
+    .map((line) => parseFactBullet(line.slice(2).trim()));
+}
+
+/** Split a bullet's body into the fact's text and whatever metadata trails it. */
+function parseFactBullet(body: string): MemoryFact {
+  const match = FACT_META.exec(body);
+  if (match === null) return { text: body };
+  const kind = match[1] as MemoryFact["kind"];
+  // An unknown kind on disk is treated as untyped rather than trusted: the file is hand-editable,
+  // and recall must not act on a value outside the four.
+  if (kind === undefined || !MEMORY_KINDS.includes(kind))
+    return { text: body.slice(0, match.index) };
+  return {
+    text: body.slice(0, match.index),
+    kind,
+    ...(match[2] !== undefined ? { modified: match[2] } : {}),
+  };
 }
 
 function insertFactBullet(raw: string, fact: string): string {

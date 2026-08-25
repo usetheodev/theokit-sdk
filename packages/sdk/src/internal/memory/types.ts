@@ -18,8 +18,38 @@ export interface MemoryConfig {
   storePath?: string;
 }
 
+/**
+ * What a fact IS, which is what decides whether it ages (#389).
+ *
+ * The four are the distinctions that matter for retention and recall: a preference stays true until
+ * the user changes their mind, a project fact goes stale when the code moves, a reference either
+ * resolves or 404s, and feedback records a correction that was given. Without them, recall ranks one
+ * undifferentiated corpus and pruning has no basis to prefer a durable fact over a transient one.
+ *
+ * A kind is never INFERRED. A wrong kind is worse than none, because it makes retention and recall
+ * confident about the wrong thing — so a fact whose author did not say stays untyped.
+ */
+export type MemoryKind = "user" | "feedback" | "project" | "reference";
+
+/** The four values {@link MemoryKind} admits, for runtime validation at the storage boundary. */
+export const MEMORY_KINDS: readonly MemoryKind[] = ["user", "feedback", "project", "reference"];
+
 export interface MemoryFact {
   text: string;
+  /**
+   * What this fact is (#389). Absent means untyped, which is what a hand-written bullet under
+   * `## Facts` stays — those files are already on disk in consumers' repositories and the store's
+   * own header invites editing them.
+   */
+  kind?: MemoryKind;
+  /**
+   * ISO 8601 instant this fact was last written, stamped BY THE SDK.
+   *
+   * Supplying it does nothing: a timestamp a caller can set is a timestamp that can lie about when
+   * something was learned, and the whole point is to weigh a note from this morning against one
+   * from four months ago. Absent on a fact written before this existed, or hand-added.
+   */
+  modified?: string;
 }
 
 // `redactSecrets` is now re-exported from the canonical security module
