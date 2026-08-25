@@ -254,6 +254,17 @@ interface ResponsesEvent {
   response?: {
     usage?: {
       input_tokens?: number;
+      /**
+       * The slice of `input_tokens` the provider served from its prompt cache.
+       *
+       * Read because `input_tokens` INCLUDES it: a consumer adding input to output without
+       * subtracting this reports tokens nobody is paying for. Measured 2026-08-25 with
+       * `prompt_cache_key` in use — a three-round turn reported 9,835 where 619 were new, 16x.
+       * The sibling Chat Completions transport has always read the equivalent
+       * (`prompt_tokens_details.cached_tokens`); this one read the reasoning detail beside it and
+       * skipped this one.
+       */
+      input_tokens_details?: { cached_tokens?: number; cache_write_tokens?: number };
       output_tokens?: number;
       output_tokens_details?: { reasoning_tokens?: number };
     };
@@ -358,6 +369,8 @@ export class ResponsesApiClient implements LlmClient {
     let inputTokens: number | undefined;
     let outputTokens: number | undefined;
     let reasoningTokens: number | undefined;
+    let cacheReadTokens: number | undefined;
+    let cacheWriteTokens: number | undefined;
     // function-call accumulation keyed by the streamed output-item id.
     const pending: Record<string, { callId: string; name: string; args: string }> = {};
     // usetheokit/theokit-sdk#383 — reasoning items seen so far in THIS response and not yet claimed
@@ -435,6 +448,8 @@ export class ResponsesApiClient implements LlmClient {
             inputTokens = usage.input_tokens;
             outputTokens = usage.output_tokens;
             reasoningTokens = usage.output_tokens_details?.reasoning_tokens;
+            cacheReadTokens = usage.input_tokens_details?.cached_tokens;
+            cacheWriteTokens = usage.input_tokens_details?.cache_write_tokens;
           }
           stopReason = t === "response.incomplete" ? "max_tokens" : "end_turn";
         } else if (t === "response.failed" || t === "error") {
@@ -461,6 +476,8 @@ export class ResponsesApiClient implements LlmClient {
       inputTokens,
       outputTokens,
       reasoningTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
     });
   }
 }
