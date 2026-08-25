@@ -4,6 +4,7 @@ import {
   type EffectiveContextWindow,
   resolveEffectiveContextWindow,
 } from "../../../compaction.js";
+import type { MemorySettings } from "../../../types/agent.js";
 import type { Run } from "../../../types/run.js";
 import type { RunEventSink } from "../../../types/run-events.js";
 import { emitRunEvent } from "../../../types/run-events.js";
@@ -67,6 +68,36 @@ export interface PostRunLifecycleInputs {
    * args passed to the impl.
    */
   memoryProvider?: MemoryProvider;
+  /**
+   * The agent's `AgentOptions.memory`, read for one decision only: whether this run may write a
+   * session transcript to the workspace. See {@link sessionTranscriptAllowed}.
+   */
+  memory?: MemorySettings | undefined;
+}
+
+/**
+ * Whether a finished run may write its transcript to `<cwd>/.theokit/memory/sessions/<runId>.md`.
+ *
+ * usetheokit/theokit-sdk#382 — it could not previously be stopped. An agent built with
+ * `memory: { enabled: false }` still had the full user prompt and assistant reply written into the
+ * consumer's working directory on the first finished turn, which in a git repository is someone
+ * else's repository. Every other memory surface already reads `enabled` (`ensureTools`,
+ * `persistMemoryFactIfWritePrompt`, `readMemoryForSend` all return early on `enabled !== true`);
+ * this write was the one that did not, so "memory is off" was not true of the subsystem as a whole.
+ *
+ * THE TEST IS `=== false`, NOT `!== true`, AND THE ASYMMETRY IS DELIBERATE. The rest of the memory
+ * subsystem is off unless switched on; this write has been on since ADR D20 for every agent that
+ * never mentioned `memory` at all, and it is what `memory_search({ corpus: "sessions" })` reads
+ * once someone does switch memory on. Treating an absent config as off would silently empty the
+ * sessions corpus for consumers who never asked for anything to change — a behaviour change billed
+ * to people who did not opt into it. Writing `enabled: false` IS the opt-in, and it is the exact
+ * request the defect report made. Leaving `memory` unset keeps the pre-#382 behaviour, which is
+ * documented on {@link import("../../../types/agent.js").LocalOptions}.
+ *
+ * @internal
+ */
+export function sessionTranscriptAllowed(memory: MemorySettings | undefined): boolean {
+  return memory?.enabled !== false;
 }
 
 /**
@@ -211,7 +242,15 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   );
 
   // ADR D20 + EC-9: only finished runs feed the corpus="sessions" index.
-  if (result.status === "finished" && result.result !== undefined) {
+  // usetheokit/theokit-sdk#382: and only when the agent has not disabled memory. The gate sits here
+  // rather than inside `writeSessionSummary` so BOTH writers — the legacy direct call and the
+  // `MemoryProvider.recordSessionSummary` port below — are covered by one decision; gating the
+  // legacy writer alone would leave the port path writing under `THEOKIT_PORT_MEMORY_PATH=1`.
+  if (
+    result.status === "finished" &&
+    result.result !== undefined &&
+    sessionTranscriptAllowed(inputs.memory)
+  ) {
     const summaryArgs = {
       cwd: workspaceCwd,
       runId: result.id,

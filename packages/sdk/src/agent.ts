@@ -619,7 +619,7 @@ export class Agent {
       //
       // Honest limit, stated because the alternative is an implied claim: `tools` is still the
       // DECLARED catalog. Plugin tools and the reasoning `think` tool are assembled per run by
-      // `buildCustomToolsInput`, so they are not knowable from the registry alone. Documented on
+      // `buildRunToolCatalogInput`, so they are not knowable from the registry alone. Documented on
       // `AgentDescription.tools`.
       tools: (agent.options.tools ?? []).map((tool) => ({
         name: tool.name,

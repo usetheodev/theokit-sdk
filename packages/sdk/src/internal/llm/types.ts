@@ -156,6 +156,21 @@ export interface LlmRequest {
    * is still forced to produce a closing summary.
    */
   toolChoice?: "auto" | "none" | "required";
+  /**
+   * usetheokit/theokit-sdk#383 — an opaque key identifying the conversation whose prompt prefix the
+   * provider may reuse across requests. Maps to the Responses-API `prompt_cache_key`.
+   *
+   * Set by the agent loop from the run's session identity and derived through
+   * `derivePromptCacheKey`, so it is STABLE across every round of a turn and every turn of a
+   * session, and DISTINCT between unrelated sessions. Both halves matter: a key that changes per
+   * round caches nothing, and a key shared across sessions asks the provider to match one
+   * conversation's prefix against another's.
+   *
+   * Absent ⇒ the field is omitted from the wire body (the pre-#383 request, byte for byte). It is
+   * a request-shaping hint only: no provider behaviour depends on its presence except the billing
+   * of the cached prefix.
+   */
+  promptCacheKey?: string;
 }
 
 /**

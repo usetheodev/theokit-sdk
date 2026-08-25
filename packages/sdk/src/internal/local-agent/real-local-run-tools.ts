@@ -15,6 +15,7 @@ import { subAgentToolsFromDefinitions } from "../../a2a/subagent.js";
 import type {
   AgentDefinition,
   AgentOptions,
+  BuiltinToolName,
   CustomTool,
   ModelSelection,
 } from "../../types/agent.js";
@@ -67,14 +68,38 @@ export function resolveInheritedCredentials(agentOptions: AgentOptions): Inherit
 }
 
 /**
- * Resolve the effective custom-tool catalog for this run.
+ * The `withheldBuiltinTools` slice of `AgentLoopInputs`, emitted only when the agent actually
+ * withholds something (usetheokit/theokit-sdk#381). Its own function because the inline conditional
+ * pushed {@link buildRunToolCatalogInput} past the project's cognitive-complexity ceiling — the same
+ * reason `LocalAgent.#declaredWindow` exists.
+ */
+function withheldBuiltinsInput(agentOptions: AgentOptions): {
+  withheldBuiltinTools?: ReadonlyArray<BuiltinToolName>;
+} {
+  const withheld = agentOptions.withheldBuiltinTools;
+  if (withheld === undefined || withheld.length === 0) return {};
+  return { withheldBuiltinTools: withheld };
+}
+
+/**
+ * Resolve the tool-catalog slice of `AgentLoopInputs` for this run: which custom tools the loop
+ * declares, and which SDK builtins it must NOT.
  *
- * Precedence (matches the mcpServers semantics — "fully replaces, not merged"):
+ * Precedence for the custom half (matches the mcpServers semantics — "fully replaces, not merged"):
  *  - `sendOptions.tools === undefined` → fall back to `agentOptions.tools`
  *  - `sendOptions.tools = []`         → explicitly clear (no custom tools)
  *  - `sendOptions.tools = [t1, ...]`  → use exactly these for this run
+ *
+ * usetheokit/theokit-sdk#381 added the builtin half, and it is why this is no longer named for
+ * custom tools alone. It rides here rather than at the call site because the withhold list is
+ * part of the same answer — what this run declares to the model — and because a run that
+ * withholds nothing must produce the same `AgentLoopInputs` it produced before the option existed,
+ * which is easiest to guarantee where the rest of the catalog is already assembled.
+ *
+ * Note the two halves are independent: an agent with no custom tools at all can still withhold a
+ * builtin, so the "no tools" early return carries the withhold list out with it.
  */
-export function buildCustomToolsInput(
+export function buildRunToolCatalogInput(
   agentOptions: AgentOptions,
   sendOptions: { tools?: CustomTool[] } | undefined,
   pluginManager: import("../plugins/manager.js").PluginManager | undefined,
@@ -83,7 +108,11 @@ export function buildCustomToolsInput(
   personalityName: string | undefined,
   subagents: Record<string, AgentDefinition> | undefined,
   effectiveModel: ModelSelection | undefined,
-): { customTools: ReadonlyArray<CustomToolSpec> } | Record<string, never> {
+): {
+  customTools?: ReadonlyArray<CustomToolSpec>;
+  withheldBuiltinTools?: ReadonlyArray<BuiltinToolName>;
+} {
+  const builtins = withheldBuiltinsInput(agentOptions);
   const baseTools = sendOptions?.tools ?? agentOptions.tools ?? [];
   // Prefer the resolved set (file-based + inline) when present; fall back to the
   // inline `agentOptions.agents` for callers that don't thread resolvedSubagents.
@@ -107,7 +136,7 @@ export function buildCustomToolsInput(
     pluginTools.length === 0 &&
     reasoningTools.length === 0
   ) {
-    return {};
+    return builtins;
   }
   const allTools = [...baseTools, ...subagentTools, ...pluginTools, ...reasoningTools];
   // theokit#148 — note this very `map`: the SDK rebuilds each tool from four fields, so any
@@ -125,6 +154,6 @@ export function buildCustomToolsInput(
     agentId,
     personalityName,
   }) as ReadonlyArray<CustomToolSpec>;
-  if (customTools.length === 0 && personalityToolWhitelist === undefined) return {};
-  return { customTools };
+  if (customTools.length === 0 && personalityToolWhitelist === undefined) return builtins;
+  return { customTools, ...builtins };
 }

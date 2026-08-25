@@ -31,7 +31,7 @@ import {
   inferProviderFromApiKey,
   warnProviderPrecedenceOnce,
 } from "./real-local-run-provider.js";
-import { buildCustomToolsInput, resolveInheritedCredentials } from "./real-local-run-tools.js";
+import { buildRunToolCatalogInput, resolveInheritedCredentials } from "./real-local-run-tools.js";
 
 /**
  * Real local Run. When the local agent has a non-fixture API key plus at
@@ -288,7 +288,7 @@ function buildLoopInputs(
     ...(options.memoryTools !== undefined && options.memoryTools.length > 0
       ? { memoryTools: options.memoryTools }
       : {}),
-    ...buildCustomToolsInput(
+    ...buildRunToolCatalogInput(
       options.agentOptions,
       options.sendOptions,
       options.pluginManager,
