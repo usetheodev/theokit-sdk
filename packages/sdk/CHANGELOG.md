@@ -1,5 +1,101 @@
 # Changelog
 
+## 4.55.0
+
+### Minor Changes
+
+- 1988b1d: Responses-API requests now carry `prompt_cache_key`, so the provider can reuse the cached prompt
+  prefix between rounds instead of re-charging the whole system prompt and tool schema every time.
+
+  Measured on a consumer product against OpenAI Codex — same provider, same model, same reasoning
+  effort, same task — the SDK sent a THIRD of the bytes (24,691 c vs 76,331 c) and paid 2.8x the tokens
+  (24,914 vs 9,036). The difference was not what was sent; it was that theirs was cached and ours was
+  not, because no key told the provider which prefix to match.
+
+  The key is derived (SHA-256, truncated, prefixed) from the run's session identity — the id
+  `Agent.getOrCreate(sessionId)` keys on — so it is identical across every round of a turn and every
+  turn of a session, different for unrelated sessions, and stable across a process restart, while
+  disclosing nothing about a caller-chosen session name. Both halves matter: a key that changes per
+  round caches nothing, and a key shared between sessions asks the provider to match one conversation's
+  prefix against another's.
+
+  Alongside it, a provider profile may now declare `encryptedReasoning: true`. When it does, the
+  request adds `include: ["reasoning.encrypted_content"]` and `reasoning.context: "all_turns"`, and the
+  transport replays the ciphertext the provider returned immediately before the tool call it produced,
+  so the model does not re-derive its chain of thought on every round. It is off by default and on for
+  the builtin `openai-chatgpt` profile: `include` is a documented Responses-API field but
+  `reasoning.context` is not, and that endpoint is the one where acceptance was observed rather than
+  assumed. Every other provider's request body is unchanged.
+
+  `store` stays `false`, now as a recorded decision rather than an unexamined default. Codex sends
+  `true`; SDK requests routinely carry a consumer's source code and shell output from machines whose
+  operator never agreed to server-side retention, and nothing in the caching work needs it — the cache
+  key handles the prefix and the encrypted-reasoning carry is precisely the mechanism for keeping
+  reasoning without server-side state.
+
+  Fixes `usetheokit/theokit-sdk#383`.
+
+- 63b0831: A local agent can now withhold the SDK's builtin tools from the catalog it declares to the model,
+  and a disabled memory store no longer writes a session transcript into the consumer's repository.
+
+  `AgentOptions.withheldBuiltinTools?: readonly BuiltinToolName[]` names builtins — `shell`,
+  `memory_search`, `memory_get` — that this agent must not declare. Absent or empty, every builtin the
+  rest of the configuration would register is declared exactly as before, so nothing changes for an
+  agent that does not ask.
+
+  The option exists because denying a tool and never offering it are different things. A consumer
+  whose sandbox scope cannot admit `shell` could already refuse the call in a `pre_tool_call` hook, and
+  paid for the tool twice anyway: 267 characters of schema in every request of every round, plus a
+  round the model can spend discovering a refusal it had no way to anticipate. Withholding removes the
+  tool from the catalog, so the model is never shown what it cannot have. Withholding also releases the
+  name — a withheld `shell` may be replaced by a custom tool called `shell` without the
+  `tool_reserved_name` error, since the reservation exists to prevent a collision that no longer
+  exists. Builtins still declared stay reserved.
+
+  Fixes `usetheokit/theokit-sdk#381`.
+
+  `memory: { enabled: false }` now suppresses the per-run session transcript at
+  `<cwd>/.theokit/memory/sessions/<runId>.md`. It previously did not: that write was gated on the run's
+  status and nothing else, so an agent with memory switched off still had the full user prompt and
+  assistant reply written into the working directory — someone else's git repository, in the reported
+  case. Every other memory surface already honoured the flag, so "memory is off" was true of the
+  subsystem apart from the one part of it that creates files. Both writers are covered, the legacy
+  call and the `MemoryProvider.recordSessionSummary` port.
+
+  Leaving `memory` unset is unchanged and still writes, because that file is what
+  `memory_search({ corpus: "sessions" })` reads once memory is switched on; treating an absent config
+  as off would empty that corpus for consumers who asked for nothing. Writing `enabled: false` is the
+  opt-out.
+
+  So: if you run an agent inside a repository and were adding `.theokit/` to `.gitignore` to keep
+  prompts and replies out of it, `memory: { enabled: false }` now stops them being written at all.
+  `memory_search({ corpus: "sessions" })` returns nothing for those runs, which is the trade — no
+  transcript on disk, nothing to recall from it.
+
+  Fixes `usetheokit/theokit-sdk#382`.
+
+### Patch Changes
+
+- a3bdbd1: The Responses transport now reads `input_tokens_details.cached_tokens` and `.cache_write_tokens`,
+  so a consumer can tell what a turn actually cost.
+
+  `input_tokens` INCLUDES the slice the provider served from its prompt cache. This transport reported
+  `cacheReadTokens: 0` regardless, so adding input to output counted tokens nobody is paying for.
+  Measured on a three-round turn with `prompt_cache_key` in use: the provider reported
+  `cached_tokens: 4608` on every round, and the consumer received 9,835 where 619 were new — 16x.
+
+  The sibling Chat Completions transport has always read the equivalent
+  (`prompt_tokens_details.cached_tokens`); this one read `output_tokens_details.reasoning_tokens`
+  beside it and skipped this one. The response type declared neither, so it was invisible at the type
+  level too.
+
+  It matters beyond an inaccurate number: it makes the SDK look expensive when it is not. Comparing a
+  consumer against OpenAI Codex on identical tasks, the gross figure said 2.8x. Codex reports the net
+  figure (`non_cached_input + output`). Measured with the same formula on both sides, the same task
+  costs 14,317 against 13,560 — inside the run-to-run variance.
+
+  Fixes `usetheokit/theokit-sdk#386`.
+
 ## 4.54.0
 
 ### Minor Changes
