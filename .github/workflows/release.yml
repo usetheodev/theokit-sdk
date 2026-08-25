@@ -236,3 +236,20 @@ jobs:
       - name: verify release refs reached the remote
         if: steps.changesets.outputs.published == 'true'
         run: node tools/verify-release-refs.mjs
+
+      # #388 — the OTHER outcome. With changesets pending the action opens a "Version Packages"
+      # pull request instead of publishing, and reports success: success meaning it PREPARED a
+      # version, not that it shipped one. Every workflow on that pull request landed in
+      # `action_required` — created, never run, waiting on a human nobody knew to be waiting for —
+      # so `main`'s required checks could not pass and the release sat blocked for eight days while
+      # this run stayed green.
+      #
+      # The gate does not unblock the release; that is a repository-configuration decision (see the
+      # script's failure message for the three options). It makes the stuck state say so, here,
+      # where a maintainer is already looking, instead of only in `npm view @theokit/sdk version`.
+      - name: verify the version pull request can actually be merged
+        if: steps.changesets.outputs.published != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node tools/verify-release-reachable.mjs

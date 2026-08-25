@@ -6,10 +6,11 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 
 **Transport codes vs the rest.** `ErrorCode` in `errors.ts` is the small canonical union a provider failure maps onto — the codes marked *transport* below. Everything else is raised by a specific subsystem at a specific place, and a `catch` that only handles the union will meet them anyway.
 
-202 distinct code(s).
+204 distinct code(s).
 
 | Code | Kind | Raised by | Sites |
 |---|---|---|---|
+| `a2a_request_timeout` | domain | A2ARequestTimeoutError | `packages/sdk/src/a2a/message-bus.ts:31` |
 | `aborted` | domain | TheokitAgentError | `packages/sdk/src/batch.ts:280` +1 |
 | `agent_disposed` | domain | — | `packages/sdk/src/errors.ts:668` |
 | `agent_id_already_exists` | domain | ConfigurationError | `packages/sdk/src/agent-helpers.ts:54` |
@@ -87,6 +88,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `invalid_input` | domain | MemoryAdapterError | `packages/memory-honcho/src/adapter.ts:98` +9 |
 | `invalid_max_iterations` | domain | ConfigurationError | `packages/sdk/src/internal/local-agent/real-local-run.ts:215` |
 | `invalid_memory_backend` | domain | ConfigurationError | `packages/sdk/src/internal/memory/index-manager-dispatch.ts:24` +1 |
+| `invalid_memory_kind` | domain | ConfigurationError | `packages/sdk/src/internal/memory/storage/markdown-store.ts:65` |
 | `invalid_model_selection` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/model-selection.ts:21` |
 | `invalid_request` | transport | — | `packages/sdk/src/internal/error-mappers/vertex.ts:52` +1 |
 | `invalid_retry_config` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/retry/with-retry.ts:67` |

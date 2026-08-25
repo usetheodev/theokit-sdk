@@ -11,15 +11,45 @@ import { diag } from "../internal/diagnostics.js";
 import type { A2AMessage, MessageHandler } from "./types.js";
 
 /**
+ * A peer did not answer a {@link MessageBus.request} within its timeout.
+ *
+ * Carries `code: "a2a_request_timeout"`, the peer's address and the limit as FIELDS, so a caller
+ * branches on the contract rather than on prose — `docs/error-codes.md`: "Branch on `code`, never
+ * on the message: messages carry context (an id, a path, a limit) and change with it, while a code
+ * is the contract." Until #380 this rejection was a plain `Error` with neither, and the message it
+ * carried embeds both the address and the limit, so matching on it changed with context exactly as
+ * that document warns.
+ *
+ * The distinction it restores is what a retry policy is built on. A peer that did not answer in
+ * time is transient and worth retrying; a peer whose handler threw is likely deterministic and
+ * retrying repeats the failure. A handler's own error propagates unchanged and is NOT this type —
+ * an unattended agent can therefore tell the two apart without reading English.
+ *
+ * @public
+ */
+export class A2ARequestTimeoutError extends Error {
+  readonly code = "a2a_request_timeout" as const;
+  constructor(
+    /** The peer that did not answer. */
+    public readonly to: string,
+    /** The limit it exceeded, in milliseconds. */
+    public readonly timeoutMs: number,
+  ) {
+    super(`A2A request timeout: ${to} did not respond within ${timeoutMs}ms`);
+    this.name = "A2ARequestTimeoutError";
+  }
+}
+
+/**
  * Per-call knobs for {@link MessageBus.request} / `AgentMailbox.request`.
  */
 export interface RequestOptions {
   /**
    * How long to wait for the peer handler to settle before rejecting.
-   * Default `30_000` (30 s). The rejection is a plain `Error` reading
-   * `A2A request timeout: <to> did not respond within <n>ms` — there is no typed
-   * timeout class and no `code` field, so a caller that must distinguish a
-   * timeout from a handler failure has to match on the message.
+   * Default `30_000` (30 s). The rejection is an {@link A2ARequestTimeoutError} carrying
+   * `code: "a2a_request_timeout"`, `to` and `timeoutMs` (#380), so a caller distinguishes a
+   * timeout from a handler failure by branching on the code — a handler's own error propagates
+   * unchanged and is not that type.
    */
   timeoutMs?: number;
 }
@@ -119,11 +149,7 @@ export class MessageBus {
       return await Promise.race([
         Promise.resolve(handler(message)),
         new Promise((_, reject) => {
-          timer = setTimeout(
-            () =>
-              reject(new Error(`A2A request timeout: ${to} did not respond within ${timeoutMs}ms`)),
-            timeoutMs,
-          );
+          timer = setTimeout(() => reject(new A2ARequestTimeoutError(to, timeoutMs)), timeoutMs);
         }),
       ]);
     } finally {
