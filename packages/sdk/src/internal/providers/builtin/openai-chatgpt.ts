@@ -90,6 +90,13 @@ export const OPENAI_CHATGPT: ProviderProfile = {
   // vendor's client is a false statement of identity. Third-party clients send their OWN name against
   // this same endpoint, which also shows the route is not restricted to the official client.
   extraHeaders: { originator: "theokit" },
+  // usetheokit/theokit-sdk#383 — carry the model's encrypted reasoning between the rounds of a turn.
+  // On for THIS profile and no other because this is the endpoint the issue measured: OpenAI Codex
+  // sends `include: ["reasoning.encrypted_content"]` with `reasoning.context: "all_turns"` to the
+  // same backend, same model, on the same account, so acceptance is observed rather than assumed.
+  // The issue's measurement — a third of our bytes, 2.8x our tokens — is what this closes together
+  // with `prompt_cache_key`.
+  encryptedReasoning: true,
   transform: {
     // Only `fetch` (async) can await the credential refresh; `headers` is sync and cannot.
     fetch: () => codexFetch(),

@@ -1,4 +1,5 @@
 import { diag } from "../diagnostics.js";
+import { derivePromptCacheKey } from "../llm/prompt-cache-key.js";
 import type { LlmClient, LlmThinkingPart, LlmTool, LlmToolCallPart } from "../llm/types.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { HISTOGRAM_NAMES } from "../telemetry/span-names.js";
@@ -124,6 +125,16 @@ export async function streamLlmTurn(
       // Step-cap force-close: forward the per-run tool gate (`"none"` on a ceiling round forces a
       // text close even though tools are advertised). Absent ⇒ provider default (auto).
       ...(inputs.toolChoice !== undefined ? { toolChoice: inputs.toolChoice } : {}),
+      // usetheokit/theokit-sdk#383 — the prompt-cache key, derived HERE and from `inputs.agentId`
+      // because this is the one place that sees the session identity on every round. `agentId` is
+      // the run's session identity (`Agent.getOrCreate(sessionId)`), so the derived key is identical
+      // on round 1 and round 12 of a turn, identical on turn 2 of the same session, and different
+      // for a different session. Deriving it per round from a stable input is what makes it a cache
+      // key; minting one anywhere that runs more than once per session would not be.
+      ...((): { promptCacheKey?: string } => {
+        const key = derivePromptCacheKey(inputs.agentId);
+        return key !== undefined ? { promptCacheKey: key } : {};
+      })(),
       messages: ctx.messages,
       tools: ctx.tools.map(toLlmTool),
     },

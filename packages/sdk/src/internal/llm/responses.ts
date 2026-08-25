@@ -38,6 +38,60 @@ export interface ResponsesApiClientOptions {
   /** Injected fetch (refresh-aware / dynamic headers). Defaults to global `fetch`. */
   fetch?: typeof fetch;
   providerName?: string;
+  /**
+   * usetheokit/theokit-sdk#383 — carry the model's ENCRYPTED reasoning across the rounds of a turn.
+   * Forwarded from `ProviderProfile.encryptedReasoning`; default off. See
+   * {@link ResponsesBodyOptions.encryptedReasoning} for what it puts on the wire and why it is
+   * opt-in rather than universal.
+   */
+  encryptedReasoning?: boolean;
+}
+
+/**
+ * usetheokit/theokit-sdk#383 — one reasoning item the model produced, as it must be replayed.
+ *
+ * `encrypted_content` is opaque ciphertext only the provider can read; the SDK never inspects it,
+ * never logs it, and never persists it. It exists to be handed straight back.
+ */
+interface ResponsesReasoningItem {
+  id: string;
+  encrypted_content: string;
+}
+
+/** Options that shape the request body beyond what an `LlmRequest` carries. */
+export interface ResponsesBodyOptions {
+  /**
+   * usetheokit/theokit-sdk#383 — when `true`, add `include: ["reasoning.encrypted_content"]` and
+   * `reasoning.context: "all_turns"`, and replay the reasoning items captured from earlier rounds.
+   *
+   * **What it buys.** With `store: false` the provider keeps nothing between requests, so a model
+   * that reasoned its way to a tool call in round 1 starts round 2 with no memory of that reasoning
+   * and derives it again — paid for again, every round. `include` asks the provider to return the
+   * reasoning as ciphertext; replaying that ciphertext on the next request hands the chain of
+   * thought back. Codex does exactly this against the same endpoint (issue #383 captured the
+   * request), which is the evidence that the backend accepts both fields.
+   *
+   * **Why opt-in and not on for every `responses_api` provider.** `include` is a documented
+   * Responses-API field, but `reasoning.context` is not part of the public Responses API surface —
+   * it was observed on the ChatGPT Codex backend. A provider that validates its input strictly
+   * answers an unknown key with `400`, which turns a cost optimisation into a total outage for that
+   * provider. Scoping it to profiles that DECLARE support keeps every other provider's request
+   * byte-identical to what it was, and makes enabling it a statement someone made about a specific
+   * backend rather than a hope about all of them.
+   */
+  encryptedReasoning?: boolean;
+  /**
+   * usetheokit/theokit-sdk#383 — reasoning items captured from earlier rounds, keyed by the
+   * `call_id` of the tool call each batch preceded.
+   *
+   * Keying on `call_id` is what keeps the replay ORDERED and self-correcting. The provider requires
+   * a reasoning item to sit immediately before the output it produced, and the conversation history
+   * the loop replays is the authority on which tool calls survived and in what order — so emitting
+   * each batch just before its own `function_call` reproduces the original sequence without the
+   * transport having to track conversation positions. A batch whose tool call is no longer in
+   * history is simply never emitted.
+   */
+  reasoningByCallId?: ReadonlyMap<string, readonly ResponsesReasoningItem[]>;
 }
 
 /** Translate an `LlmMessage` into the Responses-API `input[]` items it contributes. */
@@ -46,7 +100,10 @@ export interface ResponsesApiClientOptions {
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
 // risky. Tracked in usetheodev/theokit-sdk#151.
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
-function messageToInputItems(message: LlmMessage): unknown[] {
+function messageToInputItems(
+  message: LlmMessage,
+  reasoningByCallId?: ReadonlyMap<string, readonly ResponsesReasoningItem[]>,
+): unknown[] {
   const items: unknown[] = [];
   if (message.role === "user") {
     const content: unknown[] = [];
@@ -76,6 +133,18 @@ function messageToInputItems(message: LlmMessage): unknown[] {
       if (part.type === "text") {
         content.push({ type: "output_text", text: part.text });
       } else if (part.type === "tool_use") {
+        // usetheokit/theokit-sdk#383 — the reasoning that produced this call goes back FIRST. The
+        // provider rejects a reasoning item that does not immediately precede its own output, so
+        // replaying it here (rather than at the top of the message) is what keeps the sequence
+        // valid when a round produced several calls.
+        for (const reasoning of reasoningByCallId?.get(part.id) ?? []) {
+          items.push({
+            type: "reasoning",
+            id: reasoning.id,
+            encrypted_content: reasoning.encrypted_content,
+            summary: [],
+          });
+        }
         items.push({
           type: "function_call",
           call_id: part.id,
@@ -97,10 +166,13 @@ function messageToInputItems(message: LlmMessage): unknown[] {
 }
 
 /** Build the Responses-API request body from an `LlmRequest`. */
-export function buildResponsesBody(request: LlmRequest): Record<string, unknown> {
+export function buildResponsesBody(
+  request: LlmRequest,
+  options: ResponsesBodyOptions = {},
+): Record<string, unknown> {
   const input: unknown[] = [];
   for (const message of request.messages) {
-    for (const item of messageToInputItems(message)) input.push(item);
+    for (const item of messageToInputItems(message, options.reasoningByCallId)) input.push(item);
   }
   // The Responses API wants the BARE model id (`gpt-5.4`), never a `provider/model` id. The router
   // normally strips the provider prefix before the transport; strip here too as defense-in-depth so an
@@ -108,6 +180,17 @@ export function buildResponsesBody(request: LlmRequest): Record<string, unknown>
   // provider-inference heuristics).
   const slash = request.model.lastIndexOf("/");
   const model = slash >= 0 ? request.model.slice(slash + 1) : request.model;
+  // `store: false` is a DECISION, not a leftover — usetheokit/theokit-sdk#383 asked for it to be
+  // revisited and it stays `false`. Codex sends `true`, and the asymmetry between the two errors is
+  // what settles it: `store: true` asks the provider to RETAIN the request server-side, and this
+  // SDK's requests routinely carry a consumer's source code, file contents and shell output from
+  // machines whose operator never agreed to that retention. Enabling it would silently widen where
+  // that content lives. Turning it off costs nothing that #383 was about — `prompt_cache_key` is
+  // what makes the prefix cacheable, and `include: ["reasoning.encrypted_content"]` is precisely
+  // the mechanism for carrying reasoning forward WITHOUT server-side state. So the cheap error is
+  // "we retained less than we could have" and the expensive one is "we retained a customer's source
+  // code by default". There is no knob: a per-request override would be a privacy setting reachable
+  // from a request builder, and nobody has asked for one.
   const body: Record<string, unknown> = { model, input, stream: true, store: false };
   const instructions = collapseSystemText(request.system);
   if (instructions.length > 0) body.instructions = instructions;
@@ -121,8 +204,38 @@ export function buildResponsesBody(request: LlmRequest): Record<string, unknown>
     strict: false,
   }));
   if (tools.length > 0) body.tools = tools;
-  if (request.reasoning !== undefined) body.reasoning = { effort: request.reasoning.effort };
+  applyPromptCachingFields(body, request, options);
   return body;
+}
+
+/**
+ * usetheokit/theokit-sdk#383 — the fields that decide whether a round is billed as a cache hit.
+ *
+ * Kept together and apart from the rest of the body because they answer one question ("what may the
+ * provider reuse from the previous round?") and because the issue's measurement is about them and
+ * nothing else: same provider, same model, same task, a third of our bytes, 2.8x our tokens.
+ */
+function applyPromptCachingFields(
+  body: Record<string, unknown>,
+  request: LlmRequest,
+  options: ResponsesBodyOptions,
+): void {
+  const carryReasoning = options.encryptedReasoning === true;
+  // `reasoning.context: "all_turns"` only ever extends an effort the caller already asked for. A
+  // `reasoning` object holding nothing but `context` is a shape no captured request exhibits, and
+  // inventing one to send to a strict backend is how an optimisation becomes a 400.
+  if (request.reasoning !== undefined) {
+    body.reasoning = {
+      effort: request.reasoning.effort,
+      ...(carryReasoning ? { context: "all_turns" } : {}),
+    };
+  }
+  if (carryReasoning) body.include = ["reasoning.encrypted_content"];
+  // The field the whole issue is about. Sent to every provider when the request carries a key:
+  // `prompt_cache_key` is a documented Responses-API field of the same tier as `store` and `stream`,
+  // which this transport has always sent unconditionally. Absent ⇒ omitted, so a caller that builds
+  // a body by hand gets the pre-#383 request unchanged.
+  if (request.promptCacheKey !== undefined) body.prompt_cache_key = request.promptCacheKey;
 }
 
 interface ResponsesEvent {
@@ -135,6 +248,8 @@ interface ResponsesEvent {
     call_id?: string;
     name?: string;
     arguments?: string;
+    /** usetheokit/theokit-sdk#383 — present on a `reasoning` item when `include` asked for it. */
+    encrypted_content?: string;
   };
   response?: {
     usage?: {
@@ -147,15 +262,46 @@ interface ResponsesEvent {
   message?: string;
 }
 
+/**
+ * usetheokit/theokit-sdk#383 — cap on how many tool calls' reasoning one client remembers.
+ *
+ * The client instance outlives a turn, so without a cap a long-lived run accumulates ciphertext for
+ * every tool call it ever made. Evicting oldest-first is safe: a batch is only ever read on the
+ * round immediately after the one that produced it, so an entry old enough to evict is an entry
+ * whose tool call is far enough back in history that dropping it costs a re-derivation at worst.
+ */
+const MAX_REMEMBERED_REASONING_CALLS = 256;
+
 export class ResponsesApiClient implements LlmClient {
   readonly name: string;
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
+  /**
+   * usetheokit/theokit-sdk#383 — reasoning ciphertext captured from earlier rounds, keyed by the
+   * `call_id` it preceded. Held on the CLIENT rather than threaded through `LlmRequest` because a
+   * round's reasoning is provider-shaped ciphertext with a provider-shaped ordering rule; the agent
+   * loop has no use for it and the same client instance serves every round of a turn. Insertion
+   * order is the eviction order (see {@link MAX_REMEMBERED_REASONING_CALLS}).
+   */
+  private readonly reasoningByCallId = new Map<string, ResponsesReasoningItem[]>();
 
   constructor(private readonly options: ResponsesApiClientOptions) {
     this.name = options.providerName ?? "openai-responses";
     this.baseUrl = (options.baseUrl ?? "https://api.openai.com/v1").replace(/\/+$/, "");
     this.fetchImpl = options.fetch ?? fetch;
+  }
+
+  /**
+   * usetheokit/theokit-sdk#383 — bind a batch of reasoning ciphertext to the tool call it produced,
+   * evicting the oldest binding once the cap is reached.
+   */
+  private rememberReasoning(callId: string, items: readonly ResponsesReasoningItem[]): void {
+    this.reasoningByCallId.set(callId, [...items]);
+    while (this.reasoningByCallId.size > MAX_REMEMBERED_REASONING_CALLS) {
+      const oldest = this.reasoningByCallId.keys().next();
+      if (oldest.done === true) break;
+      this.reasoningByCallId.delete(oldest.value);
+    }
   }
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the SSE dispatch (text / reasoning / tool-call add+delta+done / terminal+usage / error) is one cohesive state machine, mirroring OpenAIStreamAccumulator.consume.
@@ -176,7 +322,17 @@ export class ResponsesApiClient implements LlmClient {
       method: "POST",
       signal,
       headers,
-      body: JSON.stringify(buildResponsesBody(request)),
+      body: JSON.stringify(
+        // Both options ride the SAME flag on purpose: a provider that never declared support gets
+        // the byte-identical pre-#383 body, even in the impossible case where it returned ciphertext
+        // nobody asked for.
+        buildResponsesBody(
+          request,
+          this.options.encryptedReasoning === true
+            ? { encryptedReasoning: true, reasoningByCallId: this.reasoningByCallId }
+            : {},
+        ),
+      ),
     });
 
     if (!response.ok) {
@@ -204,6 +360,10 @@ export class ResponsesApiClient implements LlmClient {
     let reasoningTokens: number | undefined;
     // function-call accumulation keyed by the streamed output-item id.
     const pending: Record<string, { callId: string; name: string; args: string }> = {};
+    // usetheokit/theokit-sdk#383 — reasoning items seen so far in THIS response and not yet claimed
+    // by a tool call. Claimed (and cleared) when the next `function_call` completes, which is what
+    // binds each batch to the call it produced.
+    let unclaimedReasoning: ResponsesReasoningItem[] = [];
 
     if (response.body !== null) {
       for await (const record of parseSseStream(response.body, signal)) {
@@ -227,6 +387,15 @@ export class ResponsesApiClient implements LlmClient {
         ) {
           const d = event.delta ?? "";
           if (d.length > 0) yield { type: "reasoning_delta", text: d };
+        } else if (t === "response.output_item.done" && event.item?.type === "reasoning") {
+          const id = event.item.id;
+          const encrypted = event.item.encrypted_content;
+          // Both fields or neither: a reasoning item without ciphertext cannot be replayed, and one
+          // without an id cannot be addressed. Requesting `include` is what makes them appear, so
+          // their absence here is the normal shape for a provider that ignored the field.
+          if (id !== undefined && encrypted !== undefined && encrypted.length > 0) {
+            unclaimedReasoning.push({ id, encrypted_content: encrypted });
+          }
         } else if (t === "response.output_item.added" && event.item?.type === "function_call") {
           const id = event.item.id ?? event.item.call_id ?? "call-0";
           pending[id] = {
@@ -255,6 +424,10 @@ export class ResponsesApiClient implements LlmClient {
           // yielded as a `tool_use` event that no consumer read — see the `LlmEvent` docblock for
           // why the live tool channel is `onDelta`, not this stream.
           toolCalls.push(call);
+          if (unclaimedReasoning.length > 0) {
+            this.rememberReasoning(call.id, unclaimedReasoning);
+            unclaimedReasoning = [];
+          }
           delete pending[id];
         } else if (t === "response.completed" || t === "response.incomplete") {
           const usage = event.response?.usage;
