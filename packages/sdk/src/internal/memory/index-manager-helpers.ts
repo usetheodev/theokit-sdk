@@ -54,6 +54,30 @@ export interface DiscoveredFile {
   source: "memory" | "wiki" | "sessions";
 }
 
+/**
+ * Every `*.md` in `dir` as a discovered memory file, minus `skip`. A directory that does not exist
+ * yet contributes nothing — the store is created lazily, and its absence is not an error.
+ */
+async function markdownFilesIn(
+  dir: string,
+  root: string,
+  skip: readonly string[] = [],
+): Promise<DiscoveredFile[]> {
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.endsWith(".md") && !skip.includes(entry))
+    .map((entry) => ({
+      absolutePath: join(dir, entry),
+      relPath: relative(root, join(dir, entry)),
+      source: "memory" as const,
+    }));
+}
+
 /** @internal */
 export async function collectMarkdownFiles(cwd: string): Promise<DiscoveredFile[]> {
   const root = memoryDir(cwd);
@@ -69,17 +93,10 @@ export async function collectMarkdownFiles(cwd: string): Promise<DiscoveredFile[
   } catch {
     // skip
   }
-  // notes/*.md
-  try {
-    const entries = await readdir(notesDir(cwd));
-    for (const entry of entries) {
-      if (!entry.endsWith(".md")) continue;
-      const abs = join(notesDir(cwd), entry);
-      results.push({ absolutePath: abs, relPath: relative(root, abs), source: "memory" });
-    }
-  } catch {
-    // notes dir doesn't exist yet — that's fine
-  }
+  // <memoryDir>/*.md — one file per memory, the converged layout. MEMORY.md is the index and is
+  // discovered above; picking it up twice would index every memory's link alongside its text.
+  results.push(...(await markdownFilesIn(memoryDir(cwd), root, ["MEMORY.md"])));
+  results.push(...(await markdownFilesIn(notesDir(cwd), root)));
   // wiki/*.md (Phase 10 — read-only supplements)
   const wikiFiles = await discoverWikiFiles(cwd);
   for (const wiki of wikiFiles) {

@@ -1,9 +1,10 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { Agent } from "../../../src/index.js";
+import { readFactsFromMarkdown } from "../../../src/internal/memory/storage/markdown-store.js";
 import {
   extractMemoryFact,
   isMemoryWritePrompt,
@@ -72,27 +73,16 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-function memoryMdPath(cwd: string): string {
-  return join(cwd, ".theokit", "memory", "MEMORY.md");
-}
-
+/**
+ * What a consumer would read back from the store.
+ *
+ * This used to re-implement the `## Facts` parser inline, which meant it tested its own copy rather
+ * than the SDK's reader — and it broke the moment the on-disk layout converged with Claude Code's
+ * (one file per memory, `MEMORY.md` as the index) while the copy stayed behind. Delegating to
+ * `readFactsFromMarkdown` is what makes this an assertion about the product.
+ */
 async function readPersistedFacts(cwd: string): Promise<Array<{ text: string }>> {
-  try {
-    const raw = await readFile(memoryMdPath(cwd), "utf8");
-    // Parse `## Facts` section bullets.
-    const idx = raw.indexOf("## Facts");
-    if (idx === -1) return [];
-    const tail = raw.slice(idx + "## Facts".length);
-    const next = tail.search(/\n#{1,2}\s/);
-    const block = next === -1 ? tail : tail.slice(0, next);
-    return block
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.startsWith("- "))
-      .map((line) => ({ text: line.slice(2).trim() }));
-  } catch {
-    return [];
-  }
+  return readFactsFromMarkdown(cwd);
 }
 
 describe("isMemoryWritePrompt / extractMemoryFact (shared helpers)", () => {
