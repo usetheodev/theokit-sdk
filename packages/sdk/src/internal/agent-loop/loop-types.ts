@@ -1,4 +1,4 @@
-import type { ModelSelection } from "../../types/agent.js";
+import type { BuiltinToolName, ModelSelection } from "../../types/agent.js";
 import type { ConversationTurn } from "../../types/conversation.js";
 import type { SDKMessage } from "../../types/messages.js";
 import type { RunStatus, SendOptions } from "../../types/run.js";
@@ -194,6 +194,15 @@ export interface AgentLoopInputs {
    * tool catalog after shell + MCP + memory, before the LLM call.
    */
   customTools?: ReadonlyArray<CustomToolSpec>;
+  /**
+   * usetheokit/theokit-sdk#381 — builtin tool names this run must NOT declare, forwarded from
+   * `AgentOptions.withheldBuiltinTools`. Applied where each builtin is assembled, never as a
+   * post-hoc filter over the finished catalog: a consumer that withholds `shell` may then supply
+   * their OWN tool of that name, and a blanket name filter would delete theirs too.
+   *
+   * Absent ⇒ nothing is withheld (the pre-#381 catalog, byte for byte).
+   */
+  withheldBuiltinTools?: ReadonlyArray<BuiltinToolName>;
   /** Telemetry handle (D34). No-op when disabled. */
   telemetry?: import("../telemetry/tracer.js").TelemetryHandle;
   /**

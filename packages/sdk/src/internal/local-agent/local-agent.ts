@@ -264,7 +264,10 @@ export class LocalAgent implements SDKAgent {
     // Per-call tools: run the same name/schema/dedupe checks as creation.
     // (Cloud agents reject per-call tools in CloudAgent.send.)
     if (options.tools !== undefined && options.tools.length > 0) {
-      validateToolCatalog(options.tools);
+      // usetheokit/theokit-sdk#381 — with the agent's withhold list, so a per-send tool may claim a
+      // builtin name the agent withheld. Omitting it here would make the same catalog legal at
+      // create-time and rejected at send-time.
+      validateToolCatalog(options.tools, this.options.withheldBuiltinTools);
     }
     // T0.1: `agent.send` parent span spans the FULL lifecycle (mutex acquire +
     // dispatch + post-run). Child step spans (`agent.send.<step>`) land in T1.7.
@@ -345,6 +348,8 @@ export class LocalAgent implements SDKAgent {
         ...(options.onRunEvent !== undefined ? { onRunEvent: options.onRunEvent } : {}),
         hooksExecutor: this.hooksExecutor,
         memoryGlue: this.memoryGlue,
+        // usetheokit/theokit-sdk#382 — the transcript write reads this and nothing else.
+        memory: this.options.memory,
         ...(postRunProvider !== undefined ? { memoryProvider: postRunProvider } : {}),
       });
     } finally {

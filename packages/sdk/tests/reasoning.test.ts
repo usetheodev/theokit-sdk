@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { buildCustomToolsInput } from "../src/internal/local-agent/real-local-run-tools.js";
+import { buildRunToolCatalogInput } from "../src/internal/local-agent/real-local-run-tools.js";
 import {
   _resetReasoningWarnForTests,
   createThinkTool,
@@ -95,7 +95,7 @@ describe("SE37 — tool-attach guard uses the EFFECTIVE (per-send override) mode
   it("does NOT attach `think` when the effective model reasons natively (matches preamble path)", () => {
     // create-time model is non-native, but the per-send override IS native → both paths must suppress.
     const nativeOverride = { id: "x", params: [{ id: "thinking", value: "high" }] };
-    const r = buildCustomToolsInput(
+    const r = buildRunToolCatalogInput(
       opts,
       undefined,
       undefined,
@@ -109,7 +109,7 @@ describe("SE37 — tool-attach guard uses the EFFECTIVE (per-send override) mode
   });
 
   it("attaches `think` when the effective model is non-native", () => {
-    const r = buildCustomToolsInput(
+    const r = buildRunToolCatalogInput(
       opts,
       undefined,
       undefined,

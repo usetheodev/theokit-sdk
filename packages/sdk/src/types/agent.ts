@@ -49,6 +49,20 @@ export type { InvalidateCacheOptions, PersonalityPreset, SDKAgent, SystemPromptS
 export type SettingSource = "project" | "user" | "team" | "mdm" | "plugins" | "all";
 
 /**
+ * A tool the SDK declares to the model on its own initiative — not one the consumer passed in
+ * {@link AgentOptions.tools}, and not one an MCP server exposed.
+ *
+ * These three names are also the ones the SDK reserves: a custom tool may not claim them. Listing
+ * one in {@link AgentOptions.withheldBuiltinTools} both stops it being declared and releases the
+ * name, because nothing of the SDK's is occupying it any more.
+ *
+ * Named for usetheokit/theokit-sdk#381, which is the report that the catalog had no opt-out.
+ *
+ * @public
+ */
+export type BuiltinToolName = "shell" | "memory_search" | "memory_get";
+
+/**
  * Local agent configuration.
  *
  * TWO THINGS A LOCAL AGENT DOES BY DEFAULT, both reported as surprises (#338):
@@ -58,14 +72,17 @@ export type SettingSource = "project" | "user" | "team" | "mdm" | "plugins" | "a
  *    an evaluation invalidated this way: the working directory held the benchmark's answer key, and
  *    two transcripts show the model citing it. Deny it explicitly if that matters —
  *    `{ tool: "shell", action: "deny" }` on a {@link PermissionEngine} rule is terminal under every
- *    permission mode, including `bypass`. Note the tool still appears in the advertised catalog, so
- *    the model may attempt it and be refused, rather than never seeing it.
+ *    permission mode, including `bypass`. A deny rule still leaves the tool in the advertised
+ *    catalog, so the model may attempt it and be refused; to keep it out of the catalog entirely,
+ *    pass `withheldBuiltinTools: ["shell"]` on {@link AgentOptions} (usetheokit/theokit-sdk#381).
  *
  * 2. **Finished runs write a transcript to disk**, at `.theokit/memory/sessions/<runId>.md` under
  *    the workspace `cwd`, with the full prompt and reply. This happens with no `memory` config and
- *    with `settingSources: []` — it is what `memory_search({ corpus: "sessions" })` reads. It is not
- *    currently opt-out. If the workspace is a git repository, add `.theokit/` to `.gitignore`: one
- *    report describes a transcript reaching a public repo before it was noticed.
+ *    with `settingSources: []` — it is what `memory_search({ corpus: "sessions" })` reads. Opt out
+ *    with `memory: { enabled: false }`, which suppresses the write entirely
+ *    (usetheokit/theokit-sdk#382). Leaving `memory`
+ *    unset still writes, so if the workspace is a git repository, add `.theokit/` to `.gitignore`:
+ *    one report describes a transcript reaching a public repo before it was noticed.
  *
  * @public
  */
@@ -488,6 +505,32 @@ export interface AgentOptions {
    * See {@link CustomTool}.
    */
   tools?: CustomTool[];
+  /**
+   * Builtin tools this agent must NOT declare to the model. Absent or empty ⇒ every builtin the
+   * rest of the configuration would register is declared, exactly as before this option existed.
+   *
+   * WHY WITHHOLDING IS NOT THE SAME AS DENYING. A consumer that cannot allow `shell` — because it
+   * reaches outside their own sandbox scope — can already refuse the call in a `pre_tool_call` hook
+   * or with a {@link PermissionEngine} deny rule. That stops the execution and pays for the offer
+   * twice over: the schema rides in EVERY request of EVERY round (measured at 267 characters for
+   * `shell`, 1,462 for `memory_search` + `memory_get` together — usetheokit/theokit-sdk#381), and
+   * the model can spend a whole round discovering a refusal it had no way to anticipate. Declaring
+   * a tool that is guaranteed to be refused is the wrong shape; withholding removes it from the
+   * catalog, so the model is never offered what it cannot have.
+   *
+   * WITHHOLDING RELEASES THE NAME. `withheldBuiltinTools: ["shell"]` lets {@link AgentOptions.tools}
+   * declare a tool called `shell` without the `tool_reserved_name` error — the reservation exists to
+   * stop a collision with the SDK's own tool, and there is no longer one to collide with. Every
+   * builtin still declared stays reserved.
+   *
+   * This governs DECLARATION, not authorization. A withheld builtin is simply absent from the
+   * catalog: a model that invents the name anyway gets `Unknown tool <name>` (exit 127) rather than
+   * an execution, but nothing here evaluates a policy. Keep the deny rule if you need one that a
+   * per-send `tools` override cannot reopen.
+   *
+   * @public
+   */
+  withheldBuiltinTools?: readonly BuiltinToolName[];
   /**
    * SE37 — opt-in reasoning. When `true`, the agent gets a chain-of-thought
    * preamble prepended to its system prompt AND the `think` reasoning tool

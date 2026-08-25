@@ -99,8 +99,13 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
       memoryProviderHandle = undefined;
     }
   }
-  const tools = await collectTools(inputs.mcp, inputs.runEventSink);
+  // usetheokit/theokit-sdk#381 — the withheld set is consulted at each point a BUILTIN is added,
+  // and nowhere else. Filtering the finished catalog by name would also delete a consumer's own
+  // tool named `shell`, which withholding is what makes legal in the first place.
+  const withheld = new Set<string>(inputs.withheldBuiltinTools ?? []);
+  const tools = await collectTools(inputs.mcp, withheld, inputs.runEventSink);
   for (const memTool of inputs.memoryTools ?? []) {
+    if (withheld.has(memTool.name)) continue;
     tools.push({
       name: memTool.name,
       description: memTool.description,
@@ -126,6 +131,10 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
       providerTools = [];
     }
     for (const providerTool of providerTools) {
+      // The memory PORT surfaces `memory_search` / `memory_get` under `origin: "custom"`, so the
+      // withheld set has to be honoured here too — otherwise the same two builtins come back in
+      // under `THEOKIT_PORT_MEMORY_PATH=1` (usetheokit/theokit-sdk#381).
+      if (withheld.has(providerTool.name)) continue;
       tools.push({
         name: providerTool.name,
         description: providerTool.description,
@@ -231,11 +240,14 @@ export async function safeListTools(
   }
 }
 
-async function collectTools(
-  mcp: Map<string, McpClient>,
-  sink?: RunEventSink,
-): Promise<ResolvedTool[]> {
-  const tools: ResolvedTool[] = [
+/**
+ * usetheokit/theokit-sdk#381 — the builtin `shell` descriptor, or nothing when the agent withheld
+ * it. Its own function so `collectTools` opens with one line that says whether the tool exists at
+ * all, rather than a fifteen-line literal the reader has to get past to find the condition.
+ */
+function shellToolDescriptor(withheld: ReadonlySet<string>): ResolvedTool[] {
+  if (withheld.has("shell")) return [];
+  return [
     {
       name: "shell",
       description: "Run a shell command in the workspace and return stdout/stderr.",
@@ -247,6 +259,14 @@ async function collectTools(
       origin: "shell",
     },
   ];
+}
+
+async function collectTools(
+  mcp: Map<string, McpClient>,
+  withheld: ReadonlySet<string>,
+  sink?: RunEventSink,
+): Promise<ResolvedTool[]> {
+  const tools: ResolvedTool[] = shellToolDescriptor(withheld);
   for (const [serverName, client] of mcp.entries()) {
     const mcpTools = await safeListTools(client, serverName, sink);
     for (const tool of mcpTools) {

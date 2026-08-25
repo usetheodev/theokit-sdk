@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1124 export(s) across 45 entry point(s).
+1125 export(s) across 45 entry point(s).
 
 ## `@theokit/acp`
 
@@ -109,6 +109,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `BudgetTracker` | interface | The kernel-facing contract.  |
 | `BudgetUsageEvent` | interface | Single usage event recorded during one LLM call. |
 | `BudgetWindow` | type | Time window for a budget limit (D382 — UTC calendar-aligned).  |
+| `BuiltinToolName` | type | A tool the SDK declares to the model on its own initiative — not one the consumer passed in {@link AgentOptions.tools } , and not one an MCP server exposed.  |
 | `chargeAndCheckThresholds` | function | Charge the budget + dispatch threshold/exceed callbacks (EC-8 isolated).  |
 | `CloudEnv` | interface | Cloud execution environment. |
 | `CloudOptions` | interface | Cloud agent configuration. |
