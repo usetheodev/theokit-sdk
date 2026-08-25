@@ -6,10 +6,11 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 
 **Transport codes vs the rest.** `ErrorCode` in `errors.ts` is the small canonical union a provider failure maps onto — the codes marked *transport* below. Everything else is raised by a specific subsystem at a specific place, and a `catch` that only handles the union will meet them anyway.
 
-202 distinct code(s).
+203 distinct code(s).
 
 | Code | Kind | Raised by | Sites |
 |---|---|---|---|
+| `a2a_request_timeout` | domain | A2ARequestTimeoutError | `packages/sdk/src/a2a/message-bus.ts:31` |
 | `aborted` | domain | TheokitAgentError | `packages/sdk/src/batch.ts:280` +1 |
 | `agent_disposed` | domain | — | `packages/sdk/src/errors.ts:668` |
 | `agent_id_already_exists` | domain | ConfigurationError | `packages/sdk/src/agent-helpers.ts:54` |
