@@ -1,5 +1,68 @@
 # Changelog
 
+## 4.56.0
+
+### Minor Changes
+
+- b08f696: `MessageBus.request` now rejects a timeout with `A2ARequestTimeoutError`, carrying
+  `code: "a2a_request_timeout"` plus the peer's address and the limit as fields.
+
+  It used to reject with a plain `Error` and no code, so the only way to identify a timeout was to
+  match the message — the practice `docs/error-codes.md` tells consumers never to rely on, and that
+  message embeds the address and the limit, so it changes with context exactly as the document warns.
+
+  The distinction this restores is what a retry policy is built on: a peer that did not answer is
+  transient and worth retrying, a peer whose handler threw is likely deterministic. A handler's own
+  error still propagates unchanged and is not this type.
+
+- f7e70e4: The memory store now writes the layout the Claude Code CLI reads.
+
+  This SDK's differentiator is that it emits the formats that CLI opens — point `local.sessionDir` at
+  `~/.claude` and `--continue` a session your agent wrote. Memory did not hold that line: a fact was a
+  bullet under `## Facts`, so pointing a memory directory at `~/.claude/projects/<project>/memory/`
+  produced nothing the CLI could read.
+
+  Now each memory is its own file with the frontmatter Claude Code writes — `name`, `description`, and
+  `metadata` carrying `type` and an ISO 8601 `modified` — and `MEMORY.md` is the index that points at
+  them.
+
+  Legacy `## Facts` bullets are still read, so no store loses what it recorded. The brief encoding that
+  put a fact's kind in a trailing HTML comment never reached a published version, so there is nothing
+  to migrate from it.
+
+  `parseSimpleYaml` also stops flattening nested maps: `metadata:` with indented keys used to yield
+  `metadata: []` plus the nested keys as top-level entries, so `metadata.type` read as `undefined`
+  while `type` appeared where it never was.
+
+- 5036f04: A memory fact can now say what it IS and when it was learned.
+
+  `MemoryFact` gains an optional `kind` — `user`, `feedback`, `project` or `reference` — and a
+  `modified` timestamp. Without them a durable preference and a project note that went stale were
+  indistinguishable: no staleness signal, no way for recall to filter, no basis for selective
+  retention, and no way for a surface to separate "what I remember about you" from "what I know about
+  this project".
+
+  Additive, so existing stores keep working. A hand-written bullet under `## Facts` still parses and
+  stays untyped — a kind is never inferred, because a wrong one makes recall confident about the wrong
+  thing. `modified` is stamped by the SDK and ignored when supplied by a caller: a timestamp a caller
+  can set is one that can lie about when something was learned.
+
+### Patch Changes
+
+- 7587c00: A confined command that spawns a child no longer loses its output.
+
+  The restricted-network seccomp filter denied `getsockname`, `getpeername`, `setsockopt` and
+  `getsockopt`. Those four take an already-open fd, and cBPF cannot dereference one to learn its
+  address family — so they were denied on AF_UNIX too, which is what libuv uses for a child's IPC
+  channel. Any command that spawned a child died, and the parent's buffered stdout died with it:
+  `node --test` returned zero lines through `shell_exec`, and an agent reading test output saw an
+  empty string.
+
+  The four leave the denied set. Everything that takes an address or changes an fd's role —
+  `connect`, `bind`, `listen`, `accept`, `accept4`, `sendto`, `sendmmsg`, `recvmmsg`, `shutdown` —
+  stays denied, and `socket()` still refuses every family but AF_UNIX. Measured across the fix: an
+  AF_INET socket is `EPERM` before and after.
+
 ## 4.55.0
 
 ### Minor Changes
