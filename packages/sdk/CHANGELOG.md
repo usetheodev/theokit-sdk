@@ -1,5 +1,104 @@
 # Changelog
 
+## 4.58.0
+
+### Minor Changes
+
+- b39bb5f: A plugin written for the Claude Code CLI now works instead of merely parsing.
+
+  Measured 2026-08-26 against an installed one: a CLI plugin is a BUNDLE — its manifest sits at
+  `<plugin>/.claude-plugin/plugin.json`, and what it exists to contribute are the `skills/` and
+  `agents/` directories beside it. This SDK's plugin concept is a JS `entry` point, so such a manifest
+  already parsed (zod strips the keys it does not know) and then did nothing at all: `name` and
+  `version` survived while the seven agents and three skills the plugin provides stayed invisible.
+
+  The manifest agreeing was never the point. Plugin folders under `.theokit/plugins` and
+  `.claude/plugins` now contribute their skills and agents, and the CLI's manifest location is read
+  without the deprecation warning that belongs to this SDK's own superseded `plugin.json` form —
+  telling someone to migrate a file that is canonical where it came from would be wrong.
+
+  Bundles are read AFTER the project's own directories, so a project can shadow a skill or an agent a
+  plugin ships without editing the plugin.
+
+  Project-scoped deliberately. The CLI also keeps plugins under `~/.claude/plugins/cache`, behind its
+  own installer and enable/disable state; reproducing that is an installation system rather than
+  reading a project's configuration, and guessing at someone's enablement would run code they had
+  turned off.
+
+- cb1ad68: A project set up for the Claude Code CLI now works without being converted: `.claude/agents`,
+  `.claude/skills`, `.claude/hooks.json` and the CLI's own `settings.json` / `settings.local.json` are
+  read alongside `.theokit`.
+
+  The formats already agreed — only the directory did not. Measured 2026-08-26: `SkillFrontmatter`
+  requires exactly the `name` and `description` the CLI writes into every `SKILL.md`; the hook config
+  this SDK parses is documented as, and is, the CLI's `settings.json` hooks shape; and 59 of the CLI's
+  agent declarations parse here unchanged.
+
+  `.theokit` is searched first and nothing about it changes. Two rules, and the difference between
+  them is deliberate:
+
+  - **Named declarations collide, so the first wins.** Two files declaring an agent or a skill called
+    `foo` are one name claimed twice, and the explicit namespace should win.
+  - **Hooks accumulate.** They are unnamed lists — two files declaring `PreToolUse` are two sets of
+    commands an operator wrote, and keeping one would drop the other in silence.
+
+  `THEOKIT_HOME` deliberately does not move these directories. It relocates cwd-anchored SDK _state_;
+  a project's _configuration_ belongs to the repository, and following the override here would change
+  where a project's agents come from under the cover of a refactor.
+
+  Known limitation: `SessionStart` and `PreCompact` have no firing point in this runtime, so hooks
+  declared for them are skipped with a warn rather than silently accepted. Four CLI events map:
+  `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop`.
+
+- ad0c320: Rules and memories written for the Claude Code CLI are now read.
+
+  **Rules** — `.claude/rules/*.md` joins the discovery specs at priority 47. The format needed
+  nothing: measured over this repository's 32 rule files, none carries frontmatter, and the
+  `rules-frontmatter` parser already reads a file without it as `alwaysApply: true`. There was simply
+  no spec pointing at the directory.
+
+  47 rather than 46 because B-127 makes these numbers a public contract with room between adjacent
+  pairs for a consumer's own source. No published priority moves; a consumer that had chosen 47
+  collides, and that is the cost of an eighth default, recorded here rather than discovered later.
+
+  **Memories** — the CLI keeps a project's memories at `<claudeHome>/projects/<encoded-cwd>/memory/`,
+  the same encoding the transcripts use. `markdown-store`'s own header named that path as the target;
+  #389 converged the format and the ability to reach the directory was never built, so a memory the
+  CLI recorded was invisible to an agent working in the same repository. Both stores are read now,
+  `.theokit` first. `CLAUDE_CONFIG_DIR` names the home when set.
+
+  Reading only — writes still go to `.theokit/memory`. Writing elsewhere by default would relocate
+  every existing consumer's memories, which is the one thing an additive change must not do.
+
+  One fidelity fix came with it: a memory's BODY is the fact, and `description` is the one-line recall
+  aid. This SDK writes both the same, so nothing it wrote changes — but the CLI writes a summary above
+  the substance, and reading only the summary dropped the fact itself.
+
+- 78bff6c: `THEOKIT_DIR_NAME` no longer appears in `SOVEREIGN_ENV_KEYS`. It was documented there as naming the project config directory, and nothing ever read it — setting it did nothing. If you want the SDK to read configuration from `.claude` alongside `.theokit`, that now happens by default and needs no variable. `SOVEREIGN_ENV_KEYS` is public, so a consumer narrowing a type to it gains one fewer member.
+
+### Patch Changes
+
+- 5f3b1da: Agent files written for the Claude Code CLI now load.
+
+  Two defects, both measured against the 64 agent-directory files on one machine (a project
+  `.claude/agents` plus every installed plugin):
+
+  - **`color` made the file a load error.** It appeared in 38 of the 59 agent declarations — it is the
+    CLI's label colour and changes nothing about what an agent may do, but the loader rejects unknown
+    frontmatter fields, so a majority of real agent files could not be loaded at all.
+  - **One README stopped every agent in the directory.** A markdown file with no frontmatter threw
+    `subagent_missing_frontmatter`, aborting the whole directory read. `.claude/agents/README.md` is a
+    real file in this repository, cited by its own cycle rules.
+
+  The strict-field check is NOT loosened — its reason is sound, and stated where it lives: a dropped
+  `sandbox` that an operator wrote believing it confines the child is a silent gate. Fields known to be
+  inert for this runtime are now named explicitly, which is the difference between "we know this one
+  and it does nothing" and "we have never heard of this". A field that could change behaviour still
+  fails loudly, and a file that HAS frontmatter and gets it wrong is still a broken agent. Only the
+  no-frontmatter case is skipped, with a warn naming the file.
+
+  Measured after: 64 files in, 59 agents loaded, 5 documentation files skipped. Before: zero.
+
 ## 4.57.0
 
 ### Minor Changes
