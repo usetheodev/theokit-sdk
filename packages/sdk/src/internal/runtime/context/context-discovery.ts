@@ -126,6 +126,27 @@ export const DEFAULT_DISCOVERY_SPECS: ReadonlyArray<DiscoverySpec> = [
     priority: 45,
   },
   {
+    // Rules written for the Claude Code CLI. Measured 2026-08-26 over this repository's 32 rule
+    // files: none carries frontmatter, and `rules-frontmatter` already reads a file without it as
+    // `alwaysApply: true` — the format needed nothing, only a spec pointing at the directory.
+    //
+    // 47, not 46. Specs sort ascending and a context budget drops the tail first, so it must land
+    // AFTER `.theokit/rules` (45) — the explicit namespace should survive a squeeze the borrowed one
+    // does not. It must also leave a slot on BOTH sides: B-127 makes these numbers a public contract
+    // precisely so a consumer can place its own source between two defaults, and 46 would have left
+    // no room between 45 and itself. 47 keeps 46 free below and 48–49 free above.
+    //
+    // The reckoning B-127's docblock asks for: no published priority MOVES, so a consumer that chose
+    // 46, 48 or 49 is unaffected. A consumer that had chosen 47 now collides — that is the cost of
+    // an eighth default, paid once and recorded here rather than discovered later.
+    id: "claude-rules",
+    pattern: ".claude/rules/*.md",
+    scope: "globbed",
+    parser: "rules-frontmatter",
+    followImports: false,
+    priority: 47,
+  },
+  {
     id: "theokit-context",
     pattern: ".theokit/context/*.md",
     scope: "globbed",

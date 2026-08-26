@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { diag } from "../../diagnostics.js";
+import { projectConfigRoots } from "../../persistence/paths.js";
+import { pluginBundleDirs } from "../plugins/plugin-bundles.js";
 import { discoverSkills, type Skill } from "./discover-skills.js";
 import { stripSkillFrontmatter } from "./skill-frontmatter.js";
 
@@ -74,13 +76,35 @@ export class SkillsManager {
   }
 
   async refresh(): Promise<void> {
-    // M22 — a custom skillsDir overrides the default `<cwd>/.theokit/skills` root.
-    const skillsRoot = this.skillsDir ?? join(this.cwd, ".theokit", "skills");
-    const discovered = await discoverSkills(skillsRoot, {
-      onInvalidSkill: (info) => {
-        diag(`[theokit-sdk] skill ${info.name} skipped (${info.code}): ${info.message}\n`);
-      },
-    });
+    // M22 — a custom skillsDir overrides the roots entirely: an explicit directory means THAT
+    // directory, so it must not quietly gain a second source.
+    //
+    // Otherwise every project config root is read (`.theokit/skills`, then `.claude/skills`), and
+    // the FIRST declaration of a name wins. Skills authored for the Claude Code CLI need no
+    // conversion — measured 2026-08-26, `SkillFrontmatter` requires exactly the `name` and
+    // `description` the CLI writes; only the directory was never looked at.
+    // A Claude Code plugin is a bundle whose `skills/` is what it contributes; bundles come after
+    // the project's own roots so a project can shadow a skill a plugin ships without editing it.
+    const roots =
+      this.skillsDir === undefined
+        ? [
+            ...projectConfigRoots(this.cwd).map((root) => join(root, "skills")),
+            ...(await pluginBundleDirs(this.cwd)).map((bundle) => join(bundle, "skills")),
+          ]
+        : [this.skillsDir];
+    const discovered: StoredSkill[] = [];
+    const seen = new Set<string>();
+    for (const root of roots) {
+      for (const skill of await discoverSkills(root, {
+        onInvalidSkill: (info) => {
+          diag(`[theokit-sdk] skill ${info.name} skipped (${info.code}): ${info.message}\n`);
+        },
+      })) {
+        if (seen.has(skill.name)) continue;
+        seen.add(skill.name);
+        discovered.push(skill);
+      }
+    }
     this.skills = this.mergeInline(discovered);
   }
 
