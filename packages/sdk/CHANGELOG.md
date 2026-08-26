@@ -1,5 +1,76 @@
 # Changelog
 
+## 4.57.0
+
+### Minor Changes
+
+- 43e4247: A memory fact's `kind` can now actually be written. `Remember (feedback): prefer tabs` types the
+  fact; a bare `Remember:` leaves it untyped, as before.
+
+  The field was added so the local memory store would converge with the format Claude Code uses, and
+  it worked in one direction only: the SDK read a kind off an existing memory and honoured it, but no
+  path could ever produce one. `appendMemoryFact` rebuilt the fact as `{ text }` alone, so a kind was
+  severed at the single chokepoint every write passes through — the round-trip through the file format
+  was real and unreachable.
+
+  Only the four kinds the store accepts (`user`, `feedback`, `project`, `reference`) are recognised, so
+  an arbitrary parenthetical is never mistaken for one and no fact is silently typed wrong. `modified`
+  is still stamped by the SDK and ignored when supplied: a timestamp the caller controls can lie about
+  when something was learned, which defeats weighing a note from this morning against one from four
+  months ago.
+
+- b85dab4: Session transcripts are now named with a UUID, so the Claude Code CLI can actually `--continue` a
+  session this SDK wrote.
+
+  That interoperability is the difference this project claims over a proprietary session store, and it
+  did not hold. Measured against CLI 2.1.236: a transcript resumes only when its basename is a UUID —
+  `billing-bot.jsonl` and `agent-<uuid>.jsonl` are both ignored, silently, with the session simply not
+  offered. Every session written under a human-readable agent id was invisible.
+
+  The filename is now derived from the agent id with a UUIDv8 over SHA-256, so it is deterministic:
+  the same agent id always yields the same transcript and nothing has to be persisted to map one back
+  to the other. Version 8 is RFC 9562's slot for an implementation-defined scheme, which is what this
+  is — v5 would have been the obvious choice but RFC 4122 fixes its hash to SHA-1, and a weak
+  primitive in the tree costs a permanent argument with every scanner that sees it. An
+  agent id that is already a UUID passes through unchanged, so a transcript Claude Code wrote keeps its
+  own name and the two directions stay symmetric.
+
+  Existing transcripts are not orphaned: a session whose file already exists under the old name keeps
+  using it, so history continues to accumulate in one place rather than being abandoned for an empty
+  file under the new name. Those sessions do not gain `--continue` support — their name is what the CLI
+  cannot read — but nothing that was written is lost or hidden.
+
+### Patch Changes
+
+- 18a68a0: A provider that does not take its credential from the caller is no longer refused for lacking one.
+  `createLocalAgent` read the provider descriptor two lines below the `throw` that guaranteed
+  execution never reached it, so `ollama/llama3.2` failed with `missing_api_key` before any runtime
+  work began — and so did every OAuth profile, Bedrock and Vertex.
+
+  Only `authType: "api_key"` requires a key from the caller. The other four modes source their own:
+  `none` sends no Authorization header at all, and `aws_bearer` / `gcp_oauth` / `oauth_device_code` /
+  `oauth_external` build their client with a placeholder and resolve a real token at stream time.
+
+  Fail-closed is preserved in both directions that matter: an unregistered provider prefix yields no
+  profile and is still refused, so a typo cannot become a free pass; and a provider that does
+  authenticate is refused exactly as before.
+
+- 4565e43: `zod` is now a regular dependency, so `npm install @theokit/sdk` produces a package that imports.
+
+  It was declared as an OPTIONAL peer dependency while 27 source files imported it — 14 of them at
+  module scope, on the paths that load agent context, read credentials and parse persistence. npm
+  honoured the declaration and did not install it, so a fresh consumer hit
+  `Cannot find package 'zod'` on the first line of the quickstart, from `dist/index.js` itself. 12 of
+  the 33 published subpaths could not be loaded at all.
+
+  Every suite in this repository runs inside the workspace, where `zod` is hoisted whether or not the
+  package declares it — which is why 5000+ green tests, `publint` and `attw` all saw nothing. The
+  release chain now packs the tarball, installs it outside the workspace and imports every declared
+  subpath, so this class of defect fails before publishing rather than after.
+
+  Consumers already on `zod ^4` are unaffected: the ranges overlap and the tree still resolves to a
+  single copy, so a schema you build still crosses into the SDK as the same type.
+
 ## 4.56.0
 
 ### Minor Changes
