@@ -30,9 +30,9 @@ describe("sessionUuidFor — #400", () => {
     expect(sessionUuidFor(id)).toBe(id);
   });
 
-  it("test_the_derived_uuid_declares_version_5_and_the_rfc_4122_variant", () => {
+  it("test_the_derived_uuid_declares_version_8_and_the_rfc_9562_variant", () => {
     const derived = sessionUuidFor("billing-bot");
-    expect(derived[14]).toBe("5");
+    expect(derived[14]).toBe("8");
     expect("89ab").toContain(derived[19]);
   });
 

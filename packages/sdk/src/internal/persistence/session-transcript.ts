@@ -385,21 +385,32 @@ export function isSessionUuid(id: string): boolean {
  * as its difference from a proprietary session store.
  *
  * An id that is ALREADY a UUID passes through verbatim, so a transcript Claude Code wrote keeps its
- * own name and the two directions stay symmetric. Anything else is derived with UUIDv5, which is
+ * own name and the two directions stay symmetric. Anything else is derived with a UUIDv8, which is
  * deterministic: the same agent id always yields the same filename, so nothing has to be persisted
  * to map one back to the other.
  *
- * v5 rather than a random v4 for that determinism — and the version nibble was measured, not
- * assumed: CLI 2.1.236 resumes a v5-named transcript exactly as it does a v4 one.
+ * A DERIVED name is version 8 — RFC 9562's slot for a UUID whose bits come from an
+ * implementation-defined scheme, which is exactly what this is. The obvious alternative was v5, but
+ * RFC 4122 fixes v5's hash to SHA-1, and reaching for SHA-1 in 2026 means either shipping a weak
+ * primitive or arguing with every scanner that flags it, forever. v8 lets the hash be SHA-256 and
+ * lets the version nibble say honestly that this is our scheme rather than a standard one.
+ *
+ * There is no security claim here either way — no secret, no signature, and nothing an attacker
+ * gains by colliding two agent ids inside one consumer's own directory. The hash is a naming
+ * function. The point of preferring SHA-256 is not that SHA-1 was exploitable here; it is that a
+ * weak primitive in the tree costs a permanent argument with every scanner that sees it.
+ *
+ * The version nibble was measured, not assumed: CLI 2.1.236 resumes a v8-named transcript exactly as
+ * it does a v4 one.
  */
 export function sessionUuidFor(id: string): string {
   if (isSessionUuid(id)) return id.toLowerCase();
-  const hash = createHash("sha1")
+  const hash = createHash("sha256")
     .update(Buffer.concat([SESSION_NAMESPACE, Buffer.from(id, "utf8")]))
     .digest();
   const bytes = Buffer.from(hash.subarray(0, 16));
-  bytes[6] = ((bytes[6] as number) & 0x0f) | 0x50; // version 5
-  bytes[8] = ((bytes[8] as number) & 0x3f) | 0x80; // RFC 4122 variant
+  bytes[6] = ((bytes[6] as number) & 0x0f) | 0x80; // version 8 — RFC 9562 custom
+  bytes[8] = ((bytes[8] as number) & 0x3f) | 0x80; // RFC 9562 variant
   const hex = bytes.toString("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
