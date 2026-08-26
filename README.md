@@ -128,10 +128,39 @@ and MCP servers included.
 
 - **Apache-2.0 local runtime** — run agents end-to-end, no vendor in the loop.
 - **43 built-in LLM providers** — Anthropic, OpenAI, Google, and 40 more, on your own keys.
-- **Native Claude Code `.jsonl`** — point `local.sessionDir` at `~/.claude` and `--continue` a session your agent wrote, right in the Claude Code CLI.
+- **Reads a Claude Code project as it stands** — point `local.sessionDir` at `~/.claude` and `--continue` a session your agent wrote, right in the Claude Code CLI. A repository already set up for that CLI needs no conversion either: its `.claude/agents`, `.claude/skills`, `.claude/rules`, plugin bundles, the hooks in its `settings.json` and the memories it recorded all load here. See [Claude Code compatibility](#claude-code-compatibility).
 - **Opt-in cloud, walk-away cost zero** — fork the local runtime and keep running.
 
 Most agent SDKs ship open; most agent *runtimes* don't. This one does — end to end.
+
+### Claude Code compatibility
+
+A project laid out for the Claude Code CLI works here without being converted. `.theokit` is still
+read first and nothing about it changes — `.claude` is read beside it.
+
+| Surface | Where it is read from | Notes |
+|---|---|---|
+| Sessions | `<sessionDir>/projects/<encoded-cwd>/<uuid>.jsonl` | The CLI can `--continue` a session this SDK wrote |
+| `CLAUDE.md` | repository root | Including its `@file` imports |
+| Agents | `.claude/agents/*.md` | The CLI's `color` field is accepted and ignored; a `README.md` beside them is skipped rather than failing the directory |
+| Skills | `.claude/skills/**/SKILL.md` | Same `name` + `description` frontmatter |
+| Rules | `.claude/rules/*.md` | Plain markdown, no frontmatter required |
+| Hooks | `.claude/hooks.json`, `settings.json`, `settings.local.json` | Merged, not one-wins — two files' hooks both run |
+| Plugins | `.claude/plugins/*/` | A bundle's `skills/` and `agents/` are contributed |
+| Memories | `<claudeHome>/projects/<encoded-cwd>/memory/` | Read; writes still go to `.theokit/memory` |
+
+Two limits worth stating rather than discovering:
+
+- **Hooks for `SessionStart` and `PreCompact` are skipped with a warning.** This runtime has no
+  firing point for them, and accepting a hook that would never run is worse than saying so. Four CLI
+  events map: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop`.
+- **Plugins are project-scoped.** The CLI also installs plugins under `~/.claude/plugins`, behind its
+  own installer and enable/disable state. Reading those would mean guessing at someone's enablement
+  and running code they had turned off.
+
+Where a name is declared in both directories — an agent, a skill — `.theokit` wins. Hooks are the
+exception and accumulate, because they are unnamed lists and dropping one operator's set in silence
+is worse than running both.
 
 ## Overview
 
