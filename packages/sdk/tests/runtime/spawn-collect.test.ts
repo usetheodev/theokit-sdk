@@ -131,13 +131,24 @@ describe("spawnAndCollect — failure paths", () => {
     expect(result.exitCode).toBeNull();
   });
 
+  // The deadline is generous ON PURPOSE, and it is worth being exact about what that buys. The
+  // behaviour under test is "stdout captured before the kill survives the kill" — but the child has
+  // to BOOT before it can write, so the deadline is really racing Node's startup. 300ms lost that
+  // race under `pnpm -r run test`, where 18 packages run in parallel and this file's own config
+  // documents the resulting libuv saturation; the run then observed an empty stdout and reported a
+  // defect in the code under test.
+  //
+  // This WIDENS the window rather than removing the ordering — a real synchronisation is not
+  // available through a single `spawnAndCollect` call. What changes is that 3s is outside the
+  // variance of process startup while 300ms sat inside it, so the assertion now measures the
+  // helper instead of the machine's load. `testTimeout` is 20s, so the case still fits.
   it("preserves output produced before the timeout fired", async () => {
     const script = "process.stdout.write('partial');setTimeout(()=>{},60000)";
     const result = await spawnAndCollect({
       command: NODE,
       args: ["-e", script],
       cwd: process.cwd(),
-      timeoutMs: 300,
+      timeoutMs: 3000,
     });
 
     expect(result.timedOut).toBe(true);
@@ -174,11 +185,14 @@ describe("spawnAndCollect — failure paths", () => {
     const marker = join(dir, "alive.log");
     const script = `const fs=require("fs");setInterval(()=>fs.appendFileSync(${JSON.stringify(marker)},"x"),30);`;
 
+    // 3s for the same reason as the case above: the oracle is the child's liveness AFTER the kill,
+    // which requires the child to have been alive BEFORE it — and at 250ms, under the parallel run,
+    // Node had not finished starting, so there was nothing to reap and nothing to observe.
     const result = await spawnAndCollect({
       command: NODE,
       args: ["-e", script],
       cwd: process.cwd(),
-      timeoutMs: 250,
+      timeoutMs: 3000,
     });
     expect(result.timedOut).toBe(true);
 
