@@ -50,6 +50,26 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
+      # Mint a short-lived token from the `theokit-release` GitHub App. GitHub does not start
+      # workflow runs from GITHUB_TOKEN-authored events, so a Version Packages pull request
+      # opened with that token arrives with none of its required checks running, and a
+      # required check that never reports cannot be satisfied. An App-authored event does
+      # start them. Proven on theokit-ui: 0/3 required checks became 3/3, the pull request
+      # reached CLEAN by itself, and 1.10.1 published with no manual gesture.
+      #
+      # The token is minted per run and expires with it. What is long-lived is the App's
+      # private key, an organization secret scoped to three repository permissions. NOT used
+      # for npm — the twelve packages still publish over OIDC with no token at all.
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # Narrow the token to what this job does rather than inheriting whatever the
+          # installation holds. zizmor flags the unrestricted form as high severity.
+          permission-contents: write
+          permission-pull-requests: write
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
@@ -59,6 +79,12 @@ jobs:
           # from exactly this persisted credential — `persist-credentials: false`
           # here makes the push fail AFTER the packages are already on npm, which
           # is the worst possible place for this job to break.
+          #
+          # It must be the APP's token. The push of `changeset-release/main` is what the
+          # pull request is opened against, so a push carrying the Actions bot's credential
+          # produces a bot-authored branch and the checks stay dormant even though the pull
+          # request was opened by the App. Both halves have to be the App or neither is.
+          token: ${{ steps.app-token.outputs.token }}
           #
           # zizmor reports this as `artipacked` (low confidence). Accepted, with the
           # scope kept small: the job holds `contents: write` because releasing
@@ -203,7 +229,9 @@ jobs:
           publish: pnpm release
           version: pnpm changeset version
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The App's token, so the Version Packages pull request is authored by the App and
+          # its required checks actually run. Nothing here authenticates to npm.
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           # AUTHENTICATION IS OIDC, NOT A TOKEN, as of this change. Each of the
           # twelve packages carries a Trusted Publisher connection on npmjs.com
           # naming this repository and THIS FILE. npm mints a short-lived

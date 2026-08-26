@@ -16,9 +16,10 @@
  * sovereign variable is a deliberate act.
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterAll, describe, expect, it, vi } from "vitest";
 
@@ -91,10 +92,15 @@ describe("loadProjectEnv — a project .env cannot set a sovereign key", () => {
 
   it("test_the_sovereign_set_names_what_it_protects", () => {
     // The list is the security contract, so it is asserted rather than left to drift. Each entry
-    // either locates the credential store, names the config directory, or carries a trust decision.
+    // either locates the credential store or carries a trust decision.
+    //
+    // `THEOKIT_DIR_NAME` was here until #410, described as naming the config directory. Nothing read
+    // it — the directory was a hardcoded literal — so the entry defended a variable that decided
+    // nothing while telling a consumer it decided something. Note that this very test passed
+    // throughout: asserting WHICH keys are listed cannot see whether a listed key does anything,
+    // which is why the companion gate below asks a different question.
     expect([...SOVEREIGN_ENV_KEYS].sort()).toEqual([
       "THEOKIT_AUTH_HOME",
-      "THEOKIT_DIR_NAME",
       "THEOKIT_HOME",
       "THEOKIT_OAUTH_TX_SALT",
       "THEOKIT_REDACT_SECRETS",
@@ -173,5 +179,48 @@ describe("loadProjectEnv — against a real .env on disk", () => {
         else process.env[k] = before[k];
       }
     }
+  });
+});
+
+/**
+ * #410 — a sovereign entry must defend a variable something actually reads.
+ *
+ * `THEOKIT_DIR_NAME` sat in the list describing itself as naming the project config directory, and
+ * nothing ever read it. The entry defended a variable that decided nothing, and its description
+ * told a consumer they could point the SDK's config directory elsewhere. Setting it did nothing.
+ *
+ * This is the gate, and it only works because of a rename that shipped with it. `paths.ts` declared
+ * `const THEOKIT_DIR_NAME = ".theokit"` — the same name as the env var — so a search for the
+ * variable returned five hits and read as answered. The const is now `THEOKIT_DIR_LITERAL`. Without
+ * that rename this assertion would have passed over the defect it exists to catch, which is worth
+ * stating plainly: the gate and the rename are one fix, not two.
+ *
+ * HONEST LIMIT: this searches for the KEY as text, so it proves a reference exists, not that the
+ * reference does anything. It catches the orphan — an entry nothing anywhere mentions — which is
+ * the shape this defect took. A key mentioned only in a dead branch would still pass.
+ */
+describe("every sovereign key is read by something (#410)", () => {
+  const SRC = fileURLToPath(new URL("../src", import.meta.url));
+
+  /** Every `.ts` under src/, minus the module that declares the list itself. */
+  function sourceFiles(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) return sourceFiles(full);
+      if (!e.name.endsWith(".ts") || e.name === "project-env.ts") return [];
+      return [full];
+    });
+  }
+
+  const corpus = sourceFiles(SRC)
+    .map((f) => readFileSync(f, "utf8"))
+    .join("\n");
+
+  it.each(SOVEREIGN_ENV_KEYS)("%s is referenced outside the list that declares it", (key) => {
+    expect(
+      corpus.includes(key),
+      `${key} is declared sovereign and appears nowhere else in src/. Either something should read ` +
+        `it, or the entry defends a variable that decides nothing — which is what it claims to do.`,
+    ).toBe(true);
   });
 });

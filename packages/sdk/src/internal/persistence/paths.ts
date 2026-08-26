@@ -30,7 +30,17 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const THEOKIT_DIR_NAME = ".theokit";
+/**
+ * The project config directory literal.
+ *
+ * Renamed from `THEOKIT_DIR_NAME` in #410. Sharing a name with the (now removed) sovereign env var
+ * was the MECHANISM of that defect, not scenery: every grep for the variable landed on this const
+ * and looked answered, so "is it read?" returned five hits and nobody checked what they were.
+ */
+const THEOKIT_DIR_LITERAL = ".theokit";
+
+/** The Claude Code CLI's project configuration directory. */
+const CLAUDE_DIR_NAME = ".claude";
 
 /**
  * Resolve the directory cwd-anchored SDK state lives in.
@@ -58,7 +68,55 @@ export function getTheokitHome(cwd: string): string {
   if (override !== undefined && override.length > 0) {
     return override;
   }
-  return join(cwd, THEOKIT_DIR_NAME);
+  return join(cwd, THEOKIT_DIR_LITERAL);
+}
+
+/**
+ * Every directory a project's configuration may be read from, in precedence order.
+ *
+ * `.theokit` first, then `.claude`. The order is the whole contract: a project that declares a
+ * skill, agent or rule in both means the explicit namespace to win, and a caller merging these
+ * roots must therefore keep the FIRST occurrence of a name rather than the last.
+ *
+ * `.claude` is read because the formats already agree and only the location did not. Measured
+ * 2026-08-26: the SKILL.md frontmatter this SDK requires (`name` + `description`) is exactly what
+ * the CLI writes, its hook config is the same JSON shape, and 59 of the CLI's agent declarations
+ * parse here unchanged. A repository set up for the CLI was failing on the directory name alone.
+ *
+ * NOT a rename of `.theokit`, and not a migration. Both are read, so nothing that works today stops
+ * working — which is why this returns a LIST and not a single resolved answer.
+ *
+ * Deliberately NOT affected by `THEOKIT_HOME`, and this is the one thing to remember about it.
+ * That variable relocates cwd-anchored SDK *state* — sessions, the credential store. A project's
+ * *configuration* is a property of the repository, not of where this SDK keeps its state, and the
+ * loaders that read these directories have always anchored on `cwd` directly. Honouring the
+ * override here would silently move where a project's agents and skills come from, which is a
+ * behaviour change wearing the costume of a refactor.
+ *
+ * Creates nothing and checks nothing; either path may not exist, and the caller owns that.
+ *
+ * Semver-exempt: reachable via the `@theokit/sdk/internal/persistence` sub-path, which the package
+ * declares in `exports` but does NOT cover with its semver contract.
+ */
+export function projectConfigRoots(cwd: string): string[] {
+  return [join(cwd, THEOKIT_DIR_LITERAL), join(cwd, CLAUDE_DIR_NAME)];
+}
+
+/**
+ * Every directory that may hold a plugin BUNDLE contributed by the Claude Code CLI.
+ *
+ * A CLI plugin is not a JS entry point — it is a folder whose `skills/` and `agents/` are what it
+ * exists to provide. Measured 2026-08-26 on an installed one: seven agents and three skills beside
+ * a manifest in `.claude-plugin/plugin.json`. Parsing that manifest and stopping there produced a
+ * plugin that loaded and did nothing.
+ *
+ * Project-scoped deliberately. The CLI also keeps plugins under `~/.claude/plugins/cache`, behind
+ * its own installer and enable/disable state — reproducing that is an installation system, not
+ * reading a project's configuration, and guessing at someone's enablement would run code they
+ * turned off.
+ */
+export function pluginBundleRoots(cwd: string): string[] {
+  return projectConfigRoots(cwd).map((root) => join(root, "plugins"));
 }
 
 /**
@@ -75,7 +133,7 @@ export function getTheokitHome(cwd: string): string {
  * declares in `exports` but does NOT cover with its semver contract.
  */
 export function getProfilesRoot(): string {
-  return join(homedir(), THEOKIT_DIR_NAME, "profiles");
+  return join(homedir(), THEOKIT_DIR_LITERAL, "profiles");
 }
 
 /**
