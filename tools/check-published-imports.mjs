@@ -86,7 +86,7 @@ function main() {
       probe,
       `${subpaths
         .map(
-          (s, i) =>
+          (s) =>
             `try { await import(${JSON.stringify(specifierFor(pkg.name, s))}); } catch (e) { console.log(${JSON.stringify(
               s,
             )} + "\\t" + (e && e.message ? e.message.split("\\n")[0] : String(e))); }`,
