@@ -146,18 +146,94 @@ export function pendingApproval(payload) {
  * is nothing that can merge, and the bounded wait below turns a genuinely-not-yet-created one into
  * a report rather than a false pass.
  */
+/**
+ * The `OWNER/REPO` this gate asks about, from CI's own variable or from the git remote.
+ *
+ * #405's second defect: `--repo` was passed from `String(process.env.GITHUB_REPOSITORY)`, so
+ * outside CI the gate ran `gh pr list --repo undefined` and died inside `execFileSync` with a Node
+ * stack trace. The comment on that call claimed passing `--repo` made the gate runnable outside CI;
+ * it did not, and nothing checked.
+ *
+ * That matters beyond tidiness. This gate exists to make a stuck release legible, and a gate nobody
+ * can run by hand is a gate nobody can verify — which is the reason the issue gives for its FIRST
+ * defect surviving as long as it did. A tool that cannot be exercised locally is only ever tested
+ * by the incident it was built to prevent.
+ *
+ * `gh` cannot infer the repository here on its own: this remote is an SSH host alias
+ * (`github-usetheo:usetheokit/theokit-sdk.git`) rather than a hostname it recognises, and it exits
+ * with "none of the git remotes point to a known GitHub host". The alias form and the canonical
+ * `git@github.com:owner/repo.git` share a shape — everything after the last `:` — so one branch
+ * reads both; HTTPS has no colon-path and takes the last two segments.
+ *
+ * The environment variable WINS when set, so CI keeps deciding for itself and the fallback is only
+ * a fallback. An empty value is treated as unset: `--repo ''` fails as obscurely as `--repo
+ * undefined`.
+ *
+ * @param env - the environment to read, injected so the fallback path is testable
+ * @param readRemote - returns the origin remote URL; throws when there is none
+ * @returns `OWNER/REPO`
+ */
+export function resolveRepository(env = process.env, readRemote = originRemoteUrl) {
+  const declared = env.GITHUB_REPOSITORY;
+  if (typeof declared === "string" && declared.length > 0) return declared;
+
+  let remote;
+  try {
+    remote = readRemote();
+  } catch {
+    remote = "";
+  }
+
+  const slug = repositorySlug(remote);
+  if (slug !== undefined) return slug;
+
+  throw new Error(
+    [
+      "Cannot determine which repository to ask about.",
+      "",
+      `  GITHUB_REPOSITORY is unset and the origin remote (${remote === "" ? "none" : remote}) does not`,
+      "  carry an OWNER/REPO. Set it explicitly:",
+      "",
+      "    GITHUB_REPOSITORY=owner/repo node tools/verify-release-reachable.mjs",
+      "",
+      "  Reported here rather than passed on, because `gh --repo undefined` fails as a stack trace",
+      "  from inside this tool and reads as the gate being broken (usetheokit/theokit-sdk#405).",
+    ].join("\n"),
+  );
+}
+
+/** `OWNER/REPO` from a remote URL, or `undefined` when it carries none. */
+function repositorySlug(remote) {
+  const trimmed = remote.trim().replace(/\.git$/u, "");
+  if (trimmed === "") return undefined;
+
+  // `github-alias:owner/repo` and `git@github.com:owner/repo` — everything after the last colon.
+  const afterColon = trimmed.slice(trimmed.lastIndexOf(":") + 1);
+  const source = trimmed.includes("://") ? trimmed : afterColon;
+
+  const segments = source.split("/").filter((s) => s.length > 0);
+  if (segments.length < 2) return undefined;
+  return segments.slice(-2).join("/");
+}
+
+/** The origin remote URL, read from git. Separated so `resolveRepository` is testable. */
+function originRemoteUrl() {
+  return execFileSync("git", ["remote", "get-url", "origin"], { encoding: "utf8" }).trim();
+}
+
 function mergeStateFor(branch) {
   const out = execFileSync(
     "gh",
     // `--repo` explicitly: `gh` infers the repository from the git remote, and a remote written as
     // an SSH host alias is not a host `gh` recognises — it exits with "none of the git remotes
-    // point to a known GitHub host" rather than answering. Passing it makes the gate runnable
-    // outside CI too, which is how this call was found to be broken in the first place.
+    // point to a known GitHub host" rather than answering. The value comes from
+    // `resolveRepository`, which is what actually makes the gate runnable outside CI — passing
+    // `--repo` alone did not, and the comment here used to say it did (#405).
     [
       "pr",
       "list",
       "--repo",
-      String(process.env.GITHUB_REPOSITORY),
+      resolveRepository(),
       "--head",
       branch,
       "--state",
@@ -176,7 +252,7 @@ function mergeStateFor(branch) {
 function checkRunsFor(ref) {
   const out = execFileSync(
     "gh",
-    ["api", `repos/${process.env.GITHUB_REPOSITORY}/commits/${ref}/check-runs`, "--paginate"],
+    ["api", `repos/${resolveRepository()}/commits/${ref}/check-runs`, "--paginate"],
     { encoding: "utf8" },
   );
   return JSON.parse(out);

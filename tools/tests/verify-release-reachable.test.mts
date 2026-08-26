@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   mergeVerdict,
   pendingApproval,
+  resolveRepository,
   VERSION_BRANCH,
 } from "../verify-release-reachable.mjs";
 
@@ -187,5 +188,66 @@ describe("a required check can be created and then abandoned — #407", () => {
         check_runs: [{ name: "validate", status: "completed", conclusion: "failure" }],
       }).stalled,
     ).toEqual([]);
+  });
+});
+
+/*
+ * #405, second defect — the gate could not run outside CI.
+ *
+ * The first defect (a verdict derived from "did any check appear?") is fixed. This is the other
+ * half of the same issue, and the issue is explicit that the two are connected: "Any local
+ * verification of this gate crashes before it measures anything — which is part of why the first
+ * defect survived."
+ *
+ * Passing `--repo` was the right move and only half the fix. The value came from
+ * `String(process.env.GITHUB_REPOSITORY)`, which outside CI is the literal string `"undefined"`, so
+ * the gate ran `gh pr list --repo undefined` and died with a Node stack trace. The comment above
+ * that call claimed the opposite — that passing `--repo` "makes the gate runnable outside CI too".
+ *
+ * This repository's remote is an SSH host alias (`github-usetheo:usetheokit/theokit-sdk.git`),
+ * which is exactly what stops `gh` inferring the repository on its own, so the fallback has to read
+ * the alias form and not only the two canonical ones.
+ */
+describe("resolveRepository — the gate runs outside CI too (#405)", () => {
+  it("prefers GITHUB_REPOSITORY when CI set it", () => {
+    expect(resolveRepository({ GITHUB_REPOSITORY: "owner/repo" }, () => "unused")).toBe(
+      "owner/repo",
+    );
+  });
+
+  it("ignores an empty GITHUB_REPOSITORY rather than passing it on", () => {
+    // `--repo ''` fails as obscurely as `--repo undefined`; an unset and an empty variable mean
+    // the same thing here.
+    expect(
+      resolveRepository({ GITHUB_REPOSITORY: "" }, () => "git@github.com:usetheokit/theokit-sdk.git"),
+    ).toBe("usetheokit/theokit-sdk");
+  });
+
+  it("reads an SSH host alias, which is the shape that breaks `gh` inference", () => {
+    expect(resolveRepository({}, () => "github-usetheo:usetheokit/theokit-sdk.git")).toBe(
+      "usetheokit/theokit-sdk",
+    );
+  });
+
+  it("reads the canonical SSH and HTTPS forms", () => {
+    expect(resolveRepository({}, () => "git@github.com:usetheokit/theokit-sdk.git")).toBe(
+      "usetheokit/theokit-sdk",
+    );
+    expect(resolveRepository({}, () => "https://github.com/usetheokit/theokit-sdk.git")).toBe(
+      "usetheokit/theokit-sdk",
+    );
+    expect(resolveRepository({}, () => "https://github.com/usetheokit/theokit-sdk")).toBe(
+      "usetheokit/theokit-sdk",
+    );
+  });
+
+  it("names what to set when nothing resolves, instead of dying inside gh", () => {
+    // The failure this replaces was a Node stack trace from execFileSync. An operator running the
+    // gate by hand should be told which variable to set, not shown the call that broke.
+    expect(() =>
+      resolveRepository({}, () => {
+        throw new Error("no remote");
+      }),
+    ).toThrow(/GITHUB_REPOSITORY/u);
   });
 });
