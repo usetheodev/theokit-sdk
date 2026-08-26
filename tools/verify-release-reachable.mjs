@@ -67,17 +67,42 @@ export const VERSION_BRANCH = "changeset-release/main";
  * or a repository in that state. The API shell around it is one call.
  */
 /**
- * What this payload lets the run conclude.
+ * The pull-request states from which a merge can actually proceed.
  *
- * `absent` is deliberately not folded into `ok`: "no check has appeared yet" and "checks appeared
- * and none is stuck" are different facts, and collapsing them is exactly the bug that let a blocked
- * release report green.
+ * `UNSTABLE` is in: it means a check that is NOT required to merge is failing, which is a thing to
+ * look at but not a thing that blocks the release. `HAS_HOOKS` is a clean state with a pre-receive
+ * hook attached. Everything else — `DIRTY`, `BEHIND`, `DRAFT`, `BLOCKED` — cannot merge as it
+ * stands, and the list is an allowlist rather than a denylist so a state GitHub adds later is
+ * treated as blocking until someone looks at it.
  */
-export function checkVerdict(payload) {
-  const blocked = pendingApproval(payload);
-  if (blocked.length > 0) return { state: "blocked", blocked };
-  const runs = Array.isArray(payload?.check_runs) ? payload.check_runs : [];
-  return runs.length === 0 ? { state: "absent", blocked: [] } : { state: "ok", blocked: [] };
+const MERGEABLE_STATES = new Set(["CLEAN", "UNSTABLE", "HAS_HOOKS"]);
+
+/**
+ * What the run can conclude, from GitHub's OWN answer to "can this pull request merge".
+ *
+ * This replaced a predicate that counted check runs, and the replacement is the point. The old one
+ * asked "did any check appear?" and answered `ok` for a non-empty payload. Measured on the 4.57.0
+ * release: `changeset-release/main` carried exactly two Socket Security checks, both green, neither
+ * required on `main` — while the five that ARE required had never been created, because the pull
+ * request was authored by `GITHUB_TOKEN`. Nothing was `action_required`, the payload was not empty,
+ * and the gate reported a reachable release on a pull request GitHub called `BLOCKED`.
+ *
+ * Counting checks was a partial reimplementation of mergeability, and it disagreed with the real one
+ * in exactly the case the gate exists for. `mergeStateStatus` is the authoritative answer, so the
+ * gate asks for it instead of deriving a worse one.
+ *
+ * `absent` survives, and still means "too early to tell": `UNKNOWN` is what GitHub returns while it
+ * is still computing mergeability. Folding it into `ok` would restore the original race — the gate
+ * running before the answer exists and reading the silence as consent.
+ *
+ * `blocked` carries the names of any check waiting on a human, when there are any. Often there are
+ * none: a required check that was never created cannot be `action_required`, so an empty list here
+ * is itself the diagnosis, and the caller says so rather than printing nothing.
+ */
+export function mergeVerdict(mergeStateStatus, payload) {
+  if (mergeStateStatus === "UNKNOWN") return { state: "absent", blocked: pendingApproval(payload) };
+  if (MERGEABLE_STATES.has(mergeStateStatus)) return { state: "ok", blocked: [] };
+  return { state: "blocked", blocked: pendingApproval(payload) };
 }
 
 export function pendingApproval(payload) {
@@ -86,6 +111,40 @@ export function pendingApproval(payload) {
     .filter((run) => run?.conclusion === "action_required")
     .map((run) => String(run.name ?? "(unnamed)"))
     .sort();
+}
+
+/**
+ * GitHub's own verdict on whether the version pull request can merge.
+ *
+ * `UNKNOWN` when there is no such pull request either — which is honest: with no pull request there
+ * is nothing that can merge, and the bounded wait below turns a genuinely-not-yet-created one into
+ * a report rather than a false pass.
+ */
+function mergeStateFor(branch) {
+  const out = execFileSync(
+    "gh",
+    // `--repo` explicitly: `gh` infers the repository from the git remote, and a remote written as
+    // an SSH host alias is not a host `gh` recognises — it exits with "none of the git remotes
+    // point to a known GitHub host" rather than answering. Passing it makes the gate runnable
+    // outside CI too, which is how this call was found to be broken in the first place.
+    [
+      "pr",
+      "list",
+      "--repo",
+      String(process.env.GITHUB_REPOSITORY),
+      "--head",
+      branch,
+      "--state",
+      "open",
+      "--json",
+      "mergeStateStatus",
+      "--limit",
+      "1",
+    ],
+    { encoding: "utf8" },
+  );
+  const prs = JSON.parse(out);
+  return prs[0]?.mergeStateStatus ?? "UNKNOWN";
 }
 
 function checkRunsFor(ref) {
@@ -106,16 +165,18 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function main() {
   const jsonFlag = process.argv.indexOf("--json");
   if (jsonFlag !== -1) {
-    return report(checkVerdict(JSON.parse(readFileSync(process.argv[jsonFlag + 1], "utf8"))));
+    const fixture = JSON.parse(readFileSync(process.argv[jsonFlag + 1], "utf8"));
+    return report(mergeVerdict(fixture.mergeStateStatus ?? "UNKNOWN", fixture));
   }
 
-  // Wait for the checks to exist before judging them. Concluding on an empty payload is what let a
-  // blocked release report green; a bounded wait is what separates "not yet" from "never".
+  // Wait for GitHub to decide before judging. Concluding while mergeability is still `UNKNOWN` is
+  // what let a blocked release report green; a bounded wait is what separates "not yet" from "never".
   const deadline = Date.now() + APPEAR_TIMEOUT_MS;
-  let verdict = checkVerdict(checkRunsFor(VERSION_BRANCH));
+  const look = () => mergeVerdict(mergeStateFor(VERSION_BRANCH), checkRunsFor(VERSION_BRANCH));
+  let verdict = look();
   while (verdict.state === "absent" && Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
-    verdict = checkVerdict(checkRunsFor(VERSION_BRANCH));
+    verdict = look();
   }
   return report(verdict);
 }
@@ -123,28 +184,38 @@ async function main() {
 function report(verdict) {
   if (verdict.state === "ok") {
     console.log(
-      `[release-reachable] PASS — checks on ${VERSION_BRANCH} are running or done, none waiting on approval.`,
+      `[release-reachable] PASS — GitHub reports the ${VERSION_BRANCH} pull request can be merged.`,
     );
     return 0;
   }
 
   if (verdict.state === "absent") {
     console.error(
-      `[release-reachable] ✗ no check ever appeared on ${VERSION_BRANCH}. The required contexts` +
-        ` cannot pass, so the version pull request cannot be merged and nothing will publish.`,
+      `[release-reachable] ✗ GitHub never decided whether the ${VERSION_BRANCH} pull request can` +
+        ` merge. Either no such pull request exists, or mergeability is still being computed.`,
     );
-    console.error("");
-    console.error("  A pull request authored with GITHUB_TOKEN triggers no workflow, by GitHub's");
-    console.error("  own rule. That is the shape this looks like.");
-  } else {
+  } else if (verdict.blocked.length > 0) {
     console.error(
-      `[release-reachable] ✗ ${verdict.blocked.length} check(s) on ${VERSION_BRANCH} are waiting on` +
-        ` manual approval and will never run on their own:`,
+      `[release-reachable] ✗ the ${VERSION_BRANCH} pull request cannot be merged, and` +
+        ` ${verdict.blocked.length} check(s) are waiting on manual approval:`,
     );
     for (const name of verdict.blocked) console.error(`      ${name}`);
     console.error("");
     console.error("  To ship THIS release, approve the pending runs:");
     console.error("    gh api -X POST repos/$GITHUB_REPOSITORY/actions/runs/<id>/approve");
+  } else {
+    console.error(
+      `[release-reachable] ✗ the ${VERSION_BRANCH} pull request cannot be merged, and NO check is` +
+        ` waiting on approval — the required contexts were never created at all.`,
+    );
+    console.error("");
+    console.error("  A pull request authored with GITHUB_TOKEN triggers no workflow, by GitHub's");
+    console.error("  own rule, so its required checks do not exist to be approved.");
+    console.error("");
+    console.error("  To ship THIS release, make the checks run by reopening the pull request:");
+    console.error("    gh pr close <n> && gh pr reopen <n>");
+    console.error("  A reopen from a user account is a triggering event; --admin is not a fix, it");
+    console.error("  publishes with none of the required checks having run.");
   }
 
   console.error("");
