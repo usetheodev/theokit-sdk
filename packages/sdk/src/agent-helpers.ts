@@ -177,22 +177,41 @@ function missingApiKeyMessage(): string {
   );
 }
 
+/**
+ * theokit#501 — does this provider authenticate at all?
+ *
+ * An UNREGISTERED prefix yields no profile and answers `false`, which keeps the refusal in place for
+ * a typo. That asymmetry is deliberate and matches `keyWillFlowToProvider` above: guessing "probably
+ * keyless" for a name we do not know would turn every mistyped prefix into a silent free pass, and
+ * the failure would surface as a 401 from wherever the request happened to land.
+ */
+function providerNeedsNoKey(provider: string | undefined): boolean {
+  if (provider === undefined) return false;
+  return getProviderProfile(provider)?.authType === "none";
+}
+
 async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
+  // `options.model` is already normalized by `runCreateUnderSpan`; `normalizeModel` here is the
+  // idempotent narrowing of the widened public type (`{id}` passes through by reference) — cleaner
+  // than an `as` cast.
+  const provider = providerFromModelId(normalizeModel(options.model)?.id);
   const apiKey = resolveApiKey(options.apiKey);
   if (apiKey === undefined) {
-    throw new AuthenticationError(missingApiKeyMessage(), { code: "missing_api_key" });
-  }
-  const provider = providerFromModelId(normalizeModel(options.model)?.id);
-  const willFlowToProvider = keyWillFlowToProvider(apiKey, provider);
-  const shape = validateApiKeyShape(apiKey, {
-    strict: willFlowToProvider,
-    // `options.model` is already normalized by `runCreateUnderSpan`; `normalizeModel`
-    // here is the idempotent narrowing of the widened public type (`{id}` passes
-    // through by reference) — cleaner than an `as` cast.
-    ...(willFlowToProvider ? { provider } : {}),
-  });
-  if (shape.malformed) {
-    throw new AuthenticationError(shape.message, { code: "malformed_api_key" });
+    // theokit#501 — this gate used to run BEFORE the provider was resolved, so a provider declaring
+    // `authType: "none"` was refused for lacking a credential it does not use. The descriptor that
+    // says so was read two lines below the `throw` that guaranteed we never got there.
+    if (!providerNeedsNoKey(provider)) {
+      throw new AuthenticationError(missingApiKeyMessage(), { code: "missing_api_key" });
+    }
+  } else {
+    const willFlowToProvider = keyWillFlowToProvider(apiKey, provider);
+    const shape = validateApiKeyShape(apiKey, {
+      strict: willFlowToProvider,
+      ...(willFlowToProvider ? { provider } : {}),
+    });
+    if (shape.malformed) {
+      throw new AuthenticationError(shape.message, { code: "malformed_api_key" });
+    }
   }
   const agent = new LocalAgent(options);
   await agent.initialize();
