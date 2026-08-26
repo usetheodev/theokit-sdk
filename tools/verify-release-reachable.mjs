@@ -33,12 +33,22 @@
  * So the gate does not try to unblock the release. It makes the stuck state SAY SO, in the run a
  * maintainer is already looking at, on the day it happens rather than eight days later.
  *
- * ## Why `action_required` and not "some check is not green"
+ * ## Why `action_required`, and why an EMPTY payload is not "all clear"
  *
  * A freshly-opened pull request has checks that are `queued` or `in_progress`, and failing on those
  * would be a flaky gate — which `testing.md` § 6 calls a bug. `action_required` is different in
- * kind: it is terminal without a human. It never becomes `success` on its own, so observing it once
- * is enough, and observing it is never a race.
+ * kind: it is terminal without a human, so it never becomes `success` on its own.
+ *
+ * That much held. What did not is the sentence this docblock used to carry — "observing it is never
+ * a race". It named the wrong race. Measured on run 32918852952: the gate ran at ~01:24 and the
+ * four check runs appeared at 01:35, so it saw NO checks and passed on a pull request that was
+ * BLOCKED the whole time. The hazard is not that `action_required` changes under you; it is that it
+ * does not exist yet when you look.
+ *
+ * So the verdict has three states, not two, and the run waits for the checks to appear before
+ * concluding. If they never appear, that is a failure of its own: a required context with no run at
+ * all blocks the merge exactly as surely as one waiting for approval, and it is what happens when
+ * the pull request is authored with `GITHUB_TOKEN`, which by GitHub's own rule triggers no workflow.
  *
  * Usage: node tools/verify-release-reachable.mjs [--json <path>]
  *   --json  read the check-run payload from a file instead of the API (tests, dry runs)
@@ -56,6 +66,20 @@ export const VERSION_BRANCH = "changeset-release/main";
  * Pure so the interesting branch — a stuck pull request — is testable without a network, a token,
  * or a repository in that state. The API shell around it is one call.
  */
+/**
+ * What this payload lets the run conclude.
+ *
+ * `absent` is deliberately not folded into `ok`: "no check has appeared yet" and "checks appeared
+ * and none is stuck" are different facts, and collapsing them is exactly the bug that let a blocked
+ * release report green.
+ */
+export function checkVerdict(payload) {
+  const blocked = pendingApproval(payload);
+  if (blocked.length > 0) return { state: "blocked", blocked };
+  const runs = Array.isArray(payload?.check_runs) ? payload.check_runs : [];
+  return runs.length === 0 ? { state: "absent", blocked: [] } : { state: "ok", blocked: [] };
+}
+
 export function pendingApproval(payload) {
   const runs = Array.isArray(payload?.check_runs) ? payload.check_runs : [];
   return runs
@@ -73,33 +97,59 @@ function checkRunsFor(ref) {
   return JSON.parse(out);
 }
 
-function main() {
-  const jsonFlag = process.argv.indexOf("--json");
-  const payload =
-    jsonFlag !== -1
-      ? JSON.parse(readFileSync(process.argv[jsonFlag + 1], "utf8"))
-      : checkRunsFor(VERSION_BRANCH);
+/** How long to wait for GitHub to create the checks, and how often to look. */
+const APPEAR_TIMEOUT_MS = 5 * 60_000;
+const POLL_INTERVAL_MS = 15_000;
 
-  const blocked = pendingApproval(payload);
-  if (blocked.length === 0) {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function main() {
+  const jsonFlag = process.argv.indexOf("--json");
+  if (jsonFlag !== -1) {
+    return report(checkVerdict(JSON.parse(readFileSync(process.argv[jsonFlag + 1], "utf8"))));
+  }
+
+  // Wait for the checks to exist before judging them. Concluding on an empty payload is what let a
+  // blocked release report green; a bounded wait is what separates "not yet" from "never".
+  const deadline = Date.now() + APPEAR_TIMEOUT_MS;
+  let verdict = checkVerdict(checkRunsFor(VERSION_BRANCH));
+  while (verdict.state === "absent" && Date.now() < deadline) {
+    await sleep(POLL_INTERVAL_MS);
+    verdict = checkVerdict(checkRunsFor(VERSION_BRANCH));
+  }
+  return report(verdict);
+}
+
+function report(verdict) {
+  if (verdict.state === "ok") {
     console.log(
-      `[release-reachable] PASS — no check on ${VERSION_BRANCH} is waiting on manual approval.`,
+      `[release-reachable] PASS — checks on ${VERSION_BRANCH} are running or done, none waiting on approval.`,
     );
     return 0;
   }
 
-  console.error(
-    `[release-reachable] ✗ ${blocked.length} required check(s) on ${VERSION_BRANCH} are ` +
-      `waiting on manual approval and will never run on their own:`,
-  );
-  for (const name of blocked) console.error(`      ${name}`);
+  if (verdict.state === "absent") {
+    console.error(
+      `[release-reachable] ✗ no check ever appeared on ${VERSION_BRANCH}. The required contexts` +
+        ` cannot pass, so the version pull request cannot be merged and nothing will publish.`,
+    );
+    console.error("");
+    console.error("  A pull request authored with GITHUB_TOKEN triggers no workflow, by GitHub's");
+    console.error("  own rule. That is the shape this looks like.");
+  } else {
+    console.error(
+      `[release-reachable] ✗ ${verdict.blocked.length} check(s) on ${VERSION_BRANCH} are waiting on` +
+        ` manual approval and will never run on their own:`,
+    );
+    for (const name of verdict.blocked) console.error(`      ${name}`);
+    console.error("");
+    console.error("  To ship THIS release, approve the pending runs:");
+    console.error("    gh api -X POST repos/$GITHUB_REPOSITORY/actions/runs/<id>/approve");
+  }
+
   console.error("");
-  console.error("[release-reachable] FAIL — the version pull request cannot be merged, so nothing");
-  console.error("  will be published. The release run itself is green, which is why this went");
-  console.error("  unnoticed for eight days in 2026-08 (#388).");
-  console.error("");
-  console.error("  To ship THIS release, approve the pending runs:");
-  console.error("    gh api -X POST repos/$GITHUB_REPOSITORY/actions/runs/<id>/approve");
+  console.error("[release-reachable] FAIL — the release run itself is green, which is why this");
+  console.error("  went unnoticed for eight days in 2026-08 (#388).");
   console.error("");
   console.error("  To stop it recurring, pick one — none of them belongs in a source file:");
   console.error("    · narrow `fork-pr-contributor-approval` so `github-actions[bot]` is exempt");
@@ -108,4 +158,4 @@ function main() {
   return 1;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) process.exit(main());
+if (import.meta.url === `file://${process.argv[1]}`) process.exit(await main());
