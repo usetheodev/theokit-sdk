@@ -110,8 +110,11 @@ export async function readFactsFromMarkdown(cwd: string): Promise<MemoryFact[]> 
  * `MEMORY.md` is the index, not a memory; a non-markdown entry is not a memory; and a markdown file
  * without the frontmatter is a note somebody wrote by hand. Turning any of those into a fact would
  * put text into recall that nobody recorded as one.
+ *
+ * The DIRECTORY is a parameter rather than derived from `cwd`, because both stores — this SDK's and
+ * the one the Claude Code CLI keeps for the same project — read entries the same way, and a second
+ * copy of this function is a second place for those three rules to drift.
  */
-/** Read one memory file out of a given directory — the directory is the parameter so both stores share this. */
 async function readMemoryFileIn(dir: string, entry: string): Promise<MemoryFact | undefined> {
   if (!entry.endsWith(".md") || entry === "MEMORY.md") return undefined;
   let raw: string;
