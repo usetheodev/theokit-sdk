@@ -96,6 +96,23 @@ export function projectConfigRoots(cwd: string): string[] {
 }
 
 /**
+ * Every directory that may hold a plugin BUNDLE contributed by the Claude Code CLI.
+ *
+ * A CLI plugin is not a JS entry point — it is a folder whose `skills/` and `agents/` are what it
+ * exists to provide. Measured 2026-08-26 on an installed one: seven agents and three skills beside
+ * a manifest in `.claude-plugin/plugin.json`. Parsing that manifest and stopping there produced a
+ * plugin that loaded and did nothing.
+ *
+ * Project-scoped deliberately. The CLI also keeps plugins under `~/.claude/plugins/cache`, behind
+ * its own installer and enable/disable state — reproducing that is an installation system, not
+ * reading a project's configuration, and guessing at someone's enablement would run code they
+ * turned off.
+ */
+export function pluginBundleRoots(cwd: string): string[] {
+  return projectConfigRoots(cwd).map((root) => join(root, "plugins"));
+}
+
+/**
  * The directory holding every profile: always `~/.theokit/profiles`, from `os.homedir()`.
  *
  * Deliberately NOT affected by `THEOKIT_HOME`, which is the one thing to remember about it. If it

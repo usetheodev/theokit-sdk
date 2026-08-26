@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-
 import { ConfigurationError } from "../../../errors.js";
 import { loadMarkdownEntities } from "../../persistence/markdown-config-loader.js";
+import { pluginBundleRoots } from "../../persistence/paths.js";
 import { safePathJoin } from "../../security/path-guard.js";
 import { readWorkspaceDir } from "../config/workspace-dir.js";
 import { warnOnce } from "../hooks/hooks-source.js";
@@ -51,14 +51,31 @@ export class PluginsManager {
     await this.refresh();
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: MD-first + JSON fallback + both-present detection per plugin folder — branch table is clearer inlined.
   async refresh(): Promise<void> {
     this.plugins = [];
-    const pluginsRoot = join(this.cwd, ".theokit", "plugins");
+    for (const pluginsRoot of pluginBundleRoots(this.cwd)) {
+      await this.refreshRoot(pluginsRoot);
+    }
+  }
+
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: MD-first + JSON fallback + CLI location + both-present detection per plugin folder — branch table is clearer inlined.
+  private async refreshRoot(pluginsRoot: string): Promise<void> {
     const entries = await readWorkspaceDir(pluginsRoot, "plugins_read_error", "plugins directory");
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const folderName = entry.name;
+      // The Claude Code CLI keeps its manifest one level down, in `.claude-plugin/plugin.json`.
+      // Checked BEFORE the deprecation branch below: that warn is about this SDK's own superseded
+      // `plugin.json` form, and firing it at a CLI plugin would tell someone to migrate a file that
+      // is canonical where it came from.
+      const cliPath = join(pluginsRoot, folderName, ".claude-plugin", "plugin.json");
+      if (existsSync(cliPath)) {
+        const cliMetadata = await loadPluginManifestFromJson(cliPath, folderName);
+        if (this.enabled === undefined || this.enabled.includes(cliMetadata.name)) {
+          this.plugins.push(cliMetadata);
+        }
+        continue;
+      }
       // ADR D77: prefer PLUGIN.md; fall back to plugin.json with deprecation warn.
       const mdPath = join(pluginsRoot, folderName, "PLUGIN.md");
       const jsonPath = join(pluginsRoot, folderName, "plugin.json");

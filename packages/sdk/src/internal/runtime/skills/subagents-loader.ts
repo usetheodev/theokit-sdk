@@ -8,6 +8,7 @@ import { diag } from "../../diagnostics.js";
 import { projectConfigRoots } from "../../persistence/paths.js";
 import { readWorkspaceDir } from "../config/workspace-dir.js";
 import { type FrontmatterValue, parseSimpleYaml } from "../context/yaml-frontmatter.js";
+import { pluginBundleDirs } from "../plugins/plugin-bundles.js";
 
 /**
  * Load file-based subagents from `.theokit/agents/*.md` and merge with
@@ -48,6 +49,11 @@ async function readProjectSubagents(cwd: string): Promise<Record<string, AgentDe
   const subagents: Record<string, AgentDefinition> = {};
   for (const configRoot of projectConfigRoots(cwd)) {
     await readSubagentsFrom(join(configRoot, "agents"), subagents);
+  }
+  // A Claude Code plugin is a BUNDLE, and its `agents/` is what it exists to contribute. Read after
+  // the project's own, so a project can shadow an agent a plugin ships without editing the plugin.
+  for (const bundle of await pluginBundleDirs(cwd)) {
+    await readSubagentsFrom(join(bundle, "agents"), subagents);
   }
   return subagents;
 }
