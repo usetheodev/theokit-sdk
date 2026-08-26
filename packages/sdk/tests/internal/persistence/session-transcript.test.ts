@@ -171,10 +171,15 @@ describe("SE40 — transcript file I/O (Claude layout)", () => {
     expect(expandTilde("~theo/x")).toBe("~theo/x");
   });
 
-  it("transcriptPath uses <baseDir>/projects/<encoded-cwd>/<sessionId>.jsonl (traversal-safe)", () => {
+  it("transcriptPath uses <baseDir>/projects/<encoded-cwd>/<session-uuid>.jsonl (traversal-safe)", () => {
     const p = transcriptPath("/base", "/home/u/proj", "../evil");
-    // sessionId sanitized: `.`,`.`,`/` → `-` each ⇒ `---evil`; no `..`/`/` survives (traversal-safe)
-    expect(p).toBe("/base/projects/-home-u-proj/---evil.jsonl");
+    // #400 — the filename is a UUID derived from the id, so a hostile id is not sanitized into
+    // something harmless, it stops being representable in the name at all. This used to assert the
+    // exact sanitized output `---evil.jsonl`, which was how the property was achieved rather than
+    // the property itself.
+    expect(p).toMatch(
+      /^\/base\/projects\/-home-u-proj\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/,
+    );
     expect(p).not.toContain("..");
   });
 

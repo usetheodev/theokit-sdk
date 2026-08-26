@@ -18,12 +18,18 @@
  * @internal
  */
 
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { SessionStore } from "../../types/session-store.js";
 import { withFileLock } from "./file-lock.js";
 import { appendJsonl } from "./jsonl.js";
-import { readTranscript, type SessionRecord, transcriptPath } from "./session-transcript.js";
+import {
+  legacyTranscriptPath,
+  readTranscript,
+  type SessionRecord,
+  transcriptPath,
+} from "./session-transcript.js";
 import { acquireSessionWriter, type SessionWriterLease } from "./session-writer.js";
 
 /** Options identifying the on-disk transcript location for the FS default store. */
@@ -97,20 +103,43 @@ export class FsSessionStore implements SessionStore {
   readonly #cwd: string;
   /** One lease per `agentId` — a store serves more than one session over the process lifetime. */
   readonly #leases = new Map<string, SessionWriterLease>();
+  /** Memoized per agent so read, append and lease can never disagree about which file is the session. */
+  readonly #paths = new Map<string, string>();
 
   constructor(options: FsSessionStoreOptions) {
     this.#baseDir = options.baseDir;
     this.#cwd = options.cwd;
   }
 
+  /**
+   * The file that IS this agent's session.
+   *
+   * #400 made transcript filenames UUIDs so `claude --continue` can find them. A transcript written
+   * before that lives under the old name, and switching to the new one would not lose the file but
+   * would abandon it: the agent would start a second, empty history beside its real one. So an
+   * existing legacy file wins, and only a session with no file yet gets the new name.
+   *
+   * Resolved ONCE per agent. Re-deciding per call would let `acquire` lock one path while
+   * `appendRecords` wrote another — the lease would be guarding a file nobody was writing.
+   */
+  #pathFor(agentId: string): string {
+    const memoized = this.#paths.get(agentId);
+    if (memoized !== undefined) return memoized;
+    const canonical = transcriptPath(this.#baseDir, this.#cwd, agentId);
+    const legacy = legacyTranscriptPath(this.#baseDir, this.#cwd, agentId);
+    const resolved = legacy !== canonical && existsSync(legacy) ? legacy : canonical;
+    this.#paths.set(agentId, resolved);
+    return resolved;
+  }
+
   async readRecords(agentId: string): Promise<SessionRecord[]> {
-    return readTranscript(transcriptPath(this.#baseDir, this.#cwd, agentId));
+    return readTranscript(this.#pathFor(agentId));
   }
 
   async appendRecords(agentId: string, records: readonly SessionRecord[]): Promise<void> {
     // Empty delta → nothing to persist (avoids an unnecessary lock + rewrite).
     if (records.length === 0) return;
-    const path = transcriptPath(this.#baseDir, this.#cwd, agentId);
+    const path = this.#pathFor(agentId);
     // mkdir BEFORE the lock: withFileLock's companion `<path>.lock` needs the parent dir.
     await mkdir(dirname(path), { recursive: true });
 
@@ -160,7 +189,7 @@ export class FsSessionStore implements SessionStore {
    */
   async acquire(agentId: string): Promise<void> {
     if (this.#leases.has(agentId)) return;
-    const path = transcriptPath(this.#baseDir, this.#cwd, agentId);
+    const path = this.#pathFor(agentId);
     await mkdir(dirname(path), { recursive: true });
     this.#leases.set(agentId, await acquireShared(path));
   }

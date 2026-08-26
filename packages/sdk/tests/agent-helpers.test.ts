@@ -57,6 +57,40 @@ describe("agent-helpers.ts — create-time refusals", () => {
     ).rejects.toBeInstanceOf(AuthenticationError);
   });
 
+  // theokit#501 — the key gate ran BEFORE the provider was resolved, so a provider that declares
+  // `authType: "none"` was refused for lacking a credential it does not use. The descriptor sat two
+  // lines below the `throw` that never let execution reach it.
+  //
+  // Fail-closed is preserved in the two directions that matter: an UNREGISTERED provider yields no
+  // profile and is still refused (a typo'd prefix must not become a free pass), and a registered
+  // provider that DOES authenticate is refused exactly as before.
+  it("test_a_local_agent_on_a_keyless_provider_is_built_without_a_credential_it_never_sends", async () => {
+    const agent = await Agent.create({ model: { id: "ollama/llama3.2" }, local: { cwd } });
+    expect(agent).toBeDefined();
+  });
+
+  // theokit#501, second half — `authType: "none"` was only one of FIVE modes that source their own
+  // credential. `sentinelForLazyAuth` in the router already enumerated the others (aws_bearer,
+  // gcp_oauth, oauth_device_code, oauth_external): each builds its client with a lazy placeholder and
+  // resolves the real token at stream time. Gating on `=== "none"` re-stated that rule as a partial
+  // copy, so an OAuth profile was still refused for lacking a key it never sends.
+  it("test_a_local_agent_on_an_oauth_device_code_provider_is_built_without_a_static_key", async () => {
+    const agent = await Agent.create({ model: { id: "openai-chatgpt/gpt-5" }, local: { cwd } });
+    expect(agent).toBeDefined();
+  });
+
+  it("test_a_local_agent_on_an_unregistered_provider_prefix_is_still_refused_without_a_key", async () => {
+    await expect(
+      Agent.create({ model: { id: "not-a-registered-provider/some-model" }, local: { cwd } }),
+    ).rejects.toMatchObject({ name: "AuthenticationError", code: "missing_api_key" });
+  });
+
+  it("test_a_local_agent_on_a_key_authenticated_provider_is_still_refused_without_a_key", async () => {
+    await expect(
+      Agent.create({ model: { id: "openai/gpt-4o" }, local: { cwd } }),
+    ).rejects.toMatchObject({ name: "AuthenticationError", code: "missing_api_key" });
+  });
+
   it("test_a_cloud_agent_with_no_api_key_anywhere_is_refused_with_a_distinct_configuration_error", async () => {
     await expect(
       Agent.create({ model: { id: "claude-sonnet-4-6" }, cloud: {} }),

@@ -20,6 +20,7 @@ import type { RunUntilDeps } from "../runtime/lifecycle/run-until.js";
 import {
   appendMemoryFact,
   extractMemoryFact,
+  extractMemoryKind,
   isMemoryWritePrompt,
 } from "../runtime/memory/memory-store.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
@@ -139,8 +140,13 @@ export async function persistMemoryFactIfWritePrompt(
   if (!isMemoryWritePrompt(userText)) return;
   const fact = extractMemoryFact(userText);
   if (fact.length === 0) return;
+  const kind = extractMemoryKind(userText);
   await safeCall(
-    () => appendMemoryFact(workspaceCwd, memoryConfig, { text: fact }),
+    () =>
+      appendMemoryFact(workspaceCwd, memoryConfig, {
+        text: fact,
+        ...(kind === undefined ? {} : { kind }),
+      }),
     undefined,
     "memory write",
   );

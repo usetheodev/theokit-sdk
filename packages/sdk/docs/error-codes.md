@@ -15,7 +15,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `agent_disposed` | domain | — | `packages/sdk/src/errors.ts:668` |
 | `agent_id_already_exists` | domain | ConfigurationError | `packages/sdk/src/agent-helpers.ts:54` |
 | `agent_not_registered` | domain | UnknownAgentError | `packages/sdk/src/internal/cron/run-job.ts:61` |
-| `agent_rehydration_failed` | domain | UnknownAgentError | `packages/sdk/src/agent-helpers.ts:300` |
+| `agent_rehydration_failed` | domain | UnknownAgentError | `packages/sdk/src/agent-helpers.ts:332` |
 | `anthropic_auth_failed` | domain | AuthenticationError | `packages/sdk/src/internal/error-mappers/anthropic.ts:56` |
 | `anthropic_rate_limit` | domain | RateLimitError | `packages/sdk/src/internal/error-mappers/anthropic.ts:59` |
 | `anthropic_server_error` | domain | NetworkError | `packages/sdk/src/internal/error-mappers/anthropic.ts:71` |
@@ -102,7 +102,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `live_session_protected` | domain | — | `packages/sdk/src/internal/persistence/transcript-ops.ts:39` +1 |
 | `local_provider_http_error` | domain | ConfigurationError | `packages/sdk/src/internal/catalog/local-models.ts:61` |
 | `local_provider_unreachable` | domain | ConfigurationError | `packages/sdk/src/internal/catalog/local-models.ts:46` |
-| `malformed_api_key` | domain | AuthenticationError | `packages/sdk/src/agent-helpers.ts:195` +1 |
+| `malformed_api_key` | domain | AuthenticationError | `packages/sdk/src/agent-helpers.ts:226` +1 |
 | `max_delegation_depth` | domain | MaxDelegationDepthError | `packages/sdk/src/a2a/subagent.ts:218` |
 | `mcp_buffer_overflow` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:314` |
 | `mcp_closed` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:289` |
@@ -116,7 +116,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `memory_path_traversal` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/validate-agent-options.ts:280` |
 | `memory_tool_bad_args` | domain | ConfigurationError | `packages/sdk/src/internal/memory/tools.ts:132` +1 |
 | `migration_destination_exists` | domain | ConfigurationError | `packages/sdk/src/internal/memory/migrate-sqlite-to-lance.ts:114` +1 |
-| `missing_api_key` | domain | AuthenticationError, ConfigurationError | `packages/sdk/src/agent-helpers.ts:183` +2 |
+| `missing_api_key` | domain | AuthenticationError, ConfigurationError | `packages/sdk/src/agent-helpers.ts:217` +2 |
 | `missing_frontmatter` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/skills/skill-frontmatter.ts:66` |
 | `missing_model` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/validate-agent-options.ts:35` |
 | `model_unavailable` | transport | buildErrorMetadata | `packages/sdk/src/internal/error-mappers/ollama.ts:75` +1 |
@@ -203,7 +203,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `transport_failure` | domain | NetworkError | `packages/sdk/src/internal/llm/transport-error.ts:48` |
 | `transport_unavailable` | domain | ConfigurationError | `packages/sdk/src/internal/llm/router.ts:484` +1 |
 | `unknown` | transport | AgentRunError, MemoryAdapterError, TheokitAgentError | `packages/memory-honcho/src/adapter.ts:264` +5 |
-| `unknown_agent` | domain | UnknownAgentError | `packages/sdk/src/agent-helpers.ts:379` +1 |
+| `unknown_agent` | domain | UnknownAgentError | `packages/sdk/src/agent-helpers.ts:411` +1 |
 | `unknown_artifact` | domain | UnknownAgentError | `packages/sdk/src/internal/cloud-agent/cloud-agent.ts:279` |
 | `unknown_category` | domain | ConfigurationError | `packages/sdk-memory/src/internal/categorized-memory.ts:76` |
 | `unknown_cron_job` | domain | UnknownAgentError | `packages/sdk/src/cron.ts:84` +2 |
