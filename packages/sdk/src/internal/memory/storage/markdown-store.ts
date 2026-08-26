@@ -159,6 +159,9 @@ async function nextIndex(cwd: string, text: string, name: string): Promise<strin
   return `${head}\n${entry}\n`;
 }
 
+/** A `MEMORY.md` index entry: a link whose target is a sibling `.md` file. */
+const INDEX_ENTRY = /^\[[^\]]*\]\([^)]+\.md\)$/;
+
 /**
  * Facts from a legacy `## Facts` section — the shape every released version wrote.
  *
@@ -170,9 +173,6 @@ async function nextIndex(cwd: string, text: string, name: string): Promise<strin
  * (#389) never reached a published version — 4.55.0 was published at 17:23Z and that commit landed
  * at 20:06Z — so there is no store in the wild to migrate from it.
  */
-/** A `MEMORY.md` index entry: a link whose target is a sibling `.md` file. */
-const INDEX_ENTRY = /^\[[^\]]*\]\([^)]+\.md\)$/;
-
 function parseFactsSection(raw: string): MemoryFact[] {
   const idx = raw.indexOf(FACTS_HEADING);
   if (idx === -1) return [];
