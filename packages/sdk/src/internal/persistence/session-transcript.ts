@@ -13,7 +13,7 @@
  *
  * reference: knowledge-base/references/claude-code-log/claude_code_log/dag.py + models.py
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -359,8 +359,75 @@ export function expandTilde(p: string): string {
   return p;
 }
 
-/** The `.jsonl` path for a session: `<baseDir>/projects/<encoded-cwd>/<safe-sessionId>.jsonl`. */
+/**
+ * The fixed namespace for deriving a session UUID from an agent id (RFC 9562 § 5.8, version 8).
+ *
+ * A constant, because the derivation must be STABLE FOREVER: it is what lets the SDK find the
+ * session it wrote last week without storing an id-to-filename map anywhere. Changing this value
+ * orphans every transcript ever written.
+ */
+const SESSION_NAMESPACE = Buffer.from("b7a1f0c94e3d4a1b8f26d05c3a91e7d2", "hex");
+
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Is this id already a canonical UUID, and therefore usable as a filename verbatim? */
+export function isSessionUuid(id: string): boolean {
+  return UUID_SHAPE.test(id);
+}
+
+/**
+ * The transcript filename for an agent id — always a UUID.
+ *
+ * #400: the Claude Code CLI resumes a transcript ONLY when its basename is a UUID. Measured against
+ * CLI 2.1.236: `<uuid>.jsonl` resumes; `agent-<uuid>.jsonl` and `billing-bot.jsonl` are both ignored,
+ * with no error — the session simply is not offered. So a session written under a human-readable
+ * agent id was invisible to `claude --continue`, which is the interoperability this project claims
+ * as its difference from a proprietary session store.
+ *
+ * An id that is ALREADY a UUID passes through verbatim, so a transcript Claude Code wrote keeps its
+ * own name and the two directions stay symmetric. Anything else is derived with a UUIDv8, which is
+ * deterministic: the same agent id always yields the same filename, so nothing has to be persisted
+ * to map one back to the other.
+ *
+ * A DERIVED name is version 8 — RFC 9562's slot for a UUID whose bits come from an
+ * implementation-defined scheme, which is exactly what this is. The obvious alternative was v5, but
+ * RFC 4122 fixes v5's hash to SHA-1, and reaching for SHA-1 in 2026 means either shipping a weak
+ * primitive or arguing with every scanner that flags it, forever. v8 lets the hash be SHA-256 and
+ * lets the version nibble say honestly that this is our scheme rather than a standard one.
+ *
+ * There is no security claim here either way — no secret, no signature, and nothing an attacker
+ * gains by colliding two agent ids inside one consumer's own directory. The hash is a naming
+ * function. The point of preferring SHA-256 is not that SHA-1 was exploitable here; it is that a
+ * weak primitive in the tree costs a permanent argument with every scanner that sees it.
+ *
+ * The version nibble was measured, not assumed: CLI 2.1.236 resumes a v8-named transcript exactly as
+ * it does a v4 one.
+ */
+export function sessionUuidFor(id: string): string {
+  if (isSessionUuid(id)) return id.toLowerCase();
+  const hash = createHash("sha256")
+    .update(Buffer.concat([SESSION_NAMESPACE, Buffer.from(id, "utf8")]))
+    .digest();
+  const bytes = Buffer.from(hash.subarray(0, 16));
+  bytes[6] = ((bytes[6] as number) & 0x0f) | 0x80; // version 8 — RFC 9562 custom
+  bytes[8] = ((bytes[8] as number) & 0x3f) | 0x80; // RFC 9562 variant
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/** The `.jsonl` path for a session: `<baseDir>/projects/<encoded-cwd>/<session-uuid>.jsonl`. */
 export function transcriptPath(baseDir: string, cwd: string, sessionId: string): string {
+  return join(baseDir, "projects", encodeProjectDir(cwd), `${sessionUuidFor(sessionId)}.jsonl`);
+}
+
+/**
+ * The path this session used BEFORE #400 made transcript filenames UUIDs.
+ *
+ * Kept so an existing transcript is never orphaned: {@link FsSessionStore} prefers this file when it
+ * exists, so history written under the old scheme keeps accumulating in the same file instead of
+ * being silently abandoned for a fresh one under the new name.
+ */
+export function legacyTranscriptPath(baseDir: string, cwd: string, sessionId: string): string {
   return join(baseDir, "projects", encodeProjectDir(cwd), `${safeSessionId(sessionId)}.jsonl`);
 }
 

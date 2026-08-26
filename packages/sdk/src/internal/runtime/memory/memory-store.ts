@@ -3,7 +3,13 @@ import {
   appendFact as appendFactMd,
   readFacts as readFactsMd,
 } from "../../memory/storage/markdown-store.js";
-import { type MemoryConfig, type MemoryFact, redactSecrets } from "../../memory/types.js";
+import {
+  MEMORY_KINDS,
+  type MemoryConfig,
+  type MemoryFact,
+  type MemoryKind,
+  redactSecrets,
+} from "../../memory/types.js";
 
 /**
  * Workspace-level memory store. Storage migrated from JSON-array to
@@ -19,7 +25,8 @@ import { type MemoryConfig, type MemoryFact, redactSecrets } from "../../memory/
 export type { MemoryConfig, MemoryFact };
 export { redactSecrets };
 
-const REMEMBER_PATTERN = /^\s*Remember(?:\s+this\s+durable\s+preference)?\s*:\s*(.+)$/i;
+const REMEMBER_PATTERN =
+  /^\s*Remember(?:\s+this\s+durable\s+preference)?\s*(?:\((user|feedback|project|reference)\))?\s*:\s*(.+)$/i;
 
 /**
  * Predicate: does the user message opt into memory persistence via the
@@ -44,8 +51,29 @@ export function isMemoryWritePrompt(message: string): boolean {
  */
 export function extractMemoryFact(message: string): string {
   const match = REMEMBER_PATTERN.exec(message);
-  if (match === null || match[1] === undefined) return "";
-  return match[1].trim().replace(/\.$/, "");
+  if (match === null || match[2] === undefined) return "";
+  return match[2].trim().replace(/\.$/, "");
+}
+
+/**
+ * The kind a `Remember:` prompt declared, if it declared one (#401).
+ *
+ * `Remember (feedback): prefer tabs` types the fact; a bare `Remember:` leaves it untyped, which is
+ * the honest default — a kind nobody stated is a kind nobody knows, and guessing it would make the
+ * store confident about the wrong thing.
+ *
+ * ONLY the four kinds the store accepts are recognised as a kind. Any other parenthetical is not a
+ * mistyped kind to punish but ordinary prose, and it keeps the pre-existing behaviour of the prompt
+ * unchanged rather than being reinterpreted here.
+ *
+ * @internal
+ */
+export function extractMemoryKind(message: string): MemoryKind | undefined {
+  const match = REMEMBER_PATTERN.exec(message);
+  const declared = match?.[1];
+  if (declared === undefined) return undefined;
+  const lowered = declared.toLowerCase() as MemoryKind;
+  return MEMORY_KINDS.includes(lowered) ? lowered : undefined;
 }
 
 export async function readMemoryFacts(cwd: string, config: MemoryConfig): Promise<MemoryFact[]> {
@@ -61,6 +89,13 @@ export async function appendMemoryFact(
 ): Promise<void> {
   if (!config.enabled) return;
   await migrateLegacyJson(cwd, config);
-  const sanitized: MemoryFact = { text: redactSecrets(fact.text) };
+  // #401 — this used to be `{ text: ... }` only, so a kind never reached storage even when a caller
+  // supplied one: the field round-tripped through the file format and was severed at the one
+  // chokepoint every write passes through. `modified` is deliberately NOT carried over — the SDK
+  // stamps it, because a timestamp the caller controls can lie about when something was learned.
+  const sanitized: MemoryFact = {
+    text: redactSecrets(fact.text),
+    ...(fact.kind === undefined ? {} : { kind: fact.kind }),
+  };
   await appendFactMd(cwd, config, sanitized);
 }

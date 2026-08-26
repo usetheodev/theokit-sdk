@@ -1,7 +1,7 @@
 {
   "name": "@theokit/sdk",
   "version": "4.56.0",
-  "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
+  "description": "TypeScript SDK for the Theo agent harness \u2014 same surface, local or cloud.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
   "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
@@ -385,8 +385,7 @@
     "better-sqlite3": "^12.0.0",
     "proper-lockfile": "^4.1.2",
     "sqlite-vec": "^0.1.0",
-    "ws": ">=8.0.0",
-    "zod": "^4.0.0"
+    "ws": ">=8.0.0"
   },
   "peerDependenciesMeta": {
     "@lancedb/lancedb": {
@@ -408,9 +407,6 @@
       "optional": true
     },
     "ws": {
-      "optional": true
-    },
-    "zod": {
       "optional": true
     }
   },
@@ -435,7 +431,8 @@
   ],
   "dependencies": {
     "croner": "^9.0.0",
-    "jsonrepair": "^3.13.2"
+    "jsonrepair": "^3.13.2",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.1",
@@ -448,7 +445,6 @@
     "proper-lockfile": "^4.1.2",
     "sqlite-vec": "^0.1.9",
     "typedoc": "^0.28.19",
-    "ws": "^8.18.0",
-    "zod": "^4.0.0"
+    "ws": "^8.18.0"
   }
 }

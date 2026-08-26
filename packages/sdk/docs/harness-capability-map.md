@@ -1144,7 +1144,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `SessionWriterLease` | interface | A held writer lease.  |
 | `TranscriptBlock` | type | A content block inside {@link TranscriptMessage } . |
 | `TranscriptMessage` | interface | The message body of a {@link SessionRecord } .  |
-| `transcriptPath` | function | The `.jsonl` path for a session: `<baseDir>/projects/<encoded-cwd>/<safe-sessionId>.jsonl`. |
+| `transcriptPath` | function | The `.jsonl` path for a session: `<baseDir>/projects/<encoded-cwd>/<session-uuid>.jsonl`. |
 | `transcriptRoot` | function | Root of the transcript state.  |
 | `WalApplyResult` | interface | What journal mode a connection ended up in after `applyWalWithFallback`.  |
 | `withCwdMutex` | function | Run `fn` after every earlier `withCwdMutex` call for the same `key` has settled, and return what `fn` returns.  |
