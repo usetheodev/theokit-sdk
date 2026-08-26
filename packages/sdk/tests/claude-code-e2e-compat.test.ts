@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -12,16 +12,22 @@ import { loadSubagents } from "../src/internal/runtime/skills/subagents-loader.j
 /*
  * End-to-end: a project laid out for the Claude Code CLI, read by this SDK.
  *
- * Built from the REAL files in this repository's own `.claude` directory rather than fixtures —
- * fourteen agent declarations (a majority carrying `color`, plus a README with no frontmatter),
- * thirty-two plain-markdown rules, a settings.json whose hooks point at shell scripts. Those are the
- * shapes that broke, and a hand-written fixture would have been written to the shape that works.
+ * The fixture is BUILT, not copied. An earlier version of this file read the real `.claude`
+ * directory at the repository root, and that made it green on every machine and red on the only
+ * one that matters: `.claude/` is never versioned here, so it exists for every developer and for no
+ * CI runner. A test whose pass depends on something that is not the behaviour under test is the
+ * exact defect this whole change set was fixing, arriving through the back door.
  *
- * `.theokit` is untouched here on purpose: this asserts what a project that has NEVER heard of this
- * SDK presents to it.
+ * What mattered was never those particular files — it was the SHAPES that broke, so they are
+ * written out explicitly below and the test now says what it exercises instead of inheriting it:
+ * agents carrying the CLI's `color`, a `README.md` with no frontmatter beside them, rules as plain
+ * markdown with no frontmatter at all, and hooks declared in `settings.json` rather than a
+ * hooks file.
+ *
+ * `.theokit` is never created here, and that is asserted: this measures what a project which has
+ * NEVER heard of this SDK presents to it.
  */
 describe("a real Claude Code project, read end to end", () => {
-  const repo = join(__dirname, "..", "..", "..");
   let cwd: string;
   let claudeHome: string;
 
@@ -30,11 +36,47 @@ describe("a real Claude Code project, read end to end", () => {
     claudeHome = mkdtempSync(join(tmpdir(), "cc-e2e-home-"));
     process.env.CLAUDE_CONFIG_DIR = claudeHome;
 
-    mkdirSync(join(cwd, ".claude"), { recursive: true });
-    for (const dir of ["agents", "rules"]) {
-      cpSync(join(repo, ".claude", dir), join(cwd, ".claude", dir), { recursive: true });
+    mkdirSync(join(cwd, ".claude", "agents"), { recursive: true });
+    // A majority of real CLI agents carry `color`; it was the field that made them a load error.
+    for (const [name, extra] of [
+      ["reviewer", "color: blue"],
+      ["planner", "color: green"],
+      ["auditor", "model: sonnet\ncolor: red"],
+      ["scribe", ""],
+    ] as const) {
+      writeFileSync(
+        join(cwd, ".claude", "agents", `${name}.md`),
+        `---\nname: ${name}\ndescription: ${name} specialist.\ntools: Read, Grep\n${extra}\n---\nBody.\n`,
+      );
     }
-    cpSync(join(repo, ".claude", "settings.json"), join(cwd, ".claude", "settings.json"));
+    // Documentation beside them: one such file used to abort the whole directory.
+    writeFileSync(join(cwd, ".claude", "agents", "README.md"), "# The specialists\n\nProse.\n");
+
+    // Rules as the CLI writes them — plain markdown, no frontmatter.
+    mkdirSync(join(cwd, ".claude", "rules"), { recursive: true });
+    for (const name of ["testing", "architecture", "git-safety"]) {
+      writeFileSync(
+        join(cwd, ".claude", "rules", `${name}.md`),
+        `# ${name}\n\nSource of truth for ${name}.\n`,
+      );
+    }
+
+    // Hooks where the CLI actually keeps them, beside the keys it keeps alongside.
+    writeFileSync(
+      join(cwd, ".claude", "settings.json"),
+      JSON.stringify({
+        permissions: { allow: ["Bash"] },
+        env: { EXAMPLE: "1" },
+        hooks: {
+          PreToolUse: [
+            { matcher: "shell", hooks: [{ type: "command", command: "echo pre", timeout: 30 }] },
+          ],
+          Stop: [{ hooks: [{ type: "command", command: "echo stop" }] }],
+          // No firing point in this runtime: skipped with a warn, never accepted.
+          SessionStart: [{ hooks: [{ type: "command", command: "echo start" }] }],
+        },
+      }),
+    );
     writeFileSync(join(cwd, "CLAUDE.md"), "# Project\n\nThe project code is E2E-CLAUDEMD.\n");
 
     // A skill and a plugin bundle in the CLI's shapes.
@@ -66,9 +108,14 @@ describe("a real Claude Code project, read end to end", () => {
 
   it("test_the_agents_the_cli_project_declares_all_load", async () => {
     const loaded = await loadSubagents(cwd, true, undefined);
-    // 14 files in the directory, one of which is a README with no frontmatter.
-    expect(Object.keys(loaded).length).toBeGreaterThanOrEqual(13);
-    expect(Object.keys(loaded)).toContain("bundled");
+    // Four declarations plus the bundle's; the README contributes nothing and stops nothing.
+    expect(Object.keys(loaded).sort()).toEqual([
+      "auditor",
+      "bundled",
+      "planner",
+      "reviewer",
+      "scribe",
+    ]);
   });
 
   it("test_the_skill_the_cli_project_declares_loads", async () => {
@@ -95,7 +142,14 @@ describe("a real Claude Code project, read end to end", () => {
 
   it("test_the_hooks_declared_in_the_cli_settings_file_load", async () => {
     const config = await loadHookConfig(cwd);
-    expect(Object.keys(config.hooks ?? {}).length).toBeGreaterThan(0);
+    expect(Object.keys(config.hooks ?? {}).sort()).toEqual(["preToolUse", "stop"]);
+  });
+
+  it("test_a_hook_event_this_runtime_never_fires_is_not_silently_accepted", async () => {
+    // SessionStart has no firing point here. Accepting it would register a hook that never runs,
+    // which reads to an operator exactly like a hook that ran and did nothing.
+    const config = await loadHookConfig(cwd);
+    expect(JSON.stringify(config)).not.toContain("echo start");
   });
 
   it("test_a_memory_the_cli_recorded_is_read", async () => {
