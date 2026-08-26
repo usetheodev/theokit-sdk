@@ -360,7 +360,7 @@ export function expandTilde(p: string): string {
 }
 
 /**
- * The fixed namespace for deriving a session UUID from an agent id (RFC 4122 § 4.3).
+ * The fixed namespace for deriving a session UUID from an agent id (RFC 9562 § 5.8, version 8).
  *
  * A constant, because the derivation must be STABLE FOREVER: it is what lets the SDK find the
  * session it wrote last week without storing an id-to-filename map anywhere. Changing this value
