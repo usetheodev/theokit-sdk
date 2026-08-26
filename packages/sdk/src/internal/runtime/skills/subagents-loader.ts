@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { ConfigurationError } from "../../../errors.js";
 import type { AgentDefinition } from "../../../types/agent.js";
 import type { ModelSelection } from "../../../types/agent-prims.js";
+import { diag } from "../../diagnostics.js";
 import { readWorkspaceDir } from "../config/workspace-dir.js";
 import { type FrontmatterValue, parseSimpleYaml } from "../context/yaml-frontmatter.js";
 
@@ -44,6 +45,18 @@ async function readProjectSubagents(cwd: string): Promise<Record<string, AgentDe
     if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
     const path = join(root, entry.name);
     const raw = await readFile(path, "utf8");
+    // A markdown file with NO frontmatter is not an agent declaration — a directory of agents
+    // written for the Claude Code CLI conventionally carries documentation beside them, and
+    // `.claude/agents/README.md` exists in this repository. Throwing on it made ONE such file stop
+    // every agent in the directory from loading.
+    //
+    // Skipped with a warn rather than in silence, and ONLY for the no-frontmatter case: a file that
+    // HAS frontmatter and gets it wrong is a broken agent and still fails loudly, which is what
+    // keeps a typo'd `sandbox` from returning as a silent gate through this door.
+    if (!hasFrontmatter(raw)) {
+      diag(`[theokit-sdk] ${entry.name} has no frontmatter — not an agent declaration, skipping`);
+      continue;
+    }
     const definition = parseSubagentMarkdown(raw, entry.name);
     subagents[definition.name] = definition.definition;
   }
@@ -61,6 +74,23 @@ const ACCEPTED_FIELDS = new Set([
   "reasoning_effort",
   "mcp",
   "sandbox",
+]);
+
+// Fields the Claude Code CLI writes that carry NO behaviour for this runtime. Accepted and ignored,
+// so an agent authored for the CLI loads here unchanged — measured 2026-08-26 across the 59 agent
+// files on one machine, where `color` appeared in 38 of them and made every one of those a
+// `subagent_unknown_field` load error.
+//
+// Named explicitly instead of loosening the check above, because that check's reason is sound: a
+// dropped `sandbox` an operator wrote believing it confines the child is a silent gate. A field that
+// COULD change behaviour must still fail loudly. This set is the difference between "we know this
+// one and it does nothing" and "we have never heard of this" — two facts a bare allow-everything
+// would collapse into one.
+//
+// Anything added here needs the same justification: inert for THIS runtime, not merely unfamiliar.
+const INERT_CLAUDE_CODE_FIELDS = new Set([
+  /** The CLI's label colour for the agent. Presentation only. */
+  "color",
 ]);
 
 function parseSubagentMarkdown(
@@ -92,6 +122,7 @@ function rejectUnknownFields(
   filename: string,
 ): void {
   for (const key of Object.keys(fields)) {
+    if (INERT_CLAUDE_CODE_FIELDS.has(key)) continue;
     if (!ACCEPTED_FIELDS.has(key)) {
       throw new ConfigurationError(
         `Subagent ${filename}: unknown frontmatter field "${key}" (accepted: ${[...ACCEPTED_FIELDS].join(", ")})`,
@@ -175,6 +206,11 @@ function toStringList(v: FrontmatterValue | undefined): string[] {
       .filter((t) => t.length > 0);
   }
   return [];
+}
+
+/** Does this file open with a frontmatter block at all? Its ABSENCE means "not an agent". */
+function hasFrontmatter(raw: string): boolean {
+  return /^---\s*\n/.test(raw);
 }
 
 function splitFrontmatter(raw: string, filename: string): { frontmatter: string; body: string } {
