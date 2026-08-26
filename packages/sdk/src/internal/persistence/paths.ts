@@ -30,7 +30,14 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const THEOKIT_DIR_NAME = ".theokit";
+/**
+ * The project config directory literal.
+ *
+ * Renamed from `THEOKIT_DIR_NAME` in #410. Sharing a name with the (now removed) sovereign env var
+ * was the MECHANISM of that defect, not scenery: every grep for the variable landed on this const
+ * and looked answered, so "is it read?" returned five hits and nobody checked what they were.
+ */
+const THEOKIT_DIR_LITERAL = ".theokit";
 
 /** The Claude Code CLI's project configuration directory. */
 const CLAUDE_DIR_NAME = ".claude";
@@ -61,7 +68,7 @@ export function getTheokitHome(cwd: string): string {
   if (override !== undefined && override.length > 0) {
     return override;
   }
-  return join(cwd, THEOKIT_DIR_NAME);
+  return join(cwd, THEOKIT_DIR_LITERAL);
 }
 
 /**
@@ -92,7 +99,7 @@ export function getTheokitHome(cwd: string): string {
  * declares in `exports` but does NOT cover with its semver contract.
  */
 export function projectConfigRoots(cwd: string): string[] {
-  return [join(cwd, THEOKIT_DIR_NAME), join(cwd, CLAUDE_DIR_NAME)];
+  return [join(cwd, THEOKIT_DIR_LITERAL), join(cwd, CLAUDE_DIR_NAME)];
 }
 
 /**
@@ -126,7 +133,7 @@ export function pluginBundleRoots(cwd: string): string[] {
  * declares in `exports` but does NOT cover with its semver contract.
  */
 export function getProfilesRoot(): string {
-  return join(homedir(), THEOKIT_DIR_NAME, "profiles");
+  return join(homedir(), THEOKIT_DIR_LITERAL, "profiles");
 }
 
 /**
