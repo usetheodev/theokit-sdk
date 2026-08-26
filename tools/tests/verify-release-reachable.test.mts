@@ -1,5 +1,5 @@
-import { expect, it } from "vitest";
-import { pendingApproval, VERSION_BRANCH } from "../verify-release-reachable.mjs";
+import { describe, expect, it } from "vitest";
+import { checkVerdict, pendingApproval, VERSION_BRANCH } from "../verify-release-reachable.mjs";
 
 /*
  * #388 — the release pipeline reported success while publishing nothing, for eight days.
@@ -60,4 +60,28 @@ it("treats a payload with no check runs as nothing to report", () => {
 it("watches the branch changesets actually opens its pull request from", () => {
   // Naming the wrong branch would make the gate pass forever while reporting that it checked.
   expect(VERSION_BRANCH).toBe("changeset-release/main");
+});
+
+describe("what the run can conclude, and when", () => {
+  it("reports that no check exists yet, distinctly from a healthy pull request", () => {
+    // Measured on run 32918852952: the gate ran at ~01:24 and the four check runs were created at
+    // 01:35, so it saw an empty payload and passed on a pull request that was BLOCKED. An empty
+    // payload is "too early to tell", never "all clear" — the two must not collapse.
+    expect(checkVerdict({ check_runs: [] })).toEqual({ state: "absent", blocked: [] });
+    expect(checkVerdict({})).toEqual({ state: "absent", blocked: [] });
+  });
+
+  it("reports blocked once a check is waiting on a human", () => {
+    expect(
+      checkVerdict({ check_runs: [run("CI", "action_required"), run("CodeQL", "success")] }),
+    ).toEqual({ state: "blocked", blocked: ["CI"] });
+  });
+
+  it("reports ok once checks exist and none is waiting", () => {
+    // The accepted case (`testing.md` § 4.2): a verdict that never said "ok" would fail every
+    // release, and a gate that fails every time is one people learn to ignore.
+    expect(
+      checkVerdict({ check_runs: [run("CI", "success"), run("CodeQL", null, "in_progress")] }),
+    ).toEqual({ state: "ok", blocked: [] });
+  });
 });
