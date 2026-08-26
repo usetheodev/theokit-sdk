@@ -44,15 +44,16 @@
  *
  * @public
  */
-/**
- * `THEOKIT_DIR_NAME` was listed here until #410, described as naming the project config directory.
- * It was never read — `paths.ts` hardcoded the literal — so the entry defended a variable that
- * decided nothing, and the description told a consumer they could point the SDK's config directory
- * elsewhere. Removed rather than implemented: the one concrete use anyone had for it (pointing at
- * `.claude` to share a layout with the Claude Code CLI) is now served by `projectConfigRoots()`,
- * which reads BOTH directories with no variable involved. Implementing the knob today would add a
- * public surface whose only motivating case had already been solved a better way.
- */
+// `THEOKIT_DIR_NAME` was listed here until #410, described as naming the project config directory.
+// It was never read — `paths.ts` hardcoded the literal — so the entry defended a variable that
+// decided nothing, and the description told a consumer they could point the SDK's config directory
+// elsewhere. Removed rather than implemented: the one concrete use anyone had for it (pointing at
+// `.claude` to share a layout with the Claude Code CLI) is now served by `projectConfigRoots()`,
+// which reads BOTH directories with no variable involved. Implementing the knob today would add a
+// public surface whose only motivating case had already been solved a better way.
+//
+// A `//` block, not a docblock: this is history about a REMOVED entry, and as JSDoc it stranded the
+// documentation for the constant below and would have shipped in its place.
 export const SOVEREIGN_ENV_KEYS = [
   /** Locates the SDK home — sessions, and the credential store beneath it. */
   "THEOKIT_HOME",
