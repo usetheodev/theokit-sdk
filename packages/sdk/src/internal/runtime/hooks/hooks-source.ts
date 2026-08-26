@@ -18,9 +18,9 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-
 import { ConfigurationError } from "../../../errors.js";
 import { diag } from "../../diagnostics.js";
+import { projectConfigRoots } from "../../persistence/paths.js";
 
 /** The five lifecycle events the SDK runtime actually fires. */
 export type HookEvent = "preRun" | "postRun" | "preToolUse" | "postToolUse" | "stop";
@@ -79,18 +79,63 @@ export function _resetWarnOnceForTests(): void {
  * @internal
  */
 export async function loadHookConfig(cwd: string): Promise<HookConfig> {
-  const jsonPath = join(cwd, ".theokit", "hooks.json");
-
-  if (!existsSync(jsonPath)) {
-    if (existsSync(join(cwd, ".theokit", "hooks"))) {
-      warnOnce(
-        "hooks-md-unsupported",
-        "[theokit-sdk] .theokit/hooks/*.md hooks are no longer supported (ADR 0016) — migrate to a Claude-Code-shaped .theokit/hooks.json",
-      );
-    }
-    return {};
+  const merged: HookConfig = {};
+  let sawAny = false;
+  for (const path of hookConfigCandidates(cwd)) {
+    if (!existsSync(path)) continue;
+    sawAny = true;
+    mergeInto(merged, await readHookFile(path));
   }
+  if (!sawAny && existsSync(join(cwd, ".theokit", "hooks"))) {
+    warnOnce(
+      "hooks-md-unsupported",
+      "[theokit-sdk] .theokit/hooks/*.md hooks are no longer supported (ADR 0016) — migrate to a Claude-Code-shaped .theokit/hooks.json",
+    );
+  }
+  return merged;
+}
 
+/**
+ * Every file that may declare hooks, in precedence order.
+ *
+ * `hooks.json` under each project config root, then the Claude Code CLI's own settings files — which
+ * is where the CLI actually keeps hooks, so a repository set up for it presents its hooks here
+ * without being converted. `settings.local.json` is the CLI's personal-override file and sits beside
+ * the shared one rather than replacing it.
+ *
+ * The shape never needed translating: `parseClaudeCodeConfig` reads the `hooks` key off whatever
+ * object it is given, and a settings file is that same object with other keys alongside.
+ */
+function hookConfigCandidates(cwd: string): string[] {
+  const roots = projectConfigRoots(cwd);
+  return [
+    ...roots.map((root) => join(root, "hooks.json")),
+    ...roots.map((root) => join(root, "settings.json")),
+    ...roots.map((root) => join(root, "settings.local.json")),
+  ];
+}
+
+/**
+ * Append one source's commands onto the accumulator, per event.
+ *
+ * MERGED, not first-wins, and the distinction is deliberate. An agent or a skill is a NAMED
+ * declaration: two files claiming one name collide, and the explicit namespace should win. Hooks are
+ * unnamed lists — two files declaring `PreToolUse` are two sets of commands an operator wrote, and
+ * keeping only one drops the other in silence, which is the failure class this package guards
+ * against everywhere else.
+ */
+function mergeInto(target: HookConfig, source: HookConfig): void {
+  for (const [event, commands] of Object.entries(source.hooks ?? {}) as [
+    HookEvent,
+    HookCommand[] | undefined,
+  ][]) {
+    if (commands === undefined || commands.length === 0) continue;
+    target.hooks ??= {};
+    target.hooks[event] = [...(target.hooks[event] ?? []), ...commands];
+  }
+}
+
+async function readHookFile(jsonPath: string): Promise<HookConfig> {
   let raw: string;
   try {
     raw = await readFile(jsonPath, "utf8");

@@ -5,6 +5,7 @@ import { ConfigurationError } from "../../../errors.js";
 import type { AgentDefinition } from "../../../types/agent.js";
 import type { ModelSelection } from "../../../types/agent-prims.js";
 import { diag } from "../../diagnostics.js";
+import { projectConfigRoots } from "../../persistence/paths.js";
 import { readWorkspaceDir } from "../config/workspace-dir.js";
 import { type FrontmatterValue, parseSimpleYaml } from "../context/yaml-frontmatter.js";
 
@@ -37,10 +38,25 @@ export async function loadSubagents(
   return result;
 }
 
+/**
+ * Read agent declarations from every project config root (`.theokit`, then `.claude`).
+ *
+ * FIRST occurrence of a name wins, which is what makes `projectConfigRoots`' order a contract rather
+ * than a detail: a project declaring the same agent in both means the explicit namespace.
+ */
 async function readProjectSubagents(cwd: string): Promise<Record<string, AgentDefinition>> {
-  const root = join(cwd, ".theokit", "agents");
-  const entries = await readWorkspaceDir(root, "subagents_read_error", "subagents directory");
   const subagents: Record<string, AgentDefinition> = {};
+  for (const configRoot of projectConfigRoots(cwd)) {
+    await readSubagentsFrom(join(configRoot, "agents"), subagents);
+  }
+  return subagents;
+}
+
+async function readSubagentsFrom(
+  root: string,
+  subagents: Record<string, AgentDefinition>,
+): Promise<void> {
+  const entries = await readWorkspaceDir(root, "subagents_read_error", "subagents directory");
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
     const path = join(root, entry.name);
@@ -58,9 +74,10 @@ async function readProjectSubagents(cwd: string): Promise<Record<string, AgentDe
       continue;
     }
     const definition = parseSubagentMarkdown(raw, entry.name);
-    subagents[definition.name] = definition.definition;
+    if (subagents[definition.name] === undefined) {
+      subagents[definition.name] = definition.definition;
+    }
   }
-  return subagents;
 }
 
 // The frontmatter keys a disk subagent may declare. Any other key is a typed load

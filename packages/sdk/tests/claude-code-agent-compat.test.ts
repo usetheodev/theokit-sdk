@@ -88,4 +88,37 @@ describe("agents written for the Claude Code CLI", () => {
       code: "subagent_unknown_field",
     });
   });
+
+  // Location, not format: these same files were already parseable — nothing looked in `.claude`.
+  it("test_an_agent_declared_under_dot_claude_is_loaded", async () => {
+    mkdirSync(join(cwd, ".claude", "agents"), { recursive: true });
+    writeFileSync(
+      join(cwd, ".claude", "agents", "cli-agent.md"),
+      "---\nname: cli-agent\ndescription: vindo do .claude.\ncolor: green\n---\nCorpo.\n",
+    );
+    const loaded = await loadSubagents(cwd, true, undefined);
+    expect(Object.keys(loaded)).toEqual(["cli-agent"]);
+  });
+
+  it("test_agents_from_both_directories_are_merged", async () => {
+    writeAgent("name: theokit-agent\ndescription: do .theokit.");
+    mkdirSync(join(cwd, ".claude", "agents"), { recursive: true });
+    writeFileSync(
+      join(cwd, ".claude", "agents", "cli-agent.md"),
+      "---\nname: cli-agent\ndescription: do .claude.\n---\nCorpo.\n",
+    );
+    const loaded = await loadSubagents(cwd, true, undefined);
+    expect(Object.keys(loaded).sort()).toEqual(["cli-agent", "theokit-agent"]);
+  });
+
+  it("test_the_explicit_namespace_wins_when_both_declare_the_same_name", async () => {
+    writeAgent("name: shared\ndescription: DO THEOKIT.");
+    mkdirSync(join(cwd, ".claude", "agents"), { recursive: true });
+    writeFileSync(
+      join(cwd, ".claude", "agents", "shared.md"),
+      "---\nname: shared\ndescription: do claude.\n---\nCorpo.\n",
+    );
+    const loaded = await loadSubagents(cwd, true, undefined);
+    expect(loaded.shared?.description).toBe("DO THEOKIT.");
+  });
 });
