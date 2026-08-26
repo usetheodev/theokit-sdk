@@ -59,18 +59,30 @@ describe("scaffold (T2.1)", () => {
   });
 
   // #116 — every scaffolded template that ships `zod` MUST pin a range whose lower
-  // bound satisfies the SDK's `zod` peer major. The SDK imports the top-level
-  // `toJSONSchema` (zod v4 only); a `^3.25` pin resolves to v3 and crashes the
-  // scaffold on the first `Tool.create`. Derive the required major from the SDK's
-  // own peerDependencies so the templates can never drift below it again.
-  it("#116: templates carrying zod pin a range satisfying the SDK zod peer major", async () => {
+  // bound satisfies the zod major the SDK itself requires. The SDK imports the
+  // top-level `toJSONSchema` (zod v4 only); a `^3.25` pin resolves to v3 and crashes
+  // the scaffold on the first `Tool.create`. Derive the required major from the SDK's
+  // own manifest so the templates can never drift below it again.
+  //
+  // Read from `dependencies` OR `peerDependencies`: #399 moved zod from an optional
+  // peer to a real dependency (the package could not be imported from a fresh install
+  // without it), and this guard read only the peer field — so the declaration moving
+  // did not weaken the templates, it broke the test that protects them. What matters
+  // here is the major the SDK requires, not which field states it. Declared in neither
+  // is still a hard failure: a guard with nothing to compare against is not a guard.
+  it("#116: templates carrying zod pin a range satisfying the SDK zod major", async () => {
     const sdkPkg = JSON.parse(
       readFileSync(join(__dirname, "..", "..", "..", "sdk", "package.json"), "utf8"),
-    ) as { peerDependencies: Record<string, string> };
-    const peerZod = sdkPkg.peerDependencies.zod;
-    if (!peerZod) throw new Error("SDK must declare a zod peer dependency");
-    // Lowest major the peer accepts, e.g. "^4.0.0 || ^4" -> 4.
-    const peerMajor = Number(peerZod.match(/\d+/)?.[0]);
+    ) as {
+      dependencies?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
+    };
+    const declaredZod = sdkPkg.dependencies?.zod ?? sdkPkg.peerDependencies?.zod;
+    if (!declaredZod) {
+      throw new Error("SDK must declare zod in dependencies or peerDependencies");
+    }
+    // Lowest major the range accepts, e.g. "^4.0.0 || ^4" -> 4.
+    const peerMajor = Number(declaredZod.match(/\d+/)?.[0]);
     expect(Number.isInteger(peerMajor)).toBe(true);
 
     for (const template of ["minimal", "ollama-local", "telegram-bot"] as const) {
