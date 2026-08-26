@@ -100,9 +100,35 @@ const MERGEABLE_STATES = new Set(["CLEAN", "UNSTABLE", "HAS_HOOKS"]);
  * is itself the diagnosis, and the caller says so rather than printing nothing.
  */
 export function mergeVerdict(mergeStateStatus, payload) {
-  if (mergeStateStatus === "UNKNOWN") return { state: "absent", blocked: pendingApproval(payload) };
-  if (MERGEABLE_STATES.has(mergeStateStatus)) return { state: "ok", blocked: [] };
-  return { state: "blocked", blocked: pendingApproval(payload) };
+  if (mergeStateStatus === "UNKNOWN") {
+    return { state: "absent", blocked: pendingApproval(payload), stalled: [] };
+  }
+  if (MERGEABLE_STATES.has(mergeStateStatus)) return { state: "ok", blocked: [], stalled: [] };
+  return {
+    state: "blocked",
+    blocked: pendingApproval(payload),
+    stalled: neverConcluded(payload),
+  };
+}
+
+/**
+ * Checks that were CREATED and never reached a conclusion, on a pull request that cannot merge.
+ *
+ * Distinct from {@link pendingApproval}, and the distinction decides which remedy the gate names.
+ * A check waiting on approval can be approved. A check GitHub abandoned cannot: measured on PR #407,
+ * `Secret Scan` failed in 5s while its `TruffleHog` check run stayed `queued` with a null conclusion
+ * on a run already marked `completed` — `rerun` refused it, the workflow has no `workflow_dispatch`,
+ * and `cancel` refuses a completed run. Nothing on that SHA could move it; only a new commit could.
+ *
+ * Reported only when the merge is already blocked. On a mergeable pull request an unconcluded check
+ * is a check still running, which is ordinary progress and not a thing to alarm anyone about.
+ */
+function neverConcluded(payload) {
+  const runs = Array.isArray(payload?.check_runs) ? payload.check_runs : [];
+  return runs
+    .filter((run) => run?.conclusion == null)
+    .map((run) => String(run.name ?? "(unnamed)"))
+    .sort();
 }
 
 export function pendingApproval(payload) {
@@ -203,10 +229,27 @@ function report(verdict) {
     console.error("");
     console.error("  To ship THIS release, approve the pending runs:");
     console.error("    gh api -X POST repos/$GITHUB_REPOSITORY/actions/runs/<id>/approve");
+  } else if (verdict.stalled.length > 0) {
+    console.error(
+      `[release-reachable] ✗ the ${VERSION_BRANCH} pull request cannot be merged, and` +
+        ` ${verdict.stalled.length} check(s) were created but never concluded:`,
+    );
+    for (const name of verdict.stalled) console.error(`      ${name}`);
+    console.error("");
+    console.error(
+      "  These exist, so they cannot be created by reopening the pull request, and they",
+    );
+    console.error(
+      "  are not waiting on approval, so approving nothing helps. GitHub abandoned the",
+    );
+    console.error("  job; `rerun` refuses it and `cancel` refuses an already-completed run.");
+    console.error("");
+    console.error("  A NEW COMMIT is what produces a fresh check. Land one through the normal");
+    console.error("  branch flow — never --admin, which publishes with a required check unrun.");
   } else {
     console.error(
       `[release-reachable] ✗ the ${VERSION_BRANCH} pull request cannot be merged, and NO check is` +
-        ` waiting on approval — the required contexts were never created at all.`,
+        ` waiting on approval or running — the required contexts were never created at all.`,
     );
     console.error("");
     console.error("  A pull request authored with GITHUB_TOKEN triggers no workflow, by GitHub's");
