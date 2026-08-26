@@ -45,8 +45,30 @@ const AF_UNIX = 1;
 
 /** Always-denied, network-independent (landlock.rs:179-184). */
 const ALWAYS_DENIED = [101, 310, 311, 425, 426, 427]; // ptrace, process_vm_readv/writev, io_uring_setup/enter/register
-/** Denied only when the network is restricted (landlock.rs:188-204). recvfrom(45)/sendmsg(46) are NOT here. */
-const NETWORK_DENIED = [42, 43, 288, 49, 50, 52, 51, 48, 44, 307, 299, 55, 54];
+/**
+ * Denied only when the network is restricted (landlock.rs:188-204). recvfrom(45)/sendmsg(46) are
+ * NOT here — and, since #385, neither are `getsockname`(51), `getpeername`(52), `setsockopt`(54)
+ * and `getsockopt`(55).
+ *
+ * Those four take an ALREADY-OPEN fd rather than an address, and cBPF cannot dereference an fd to
+ * learn the family behind it. Denying them therefore denied them on AF_UNIX as well — which is
+ * exactly what libuv calls on a child's IPC channel, so any command that spawned a child died.
+ * Measured: `node --test` returned 0 lines under the filter and 38 without it, and the parent's
+ * own stdout vanished with it (killed mid-flight, its buffered pipe write never flushed, while the
+ * child's already-written bytes survived). The AF_UNIX exemption on `socket`/`socketpair` below
+ * shows breaking local IPC was never the intent.
+ *
+ * They cannot reach a network on their own. Everything that takes an address or changes an fd's
+ * role — `connect`, `bind`, `listen`, `accept`, `accept4`, `sendto`, `sendmmsg`, `recvmmsg`,
+ * `shutdown` — stays denied, and `socket()` still refuses every family but AF_UNIX. Measured
+ * unchanged across the fix: an AF_INET socket is `EPERM` before and after, an AF_UNIX socketpair
+ * works before and after.
+ *
+ * The blunt alternative — dropping the whole set, on the grounds that `--unshare-net` already
+ * removes the network — would restore the output AND let a confined command open a connection the
+ * moment a future mode runs the filter with the network on. This keeps the belt.
+ */
+const NETWORK_DENIED = [42, 43, 288, 49, 50, 48, 44, 307, 299];
 /** socket(2) / socketpair(2) — conditional on domain != AF_UNIX (landlock.rs:206-216). */
 const SOCKET_SYSCALLS = [41, 53];
 

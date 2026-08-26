@@ -286,3 +286,22 @@ describe("M63 review HIGH — no brick on non-x86_64 arch", () => {
     expect(p).toMatch(/\.bpf$/);
   });
 });
+
+describe("#385 — a command that spawns a child keeps the PARENT's stdout", () => {
+  // The user-visible half of the seccomp fix. `seccomp-fd-syscalls.test.ts` pins the filter's
+  // shape; this proves the shape was the right one, against the real kernel.
+  itLive("execute_keeps_parent_stdout_when_the_command_spawns_a_child", async () => {
+    const sbx = new LinuxSandbox({ workDir, timeoutMs: 30_000 }, { mode: "workspace-write" });
+
+    const r = await sbx.execute(
+      `node -e "console.log('PARENT-MARKER'); require('child_process').spawnSync('echo',['CHILD-MARKER'],{stdio:'inherit'})"`,
+    );
+
+    // Before the fix the parent's line was gone and the child's survived: the parent was killed
+    // mid-flight by the filter, so its buffered pipe write never flushed, while the child's bytes
+    // had already reached the inherited fd.
+    expect(r.stdout).toContain("PARENT-MARKER");
+    expect(r.stdout).toContain("CHILD-MARKER");
+    expect(r.exitCode).toBe(0);
+  });
+});

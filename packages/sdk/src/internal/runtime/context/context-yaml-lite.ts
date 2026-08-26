@@ -61,22 +61,42 @@ export function parseSimpleYaml(yaml: string): Record<string, unknown> {
     const key = trimmed.slice(0, colon).trim();
     const rest = trimmed.slice(colon + 1).trim();
     if (rest === "") {
-      // Possible array; collect indented `- item` lines.
+      // `key:` with nothing after it opens either an indented `- item` list or an indented nested
+      // map. Which one is decided by the first non-empty indented line, so both are collected here.
+      //
+      // The map branch is not a new feature so much as a repair: before it, `metadata:` followed by
+      // `  type: x` set `metadata` to `[]` AND parsed the indented lines as TOP-LEVEL entries, so
+      // the nesting silently flattened and a caller reading `metadata.type` got `undefined` while
+      // `type` appeared where it never was. Claude Code's memory files carry exactly that shape.
       const items: string[] = [];
+      const nested: Record<string, unknown> = {};
+      let sawNested = false;
       while (i < lines.length) {
         const next = lines[i];
         if (next === undefined) break;
         const nextTrim = next.trim();
+        if (nextTrim === "") {
+          i += 1;
+          continue;
+        }
+        const indented = /^\s/.test(next);
         if (nextTrim.startsWith("- ")) {
           items.push(parseScalar(nextTrim.slice(2).trim()) as string);
           i += 1;
-        } else if (nextTrim === "") {
+        } else if (indented && nextTrim.includes(":")) {
+          const nestedColon = nextTrim.indexOf(":");
+          nested[nextTrim.slice(0, nestedColon).trim()] = parseScalar(
+            nextTrim.slice(nestedColon + 1).trim(),
+          );
+          sawNested = true;
           i += 1;
         } else {
           break;
         }
       }
-      out[key] = items;
+      // An empty `key:` stays `[]` — the pre-existing contract every `paths:` in a rule file relies
+      // on. Only an actually-indented `key: value` under it makes it a map.
+      out[key] = sawNested ? nested : items;
     } else if (rest.startsWith("[") && rest.endsWith("]")) {
       // Inline array `globs: ["**/*.ts", "**/*.tsx"]`
       const inner = rest.slice(1, -1).trim();

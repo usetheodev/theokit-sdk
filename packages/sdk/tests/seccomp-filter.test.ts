@@ -59,8 +59,16 @@ describe("buildSeccompFilter", () => {
 
   it("network_restricted_adds_socket_set", () => {
     const on = jeqConstants(buildSeccompFilter({ networkRestricted: true }));
-    for (const nr of [42, 43, 288, 49, 50, 52, 51, 48, 44, 307, 299, 55, 54])
-      expect(on).toContain(nr);
+    // #385 — `getsockname`(51), `getpeername`(52), `setsockopt`(54) and `getsockopt`(55) LEFT this
+    // set, and this assertion changed with them. That is a deliberate divergence from
+    // `landlock.rs`, not a loosened guarantee: those four take an already-open fd, cBPF cannot
+    // dereference one to learn its family, so denying them denied AF_UNIX too — and killed every
+    // command that spawned a child (`node --test` returned 0 lines; the parent's own stdout went
+    // with it). They cannot reach a network on their own, and the measured guarantee is unchanged:
+    // an AF_INET socket is still EPERM, an AF_UNIX socketpair still works. See
+    // `seccomp-fd-syscalls.test.ts` for both halves.
+    for (const nr of [42, 43, 288, 49, 50, 48, 44, 307, 299]) expect(on).toContain(nr);
+    for (const nr of [51, 52, 54, 55]) expect(on).not.toContain(nr);
     const off = jeqConstants(buildSeccompFilter({ networkRestricted: false }));
     // without a restricted network, the socket set does NOT go in (but the always-denied ones do)
     for (const nr of [42, 49, 44]) expect(off).not.toContain(nr);
