@@ -71,7 +71,7 @@ describe("what the run can conclude, and when", () => {
     // Measured on run 32918852952: the gate ran at ~01:24 and the four check runs were created at
     // 01:35, so it saw an empty payload and passed on a pull request that was BLOCKED. "Too early
     // to tell" and "all clear" must not collapse — `UNKNOWN` is GitHub still computing the answer.
-    expect(mergeVerdict("UNKNOWN", { check_runs: [] })).toEqual({ state: "absent", blocked: [] });
+    expect(mergeVerdict("UNKNOWN", { check_runs: [] })).toEqual({ state: "absent", blocked: [], stalled: [] });
   });
 
   it("reports blocked once a check is waiting on a human", () => {
@@ -79,7 +79,7 @@ describe("what the run can conclude, and when", () => {
       mergeVerdict("BLOCKED", {
         check_runs: [run("CI", "action_required"), run("CodeQL", "success")],
       }),
-    ).toEqual({ state: "blocked", blocked: ["CI"] });
+    ).toEqual({ state: "blocked", blocked: ["CI"], stalled: [] });
   });
 
   it("reports ok on a pull request github says can merge", () => {
@@ -87,7 +87,7 @@ describe("what the run can conclude, and when", () => {
     // release, and a gate that fails every time is one people learn to ignore.
     expect(
       mergeVerdict("CLEAN", { check_runs: [run("CI", "success"), run("CodeQL", null, "in_progress")] }),
-    ).toEqual({ state: "ok", blocked: [] });
+    ).toEqual({ state: "ok", blocked: [], stalled: [] });
   });
 
   it("treats a state it does not recognise as blocking rather than as fine", () => {
@@ -144,5 +144,48 @@ describe("mergeability is the question — #388 follow-up", () => {
   it("does not block on a failing check that is not required to merge", () => {
     const unstable = { check_runs: [{ name: "flaky-extra", conclusion: "failure" }] };
     expect(mergeVerdict("UNSTABLE", unstable).state).toBe("ok");
+  });
+});
+
+/*
+ * Measured on PR #407, 2026-08-26 15:04 — a third shape the message did not have words for.
+ *
+ * `Secret Scan` started and failed in 5s, and its `TruffleHog` check run was left `queued` with a
+ * null conclusion on a run GitHub had already marked `completed`. The check never concluded, so the
+ * pull request stayed BLOCKED; `gh run rerun` refused it, `workflow_dispatch` does not exist on that
+ * workflow, and `gh run cancel` refuses a completed run. Nothing on that SHA could move it.
+ *
+ * The gate would have reported "the required contexts were never created at all" and pointed at
+ * close/reopen — both wrong here. The context WAS created, and reopening re-fires pull_request
+ * events while this check came from the push event. A gate that names the wrong remedy sends the
+ * operator down a path that cannot work, which is worse than naming none.
+ */
+describe("a required check can be created and then abandoned — #407", () => {
+  const orphaned = {
+    check_runs: [
+      { name: "validate (node 22)", status: "completed", conclusion: "success" },
+      { name: "TruffleHog", status: "queued", conclusion: null },
+    ],
+  };
+
+  it("names the check that was created and never concluded", () => {
+    expect(mergeVerdict("BLOCKED", orphaned).stalled).toEqual(["TruffleHog"]);
+  });
+
+  it("does not confuse an abandoned check with one waiting on approval", () => {
+    expect(mergeVerdict("BLOCKED", orphaned).blocked).toEqual([]);
+  });
+
+  it("counts a check still legitimately running as stalled only once it blocks the merge", () => {
+    // Same shape, different meaning: on a CLEAN pull request an in-progress check is just progress.
+    expect(mergeVerdict("CLEAN", orphaned).stalled).toEqual([]);
+  });
+
+  it("reports nothing stalled when every check reached a conclusion", () => {
+    expect(
+      mergeVerdict("BLOCKED", {
+        check_runs: [{ name: "validate", status: "completed", conclusion: "failure" }],
+      }).stalled,
+    ).toEqual([]);
   });
 });
