@@ -24,7 +24,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_DISCOVERY_SPECS } from "../src/internal/runtime/context/context-discovery.js";
 
 describe("B-127 — the published priorities are a contract", () => {
-  it("test_the_seven_defaults_keep_the_ids_and_priorities_consumers_build_on", () => {
+  it("test_the_published_defaults_keep_the_ids_and_priorities_consumers_build_on", () => {
     // Written out rather than derived: a test that recomputed these from the source would agree
     // with any change, which is the opposite of what a contract test is for.
     expect(DEFAULT_DISCOVERY_SPECS.map((s) => [s.id, s.priority])).toEqual([
@@ -33,6 +33,10 @@ describe("B-127 — the published priorities are a contract", () => {
       ["CLAUDE.md", 30],
       ["cursor-rules", 40],
       ["theokit-rules", 45],
+      // The eighth default, added deliberately (see `context-discovery.ts`). No number above MOVED,
+      // which is the promise this case exists to keep; a consumer that had chosen 47 collides, and
+      // that cost is recorded rather than discovered.
+      ["claude-rules", 47],
       ["theokit-context", 50],
       ["THEO.md", 60],
     ]);

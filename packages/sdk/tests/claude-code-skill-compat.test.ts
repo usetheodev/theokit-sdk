@@ -18,7 +18,7 @@ describe("skills declared under .claude", () => {
     mkdirSync(join(cwd, root, "skills", name), { recursive: true });
     writeFileSync(
       join(cwd, root, "skills", name, "SKILL.md"),
-      `---\nname: ${name}\ndescription: ${body}\n---\nCorpo.\n`,
+      `---\nname: ${name}\ndescription: ${body}\n---\nBody.\n`,
     );
   };
 
@@ -27,36 +27,36 @@ describe("skills declared under .claude", () => {
   });
 
   it("test_a_skill_under_dot_claude_is_discovered", async () => {
-    writeSkill(".claude", "cli-skill", "vinda do .claude.");
+    writeSkill(".claude", "cli-skill", "from .claude.");
     const mgr = new SkillsManager(cwd, undefined, true);
     await mgr.refresh();
     expect((await mgr.list()).map((s) => s.name)).toEqual(["cli-skill"]);
   });
 
   it("test_skills_from_both_directories_are_merged", async () => {
-    writeSkill(".theokit", "theokit-skill", "do .theokit.");
-    writeSkill(".claude", "cli-skill", "do .claude.");
+    writeSkill(".theokit", "theokit-skill", "from .theokit.");
+    writeSkill(".claude", "cli-skill", "from .claude.");
     const mgr = new SkillsManager(cwd, undefined, true);
     await mgr.refresh();
     expect((await mgr.list()).map((s) => s.name).sort()).toEqual(["cli-skill", "theokit-skill"]);
   });
 
   it("test_the_explicit_namespace_wins_when_both_declare_the_same_skill", async () => {
-    writeSkill(".theokit", "shared", "DO THEOKIT.");
-    writeSkill(".claude", "shared", "do claude.");
+    writeSkill(".theokit", "shared", "FROM THEOKIT.");
+    writeSkill(".claude", "shared", "from claude.");
     const mgr = new SkillsManager(cwd, undefined, true);
     await mgr.refresh();
-    expect((await mgr.list()).find((s) => s.name === "shared")?.description).toBe("DO THEOKIT.");
+    expect((await mgr.list()).find((s) => s.name === "shared")?.description).toBe("FROM THEOKIT.");
   });
 
   // The accepted case in the other direction (rules/testing.md § 4.2): an explicit skillsDir must
   // still mean exactly that one directory, or M22's override silently gained a second source.
   it("test_an_explicit_skills_dir_is_still_the_only_source", async () => {
-    writeSkill(".claude", "cli-skill", "nao deve aparecer.");
+    writeSkill(".claude", "cli-skill", "must not appear.");
     mkdirSync(join(cwd, "custom", "only-here"), { recursive: true });
     writeFileSync(
       join(cwd, "custom", "only-here", "SKILL.md"),
-      "---\nname: only-here\ndescription: a unica.\n---\nCorpo.\n",
+      "---\nname: only-here\ndescription: the only one.\n---\nBody.\n",
     );
     const mgr = new SkillsManager(cwd, undefined, true, join(cwd, "custom"));
     await mgr.refresh();

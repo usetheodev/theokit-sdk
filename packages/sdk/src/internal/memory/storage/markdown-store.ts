@@ -1,9 +1,11 @@
 import { mkdir, readdir, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { ConfigurationError } from "../../../errors.js";
 import { replaceFileAtomic } from "../../persistence/atomic-write.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
+import { encodeProjectDir } from "../../persistence/session-transcript.js";
 import { MEMORY_KINDS, type MemoryConfig, type MemoryFact, redactSecrets } from "../types.js";
 import { parseMemoryFile, renderMemoryFile, slugForFact } from "./memory-file.js";
 
@@ -42,6 +44,24 @@ export function memoryDir(cwd: string): string {
   return join(cwd, ".theokit", "memory");
 }
 
+/**
+ * Where the Claude Code CLI keeps THIS project's memories.
+ *
+ * `<claudeHome>/projects/<encoded-cwd>/memory` — the same `encodeProjectDir` scheme the transcripts
+ * already use, which is why no new encoding is invented here. `CLAUDE_CONFIG_DIR` names the home
+ * when set (the CLI's own variable); `~/.claude` otherwise.
+ *
+ * Read, never written. Writing here by default would relocate every existing consumer's memories,
+ * and an additive change must not move what is already on disk — so this is the direction that
+ * costs nothing: a memory the CLI wrote becomes visible, and a memory the SDK wrote stays where the
+ * SDK put it.
+ */
+export function claudeProjectMemoryDir(cwd: string): string {
+  const home = process.env.CLAUDE_CONFIG_DIR?.trim();
+  const root = home !== undefined && home.length > 0 ? home : join(homedir(), ".claude");
+  return join(root, "projects", encodeProjectDir(cwd), "memory");
+}
+
 export function memoryMdPath(cwd: string): string {
   return join(memoryDir(cwd), "MEMORY.md");
 }
@@ -59,17 +79,21 @@ export function notesDir(cwd: string): string {
  * stopped reading them would delete what someone recorded, which is worse than the format it fixes.
  */
 export async function readFactsFromMarkdown(cwd: string): Promise<MemoryFact[]> {
-  let entries: string[];
-  try {
-    entries = await readdir(memoryDir(cwd));
-  } catch {
-    return [];
-  }
-
   const facts: MemoryFact[] = [];
-  for (const entry of entries.sort()) {
-    const fact = await readMemoryFileAt(cwd, entry);
-    if (fact !== undefined) facts.push(fact);
+  // Both stores: this SDK's, then the one the Claude Code CLI keeps for the same project. The
+  // format has been shared since #389; only the directory was not, so a memory the CLI recorded was
+  // invisible to an agent working in the same repository.
+  for (const dir of [memoryDir(cwd), claudeProjectMemoryDir(cwd)]) {
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch {
+      continue;
+    }
+    for (const entry of entries.sort()) {
+      const fact = await readMemoryFileIn(dir, entry);
+      if (fact !== undefined) facts.push(fact);
+    }
   }
 
   try {
@@ -87,18 +111,23 @@ export async function readFactsFromMarkdown(cwd: string): Promise<MemoryFact[]> 
  * without the frontmatter is a note somebody wrote by hand. Turning any of those into a fact would
  * put text into recall that nobody recorded as one.
  */
-async function readMemoryFileAt(cwd: string, entry: string): Promise<MemoryFact | undefined> {
+/** Read one memory file out of a given directory — the directory is the parameter so both stores share this. */
+async function readMemoryFileIn(dir: string, entry: string): Promise<MemoryFact | undefined> {
   if (!entry.endsWith(".md") || entry === "MEMORY.md") return undefined;
   let raw: string;
   try {
-    raw = await readFile(join(memoryDir(cwd), entry), "utf8");
+    raw = await readFile(join(dir, entry), "utf8");
   } catch {
     return undefined; // vanished between readdir and read
   }
   const parsed = parseMemoryFile(raw);
   if (parsed === undefined) return undefined;
+  // The BODY is the memory; `description` is the one-line recall aid. This SDK writes both the same,
+  // so nothing it wrote changes — but the Claude Code CLI writes a summary in `description` and the
+  // substance below it, and reading only the summary silently dropped the fact itself.
+  const body = parsed.body.trim();
   return {
-    text: parsed.description,
+    text: body.length > 0 ? body : parsed.description,
     ...(parsed.kind !== undefined ? { kind: parsed.kind } : {}),
     ...(parsed.modified !== undefined ? { modified: parsed.modified } : {}),
   };

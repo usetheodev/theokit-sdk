@@ -26,7 +26,7 @@ describe("agents written for the Claude Code CLI", () => {
     mkdirSync(join(cwd, ".theokit", "agents"), { recursive: true });
     writeFileSync(
       join(cwd, ".theokit", "agents", "probe.md"),
-      `---\n${frontmatter}\n---\nCorpo do prompt.\n`,
+      `---\n${frontmatter}\n---\nPrompt body.\n`,
     );
   };
 
@@ -35,21 +35,21 @@ describe("agents written for the Claude Code CLI", () => {
   });
 
   it("test_an_agent_carrying_the_cli_colour_field_loads", async () => {
-    writeAgent("name: probe\ndescription: sonda.\ntools: Read, Grep\ncolor: blue");
+    writeAgent("name: probe\ndescription: a probe.\ntools: Read, Grep\ncolor: blue");
     const loaded = await loadSubagents(cwd, true, undefined);
     expect(Object.keys(loaded)).toEqual(["probe"]);
   });
 
   it("test_the_colour_is_ignored_rather_than_carried_into_the_definition", async () => {
-    writeAgent("name: probe\ndescription: sonda.\ncolor: blue");
+    writeAgent("name: probe\ndescription: a probe.\ncolor: blue");
     const loaded = await loadSubagents(cwd, true, undefined);
     expect(loaded.probe).not.toHaveProperty("color");
   });
 
   it("test_every_field_the_cli_writes_loads_together", async () => {
-    writeAgent("name: probe\ndescription: sonda.\ntools: Read, Grep\nmodel: sonnet\ncolor: blue");
+    writeAgent("name: probe\ndescription: a probe.\ntools: Read, Grep\nmodel: sonnet\ncolor: blue");
     const loaded = await loadSubagents(cwd, true, undefined);
-    expect(loaded.probe?.description).toBe("sonda.");
+    expect(loaded.probe?.description).toBe("a probe.");
     expect(loaded.probe?.tools).toEqual(["Read", "Grep"]);
   });
 
@@ -57,7 +57,7 @@ describe("agents written for the Claude Code CLI", () => {
   // `.claude/agents/README.md` exists in this repository and is cited by `cycle-maintenance.md`.
   // Before this, one such file made the loader throw and NOT ONE agent in the directory loaded.
   it("test_documentation_beside_the_agents_does_not_stop_every_agent_from_loading", async () => {
-    writeAgent("name: probe\ndescription: sonda.");
+    writeAgent("name: probe\ndescription: a probe.");
     writeFileSync(join(cwd, ".theokit", "agents", "README.md"), "# Os especialistas\n\nProsa.\n");
     const loaded = await loadSubagents(cwd, true, undefined);
     expect(Object.keys(loaded)).toEqual(["probe"]);
@@ -67,7 +67,7 @@ describe("agents written for the Claude Code CLI", () => {
   // is a broken agent, and must still fail — otherwise a typo'd `sandbox` returns as a silent gate
   // through the other door.
   it("test_an_agent_whose_frontmatter_is_present_but_wrong_still_fails", async () => {
-    writeAgent("name: probe\ndescription: sonda.\nbogus_field: 1");
+    writeAgent("name: probe\ndescription: a probe.\nbogus_field: 1");
     await expect(loadSubagents(cwd, true, undefined)).rejects.toMatchObject({
       code: "subagent_unknown_field",
     });
@@ -76,14 +76,14 @@ describe("agents written for the Claude Code CLI", () => {
   // The half of the oracle that proves the guard still guards (rules/testing.md § 4.2): without
   // these, accepting every field would pass the three above and the silent-gate class would be back.
   it("test_a_genuinely_unknown_field_is_still_a_typed_load_error", async () => {
-    writeAgent("name: probe\ndescription: sonda.\nescalate_privileges: true");
+    writeAgent("name: probe\ndescription: a probe.\nescalate_privileges: true");
     await expect(loadSubagents(cwd, true, undefined)).rejects.toMatchObject({
       code: "subagent_unknown_field",
     });
   });
 
   it("test_a_misspelt_sandbox_is_still_refused_rather_than_dropped", async () => {
-    writeAgent("name: probe\ndescription: sonda.\nsandboxed: false");
+    writeAgent("name: probe\ndescription: a probe.\nsandboxed: false");
     await expect(loadSubagents(cwd, true, undefined)).rejects.toMatchObject({
       code: "subagent_unknown_field",
     });
@@ -94,31 +94,31 @@ describe("agents written for the Claude Code CLI", () => {
     mkdirSync(join(cwd, ".claude", "agents"), { recursive: true });
     writeFileSync(
       join(cwd, ".claude", "agents", "cli-agent.md"),
-      "---\nname: cli-agent\ndescription: vindo do .claude.\ncolor: green\n---\nCorpo.\n",
+      "---\nname: cli-agent\ndescription: from .claude.\ncolor: green\n---\nBody.\n",
     );
     const loaded = await loadSubagents(cwd, true, undefined);
     expect(Object.keys(loaded)).toEqual(["cli-agent"]);
   });
 
   it("test_agents_from_both_directories_are_merged", async () => {
-    writeAgent("name: theokit-agent\ndescription: do .theokit.");
+    writeAgent("name: theokit-agent\ndescription: from .theokit.");
     mkdirSync(join(cwd, ".claude", "agents"), { recursive: true });
     writeFileSync(
       join(cwd, ".claude", "agents", "cli-agent.md"),
-      "---\nname: cli-agent\ndescription: do .claude.\n---\nCorpo.\n",
+      "---\nname: cli-agent\ndescription: from .claude.\n---\nBody.\n",
     );
     const loaded = await loadSubagents(cwd, true, undefined);
     expect(Object.keys(loaded).sort()).toEqual(["cli-agent", "theokit-agent"]);
   });
 
   it("test_the_explicit_namespace_wins_when_both_declare_the_same_name", async () => {
-    writeAgent("name: shared\ndescription: DO THEOKIT.");
+    writeAgent("name: shared\ndescription: FROM THEOKIT.");
     mkdirSync(join(cwd, ".claude", "agents"), { recursive: true });
     writeFileSync(
       join(cwd, ".claude", "agents", "shared.md"),
-      "---\nname: shared\ndescription: do claude.\n---\nCorpo.\n",
+      "---\nname: shared\ndescription: from claude.\n---\nBody.\n",
     );
     const loaded = await loadSubagents(cwd, true, undefined);
-    expect(loaded.shared?.description).toBe("DO THEOKIT.");
+    expect(loaded.shared?.description).toBe("FROM THEOKIT.");
   });
 });
