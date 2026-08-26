@@ -123,9 +123,6 @@ importers:
       tsx:
         specifier: ^4.19.0
         version: 4.22.0
-      zod:
-        specifier: ^4.0.0
-        version: 4.4.3
     devDependencies:
       '@theokit/acp':
         specifier: workspace:*
