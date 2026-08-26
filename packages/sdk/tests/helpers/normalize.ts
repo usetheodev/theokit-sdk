@@ -20,8 +20,33 @@ function normalizeNode(value: unknown, path: string[]): unknown {
   return value;
 }
 
+/** Arrays whose order is decided by the filesystem, not by the behaviour under test. */
+const UNORDERED_ARRAYS = new Set(["sources"]);
+
 function normalizeArray(value: unknown[], path: string[]): unknown[] {
-  return value.map((item) => normalizeNode(item, path));
+  const normalized = value.map((item) => normalizeNode(item, path));
+  if (path.length === 0 || !UNORDERED_ARRAYS.has(path[path.length - 1] as string)) {
+    return normalized;
+  }
+  // `sources` comes back in `readdir` order, which varies by filesystem and by the order files
+  // happened to be created. A golden pinned to it asserts the filesystem rather than the context
+  // manager — measured 2026-08-26: the only difference between the golden and the run was
+  // `project-readme` and `architecture-note` swapping places, with every field identical.
+  //
+  // Sorted HERE and not by the context manager itself, because the discovery order is not part of
+  // the contract in either direction: making the manager sort would pin an ordering nobody asked
+  // for, and leaving the comparison order-sensitive pins one the filesystem chose. Only arrays
+  // named above are sorted — order is meaningful nearly everywhere else, and sorting all of them
+  // would turn a real sequencing regression into a green.
+  return [...normalized].sort((a, b) => keyFor(a).localeCompare(keyFor(b)));
+}
+
+/** A stable comparison key for an unordered entry: its `name` when it has one. */
+function keyFor(item: unknown): string {
+  if (item && typeof item === "object" && "name" in item) {
+    return String((item as { name: unknown }).name);
+  }
+  return JSON.stringify(item) ?? "";
 }
 
 function normalizeErrorValue(value: Error, path: string[]): Record<string, unknown> {

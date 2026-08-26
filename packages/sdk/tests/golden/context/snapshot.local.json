@@ -2,13 +2,13 @@
   "runtime": "local",
   "sources": [
     {
-      "name": "project-readme",
-      "path": "README.md",
+      "name": "architecture-note",
+      "path": "docs/architecture.md",
       "status": "included"
     },
     {
-      "name": "architecture-note",
-      "path": "docs/architecture.md",
+      "name": "project-readme",
+      "path": "README.md",
       "status": "included"
     }
   ],

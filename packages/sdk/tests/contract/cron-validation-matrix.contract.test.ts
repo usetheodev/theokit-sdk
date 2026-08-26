@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { Cron } from "../../src/index.js";
+import { Agent, Cron } from "../../src/index.js";
 import { createTempWorkspace, type TempWorkspace } from "../helpers/temp-workspace.js";
 
 const validShorthands = ["@hourly", "@daily", "@weekly", "@monthly", "@yearly"] as const;
@@ -75,11 +75,23 @@ describe("Cron validation matrix contract", () => {
     );
   });
 
+  // A REGISTERED agent, for the same reason as the sibling case in `cron.contract.test.ts`: an
+  // `agentId` target means "run that agent", and the fabricated id used here belonged to none, so
+  // `Cron.run` refused it by design and this case never reached the `lastRunAt` claim it exists to
+  // make. The other cases in this file pass an unregistered id on purpose — they assert CREATE-time
+  // validation and never run anything, so nothing there needs an agent.
   it("manual Cron.run does not update lastRunAt", async () => {
+    workspace = await createTempWorkspace("simple-node-project");
+    const agent = await Agent.create({
+      model: { id: "anthropic/claude-sonnet-4-6" },
+      apiKey: "theo_test_contract_key",
+      local: { cwd: workspace.cwd },
+    });
+
     const job = await Cron.create({
       cron: "@daily",
       message: "manual run",
-      agentId: "agent-00000000-0000-4000-8000-000000000001",
+      agentId: agent.agentId,
       apiKey: "theo_test_contract_key",
     });
     const before = await Cron.get(job.id);
