@@ -178,16 +178,29 @@ function missingApiKeyMessage(): string {
 }
 
 /**
- * theokit#501 — does this provider authenticate at all?
+ * theokit#501 — does this provider take its credential from the CALLER?
  *
- * An UNREGISTERED prefix yields no profile and answers `false`, which keeps the refusal in place for
- * a typo. That asymmetry is deliberate and matches `keyWillFlowToProvider` above: guessing "probably
+ * Only `api_key` does. Every other mode sources its own: `none` sends no Authorization at all, and
+ * `aws_bearer` / `gcp_oauth` / `oauth_device_code` / `oauth_external` each build their client with a
+ * lazy placeholder and resolve a real token at stream time — see `sentinelForLazyAuth` in
+ * `internal/llm/router.ts`, which is where that enumeration is decided.
+ *
+ * This predicate therefore asks the question by its ANSWER (`=== "api_key"`) rather than restating
+ * the list. The first fix here gated on `=== "none"`, which was a partial second copy of the router's
+ * rule: it unblocked Ollama and left every OAuth profile refused for lacking a key it never sends.
+ * A list duplicated in two files drifts the moment either grows — `compact-session.ts` asks the same
+ * question the same way.
+ *
+ * An UNREGISTERED prefix yields no profile and answers `true`, keeping the refusal in place for a
+ * typo. That asymmetry is deliberate and matches `keyWillFlowToProvider` above: guessing "probably
  * keyless" for a name we do not know would turn every mistyped prefix into a silent free pass, and
  * the failure would surface as a 401 from wherever the request happened to land.
  */
-function providerNeedsNoKey(provider: string | undefined): boolean {
-  if (provider === undefined) return false;
-  return getProviderProfile(provider)?.authType === "none";
+function providerNeedsCallerKey(provider: string | undefined): boolean {
+  if (provider === undefined) return true;
+  const profile = getProviderProfile(provider);
+  if (profile === undefined) return true;
+  return profile.authType === "api_key";
 }
 
 async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
@@ -200,7 +213,7 @@ async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
     // theokit#501 — this gate used to run BEFORE the provider was resolved, so a provider declaring
     // `authType: "none"` was refused for lacking a credential it does not use. The descriptor that
     // says so was read two lines below the `throw` that guaranteed we never got there.
-    if (!providerNeedsNoKey(provider)) {
+    if (providerNeedsCallerKey(provider)) {
       throw new AuthenticationError(missingApiKeyMessage(), { code: "missing_api_key" });
     }
   } else {

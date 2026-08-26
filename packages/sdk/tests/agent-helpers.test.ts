@@ -69,6 +69,16 @@ describe("agent-helpers.ts — create-time refusals", () => {
     expect(agent).toBeDefined();
   });
 
+  // theokit#501, second half — `authType: "none"` was only one of FIVE modes that source their own
+  // credential. `sentinelForLazyAuth` in the router already enumerated the others (aws_bearer,
+  // gcp_oauth, oauth_device_code, oauth_external): each builds its client with a lazy placeholder and
+  // resolves the real token at stream time. Gating on `=== "none"` re-stated that rule as a partial
+  // copy, so an OAuth profile was still refused for lacking a key it never sends.
+  it("test_a_local_agent_on_an_oauth_device_code_provider_is_built_without_a_static_key", async () => {
+    const agent = await Agent.create({ model: { id: "openai-chatgpt/gpt-5" }, local: { cwd } });
+    expect(agent).toBeDefined();
+  });
+
   it("test_a_local_agent_on_an_unregistered_provider_prefix_is_still_refused_without_a_key", async () => {
     await expect(
       Agent.create({ model: { id: "not-a-registered-provider/some-model" }, local: { cwd } }),
