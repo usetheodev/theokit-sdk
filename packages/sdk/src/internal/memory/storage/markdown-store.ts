@@ -8,6 +8,7 @@ import { withCwdMutex } from "../../persistence/cwd-mutex.js";
 import { encodeProjectDir } from "../../persistence/session-transcript.js";
 import { MEMORY_KINDS, type MemoryConfig, type MemoryFact, redactSecrets } from "../types.js";
 import { parseMemoryFile, renderMemoryFile, slugForFact } from "./memory-file.js";
+import { scanForThreats } from "./threat-scan.js";
 
 /**
  * Markdown-first memory storage (ADR D1 of memory-system-peer-project-parity).
@@ -200,6 +201,23 @@ export function appendFactToMarkdown(
       );
     }
     const text = redactSecrets(fact.text);
+    // Scan AFTER redaction and BEFORE persistence (SOP-06-05 step 1). After, so a redacted
+    // secret cannot look like an encoded payload; before, because an entry that reaches disk is
+    // recalled in every session afterwards.
+    //
+    // What this closes, stated so nobody cites it for more: the MALFORMED-ENTRY class,
+    // completely — injection framing, role reassignment, invisible characters, encoded blobs.
+    // It closes NONE of the class that was actually measured end to end. Both planted entries
+    // from that run pass this scanner, the executive one included, and `threat-scan.ts` pins
+    // that in tests rather than in a comment. Execution is answered at the tool boundary by the
+    // permission engine; this is not a second line of defence for it.
+    const threat = scanForThreats(text);
+    if (threat !== undefined) {
+      throw new ConfigurationError(
+        `Refusing to write a memory entry that ${threat.why}: ${threat.excerpt}`,
+        { code: "memory_threat_rejected" },
+      );
+    }
     const name = slugForFact(text);
     await mkdir(targetDir, { recursive: true });
     const observations = await nextObservationCount(targetDir, name, text);
