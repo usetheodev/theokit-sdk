@@ -20,7 +20,14 @@ import { describe, expect, it } from "vitest";
  */
 
 const REPO_ROOT = join(__dirname, "..", "..", "..");
-const SATELLITES = ["sdk-tools", "sdk-memory", "sdk-cache", "sdk-handoff", "sdk-budget"] as const;
+const SATELLITES = [
+  "sdk-tools",
+  "sdk-memory",
+  "sdk-cache",
+  "sdk-handoff",
+  "sdk-budget",
+  "sdk-pty",
+] as const;
 
 /** Extract the numeric major floor from a peer range like ">=4.0.0" or "^4". */
 function peerFloorMajor(range: string): number {
@@ -34,6 +41,23 @@ const MEASURED_FLOORS: Record<string, { floor: string; because: string }> = {
   // `PostAssistantReplyContext.usedTools` (8d1feaaf, first released in 4.54.0) — the cache reads it
   // to avoid replaying an answer that came from a tool call.
   "sdk-cache": { floor: "4.54.0", because: "PostAssistantReplyContext.usedTools" },
+  // Not an API this package uses — 4.53.1's OWN published declarations do not compile. `#345`
+  // (`e368fc18`) bound the re-exported names the rollup left unimported, and first shipped in
+  // 4.54.0; before it, `index.d.ts` references `MemoryProviderFactory`, `AgentBuilderDeps` and
+  // `DECLARED` without defining them. A floor may be wrong because the version it names is broken,
+  // not only because the code outgrew it.
+  "sdk-memory": { floor: "4.54.0", because: "4.53.1 ships .d.ts that do not compile (#345)" },
+  // Same reason, and these two PASSED the CI leg — which is what makes them worth recording. That
+  // leg builds each package against its floor, and neither of these typechecks the SDK's
+  // declarations while building, so a broken `.d.ts` never reaches their compiler. A consumer's
+  // does. Measured 2026-08-27 with `skipLibCheck: false`, `@types/node` and `zod` installed:
+  // 4.4.1 → 6 errors, 4.19.3 → 7, 4.53.1 → 7, 4.54.0 → 0.
+  //
+  // A peer range is a promise about what a CONSUMER can build against, not about what this
+  // repository can build. Where those two disagree, the consumer's answer is the one the field is
+  // making a claim about.
+  "sdk-pty": { floor: "4.54.0", because: "no TS consumer compiles against the SDK below 4.54.0" },
+  "sdk-tools": { floor: "4.54.0", because: "no TS consumer compiles against the SDK below 4.54.0" },
 };
 
 describe("SE43 DoD#4 — satellite @theokit/sdk peer-range floors", () => {
