@@ -1,7 +1,7 @@
 {
   "name": "@theokit/sdk-budget",
   "version": "0.3.3",
-  "description": "USD-cost-aware BudgetTracker impls for @theokit/sdk — extends the counter-based reference with per-model pricing. Consumes the kernel-facing BudgetTracker port from sdk-core.",
+  "description": "USD-cost-aware BudgetTracker impls for @theokit/sdk \u2014 extends the counter-based reference with per-model pricing. Consumes the kernel-facing BudgetTracker port from sdk-core.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
   "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
@@ -44,7 +44,7 @@
     "prepublishOnly": "node ../../tools/check-publish-no-workspace.mjs ."
   },
   "peerDependencies": {
-    "@theokit/sdk": ">=4.0.0"
+    "@theokit/sdk": ">=4.54.0"
   },
   "devDependencies": {
     "tsup": "^8.3.5",
