@@ -409,4 +409,8 @@ jobs:
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     with:
+      # Built first: the packages here import each other through their published entry points,
+      # so nine suites fail to load without `dist/` and the scan reports no coverage at all
+      # while still passing. Measured — that is exactly what the first run did.
+      build-command: pnpm build
       coverage-command: pnpm quality:coverage
