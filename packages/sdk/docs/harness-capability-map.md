@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1135 export(s) across 46 entry point(s).
+1137 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -527,8 +527,8 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `ActiveMemoryStatus` | type | Outcome of one recall attempt.  |
 | `ActiveMemoryTranscript` | interface | Optional on-disk persistence for Active Memory recall transcripts (ADR D6).  |
 | `appendDiaryEntry` | function | Append one entry to the dream diary, creating the file with a `# Dream Diary` header when it does not exist yet.  |
-| `appendFact` | function | Append a fact, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves without touching disk.  |
-| `appendFactToMarkdown` | function | Append a fact to `MEMORY.md ## Facts`.  |
+| `appendFact` | function | Record a fact, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves without touching disk.  |
+| `appendFactToMarkdown` | function | Write a fact as its own memory file and point the `MEMORY.md` index at it.  |
 | `assertValidBackend` | function | EC-1: runtime guard for `opts.backend`.  |
 | `azureOpenAiMemoryEmbeddingProviderAdapter` | const | Azure OpenAI embeddings.  |
 | `buildErrorMetadata` | function | Build an `ErrorMetadata` object with all optional fields included conditionally (no `undefined` keys in the output). |
@@ -538,6 +538,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `ChunkMarkdownOptions` | interface | Split a markdown document into semantically meaningful chunks (ADR D1 of memory-system-peer-project-parity).  |
 | `CircuitBreaker` | class | Stops calling a recall path that keeps timing out.  |
 | `CircuitBreakerOptions` | interface | Consecutive-timeout circuit breaker for Active Memory recall.  |
+| `claudeProjectMemoryDir` | function | Where the Claude Code CLI keeps THIS project's memories.  |
 | `Cluster` | interface | A group of facts the REM phase judged related.  |
 | `ClusterResult` | interface | What {@link remPhase } produced.  |
 | `cohereMemoryEmbeddingProviderAdapter` | const | Cohere embeddings.  |
@@ -608,12 +609,13 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `MemoryFileEntry` | interface | Lightweight reference to a markdown file in the memory corpus.  |
 | `MemoryGetToolOptions` | interface | Options for {@link createMemoryGetTool } .  |
 | `MemoryIndex` | interface | The four operations both backends implement, and the type every consumer should hold.  |
-| `memoryMdPath` | function | Path to `MEMORY.md`, the single file holding the flat `## Facts` list.  |
+| `memoryMdPath` | function | Path to `MEMORY.md`, the index that points at the per-memory files — and, in stores written before #389, the flat `## Facts` list itself.  |
 | `MemoryReadResult` | interface | Result of `reader.readFile`.  |
 | `MemorySearchHit` | interface | Memory index manager contract — leaf types shared by `index-manager.ts` (orchestrator), `index-manager-dispatch.ts` (backend dispatch), `lance-memory-adapter.ts` (Lance backend), and `memory-index.... |
 | `MemorySearchToolOptions` | interface | Options for {@link createMemorySearchTool } . |
 | `MemoryTool` | interface | A memory tool ready to hand to the agent loop: the JSON-serialisable description an LLM sees, plus the `execute` that runs it.  |
 | `MemoryToolJson` | interface | Memory tools (`memory_search` + `memory_get`) — ADR D5 of memory-system-peer-project-parity.  |
+| `memoryWriteDir` | function | Where a NEW fact should be written.  |
 | `META_KEY_DIMENSION` | const | `meta` table key holding the vector width the `embeddings` vec0 table was created with. |
 | `META_KEY_MODEL` | const | `meta` table key holding the embedding model id the vectors were produced with. |
 | `META_KEY_PROVIDER_ID` | const | `meta` table key holding the id of the embedding provider that produced the vectors currently on disk (for example `openai`, `ollama`). |
@@ -624,7 +626,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `MigrationResult` | interface | Outcome of {@link migrateLegacyJson } .  |
 | `mistralMemoryEmbeddingProviderAdapter` | const | Mistral embeddings, over the standard OpenAI wire.  |
 | `NoteFile` | interface | One note discovered under `notes/`: its file name without the `.md` suffix, and its absolute path. |
-| `notesDir` | function | Path to `<memory root>/notes`, where per-topic notes and the consolidated notes written by a dreaming sweep live.  |
+| `notesDir` | function | Path to `<memory root>/notes`, where per-topic notes and the consolidated notes a dreaming sweep writes live.  |
 | `ollamaMemoryEmbeddingProviderAdapter` | const | Embeddings from a local Ollama instance — the only adapter in the catalog with `transport: "local"`, and the one to choose when the corpus must not leave the machine or when there is no API key to ... |
 | `OpenAiCompatibleConfig` | interface | What one provider adapter tells {@link createOpenAiCompatibleRuntime } about its wire: where to POST, which environment variables carry the key and the base URL, which model to use by default, and ... |
 | `openAiMemoryEmbeddingProviderAdapter` | const | OpenAI embeddings — `text-embedding-3-small` (1536), `text-embedding-3-large` (3072) and `text-embedding-ada-002` (1536).  |
@@ -640,8 +642,8 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `persistActiveMemoryTranscript` | function | Write one recall transcript to `<memory root>/transcripts/active-memory/<runId>.json`, creating the parent directories and replacing the file atomically.  |
 | `PRAGMA_STATEMENTS` | const | Non-WAL pragmas.  |
 | `readEmbeddingIdentity` | function | Read the embedding identity recorded in the `meta` table.  |
-| `readFacts` | function | Configuration-aware accessors honoring the existing MemoryConfig contract. |
-| `readFactsFromMarkdown` | function | Read facts from `MEMORY.md`'s `## Facts` section.  |
+| `readFacts` | function | Every memory in the store, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves to `[]` without touching disk.  |
+| `readFactsFromMarkdown` | function | Every memory in the store: the per-memory files, plus any legacy `## Facts` bullets still in `MEMORY.md`.  |
 | `ReadFileOptions` | interface | Inputs for {@link readMemoryFileBounded } .  |
 | `readMemoryFileBounded` | function | Read a bounded slice of a text file and report what was left behind.  |
 | `redactSecrets` | function | Canonical credential-redaction primitive (ADR D68).  |
