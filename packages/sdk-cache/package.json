@@ -1,7 +1,7 @@
 {
   "name": "@theokit/sdk-cache",
   "version": "1.0.0",
-  "description": "Semantic LLM response cache for @theokit/sdk — vector + FTS hybrid lookup, in-memory + JSON file stores, plugin integration.",
+  "description": "Semantic LLM response cache for @theokit/sdk \u2014 vector + FTS hybrid lookup, in-memory + JSON file stores, plugin integration.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
   "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
@@ -45,7 +45,7 @@
   },
   "peerDependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "@theokit/sdk": ">=4.0.0",
+    "@theokit/sdk": ">=4.54.0",
     "zod": "^4.0.0"
   },
   "peerDependenciesMeta": {
