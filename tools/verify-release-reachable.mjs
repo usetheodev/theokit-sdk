@@ -55,7 +55,28 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+
+/**
+ * Are there changesets still waiting to become a release?
+ *
+ * Takes the directory LISTING rather than reading the disk, so the interesting cases are testable
+ * without a repository in each state. `config.json` and `README.md` are the directory's furniture;
+ * every other `.md` is a pending changeset.
+ *
+ * This is what separates the two situations the workflow's `published != 'true'` condition covers
+ * and this gate used to collapse into one. With changesets pending, a version pull request should
+ * exist and its absence is the defect this gate was written for. With none pending, no pull request
+ * was ever meant to exist and there is nothing to release — measured on the 4a49e7d8 run, where the
+ * gate failed a release whose own log said "No changesets found" and whose every package was
+ * already on npm.
+ *
+ * Checked here rather than by tightening the workflow's `if:` so the tool is correct on its own and
+ * cannot be re-broken by a condition edited in a file that does not sit beside these tests.
+ */
+export function hasPendingChangesets(entries) {
+  return entries.some((name) => name.endsWith(".md") && name !== "README.md");
+}
 
 /** The branch `changesets/action` opens its version pull request from. */
 export const VERSION_BRANCH = "changeset-release/main";
@@ -269,6 +290,23 @@ async function main() {
   if (jsonFlag !== -1) {
     const fixture = JSON.parse(readFileSync(process.argv[jsonFlag + 1], "utf8"));
     return report(mergeVerdict(fixture.mergeStateStatus ?? "UNKNOWN", fixture));
+  }
+
+  // Nothing pending, nothing to reach. A release that publishes nothing because there was nothing
+  // to publish is a successful no-op, and failing it would train a maintainer to read this gate's
+  // red as noise — which is the one outcome it cannot afford.
+  let changesetDir = [];
+  try {
+    changesetDir = readdirSync(join(ROOT, ".changeset"));
+  } catch {
+    // No `.changeset/` at all: also nothing to release, and reporting a missing directory as a
+    // stuck release would be the same mistake in a different shape.
+  }
+  if (!hasPendingChangesets(changesetDir)) {
+    console.log(
+      "[release-reachable] PASS — no changesets pending, so no version pull request was due.",
+    );
+    return 0;
   }
 
   // Wait for GitHub to decide before judging. Concluding while mergeability is still `UNKNOWN` is
