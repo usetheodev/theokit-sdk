@@ -98,6 +98,30 @@ than none, because it makes retention and recall confident about the wrong thing
 **Why the index is right as it is.** The index is a map from memory to file. Two lines for one file
 is a map that disagrees with itself, and the CLI reads that index.
 
+**What the entry is NAMED by changed, and it is worth knowing why.** The slug and the index title
+used to be the fact's whole sentence. They are now a short topic name — `MemoryFact` carries optional
+`title` and `description` so a writer can author them, and derives them when it does not. The
+derivation is mechanical on purpose and does not pretend to be authorship, the same rule this store
+applies to `kind`.
+
+**Two distinct facts that share a subject now coexist; they used to overwrite each other.** A topic
+slug is a lossy summary, and lossy summaries collide: `"fact A"`, `"fact B"` and `"fact C"` all
+derive `fact`. Naming by the whole sentence made collisions rare by accident; naming by subject made
+them ordinary. `resolveName` (`markdown-store.ts:280`) settles it by the only thing that can — the
+text: the same text keeps the same file and increments corroboration, different text takes
+`topic-2`. Found by the golden `multiple appends each get a file`, not by review — the failure was
+silent data loss, and nothing about the reasoning would have surfaced it.
+
+So the section heading stays true for what it describes, re-recording the *same* fact, and the case
+it never covered is now covered.
+
+That change closed #446, where a passphrase the model had just refused to store was written into the
+**filename** and the index line. The reason it works is that it is not a rule about secrets: a rule
+about secrets has to recognise one, and `redactSecrets` had already demonstrated it does not
+recognise `sirius-zzq417`. Naming the memory by its **subject** drops the tail of the sentence
+whatever the tail happens to be. Closed by construction, not by detection — which is the only kind
+of closure available when the dangerous input is indistinguishable from a safe one.
+
 **Why this is still a gap.** "The index names the current entry" and "the store keeps the
 supersession chain" are not in conflict — they are different files. The resolution, when it is
 built, is the index pointing at the current entry while the entry file carries its own chain. What
@@ -177,6 +201,7 @@ Each row says what would close it, not only that it is open — the two invite v
 | Quarantine marks but does not constrain | `memory-file.ts:96`, `memory-provider.ts:48` | Implemented: three states, and `[unconfirmed]` on entries the store counted once. **Measured against the real model and it does not close the hole** — a planted memory alone is acted on 5/5, and beside a corroborated contradiction it is still asserted ~62% of runs (n=32). Marking influences the model; it does not constrain it. The guarantee is not available at this layer: blocking an uncorroborated entry would break the promise that a fact written once is recallable next session. |
 | A planted memory can make the agent ACT | measured: `RELEASE_OVERRIDE.txt` created in 2 of 6 runs | Register the permission layer — `PermissionPlugin.create(new PermissionEngine(…))` — which blocks it every time. This is the half that IS closable at the tool boundary; the informational half above is not. Any deployment where the memory directory is writable by anything other than this agent needs it. |
 | `description` is written as a copy of the body | `markdown-store.ts:205-211` — the *reader* (`:174-177`) already handles a distinct description correctly | Stop writing one when nobody declared it. The role is a one-line recall aid; deriving it mechanically would be inferring the situation, which § 2's rule already forbids for `kind`. Absent is a valid state and the reader already falls back to the body. |
+| The topic-name deriver filters English function words only | `memory-file.ts:73` | A store in another language keeps that language's function words in the slug and the index title — `de`, `do`, `para` survive, so the name is longer and noisier. **Never lossy:** collisions are caught by `resolveName` comparing text, not by the stopword list. Real stores here are bilingual, so this is a partial parity, not a complete one. Closes with a per-language list, or by not needing one. |
 | The dream sweep never filters by kind before dedup | `dreaming/phases.ts:34` — `lightPhase` never reads `kind` | Partition by kind before `lightPhase`. Nothing is deleted today, but a consolidated note can blend two distinct entries, and the note is what search returns. |
 | The dream sweep does not update the index | `dreaming/run.ts:53-96` writes `notes/` and never syncs | An `IndexManager.sync` after `writeConsolidatedNotes`. |
 | Recall fires every turn, cached on query hash, not on store manifest | `internal/local-agent/local-agent-memory.ts:87`; `sdk-memory/internal/active-memory/active-memory-cache.ts:66` | A second skip condition beside the existing one — hash of the store manifest, so an unchanged store skips even when the question changes. The query cache is not wrong; it answers a different question. |
