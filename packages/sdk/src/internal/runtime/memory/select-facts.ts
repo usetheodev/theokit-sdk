@@ -1,5 +1,3 @@
-import type { MemoryFact } from "../../memory/types.js";
-
 /**
  * Selection for injection: rank the store and cut it, so what enters the prompt stops
  * tracking what is on disk.
@@ -23,6 +21,8 @@ import type { MemoryFact } from "../../memory/types.js";
  * worse than none." The same holds here. So undated facts get a guaranteed share of the
  * budget instead of a fabricated timestamp that buries them.
  */
+
+import type { MemoryFact } from "../../memory/types.js";
 
 /** Defaults are the session budget of the recall contract, not tuning knobs found by trial. */
 export const DEFAULT_MAX_ENTRIES = 10;
@@ -138,6 +138,36 @@ function relevance(fact: MemoryFact, queryTerms: Set<string>): number {
 const RRF_K = 60;
 
 /**
+ * Corroborated facts outrank uncorroborated ones at equal relevance.
+ *
+ * The deterministic half of what SOP-06-01 calls gating CONFIDENCE rather than presence. Marking
+ * the block `[unconfirmed]` puts the information in front of the model and leaves the decision to
+ * it — measured against a live model, that works when there is something to compare against and
+ * does NOT when the marked fact is the only candidate (5 of 5 runs asserted it as fact).
+ *
+ * Ordering does not depend on the model reading anything. When a corroborated fact and an
+ * uncorroborated one both answer the question, the corroborated one fills the budget first and
+ * the other is what gets cut when the budget runs out.
+ *
+ * It deliberately does NOT exclude. An uncorroborated fact alone in the store is still recalled,
+ * because "a fact written once is available in the next session" is the promise the whole system
+ * rests on. Confidence, not presence: the ordering expresses it, the marker states it, and
+ * neither blocks it.
+ *
+ * Unknown (absent count) sits between the two — the store cannot claim it was confirmed and
+ * cannot claim it was not.
+ */
+function corroborationRank(fact: MemoryFact): number {
+  if (fact.observations === undefined) return 1;
+  return fact.observations > 1 ? 2 : 0;
+}
+
+/** Stable: relevance order is preserved within each corroboration tier. */
+function sortByCorroboration(facts: readonly MemoryFact[]): MemoryFact[] {
+  return [...facts].sort((a, b) => corroborationRank(b) - corroborationRank(a));
+}
+
+/**
  * Facts that match the question come first; the rest fill whatever budget is left, by recency.
  *
  * The split is not a refinement of RRF — it corrects a real failure. Fusing one flat list at
@@ -159,6 +189,12 @@ function rankForQuery(facts: readonly MemoryFact[], queryTerms: Set<string>): Me
   const byRecency = [...matching].sort((a, b) =>
     (b.modified ?? "").localeCompare(a.modified ?? ""),
   );
+  // Corroboration is a THIRD ranked list inside the fusion, not a sort applied before it.
+  // The first version sorted by corroboration and then let RRF re-sort by relevance and recency,
+  // which discarded the ordering entirely — the code read as if it ranked by corroboration and
+  // measurably did not. RRF fuses orderings; anything that is not one of its inputs is not in
+  // the result.
+  const byCorroboration = sortByCorroboration(matching);
   const rank = new Map<MemoryFact, number>();
   const add = (list: readonly MemoryFact[]): void => {
     list.forEach((f, i) => {
@@ -167,6 +203,7 @@ function rankForQuery(facts: readonly MemoryFact[], queryTerms: Set<string>): Me
   };
   add(byRelevance);
   add(byRecency);
+  add(byCorroboration);
   const fused = [...matching].sort((a, b) => (rank.get(b) ?? 0) - (rank.get(a) ?? 0));
 
   return [...fused, ...rest.sort((a, b) => (b.modified ?? "").localeCompare(a.modified ?? ""))];

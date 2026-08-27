@@ -3,12 +3,6 @@ import { describe, expect, it } from "vitest";
 import { lightPhase } from "../src/internal/memory/dreaming/phases.js";
 import type { MemoryFact } from "../src/internal/memory/types.js";
 
-/**
- * ADR-14: atomic kinds are never merged. A sweep that deletes nothing still violates it when
- * deduplication runs across the whole store, because the cluster representative is what the
- * search index returns — the source survives and the read artefact conflates.
- */
-
 /** Deterministic stand-in: identical text embeds identically, so near-duplicates collide. */
 const embedding = {
   embed: (texts: readonly string[]): Promise<number[][]> =>
@@ -26,6 +20,11 @@ const fact = (text: string, kind?: string): MemoryFact =>
   ({ text, ...(kind === undefined ? {} : { kind }) }) as MemoryFact;
 
 describe("dreaming dedup respects the ADR-14 buckets", () => {
+  /**
+   * ADR-14: atomic kinds are never merged. A sweep that deletes nothing still violates it when
+   * deduplication runs across the whole store, because the cluster representative is what the
+   * search index returns — the source survives and the read artefact conflates.
+   */
   it("never drops one of two near-identical feedback entries", async () => {
     // Two corrections a user gave on different days. They read alike. They are not the same
     // correction, and losing either from the clustering input loses what the user said.

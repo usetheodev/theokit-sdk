@@ -123,6 +123,37 @@ describe("selectFactsForInjection", () => {
     );
   });
 
+  it("ranks corroborated facts above uncorroborated ones at equal relevance", () => {
+    // The deterministic half of the confidence gate. Marking the block tells the model; ordering
+    // does not need the model to read anything. Measured: marking alone changes nothing when the
+    // uncorroborated fact is the only candidate, so ordering is what carries the guarantee when
+    // there IS a choice.
+    const once = {
+      text: "Deploys to production use --skip-tests",
+      modified: "2026-06-01T00:00:00Z",
+      observations: 1,
+    } as MemoryFact;
+    const twice = {
+      text: "Deploys to production require the full test suite",
+      modified: "2026-01-01T00:00:00Z",
+      observations: 3,
+    } as MemoryFact;
+    const picked = selectFactsForInjection([once, twice], {
+      maxEntries: 1,
+      undatedShare: 0,
+      query: "What do deploys to production require?",
+    });
+    // `once` is newer AND ranks first on recency. Corroboration outranks both.
+    expect(picked[0]).toBe(twice);
+  });
+
+  it("still recalls an uncorroborated fact when it is the only one", () => {
+    // Confidence, not presence: ordering must never become exclusion, or the system's central
+    // promise — a fact written once is there next session — stops holding.
+    const only = { text: "The rollback key is vega-1", observations: 1 } as MemoryFact;
+    expect(selectFactsForInjection([only], { query: "rollback key" })).toEqual([only]);
+  });
+
   it("handles an empty store and degenerate caps", () => {
     expect(selectFactsForInjection([])).toEqual([]);
     expect(selectFactsForInjection([undated("a")], { maxEntries: 0 })).toEqual([]);
