@@ -47,28 +47,22 @@ jobs:
           # later step, or any tool that reads the config, act as this repository.
           persist-credentials: false
 
-      - name: Enable Corepack + pin pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@9.15.0 --activate
-
-      - name: Setup Node ${{ matrix.node-version }}
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      # The install spine — Node, the package manager this repository DECLARES, a cache keyed
+      # so it cannot outlive that manager, and a frozen install.
+      #
+      # This replaces `corepack prepare pnpm@9.15.0`, which was pinned here while package.json
+      # declared 10.34.1. Nothing failed: both majors read lockfileVersion 9.0 and simply
+      # resolved differently — in hoisting, in which build scripts run, in the store layout.
+      # Every gate in this repository was green about a tree no contributor had
+      # (usetheokit/theokit-sdk#415). The action passes no version at all; it reads the
+      # manifest, so there is no second place to forget.
+      #
+      # @v1 is a moving major and the blanket SHA-pinning policy is suppressed for it: that
+      # policy defends against a THIRD PARTY moving a ref under us, and this is the same
+      # organisation. What the action RUNS stays pinned — every action inside it by digest.
+      - uses: usetheokit/shared-workflows/actions/setup@v1 # zizmor: ignore[unpinned-uses]
         with:
           node-version: ${{ matrix.node-version }}
-          cache: pnpm
-          # The cache key must change when the package manager does. setup-node keys the
-          # pnpm store on the lockfile alone, so a pnpm 9 -> 10 bump leaves the key
-          # identical and the job restores a store the new pnpm reads as inconsistent —
-          # `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE`, on a package the lockfile does list.
-          # package.json carries `packageManager`, so including it ties the cache to the
-          # pnpm that wrote it.
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            package.json
-
-      - name: Install (frozen lockfile)
-        run: pnpm install --frozen-lockfile
 
       - name: Biome check
         run: pnpm check
@@ -250,28 +244,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Enable Corepack + pin pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@9.15.0 --activate
-
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-          # The cache key must change when the package manager does. setup-node keys the
-          # pnpm store on the lockfile alone, so a pnpm 9 -> 10 bump leaves the key
-          # identical and the job restores a store the new pnpm reads as inconsistent —
-          # `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE`, on a package the lockfile does list.
-          # package.json carries `packageManager`, so including it ties the cache to the
-          # pnpm that wrote it.
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            package.json
-
-      - name: Install (frozen lockfile)
-        run: pnpm install --frozen-lockfile
+      # The install spine — see the note in the `validate` job above: this replaced
+      # `corepack prepare pnpm@9.15.0`, pinned while package.json declared 10.34.1
+      # (usetheokit/theokit-sdk#415). The action reads the manifest instead of taking a
+      # version, so there is no second place to forget.
+      - uses: usetheokit/shared-workflows/actions/setup@v1 # zizmor: ignore[unpinned-uses]
 
       # B-139: this job ran the sdk suite against an UNBUILT tree. The suite includes
       # `tests/sdk-2-0-npm-publish-readiness.test.ts`, which asserts every extracted package

@@ -47,27 +47,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Enable Corepack + pin pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@9.15.0 --activate
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-          # The cache key must change when the package manager does. setup-node keys the
-          # pnpm store on the lockfile alone, so a pnpm 9 -> 10 bump leaves the key
-          # identical and the job restores a store the new pnpm reads as inconsistent —
-          # `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE`, on a package the lockfile does list.
-          # package.json carries `packageManager`, so including it ties the cache to the
-          # pnpm that wrote it.
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            package.json
-
-      - name: Install (frozen lockfile)
-        run: pnpm install --frozen-lockfile
+      # The install spine. This replaced `corepack prepare pnpm@9.15.0`, pinned here while
+      # package.json declared 10.34.1 — every gate in this repository was green about a tree
+      # no contributor had (usetheokit/theokit-sdk#415). The action reads the manifest rather
+      # than taking a version, so there is no second place to forget.
+      - uses: usetheokit/shared-workflows/actions/setup@v1 # zizmor: ignore[unpinned-uses]
 
       - name: Rebuild native bindings (better-sqlite3 ABI guard)
         run: pnpm rebuild better-sqlite3 || echo "::warning::native rebuild failed — preflight will surface details at test time"

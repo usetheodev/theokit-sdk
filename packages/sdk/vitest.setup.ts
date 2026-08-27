@@ -37,7 +37,7 @@
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach } from "vitest";
@@ -118,6 +118,27 @@ beforeEach(async (ctx) => {
   // needs HOME and THEOKIT_HOME to diverge, and one sandbox root per test is
   // simpler to reason about than two.
   process.env.HOME = tempHome;
+  // …but NOT corepack's package-manager cache. That cache lives under `$HOME/.cache/node/corepack`,
+  // so redirecting HOME hides it, and any test that spawns `pnpm` gets a corepack with nothing
+  // cached — which sends it to the network to resolve `packageManager`, where Node 22.12.0's
+  // bundled npm-registry signing key no longer matches the one npm signs with:
+  //
+  //   Error: Cannot find matching keyid … at fetchLatestStableVersion
+  //
+  // Measured 2026-08-26 against `tests/publish-workspace-guard.test.ts`, which packs a real package
+  // with the real `pnpm` on purpose (pnpm is the tool under test there and cannot be pinned). It
+  // failed only under the parallel run and passed alone, which read as flakiness and was not.
+  //
+  // The isolation above exists so the SDK cannot write to the developer's real home. A downloaded
+  // package manager is not SDK state, so losing it was collateral rather than intent — this points
+  // corepack back at the real cache without giving anything else the real HOME. An operator who
+  // already set `COREPACK_HOME` keeps their value.
+  process.env.COREPACK_HOME ??= join(
+    backupByTask.get(ctx.task.id)?.originalHome ?? homedir(),
+    ".cache",
+    "node",
+    "corepack",
+  );
   // Secret-redaction EC-3: clear user-added patterns + force ON.
   _resetForTests({ enabled: true, clearExtras: true });
   // B-117: process-wide agent registry Map does not follow THEOKIT_HOME — reset it too.

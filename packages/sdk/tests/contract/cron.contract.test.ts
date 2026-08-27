@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { Cron } from "../../src/index.js";
+import { Agent, Cron } from "../../src/index.js";
 import cloudJobGolden from "../golden/cron/cloud-job.json";
 import localJobGolden from "../golden/cron/local-job.json";
 import { normalizeForGolden } from "../helpers/normalize.js";
@@ -93,11 +93,32 @@ describe("Cron contract", () => {
     );
   });
 
+  // The agent is REGISTERED here, and that is the whole correction. This case used to schedule
+  // against a fabricated `agent-0000…0001` that no agent ever had, then assert that running it
+  // resolved — which contradicts a deliberate guard in `runWithExistingAgent`: an `agentId` target
+  // means "run THAT agent", and an id nobody registered has no agent to run. The guard's message
+  // says so specifically, and it is the defensible half of the disagreement.
+  //
+  // So the manual-run contract was never actually exercised: the case asserted that running a
+  // phantom worked, and failed for the right reason. It now creates a real agent and runs it.
+  //
+  // Worth recording separately: `Cron.create` accepts an `agentId` it never validates — it only
+  // reads the prefix to route local vs cloud — so an id that can never run is accepted at
+  // scheduling time and surfaces when the job fires. That asymmetry is a real finding and NOT
+  // fixed here; validating at create would be a behaviour change for anyone scheduling against an
+  // agent they register later.
   it("disable, enable, delete, and manual run expose stable job/run contracts", async () => {
+    workspace = await createTempWorkspace("simple-node-project");
+    const agent = await Agent.create({
+      model: { id: "anthropic/claude-sonnet-4-6" },
+      apiKey: "theo_test_contract_key",
+      local: { cwd: workspace.cwd },
+    });
+
     const job = await Cron.create({
       cron: "@daily",
       message: "Run manually",
-      agentId: "agent-00000000-0000-4000-8000-000000000001",
+      agentId: agent.agentId,
       apiKey: "theo_test_contract_key",
     });
 
