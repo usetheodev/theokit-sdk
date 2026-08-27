@@ -27,6 +27,7 @@ import {
   memoryDir,
   memoryMdPath,
   migrateLegacyJson,
+  readFactsFromMarkdown,
   resetMigrationStateForTests,
 } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -73,10 +74,17 @@ describe("sdk-memory migration (iter 63)", () => {
       expect(result.migrated).toBe(true);
       expect(result.factCount).toBe(2);
 
-      // MEMORY.md exists + has both facts.
-      const raw = await readFile(memoryMdPath(cwd), "utf8");
-      expect(raw).toContain("- first");
-      expect(raw).toContain("- second");
+      // Both facts survive the migration and are readable afterwards. The assertion used to be
+      // that `MEMORY.md` contained `- first` — the bullet layout that predates #389. What a
+      // migration owes its caller is that nothing recorded was lost, not the shape it lands in,
+      // and pinning the shape is what let this file keep passing while the store moved on (#430).
+      const migrated = (await readFactsFromMarkdown(cwd)).map((f) => f.text);
+      expect(migrated).toContain("first");
+      expect(migrated).toContain("second");
+      // The index the reader starts from has to name them, or the files are orphans.
+      const index = await readFile(memoryMdPath(cwd), "utf8");
+      expect(index).toContain("first.md");
+      expect(index).toContain("second.md");
 
       // Legacy JSON was unlinked.
       await expect(access(jsonPath)).rejects.toThrow();
