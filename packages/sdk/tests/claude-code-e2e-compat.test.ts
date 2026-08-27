@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -157,8 +164,54 @@ describe("a real Claude Code project, read end to end", () => {
     expect(facts.map((f) => f.text).join(" ")).toContain("E2E-MEMORY");
   });
 
-  it("test_the_project_never_needed_a_theokit_directory", () => {
-    expect(existsSync(join(cwd, ".theokit"))).toBe(false);
+  /*
+   * What "no `.theokit` needed" actually means (#439).
+   *
+   * This used to be one assertion against the shared `cwd`, and it passed only because it was
+   * DECLARED before the two cases that run an agent there. Shuffled, it failed on 3 of 5 seeds —
+   * `rules/testing.md` § 6 calls that a bug, and the guarantee it was defending is one of the
+   * central claims of the compatibility work, so it was defending it by accident.
+   *
+   * The guarantee is narrower than the old name suggested, and worth writing as it is: READING a
+   * Claude Code project creates nothing. Running an agent creates `.theokit/`, and what appears
+   * there is this SDK's own state — the agent registry and the memory SQLite index — not Claude
+   * Code format. The index stays in the project even when the facts go to the CLI's directory,
+   * deliberately: the CLI has no index format for it to go to.
+   *
+   * Each case gets its own `cwd` so neither can decide the other's result.
+   */
+  it("test_reading_a_cli_project_creates_nothing_in_it", async () => {
+    const readOnly = mkdtempSync(join(tmpdir(), "cc-e2e-read-"));
+    mkdirSync(join(readOnly, ".claude", "agents"), { recursive: true });
+    writeFileSync(
+      join(readOnly, ".claude", "agents", "solo.md"),
+      "---\nname: solo\ndescription: only agent.\n---\nBody.\n",
+    );
+    writeFileSync(join(readOnly, "CLAUDE.md"), "# Project\n\nRead me.\n");
+
+    await loadSubagents(readOnly, true, undefined);
+    await runDiscovery({ cwd: readOnly, specs: DEFAULT_DISCOVERY_SPECS, maxBytesPerFile: 200_000 });
+    await readFactsFromMarkdown(readOnly);
+
+    expect(existsSync(join(readOnly, ".theokit"))).toBe(false);
+  });
+
+  // The counterpart, and the reason the case above is not vacuous: running an agent DOES create the
+  // directory. Asserting only the first half would let "creates nothing, ever" pass unchallenged.
+  it("test_running_an_agent_creates_theokit_and_only_sdk_state_in_it", async () => {
+    const ran = mkdtempSync(join(tmpdir(), "cc-e2e-ran-"));
+    const { Agent } = await import("../src/index.js");
+    const agent = await Agent.create({
+      model: { id: "anthropic/claude-sonnet-4-6" },
+      apiKey: "theo_test_e2e",
+      local: { cwd: ran, sessionDir: claudeHome },
+      memory: { enabled: true },
+    });
+    await agent.send("hello");
+
+    expect(existsSync(join(ran, ".theokit"))).toBe(true);
+    // Only this SDK's own state — nothing here is a Claude Code shape the CLI would try to read.
+    expect(readdirSync(join(ran, ".theokit")).sort()).toEqual(["agents", "memory"]);
   });
 
   // The other direction, and the one the scope named: a memory this SDK records has to land where
