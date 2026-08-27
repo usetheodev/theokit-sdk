@@ -13,7 +13,7 @@
  * Imperative phrasing is NOT a threat pattern here. "Never force-push", "always publish to an
  * Artifact", "must run the project's own test command" — these are what the `feedback` kind is
  * FOR. Measured against the real corpus on this machine (26,471 lines across every project's
- * store), 1,083 lines carry always/never/must/sempre/nunca, and the sampled ones are all
+ * store), 1,083 lines carry always/never/must and their equivalents, and the sampled ones are all
  * legitimate user preferences. A scanner keyed on bossy phrasing would reject roughly one line
  * in twenty-four of what users actually store, which is not a security control — it is an
  * outage with a security justification attached.

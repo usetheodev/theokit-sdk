@@ -6,8 +6,9 @@ import { ConfigurationError } from "../../../errors.js";
 import { replaceFileAtomic } from "../../persistence/atomic-write.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
 import { encodeProjectDir } from "../../persistence/session-transcript.js";
+import { safeFilenameForId } from "../../security/path-guard.js";
 import { MEMORY_KINDS, type MemoryConfig, type MemoryFact, redactSecrets } from "../types.js";
-import { parseMemoryFile, renderMemoryFile, slugForFact } from "./memory-file.js";
+import { parseMemoryFile, renderMemoryFile, slugForFact, titleForFact } from "./memory-file.js";
 import { scanForThreats } from "./threat-scan.js";
 
 /**
@@ -37,9 +38,15 @@ import { scanForThreats } from "./threat-scan.js";
  * @internal
  */
 
-const MEMORY_MD_HEADER =
-  "# Memory\n\n> Auto-managed by @theokit/sdk. Edit freely — the SDK reads from here.\n";
+/**
+ * The index header the interop partner writes. Measured over its real stores rather than chosen:
+ * `# Memory Index`, and nothing else. The previous header said "# Memory" plus a line announcing
+ * which tool manages the file — accurate, and a divergence in the one file both tools append to.
+ */
+const MEMORY_MD_HEADER = "# Memory Index\n";
 const FACTS_HEADING = "## Facts";
+/** How many `topic-N` variants to try before falling back to a name derived from the whole text. */
+const MAX_NAME_VARIANTS = 50;
 
 /**
  * The memory root for a workspace: `<cwd>/.theokit/memory`. Every other path here derives from it,
@@ -105,6 +112,28 @@ export function notesDir(cwd: string): string {
 }
 
 /**
+ * Filenames in the order they were written, as far as a name can say.
+ *
+ * Plain string order gets disambiguated names backwards: `-` sorts before `.`, so `topic-2.md`
+ * would precede `topic.md`. Comparing the base first and the variant number second restores it.
+ *
+ * This is the TIE-BREAK, not the ordering. Entries are read in this order and then stable-sorted
+ * by `modified`, so the recorded time decides and equal timestamps fall back here. Timestamps do
+ * collide: three appends in one test land within nine milliseconds, and a faster disk closes that
+ * gap entirely.
+ */
+function byNaturalName(a: string, b: string): number {
+  const split = (f: string): [string, number] => {
+    const stem = f.replace(/\.md$/, "");
+    const m = /^(.*?)-(\d+)$/.exec(stem);
+    return m === null ? [stem, 0] : [m[1] as string, Number(m[2])];
+  };
+  const [baseA, nA] = split(a);
+  const [baseB, nB] = split(b);
+  return baseA === baseB ? nA - nB : baseA.localeCompare(baseB);
+}
+
+/**
  * Every memory in the store: the per-memory files, plus any legacy `## Facts` bullets still in
  * `MEMORY.md`. Returns `[]` when the directory does not exist.
  *
@@ -133,10 +162,22 @@ export async function readFactsFromMarkdown(
     } catch {
       continue;
     }
-    for (const entry of entries.sort()) {
+    // Read order is chronological, not alphabetical. Filename order used to approximate insertion
+    // order because a name WAS the entry; once colliding names get a `-2` suffix that stops being
+    // true — `fact-2.md` sorts before `fact.md` — and three appends came back as B, C, A. The
+    // store already stamps `modified` on every write, so the order is recorded; it just was not
+    // being read.
+    //
+    // Undated entries keep their filename order and come first. They carry no time signal, and
+    // inventing one for them is the inference this codebase refuses one field over.
+    const inDir: MemoryFact[] = [];
+    for (const entry of entries.sort(byNaturalName)) {
       const fact = await readMemoryFileIn(dir, entry);
-      if (fact !== undefined) facts.push(fact);
+      if (fact !== undefined) inDir.push(fact);
     }
+    // Stable: equal timestamps keep the natural-name order the read used.
+    inDir.sort((a, b) => (a.modified ?? "").localeCompare(b.modified ?? ""));
+    facts.push(...inDir);
   }
 
   try {
@@ -181,6 +222,40 @@ async function readMemoryFileIn(dir: string, entry: string): Promise<MemoryFact 
 }
 
 /**
+ * The two boundary refusals a write must survive, kept together and out of the writer.
+ *
+ * Both refuse rather than repair, for the same reason: a kind outside the four and a malformed
+ * entry would both be written to a file that recall later trusts.
+ */
+function assertWritable(fact: MemoryFact, text: string): void {
+  if (fact.kind !== undefined && !MEMORY_KINDS.includes(fact.kind)) {
+    throw new ConfigurationError(
+      `Unknown memory fact kind "${fact.kind}". Expected one of: ${MEMORY_KINDS.join(", ")}.`,
+      { code: "invalid_memory_kind" },
+    );
+  }
+  // Scan AFTER redaction and BEFORE persistence (SOP-06-05 step 1). After, so a redacted
+  // secret cannot look like an encoded payload; before, because an entry that reaches disk is
+  // recalled in every session afterwards.
+  //
+  // What this closes, stated so nobody cites it for more: the MALFORMED-ENTRY class,
+  // completely — injection framing, role reassignment, invisible characters, encoded blobs.
+  // It closes NONE of the class that was actually measured end to end. Both planted entries
+  // from that run pass this scanner, the executive one included, and `threat-scan.ts` pins
+  // that in tests rather than in a comment. Execution is answered at the tool boundary by the
+  // permission engine; this is not a second line of defence for it.
+  const threat = scanForThreats(text);
+  if (threat !== undefined) {
+    throw new ConfigurationError(
+      `Refusing to write a memory entry that ${threat.why}: ${threat.excerpt}`,
+      { code: "memory_threat_rejected" },
+    );
+  }
+  // Name the memory after its SUBJECT, and let the caller override. The interop partner names
+  // files this way, and it is also what keeps a payload out of the most-exposed field (#446).
+}
+
+/**
  * Write a fact as its own memory file and point the `MEMORY.md` index at it. Atomic + serialized.
  *
  * `modified` is stamped HERE and never read from `fact`: a timestamp a caller can set is a
@@ -192,40 +267,19 @@ export function appendFactToMarkdown(
   targetDir: string = memoryDir(cwd),
 ): Promise<void> {
   return withCwdMutex(targetDir, async () => {
-    // Validate at the boundary (`error-handling.md` § 2): a kind outside the four would be written
-    // to a file recall later trusts, so it is refused here rather than stored and believed.
-    if (fact.kind !== undefined && !MEMORY_KINDS.includes(fact.kind)) {
-      throw new ConfigurationError(
-        `Unknown memory fact kind "${fact.kind}". Expected one of: ${MEMORY_KINDS.join(", ")}.`,
-        { code: "invalid_memory_kind" },
-      );
-    }
     const text = redactSecrets(fact.text);
-    // Scan AFTER redaction and BEFORE persistence (SOP-06-05 step 1). After, so a redacted
-    // secret cannot look like an encoded payload; before, because an entry that reaches disk is
-    // recalled in every session afterwards.
-    //
-    // What this closes, stated so nobody cites it for more: the MALFORMED-ENTRY class,
-    // completely — injection framing, role reassignment, invisible characters, encoded blobs.
-    // It closes NONE of the class that was actually measured end to end. Both planted entries
-    // from that run pass this scanner, the executive one included, and `threat-scan.ts` pins
-    // that in tests rather than in a comment. Execution is answered at the tool boundary by the
-    // permission engine; this is not a second line of defence for it.
-    const threat = scanForThreats(text);
-    if (threat !== undefined) {
-      throw new ConfigurationError(
-        `Refusing to write a memory entry that ${threat.why}: ${threat.excerpt}`,
-        { code: "memory_threat_rejected" },
-      );
-    }
-    const name = slugForFact(text);
+    assertWritable(fact, text);
+    const title = fact.title?.trim() ?? titleForFact(text);
+    const base = fact.title !== undefined ? slugForFact(fact.title) : slugForFact(text);
     await mkdir(targetDir, { recursive: true });
+    const name = await resolveName(targetDir, base, text);
+    const description = fact.description?.trim() ?? text;
     const observations = await nextObservationCount(targetDir, name, text);
     await replaceFileAtomic(
       join(targetDir, `${name}.md`),
       renderMemoryFile({
         name,
-        description: text,
+        description,
         ...(fact.kind !== undefined ? { kind: fact.kind } : {}),
         modified: new Date().toISOString(),
         observations,
@@ -234,8 +288,46 @@ export function appendFactToMarkdown(
     );
     // The index lives BESIDE the files it lists. A `MEMORY.md` in one directory pointing at
     // memories in another names files that are not there — and the CLI reads that index.
-    await replaceFileAtomic(join(targetDir, "MEMORY.md"), await nextIndex(targetDir, text, name));
+    await replaceFileAtomic(
+      join(targetDir, "MEMORY.md"),
+      await nextIndex(targetDir, description, name, title),
+    );
   });
+}
+
+/**
+ * The filename this text should occupy: the topic name, or the first free variant of it.
+ *
+ * A topic slug is a LOSSY summary, and lossy summaries collide. `fact A`, `fact B` and `fact C`
+ * all reduce to `fact`; before this guard existed they reduced to the same FILE, and the third
+ * write silently destroyed the first two. Naming memories after their subject is right, and it
+ * makes collisions ordinary rather than rare — so the guard is not optional, it is the other half
+ * of the change.
+ *
+ * Same text on the same name is NOT a collision: it is the second observation of one fact, and
+ * returning the same name is what lets the corroboration count increment. Only DIFFERENT text
+ * moves aside.
+ *
+ * Losing a memory is the worst outcome this store has. Between overwriting a distinct entry and
+ * writing `topic-2.md`, the ugly name wins every time.
+ */
+async function resolveName(dir: string, base: string, text: string): Promise<string> {
+  const wanted = normalizeFactText(text);
+  for (let i = 1; i <= MAX_NAME_VARIANTS; i += 1) {
+    const candidate = i === 1 ? base : `${base}-${i}`;
+    let existing: string;
+    try {
+      existing = await readFile(join(dir, `${candidate}.md`), "utf8");
+    } catch {
+      return candidate; // free
+    }
+    const parsed = parseMemoryFile(existing);
+    if (parsed === undefined) return candidate; // not a memory; the writer owns the name
+    if (normalizeFactText(parsed.body) === wanted) return candidate; // same fact — corroborate
+  }
+  // Every variant taken by a different fact. Fall back to a name derived from the whole text,
+  // which is unique where the topic name is not.
+  return slugForFact(text) === base ? safeFilenameForId(text) : slugForFact(text);
 }
 
 /**
@@ -285,7 +377,7 @@ function normalizeFactText(text: string): string {
  * Rewriting the same memory replaces its line rather than adding a second: the index is a map from
  * memory to file, and two lines for one file is a map that disagrees with itself.
  */
-async function nextIndex(dir: string, text: string, name: string): Promise<string> {
+async function nextIndex(dir: string, text: string, name: string, title: string): Promise<string> {
   let existing = "";
   try {
     // The index in the directory being WRITTEN, not the project one — see the caller.
@@ -293,17 +385,36 @@ async function nextIndex(dir: string, text: string, name: string): Promise<strin
   } catch {
     existing = "";
   }
-  const entry = `- [${text}](${name}.md)`;
+  // `- [Title](slug.md) — hook`, the shape the interop partner writes in 644 of its 673 index
+  // lines. The link carries the concept and the dash carries the detail; putting the whole entry
+  // in the link made every line as long as the memory itself.
+  const hook = text.replace(/\s+/g, " ").trim();
+  const entry =
+    hook.length > 0 && hook !== title
+      ? `- [${title}](${name}.md) — ${hook}`
+      : `- [${title}](${name}.md)`;
   const kept = existing
     .split("\n")
     .filter((line) => !line.startsWith(`- [`) || !line.includes(`](${name}.md)`));
   const body = kept.join("\n").trimEnd();
-  const head = body.length > 0 ? body : MEMORY_MD_HEADER.trimEnd();
+  // The partner's index is `# Memory Index`, a blank line, then the entries. `trimEnd()` on the
+  // header collapsed that blank line and made the first entry hug the heading.
+  const head = body.length > 0 ? body : MEMORY_MD_HEADER;
   return `${head}\n${entry}\n`;
 }
 
-/** A `MEMORY.md` index entry: a link whose target is a sibling `.md` file. */
-const INDEX_ENTRY = /^\[[^\]]*\]\([^)]+\.md\)$/;
+/**
+ * A `MEMORY.md` index entry: a link to a sibling `.md` file, optionally followed by the ` — hook`
+ * the index carries after the link.
+ *
+ * The optional tail is not cosmetic. This pattern was anchored immediately after `)`, which
+ * encoded an assumption that an index line ENDS at its link — true until the line gained a hook.
+ * With the anchor unchanged, every index line stopped being recognised as a pointer and was
+ * recalled as a memory of its own: the agent would read `[New memory](new-memory.md) — a new
+ * memory` as a fact, alongside the real one. A filter that silently stops matching does not fail
+ * loudly; it just starts letting things through.
+ */
+const INDEX_ENTRY = /^\[[^\]]*\]\([^)]+\.md\)(?:\s+—\s.*)?$/;
 
 /**
  * Facts from a legacy `## Facts` section — the shape every released version wrote.

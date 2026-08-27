@@ -60,7 +60,7 @@ describe("scanForThreats — the legitimate half", () => {
     "Paulo never wants a force-push on a shared branch.",
     "Always publish the explanation to an Artifact, never only in the terminal.",
     "Results MUST come from the project's own test command.",
-    "Nunca versionar `.claude/` — é ambiente pessoal, não faz parte do produto.",
+    "Never version the tooling directory; it is a personal environment, not the product.",
   ])("accepts imperative user preferences: %s", (text) => {
     expect(scanForThreats(text)).toBeUndefined();
   });

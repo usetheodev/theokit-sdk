@@ -36,7 +36,7 @@ describe("memory corroboration counting", () => {
     // counted (written before this existed, or by hand); 1 means it counted and got one. Only
     // the second earns the [unconfirmed] marker, which is what keeps the marker meaningful.
     await appendFact(cwd, cfg, { text: "The billing service runs on port 8080" });
-    expect(await memFileFor("the-billing-service")).toContain("observations: 1");
+    expect(await memFileFor("billing-service")).toContain("observations: 1");
   });
 
   it("a fact with no count is UNKNOWN, not uncorroborated", async () => {
@@ -52,7 +52,7 @@ describe("memory corroboration counting", () => {
   it("recording the SAME fact again counts as a second observation", async () => {
     await appendFact(cwd, cfg, { text: "The billing service runs on port 8080" });
     await appendFact(cwd, cfg, { text: "The billing service runs on port 8080" });
-    expect(await memFileFor("the-billing-service")).toContain("observations: 2");
+    expect(await memFileFor("billing-service")).toContain("observations: 2");
   });
 
   it("treats trivial punctuation and case differences as the same observation", async () => {
@@ -61,17 +61,33 @@ describe("memory corroboration counting", () => {
     expect(await memFileFor("deploys-need-review")).toContain("observations: 2");
   });
 
-  it("a REWRITE under the same slug starts over at one", async () => {
-    // The failure mode this guards: `slugForFact` truncates at 64 chars, so two different facts
-    // sharing a long prefix land on one filename. Counting by filename would corroborate a fact
-    // that was never observed twice.
+  it("two different facts sharing a name are both kept, and neither is corroborated", async () => {
+    // The failure mode this guards has not changed: a name is a LOSSY summary, so two different
+    // facts land on one filename, and counting by filename would corroborate a fact that was
+    // never observed twice. What changed is the remedy. The name used to be the whole entry and
+    // the second write overwrote the first — no false corroboration, but the earlier memory was
+    // destroyed to get it. Naming a memory after its subject makes such collisions ordinary
+    // rather than rare, so the second fact now moves aside instead.
     const prefix = "The deployment runbook for the atlas production cluster says that ";
     await appendFact(cwd, cfg, { text: `${prefix}reviews are required` });
     await appendFact(cwd, cfg, { text: `${prefix}reviews are optional` });
-    const body = await memFileFor("the-deployment-runbook");
-    expect(body).toContain("observations: 1");
-    expect(body).not.toContain("observations: 2");
-    expect(body).toContain("reviews are optional");
+
+    const { readdir } = await import("node:fs/promises");
+    const files = (await readdir(join(cwd, ".theokit", "memory"))).filter(
+      (n) => n.endsWith(".md") && n !== "MEMORY.md",
+    );
+
+    // Both survive: losing a memory is the worse outcome, and an ugly name is the price.
+    expect(files).toHaveLength(2);
+    // Read each file directly: `memFileFor` matches by PREFIX, and `deployment-runbook-atlas` is
+    // a prefix of `deployment-runbook-atlas-2`, so both lookups returned the same file.
+    const bodies = await Promise.all(
+      files.map((f) => readFile(join(cwd, ".theokit", "memory", f), "utf8")),
+    );
+    expect(bodies.some((b) => b.includes("reviews are required"))).toBe(true);
+    expect(bodies.some((b) => b.includes("reviews are optional"))).toBe(true);
+    // And neither inherited the other's count.
+    for (const b of bodies) expect(b).toContain("observations: 1");
   });
 
   it("a third identical observation keeps counting", async () => {

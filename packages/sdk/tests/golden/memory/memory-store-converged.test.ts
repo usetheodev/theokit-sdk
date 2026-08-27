@@ -37,10 +37,10 @@ const files = (): string[] => readdirSync(memoryDir(cwd)).sort();
 it("writes one file per memory, in the shape the Claude Code CLI reads", async () => {
   await appendFactToMarkdown(cwd, { text: "the user prefers pnpm over npm", kind: "user" });
 
-  expect(files()).toContain("the-user-prefers-pnpm-over-npm.md");
-  const raw = readFileSync(join(memoryDir(cwd), "the-user-prefers-pnpm-over-npm.md"), "utf8");
+  expect(files()).toContain("user-prefers-pnpm-npm.md");
+  const raw = readFileSync(join(memoryDir(cwd), "user-prefers-pnpm-npm.md"), "utf8");
   expect(raw).toMatch(/^---\n/);
-  expect(raw).toContain("name: the-user-prefers-pnpm-over-npm");
+  expect(raw).toContain("name: user-prefers-pnpm-npm");
   expect(raw).toContain("metadata:");
   expect(raw).toContain("  type: user");
   expect(raw).toMatch(/ {2}modified: \d{4}-\d{2}-\d{2}T/);
@@ -50,7 +50,8 @@ it("keeps MEMORY.md as an index that points at the files", async () => {
   await appendFactToMarkdown(cwd, { text: "billing runs on the 1st", kind: "project" });
 
   const index = readFileSync(memoryMdPath(cwd), "utf8");
-  expect(index).toContain("[billing runs on the 1st](billing-runs-on-the-1st.md)");
+  // `- [Title](slug.md) — hook`, the interop partner's index shape.
+  expect(index).toContain("[Billing runs 1st](billing-runs-1st.md) — billing runs on the 1st");
   // The index is a pointer list, not the facts themselves — that is what makes it an index.
   expect(index).not.toContain("<!--");
 });
@@ -95,7 +96,7 @@ it("reads legacy bullets and new files together", async () => {
 it("writes an untyped fact without inventing a kind for it", async () => {
   await appendFactToMarkdown(cwd, { text: "no kind given" });
 
-  const raw = readFileSync(join(memoryDir(cwd), "no-kind-given.md"), "utf8");
+  const raw = readFileSync(join(memoryDir(cwd), "kind-given.md"), "utf8");
   // `node_type: memory` legitimately contains the substring "type:", so the assertion is on the
   // nested KIND key specifically.
   expect(raw).not.toMatch(/\n {2}type:/);

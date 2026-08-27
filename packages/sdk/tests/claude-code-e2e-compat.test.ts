@@ -227,10 +227,10 @@ describe("a real Claude Code project, read end to end", () => {
     await agent.send("Remember (feedback): shared with the cli");
 
     const cliMemory = join(claudeHome, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"), "memory");
-    const written = readFileSync(join(cliMemory, "shared-with-the-cli.md"), "utf8");
+    const written = readFileSync(join(cliMemory, "shared-cli.md"), "utf8");
     expect(written).toContain("type: feedback");
     // The index the CLI reads has to name it, and has to sit beside it.
-    expect(readFileSync(join(cliMemory, "MEMORY.md"), "utf8")).toContain("shared-with-the-cli.md");
+    expect(readFileSync(join(cliMemory, "MEMORY.md"), "utf8")).toContain("shared-cli.md");
   });
 
   it("test_without_a_session_dir_nothing_moves", async () => {
