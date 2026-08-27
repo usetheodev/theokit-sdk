@@ -92,6 +92,8 @@ const targets = [
   join(DIST, "internal", "persistence"),
   // theokit#160: the embedding runtime shared with @theokit/sdk-memory.
   join(DIST, "internal", "memory", "adapters"),
+  // #430: the markdown memory store shared with @theokit/sdk-memory, for the same reason.
+  join(DIST, "internal", "memory", "storage"),
   join(DIST, "internal", "plugins"),
   join(DIST, "internal", "observability"),
   join(DIST, "internal", "security"),

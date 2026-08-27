@@ -288,6 +288,16 @@
         "default": "./dist/internal/memory/adapters/index.cjs"
       }
     },
+    "./internal/memory-store": {
+      "import": {
+        "types": "./dist/internal/memory/storage/index.d.ts",
+        "default": "./dist/internal/memory/storage/index.js"
+      },
+      "require": {
+        "types": "./dist/internal/memory/storage/index.d.cts",
+        "default": "./dist/internal/memory/storage/index.cjs"
+      }
+    },
     "./a2a": {
       "import": {
         "types": "./dist/a2a/index.d.ts",
