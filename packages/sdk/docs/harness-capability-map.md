@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1126 export(s) across 45 entry point(s).
+1135 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -1002,6 +1002,20 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `globalEmbeddingCache` | const | T4.4 — Process-wide singleton embedding cache (DR4 finding #4).  |
 | `LruEmbeddingCache` | class | Bounded in-memory LRU cache for embeddings, keyed by `sha256(text)` (or any stable key the caller chooses).  |
 | `OpenAiCompatibleConfig` | interface | What one provider adapter tells {@link createOpenAiCompatibleRuntime } about its wire: where to POST, which environment variables carry the key and the base URL, which model to use by default, and ... |
+
+## `@theokit/sdk/internal/memory-store`
+
+| Symbol | Kind | Summary |
+|---|---|---|
+| `appendFact` | function | Record a fact, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves without touching disk.  |
+| `appendFactToMarkdown` | function | Write a fact as its own memory file and point the `MEMORY.md` index at it.  |
+| `claudeProjectMemoryDir` | function | Where the Claude Code CLI keeps THIS project's memories.  |
+| `memoryDir` | function | The memory root for a workspace: `<cwd>/.theokit/memory`.  |
+| `memoryMdPath` | function | Path to `MEMORY.md`, the index that points at the per-memory files — and, in stores written before #389, the flat `## Facts` list itself.  |
+| `memoryWriteDir` | function | Where a NEW fact should be written.  |
+| `notesDir` | function | Path to `<memory root>/notes`, where per-topic notes and the consolidated notes a dreaming sweep writes live.  |
+| `readFacts` | function | Every memory in the store, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves to `[]` without touching disk.  |
+| `readFactsFromMarkdown` | function | Every memory in the store: the per-memory files, plus any legacy `## Facts` bullets still in `MEMORY.md`.  |
 
 ## `@theokit/sdk/internal/persistence`
 

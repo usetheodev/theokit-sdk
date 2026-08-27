@@ -40,6 +40,10 @@ const MEMORY_MD_HEADER =
   "# Memory\n\n> Auto-managed by @theokit/sdk. Edit freely — the SDK reads from here.\n";
 const FACTS_HEADING = "## Facts";
 
+/**
+ * The memory root for a workspace: `<cwd>/.theokit/memory`. Every other path here derives from it,
+ * and `memory_get` refuses to read outside it. Pure path computation — nothing is created on disk.
+ */
 export function memoryDir(cwd: string): string {
   return join(cwd, ".theokit", "memory");
 }
@@ -83,10 +87,18 @@ export function claudeProjectMemoryDir(cwd: string): string {
   return join(root, "projects", encodeProjectDir(cwd), "memory");
 }
 
+/**
+ * Path to `MEMORY.md`, the index that points at the per-memory files — and, in stores written before
+ * #389, the flat `## Facts` list itself. Pure path computation; the file may not exist.
+ */
 export function memoryMdPath(cwd: string): string {
   return join(memoryDir(cwd), "MEMORY.md");
 }
 
+/**
+ * Path to `<memory root>/notes`, where per-topic notes and the consolidated notes a dreaming sweep
+ * writes live. Pure path computation — the directory may not exist.
+ */
 export function notesDir(cwd: string): string {
   return join(memoryDir(cwd), "notes");
 }
@@ -263,7 +275,11 @@ function parseFactsSection(raw: string): MemoryFact[] {
   );
 }
 
-/** Configuration-aware accessors honoring the existing MemoryConfig contract. */
+/**
+ * Every memory in the store, honouring the `enabled` gate on {@link MemoryConfig}: when memory is
+ * disabled the call resolves to `[]` without touching disk. Configuration-aware entry point;
+ * {@link readFactsFromMarkdown} is the same read without the gate.
+ */
 export async function readFacts(
   cwd: string,
   config: MemoryConfig,
@@ -273,6 +289,14 @@ export async function readFacts(
   return readFactsFromMarkdown(cwd, memoryHome);
 }
 
+/**
+ * Record a fact, honouring the `enabled` gate on {@link MemoryConfig}: when memory is disabled the
+ * call resolves without touching disk. Configuration-aware entry point;
+ * {@link appendFactToMarkdown} is the same write without the gate.
+ *
+ * `memoryHome` is the agent's `local.sessionDir` when it has one — see {@link memoryWriteDir} for
+ * which store that sends the fact to.
+ */
 export async function appendFact(
   cwd: string,
   config: MemoryConfig,

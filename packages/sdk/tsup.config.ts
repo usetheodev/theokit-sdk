@@ -70,6 +70,10 @@ export default defineConfig({
     // theokit#160 — the embedding runtime, shared with @theokit/sdk-memory so the two packages stop
     // carrying divergent copies of it. Same rationale and same semver-exempt status as the two above.
     "internal/memory/adapters/index": "src/internal/memory/adapters/index.ts",
+    // #430 — the markdown memory store, shared with @theokit/sdk-memory for the same reason and
+    // with the same semver-exempt status: the satellite's copy had drifted to a layout that could
+    // not read what this one writes, and the peer's copy is the one that runs.
+    "internal/memory/storage/index": "src/internal/memory/storage/index.ts",
   },
   format: ["esm", "cjs"],
   // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)
