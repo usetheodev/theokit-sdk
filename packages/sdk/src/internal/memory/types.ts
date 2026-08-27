@@ -28,6 +28,9 @@ export interface MemoryConfig {
  *
  * A kind is never INFERRED. A wrong kind is worse than none, because it makes retention and recall
  * confident about the wrong thing — so a fact whose author did not say stays untyped.
+ *
+ * Four, not more, and deliberately: a wider vocabulary exists to drive differentiated retention, and
+ * there is no retention here to differentiate. See `packages/sdk/docs/memory-decisions.md` § 2.
  */
 export type MemoryKind = "user" | "feedback" | "project" | "reference";
 
