@@ -34,6 +34,12 @@ const MEASURED_FLOORS: Record<string, { floor: string; because: string }> = {
   // `PostAssistantReplyContext.usedTools` (8d1feaaf, first released in 4.54.0) — the cache reads it
   // to avoid replaying an answer that came from a tool call.
   "sdk-cache": { floor: "4.54.0", because: "PostAssistantReplyContext.usedTools" },
+  // Not an API this package uses — 4.53.1's OWN published declarations do not compile. `#345`
+  // (`e368fc18`) bound the re-exported names the rollup left unimported, and first shipped in
+  // 4.54.0; before it, `index.d.ts` references `MemoryProviderFactory`, `AgentBuilderDeps` and
+  // `DECLARED` without defining them. A floor may be wrong because the version it names is broken,
+  // not only because the code outgrew it.
+  "sdk-memory": { floor: "4.54.0", because: "4.53.1 ships .d.ts that do not compile (#345)" },
 };
 
 describe("SE43 DoD#4 — satellite @theokit/sdk peer-range floors", () => {
