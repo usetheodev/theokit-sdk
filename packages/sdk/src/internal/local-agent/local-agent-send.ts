@@ -3,6 +3,7 @@ import type { AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { emitRunEvent } from "../../types/run-events.js";
 import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import { explicitSessionDir } from "../persistence/session-dir.js";
 import type { PluginManager } from "../plugins/manager.js";
 import { anySignal } from "../runtime/concurrency/abort-utils.js";
 import {
@@ -160,8 +161,22 @@ export async function executeSendLocked(
   const priorMessages = [...getSessionMessages(inputs.agentId)];
   appendSessionMessage(inputs.agentId, { role: "user", text: userText });
 
-  await persistMemoryFactIfWritePrompt(inputs.workspaceCwd, inputs.options.memory, userText);
-  const memoryFacts = await readMemoryForSend(inputs.workspaceCwd, inputs.options.memory);
+  // Set only when the consumer asked for one. That request is this project's documented signal for
+  // Claude Code interop — point it at `~/.claude` and the CLI can `--continue` a session this agent
+  // wrote — so memories recorded during that session land beside the transcript rather than in a
+  // directory the CLI never reads. Absent, everything behaves exactly as before.
+  const memoryHome = explicitSessionDir(inputs.options.local);
+  await persistMemoryFactIfWritePrompt(
+    inputs.workspaceCwd,
+    inputs.options.memory,
+    userText,
+    memoryHome,
+  );
+  const memoryFacts = await readMemoryForSend(
+    inputs.workspaceCwd,
+    inputs.options.memory,
+    memoryHome,
+  );
   const portPathActive = shouldUsePortMemoryPath();
   const legacyTools = portPathActive ? undefined : await inputs.memoryGlue.ensureTools();
   const legacySummary = portPathActive
@@ -238,7 +253,8 @@ function buildCompletionCheckDeps(): CompletionCheckDeps {
 function readMemoryForSend(
   workspaceCwd: string,
   memoryConfig: AgentOptions["memory"],
+  memoryHome?: string,
 ): Promise<MemoryFact[]> {
   if (memoryConfig?.enabled !== true) return Promise.resolve([]);
-  return safeCall(() => readMemoryFacts(workspaceCwd, memoryConfig), [], "memory read");
+  return safeCall(() => readMemoryFacts(workspaceCwd, memoryConfig, memoryHome), [], "memory read");
 }

@@ -76,16 +76,21 @@ export function extractMemoryKind(message: string): MemoryKind | undefined {
   return MEMORY_KINDS.includes(lowered) ? lowered : undefined;
 }
 
-export async function readMemoryFacts(cwd: string, config: MemoryConfig): Promise<MemoryFact[]> {
+export async function readMemoryFacts(
+  cwd: string,
+  config: MemoryConfig,
+  memoryHome?: string,
+): Promise<MemoryFact[]> {
   if (!config.enabled) return [];
   await migrateLegacyJson(cwd, config);
-  return readFactsMd(cwd, config);
+  return readFactsMd(cwd, config, memoryHome);
 }
 
 export async function appendMemoryFact(
   cwd: string,
   config: MemoryConfig,
   fact: MemoryFact,
+  memoryHome?: string,
 ): Promise<void> {
   if (!config.enabled) return;
   await migrateLegacyJson(cwd, config);
@@ -97,5 +102,5 @@ export async function appendMemoryFact(
     text: redactSecrets(fact.text),
     ...(fact.kind === undefined ? {} : { kind: fact.kind }),
   };
-  await appendFactMd(cwd, config, sanitized);
+  await appendFactMd(cwd, config, sanitized, memoryHome);
 }
