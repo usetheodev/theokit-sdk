@@ -1,7 +1,7 @@
 {
   "name": "@theokit/sdk-pty",
-  "version": "0.3.4",
-  "description": "Local interactive-shell backend for @theokit/sdk \u2014 a node-pty implementation of InteractiveBackend. Opt-in, terminal-surface only; node-pty is optional so install never fails on a native build.",
+  "version": "0.3.5",
+  "description": "Local interactive-shell backend for @theokit/sdk — a node-pty implementation of InteractiveBackend. Opt-in, terminal-surface only; node-pty is optional so install never fails on a native build.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
   "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
