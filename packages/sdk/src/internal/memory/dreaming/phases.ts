@@ -156,6 +156,18 @@ export async function remPhase(
   threshold: number = DEFAULT_CLUSTER_THRESHOLD,
   maxFactsPerSweep: number = DEFAULT_MAX_FACTS_PER_SWEEP,
 ): Promise<ClusterResult> {
+  // KNOWN GAP, deliberately not closed here. Protected kinds are excluded from DEDUP — a
+  // near-duplicate correction is never dropped — but they still reach CLUSTERING, and a cluster
+  // carries one representative into the consolidated note.
+  //
+  // Filtering them out here too was tried and reverted: untyped is the common case (hand-written
+  // bullets carry no kind), so excluding it disables consolidation for most stores, and it broke
+  // three existing golden tests. The damage is also smaller than in the dedup case — the source
+  // files survive and remain readable, so what a cluster costs is nuance in an ADDITIONAL
+  // artefact rather than a lost entry.
+  //
+  // It becomes real damage only if recall serves notes INSTEAD of sources. That depends on what
+  // the index covers, which is not settled here. Recorded rather than silently accepted.
   if (facts.length === 0) return { clusters: [] };
   // T4.6 — cap: subsample when facts exceed budget. Deterministic
   // sort by text hash so the same input always picks the same subset.
