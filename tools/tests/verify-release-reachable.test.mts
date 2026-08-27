@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasPendingChangesets,
   mergeVerdict,
   pendingApproval,
   resolveRepository,
@@ -249,5 +250,50 @@ describe("resolveRepository — the gate runs outside CI too (#405)", () => {
         throw new Error("no remote");
       }),
     ).toThrow(/GITHUB_REPOSITORY/u);
+  });
+});
+
+/*
+ * Measured on the 4a49e7d8 release run, 2026-08-27 — the gate failed a release that had nothing to
+ * release.
+ *
+ * `.changeset/` held only `config.json`: every changeset had been consumed by the previous version
+ * PR. `changesets/action` therefore published nothing AND opened no version pull request, which is
+ * a clean no-op — the log says so plainly ("No changesets found") and every package reported
+ * "already published on npm".
+ *
+ * The workflow runs this gate when `published != 'true'`, and that condition covers two situations
+ * this file had collapsed into one: a version PR exists and must be checked, or no version PR was
+ * ever meant to exist. Reporting the second as "GitHub never decided whether the pull request can
+ * merge" fails a green release and, worse, trains a maintainer to read this gate's red as noise —
+ * which is exactly what it was built to stop.
+ *
+ * Detected here rather than by tightening the workflow's `if:`, so the tool is correct on its own
+ * and cannot be re-broken by a condition edited somewhere else.
+ */
+describe("nothing to release is not a stuck release — 4a49e7d8", () => {
+  it("test_a_directory_with_only_config_has_no_pending_changesets", () => {
+    expect(hasPendingChangesets(["config.json"])).toBe(false);
+  });
+
+  it("test_readme_alone_is_not_a_changeset", () => {
+    expect(hasPendingChangesets(["README.md", "config.json"])).toBe(false);
+  });
+
+  it("test_an_empty_directory_has_no_pending_changesets", () => {
+    expect(hasPendingChangesets([])).toBe(false);
+  });
+
+  // The accepted case (rules/testing.md § 4.2): a predicate that answered `false` for everything
+  // would satisfy all three above and disable the gate entirely — which is the failure this gate
+  // exists to prevent, arriving through its own fix.
+  it("test_a_real_changeset_file_is_pending", () => {
+    expect(hasPendingChangesets(["config.json", "brave-pandas-shake.md"])).toBe(true);
+  });
+
+  it("test_one_changeset_among_the_furniture_is_enough", () => {
+    expect(hasPendingChangesets(["README.md", "config.json", "zod-is-a-real-dependency.md"])).toBe(
+      true,
+    );
   });
 });
