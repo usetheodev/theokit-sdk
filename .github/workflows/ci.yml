@@ -381,3 +381,27 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           node tools/check-no-reconsumed-changesets.mjs "origin/${BASE_REF}" "${HEAD_SHA}"
+
+  # SonarQube Cloud, from CI rather than Automatic Analysis.
+  #
+  # Automatic Analysis cannot import coverage — "code coverage information is not supported" in
+  # its documentation — so the `coverage floors` job above measured something the quality gate
+  # could not see. `packages/sdk/vitest.config.ts` already emits lcov; what was missing was
+  # anything reading it.
+  #
+  # `quality:coverage` covers `@theokit/sdk` only, which is where the floors are enforced. The
+  # other fourteen packages are analysed for bugs and smells without a coverage figure, and
+  # `sonar-project.properties` lists their lcov paths anyway — the scanner ignores a path it
+  # cannot find, so each one starts reporting the day its package joins the coverage run.
+  #
+  # The workflow is shared rather than inlined: the ecosystem's only inline version carried
+  # `if: matrix.node-version == '22.x'` against a matrix of ['22.12', '22'] and reported
+  # `skipped` on every run for two months, which renders exactly like passing.
+  #
+  # Automatic Analysis is OFF for this project — the scanner refuses to run beside it.
+  sonar:
+    needs: coverage
+    uses: usetheokit/shared-workflows/.github/workflows/sonar.yml@v1
+    secrets: inherit
+    with:
+      coverage-command: pnpm quality:coverage
