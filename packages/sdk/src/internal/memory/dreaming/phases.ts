@@ -85,6 +85,21 @@ function normalizeForExactMatch(text: string): string {
  *
  * Protected kinds bypass deduplication entirely and are returned untouched, so a sweep can
  * never conflate two of them into one representative.
+ *
+ * "Drop" here means DROPPED FROM THE RETURNED LIST. Nothing on disk is deleted, by any phase of
+ * this sweep, today.
+ *
+ * BEFORE YOU ADD PRUNING HERE, READ THIS. The security contract for this store requires a backup
+ * to precede any destructive operation (SOP-06-05 step 7). That requirement is currently LATENT
+ * — not satisfied, not waived — precisely because the sweep only ever adds notes and filters a
+ * list. There is no backup implementation in this package, and an audit that looked for one
+ * recorded its absence as having no present consequence.
+ *
+ * The first commit that makes this sweep delete a file from disk is the commit that makes the
+ * gap real, and it is also the commit whose author will have no reason to know this line exists.
+ * That is why the trigger is written beside the code that would trip it rather than in the audit
+ * that found it: a gap recorded in a reviewer's file reappears as a surprise; a gap recorded
+ * here stops the person adding pruning.
  */
 export async function lightPhase(
   facts: ReadonlyArray<MemoryFact>,
