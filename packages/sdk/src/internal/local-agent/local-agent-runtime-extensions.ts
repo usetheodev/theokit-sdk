@@ -135,6 +135,7 @@ export async function persistMemoryFactIfWritePrompt(
   workspaceCwd: string,
   memoryConfig: MemorySettings | undefined,
   userText: string,
+  memoryHome?: string,
 ): Promise<void> {
   if (memoryConfig?.enabled !== true) return;
   if (!isMemoryWritePrompt(userText)) return;
@@ -143,10 +144,12 @@ export async function persistMemoryFactIfWritePrompt(
   const kind = extractMemoryKind(userText);
   await safeCall(
     () =>
-      appendMemoryFact(workspaceCwd, memoryConfig, {
-        text: fact,
-        ...(kind === undefined ? {} : { kind }),
-      }),
+      appendMemoryFact(
+        workspaceCwd,
+        memoryConfig,
+        { text: fact, ...(kind === undefined ? {} : { kind }) },
+        memoryHome,
+      ),
     undefined,
     "memory write",
   );

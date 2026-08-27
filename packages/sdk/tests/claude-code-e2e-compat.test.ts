@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -159,5 +159,37 @@ describe("a real Claude Code project, read end to end", () => {
 
   it("test_the_project_never_needed_a_theokit_directory", () => {
     expect(existsSync(join(cwd, ".theokit"))).toBe(false);
+  });
+
+  // The other direction, and the one the scope named: a memory this SDK records has to land where
+  // the CLI looks, not only be able to read what the CLI wrote.
+  it("test_a_memory_this_agent_records_lands_where_the_cli_reads", async () => {
+    const { Agent } = await import("../src/index.js");
+    const agent = await Agent.create({
+      model: { id: "anthropic/claude-sonnet-4-6" },
+      apiKey: "theo_test_e2e",
+      local: { cwd, sessionDir: claudeHome },
+      memory: { enabled: true },
+    });
+    await agent.send("Remember (feedback): shared with the cli");
+
+    const cliMemory = join(claudeHome, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"), "memory");
+    const written = readFileSync(join(cliMemory, "shared-with-the-cli.md"), "utf8");
+    expect(written).toContain("type: feedback");
+    // The index the CLI reads has to name it, and has to sit beside it.
+    expect(readFileSync(join(cliMemory, "MEMORY.md"), "utf8")).toContain("shared-with-the-cli.md");
+  });
+
+  it("test_without_a_session_dir_nothing_moves", async () => {
+    const plain = mkdtempSync(join(tmpdir(), "cc-e2e-plain-"));
+    const { Agent } = await import("../src/index.js");
+    const agent = await Agent.create({
+      model: { id: "anthropic/claude-sonnet-4-6" },
+      apiKey: "theo_test_e2e",
+      local: { cwd: plain },
+      memory: { enabled: true },
+    });
+    await agent.send("Remember: stays put");
+    expect(existsSync(join(plain, ".theokit", "memory", "stays-put.md"))).toBe(true);
   });
 });
