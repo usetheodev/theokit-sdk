@@ -19,6 +19,23 @@ import { defineConfig } from "vitest/config";
  *
  * Each entry states WHY. "Waits for the runtime adapters", which the previous comment
  * applied to the whole directory, is true of exactly two of the six.
+ *
+ * RE-MEASURED 2026-08-26, three consecutive runs: 51 cases, 49 passing, 2 failing. Seven of the ten
+ * entries left this list because they now pass, and four of those seven were fixed to get there
+ * rather than found already green:
+ *
+ *   · `context-manager` and `platform-extensions` asserted `readdir` order. The golden normalizer
+ *     now sorts arrays whose order the filesystem decides, and the golden was rewritten in that
+ *     order — the assertion was testing the filesystem, exactly as the entry said.
+ *   · `cron` and `cron-validation-matrix` scheduled against a fabricated agent id that no agent
+ *     ever had, then asserted that running it resolved. `runWithExistingAgent` refuses that by
+ *     design. Both cases now register a real agent, so the manual-run contract they exist for is
+ *     exercised for the first time.
+ *   · `agent-run`, `catalog-cron-artifacts` and `stream` were "carried over unchanged, not
+ *     re-measured". Measured now: green, stable, gated.
+ *
+ * The three that remain are held for reasons no test change can fix — one environmental, two
+ * waiting on a product that does not exist yet.
  */
 export const ROADMAP_ONLY_SUITES = [
   // ── Non-hermetic: reaches the public internet. ────────────────────────────────
@@ -35,29 +52,6 @@ export const ROADMAP_ONLY_SUITES = [
   // correctly. Owner: B-048 · sunset 2026-11-19 (gate them when the PaaS ships).
   "tests/contract/agent-management.contract.test.ts",
   "tests/contract/run-status-operations.contract.test.ts",
-
-  // ── Cron manual run against an agent the registry never persisted. ────────────
-  // `UnknownAgentError` / code `agent_not_registered` from
-  // src/internal/cron/run-job.ts:61, downstream of a registry write that itself
-  // failed (`registry persist failed … ENOENT … registry.json.<pid>.tmp ->
-  // registry.json`). These two pin a real defect, not an unimplemented feature.
-  // Owner: B-048 · sunset 2026-11-19.
-  "tests/contract/cron.contract.test.ts",
-  "tests/contract/cron-validation-matrix.contract.test.ts",
-
-  // ── Order-dependent golden. ──────────────────────────────────────────────────
-  // The golden pins `sources[0].name === "project-readme"`; the run yields
-  // `architecture-note` first. That is readdir order, not behaviour, so the
-  // assertion is testing the filesystem. Owner: B-048 · sunset 2026-11-19 (sort the
-  // sources before comparing, or assert set membership).
-  "tests/contract/context-manager.contract.test.ts",
-
-  // ── Golden suites pinned to the same outstanding work. ────────────────────────
-  // Carried over unchanged from the pre-2026-08-19 list; not re-measured by B-048.
-  "tests/golden/agent-run.golden.test.ts",
-  "tests/golden/catalog-cron-artifacts.golden.test.ts",
-  "tests/golden/platform-extensions.golden.test.ts",
-  "tests/golden/stream.golden.test.ts",
 ];
 
 /**
