@@ -22,6 +22,7 @@ interface SessionDirOptions {
  *
  * @internal
  */
+
 export function resolveSessionDir(local: SessionDirOptions | undefined): string {
   if (local?.sessionDir !== undefined) {
     if (local.baseDir !== undefined) {
@@ -40,4 +41,18 @@ export function resolveSessionDir(local: SessionDirOptions | undefined): string 
     return expandTilde(local.baseDir);
   }
   return defaultBaseDir();
+}
+
+/**
+ * The session directory the caller ASKED for, or `undefined` when they asked for nothing.
+ *
+ * {@link resolveSessionDir} always answers with a path, falling back to the default home — which is
+ * the right answer for "where do transcripts go" and the wrong one for "did this consumer opt into
+ * sharing state with the Claude Code CLI". Memory writes need the second question, and the two
+ * accepted names for the option live here, so asking it anywhere else would put a copy of that
+ * knowledge somewhere it can drift.
+ */
+export function explicitSessionDir(local: SessionDirOptions | undefined): string | undefined {
+  if (local?.sessionDir === undefined && local?.baseDir === undefined) return undefined;
+  return resolveSessionDir(local);
 }

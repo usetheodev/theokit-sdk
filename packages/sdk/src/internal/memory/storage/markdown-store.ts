@@ -45,6 +45,27 @@ export function memoryDir(cwd: string): string {
 }
 
 /**
+ * Where a NEW fact should be written.
+ *
+ * `.theokit/memory` by default, exactly as before. When the agent was given a `local.sessionDir`,
+ * it becomes `<sessionDir>/projects/<encoded-cwd>/memory` — the same place the transcript for that
+ * project goes, so a session and the memories recorded during it land beside each other.
+ *
+ * `local.sessionDir` is the switch because it is already the option this project documents for CLI
+ * interop: point it at `~/.claude` and the CLI can `--continue` a session this agent wrote. Someone
+ * who set it has said they share state with that CLI, and memory following is what the sentence
+ * already implied. It needs no new option, and nothing moves for anyone who never set it.
+ *
+ * Safe because of the rule this pairs with — WRITE ONE, READ ALL. {@link readFactsFromMarkdown}
+ * covers every location, so a consumer whose new facts move keeps every fact they already had. The
+ * change relocates where the next one lands; it orphans nothing.
+ */
+export function memoryWriteDir(cwd: string, sessionDir: string | undefined): string {
+  if (sessionDir === undefined || sessionDir.trim().length === 0) return memoryDir(cwd);
+  return join(sessionDir, "projects", encodeProjectDir(cwd), "memory");
+}
+
+/**
  * Where the Claude Code CLI keeps THIS project's memories.
  *
  * `<claudeHome>/projects/<encoded-cwd>/memory` — the same `encodeProjectDir` scheme the transcripts
@@ -78,12 +99,21 @@ export function notesDir(cwd: string): string {
  * repositories, and the store's own header invites editing them by hand — a converged writer that
  * stopped reading them would delete what someone recorded, which is worse than the format it fixes.
  */
-export async function readFactsFromMarkdown(cwd: string): Promise<MemoryFact[]> {
+export async function readFactsFromMarkdown(
+  cwd: string,
+  sessionDir?: string,
+): Promise<MemoryFact[]> {
   const facts: MemoryFact[] = [];
   // Both stores: this SDK's, then the one the Claude Code CLI keeps for the same project. The
   // format has been shared since #389; only the directory was not, so a memory the CLI recorded was
   // invisible to an agent working in the same repository.
-  for (const dir of [memoryDir(cwd), claudeProjectMemoryDir(cwd)]) {
+  // READ ALL: the project store, the location a configured `sessionDir` writes to, and the one the
+  // CLI uses by default. Deduplicated, because with `sessionDir` pointed at the CLI's own home the
+  // last two are the same directory and a fact would otherwise be recalled twice.
+  const roots = [
+    ...new Set([memoryDir(cwd), memoryWriteDir(cwd, sessionDir), claudeProjectMemoryDir(cwd)]),
+  ];
+  for (const dir of roots) {
     let entries: string[];
     try {
       entries = await readdir(dir);
@@ -142,8 +172,12 @@ async function readMemoryFileIn(dir: string, entry: string): Promise<MemoryFact 
  * `modified` is stamped HERE and never read from `fact`: a timestamp a caller can set is a
  * timestamp that can lie about when something was learned, and weighing recency is the point.
  */
-export function appendFactToMarkdown(cwd: string, fact: MemoryFact): Promise<void> {
-  return withCwdMutex(memoryDir(cwd), async () => {
+export function appendFactToMarkdown(
+  cwd: string,
+  fact: MemoryFact,
+  targetDir: string = memoryDir(cwd),
+): Promise<void> {
+  return withCwdMutex(targetDir, async () => {
     // Validate at the boundary (`error-handling.md` § 2): a kind outside the four would be written
     // to a file recall later trusts, so it is refused here rather than stored and believed.
     if (fact.kind !== undefined && !MEMORY_KINDS.includes(fact.kind)) {
@@ -154,9 +188,9 @@ export function appendFactToMarkdown(cwd: string, fact: MemoryFact): Promise<voi
     }
     const text = redactSecrets(fact.text);
     const name = slugForFact(text);
-    await mkdir(memoryDir(cwd), { recursive: true });
+    await mkdir(targetDir, { recursive: true });
     await replaceFileAtomic(
-      join(memoryDir(cwd), `${name}.md`),
+      join(targetDir, `${name}.md`),
       renderMemoryFile({
         name,
         description: text,
@@ -165,7 +199,9 @@ export function appendFactToMarkdown(cwd: string, fact: MemoryFact): Promise<voi
         body: text,
       }),
     );
-    await replaceFileAtomic(memoryMdPath(cwd), await nextIndex(cwd, text, name));
+    // The index lives BESIDE the files it lists. A `MEMORY.md` in one directory pointing at
+    // memories in another names files that are not there — and the CLI reads that index.
+    await replaceFileAtomic(join(targetDir, "MEMORY.md"), await nextIndex(targetDir, text, name));
   });
 }
 
@@ -175,10 +211,11 @@ export function appendFactToMarkdown(cwd: string, fact: MemoryFact): Promise<voi
  * Rewriting the same memory replaces its line rather than adding a second: the index is a map from
  * memory to file, and two lines for one file is a map that disagrees with itself.
  */
-async function nextIndex(cwd: string, text: string, name: string): Promise<string> {
+async function nextIndex(dir: string, text: string, name: string): Promise<string> {
   let existing = "";
   try {
-    existing = await readFile(memoryMdPath(cwd), "utf8");
+    // The index in the directory being WRITTEN, not the project one — see the caller.
+    existing = await readFile(join(dir, "MEMORY.md"), "utf8");
   } catch {
     existing = "";
   }
@@ -227,16 +264,21 @@ function parseFactsSection(raw: string): MemoryFact[] {
 }
 
 /** Configuration-aware accessors honoring the existing MemoryConfig contract. */
-export async function readFacts(cwd: string, config: MemoryConfig): Promise<MemoryFact[]> {
+export async function readFacts(
+  cwd: string,
+  config: MemoryConfig,
+  memoryHome?: string,
+): Promise<MemoryFact[]> {
   if (!config.enabled) return [];
-  return readFactsFromMarkdown(cwd);
+  return readFactsFromMarkdown(cwd, memoryHome);
 }
 
 export async function appendFact(
   cwd: string,
   config: MemoryConfig,
   fact: MemoryFact,
+  memoryHome?: string,
 ): Promise<void> {
   if (!config.enabled) return;
-  await appendFactToMarkdown(cwd, fact);
+  await appendFactToMarkdown(cwd, fact, memoryWriteDir(cwd, memoryHome));
 }
