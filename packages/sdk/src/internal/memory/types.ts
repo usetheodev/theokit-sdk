@@ -53,6 +53,15 @@ export interface MemoryFact {
    * from four months ago. Absent on a fact written before this existed, or hand-added.
    */
   modified?: string;
+  /**
+   * How many times this exact text has been recorded. Absent means one — uncorroborated.
+   *
+   * Gates CONFIDENCE, never presence: an uncorroborated fact is still recalled, and still
+   * reaches the model. It reaches it MARKED, so a single write cannot pass itself off as
+   * something the store has seen confirmed. Blocking it outright would break the system's
+   * central promise, which is that a fact written once is available in the next session.
+   */
+  observations?: number;
 }
 
 // `redactSecrets` is now re-exported from the canonical security module

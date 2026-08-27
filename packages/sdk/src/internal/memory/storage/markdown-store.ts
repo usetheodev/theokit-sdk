@@ -175,6 +175,7 @@ async function readMemoryFileIn(dir: string, entry: string): Promise<MemoryFact 
     text: body.length > 0 ? body : parsed.description,
     ...(parsed.kind !== undefined ? { kind: parsed.kind } : {}),
     ...(parsed.modified !== undefined ? { modified: parsed.modified } : {}),
+    ...(parsed.observations !== undefined ? { observations: parsed.observations } : {}),
   };
 }
 
@@ -201,6 +202,7 @@ export function appendFactToMarkdown(
     const text = redactSecrets(fact.text);
     const name = slugForFact(text);
     await mkdir(targetDir, { recursive: true });
+    const observations = await nextObservationCount(targetDir, name, text);
     await replaceFileAtomic(
       join(targetDir, `${name}.md`),
       renderMemoryFile({
@@ -208,6 +210,7 @@ export function appendFactToMarkdown(
         description: text,
         ...(fact.kind !== undefined ? { kind: fact.kind } : {}),
         modified: new Date().toISOString(),
+        observations,
         body: text,
       }),
     );
@@ -215,6 +218,47 @@ export function appendFactToMarkdown(
     // memories in another names files that are not there — and the CLI reads that index.
     await replaceFileAtomic(join(targetDir, "MEMORY.md"), await nextIndex(targetDir, text, name));
   });
+}
+
+/**
+ * The corroboration count for the write about to happen.
+ *
+ * The rule that makes this a defence rather than a counter: **only the SAME text corroborates
+ * itself.** Recording an identical fact a second time is a second observation; recording
+ * different text under the same file is a REWRITE, and it starts again at one.
+ *
+ * That distinction is not decoration. `slugForFact` truncates at 64 characters, so two different
+ * facts sharing a prefix land on the same filename — and a count that incremented on filename
+ * alone would promote an entry to "corroborated" that nobody corroborated. A quarantine that can
+ * be fooled by a rewrite is worse than no quarantine, because it hands confidence to exactly the
+ * entry that has not earned it.
+ *
+ * Comparison is on normalized text (whitespace, case, trailing punctuation), so "X." recorded
+ * after "x" counts as the same observation rather than as a new fact.
+ */
+// Returns 1 for a first write — and 1 is now recorded, because "counted once" and "unknown"
+// are different claims and only the first one earns the [unconfirmed] marker.
+async function nextObservationCount(dir: string, name: string, text: string): Promise<number> {
+  let existing: string;
+  try {
+    existing = await readFile(join(dir, `${name}.md`), "utf8");
+  } catch {
+    return 1;
+  }
+  const parsed = parseMemoryFile(existing);
+  if (parsed === undefined) return 1;
+  const sameFact = normalizeFactText(parsed.body) === normalizeFactText(text);
+  if (!sameFact) return 1;
+  return (parsed.observations ?? 1) + 1;
+}
+
+/** Identity, not similarity — the same normalization the sweep uses for untyped entries. */
+function normalizeFactText(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[.!?]+$/, "");
 }
 
 /**
