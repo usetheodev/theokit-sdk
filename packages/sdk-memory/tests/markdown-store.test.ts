@@ -1,18 +1,17 @@
 /**
- * sdk-memory `markdown-store` unit test (iter 56).
+ * sdk-memory `markdown-store` unit test.
  *
- * Validates the iter 56 hybrid copy of
- * `internal/memory/storage/markdown-store.ts` from sdk-core.
- * sdk-memory now ships the canonical markdown-first storage that
- * future `tools.ts`, `dreaming-diary`, `dreaming-run`,
- * `session-loader`, `session-summary-writer`, `transcript-store`,
- * `wiki-loader`, `migration` moves will all compose with.
+ * This file used to open by asserting that sdk-memory's copy and the SDK's were "byte-equivalent at
+ * runtime (same MEMORY.md schema)". That sentence was true when written and nobody measured it
+ * again. #389 moved the layout to a file per memory in the SDK's copy and not in this one, so the
+ * two diverged — and because `Memory.runDreamingSweep` swaps in this package's copy whenever it is
+ * installed, **the copy that ran was not the copy anyone had updated**. Installing
+ * `@theokit/sdk-memory` made every memory the SDK had written unreadable, reported as
+ * `factsBefore: 0` — indistinguishable from an empty store (#430).
  *
- * sdk-core retains its copy for v1.x markdown-first memory back-compat.
- * Both copies byte-equivalent at runtime (same MEMORY.md schema:
- * `# Memory` header + `## Facts` bulleted list, same parse rule
- * "next h1/h2 stops the facts block", same atomic + per-cwd-mutex
- * serialization).
+ * There is one copy now: this package re-exports the SDK's store rather than reimplementing it. The
+ * cases below therefore describe the SHARED contract, and the identity case at the bottom is what
+ * fails if someone reintroduces a local implementation under the same names.
  *
  * Uses temp-dir + real file I/O (no mocks) per the no-stubs canon.
  */
@@ -82,21 +81,25 @@ describe("sdk-memory markdown-store (iter 56)", () => {
   });
 
   describe("appendFactToMarkdown", () => {
-    it("test_creates_file_with_header_and_facts_section", async () => {
+    // A fact is its own file since #389, with `MEMORY.md` as the index pointing at it. The two
+    // assertions used to be "the bullet is in MEMORY.md"; that format is still READ (below), but a
+    // store written today is not in it.
+    it("test_writes_the_fact_as_its_own_file_and_points_the_index_at_it", async () => {
       await appendFactToMarkdown(cwd, { text: "first fact" });
-      const raw = await readFile(memoryMdPath(cwd), "utf8");
-      expect(raw).toContain("# Memory");
-      expect(raw).toContain("## Facts");
-      expect(raw).toContain("- first fact");
+      const written = await readFile(join(memoryDir(cwd), "first-fact.md"), "utf8");
+      expect(written).toContain("first fact");
+      expect(await readFile(memoryMdPath(cwd), "utf8")).toContain("first-fact.md");
     });
 
-    it("test_appends_to_existing_facts_section", async () => {
+    it("test_every_appended_fact_is_read_back", async () => {
       await appendFactToMarkdown(cwd, { text: "one" });
       await appendFactToMarkdown(cwd, { text: "two" });
       await appendFactToMarkdown(cwd, { text: "three" });
 
+      // Sorted, not insertion-ordered: the store is a directory, and its order is the file
+      // system's. Asserting insertion order would pin a property the store does not promise.
       const facts = await readFactsFromMarkdown(cwd);
-      expect(facts.map((f) => f.text)).toEqual(["one", "two", "three"]);
+      expect(facts.map((f) => f.text).sort()).toEqual(["one", "three", "two"]);
     });
 
     it("test_redacts_secrets_before_persist", async () => {

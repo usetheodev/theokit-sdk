@@ -46,7 +46,14 @@ const MEASURED_FLOORS: Record<string, { floor: string; because: string }> = {
   // 4.54.0; before it, `index.d.ts` references `MemoryProviderFactory`, `AgentBuilderDeps` and
   // `DECLARED` without defining them. A floor may be wrong because the version it names is broken,
   // not only because the code outgrew it.
-  "sdk-memory": { floor: "4.54.0", because: "4.53.1 ships .d.ts that do not compile (#345)" },
+  // Raised again for a third reason: this package no longer COPIES the markdown store, it imports
+  // `@theokit/sdk/internal/memory-store`, and that sub-path first ships in 4.60.0. A floor is a
+  // promise about what a consumer can install; importing a path an admitted version does not export
+  // is the `#399` failure exactly — a load-time crash, not a type error.
+  "sdk-memory": {
+    floor: "4.60.0",
+    because: "imports internal/memory-store, added in 4.60.0 (#430)",
+  },
   // Same reason, and these two PASSED the CI leg — which is what makes them worth recording. That
   // leg builds each package against its floor, and neither of these typechecks the SDK's
   // declarations while building, so a broken `.d.ts` never reaches their compiler. A consumer's
