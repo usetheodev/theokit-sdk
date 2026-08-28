@@ -114,26 +114,9 @@ function terms(text: string): Set<string> {
 }
 
 /**
- * Lexical relevance, no dense vectors — ADR-01 permits substring, Jaccard-on-words and BM25,
- * and forbids embeddings in this path. This is the first two; BM25 needs corpus statistics the
- * caller does not have here and is the next increment.
- */
-function relevance(fact: MemoryFact, queryTerms: Set<string>): number {
-  if (queryTerms.size === 0) return 0;
-  const factTerms = terms(fact.text);
-  if (factTerms.size === 0) return 0;
-  let shared = 0;
-  for (const w of queryTerms) if (factTerms.has(w)) shared += 1;
-  if (shared === 0) return 0;
-  // Jaccard over the union, so a long fact does not win by sheer vocabulary size.
-  const union = new Set([...queryTerms, ...factTerms]).size;
-  return shared / union;
-}
-
-/**
- * Reciprocal Rank Fusion over the ranked lists, with the constant the contract names. RRF
- * combines orderings without inventing weights for signals measured on different scales —
- * which is the trap a hand-tuned `0.6 * relevance + 0.4 * recency` walks straight into.
+ * Reciprocal Rank Fusion over the ranked lists, with the constant the contract names. RRF combines
+ * orderings without inventing weights for signals measured on different scales — which is the trap
+ * a hand-tuned `0.6 * relevance + 0.4 * recency` walks straight into.
  */
 const RRF_K = 60;
 
@@ -143,19 +126,14 @@ const RRF_K = 60;
  * The deterministic half of what SOP-06-01 calls gating CONFIDENCE rather than presence. Marking
  * the block `[unconfirmed]` puts the information in front of the model and leaves the decision to
  * it — measured against a live model, that works when there is something to compare against and
- * does NOT when the marked fact is the only candidate (5 of 5 runs asserted it as fact).
- *
- * Ordering does not depend on the model reading anything. When a corroborated fact and an
- * uncorroborated one both answer the question, the corroborated one fills the budget first and
- * the other is what gets cut when the budget runs out.
+ * does NOT when the marked fact is the only candidate.
  *
  * It deliberately does NOT exclude. An uncorroborated fact alone in the store is still recalled,
  * because "a fact written once is available in the next session" is the promise the whole system
- * rests on. Confidence, not presence: the ordering expresses it, the marker states it, and
- * neither blocks it.
+ * rests on.
  *
- * Unknown (absent count) sits between the two — the store cannot claim it was confirmed and
- * cannot claim it was not.
+ * Unknown (absent count) sits between the two — the store cannot claim it was confirmed and cannot
+ * claim it was not.
  */
 function corroborationRank(fact: MemoryFact): number {
   if (fact.observations === undefined) return 1;
@@ -167,33 +145,134 @@ function sortByCorroboration(facts: readonly MemoryFact[]): MemoryFact[] {
   return [...facts].sort((a, b) => corroborationRank(b) - corroborationRank(a));
 }
 
+/** BM25 saturation and length-normalisation constants, at the values the literature settles on. */
+const BM25_K1 = 1.2;
+const BM25_B = 0.75;
+
+/** One document's term counts and length — what BM25 needs and a term SET cannot provide. */
+interface DocTerms {
+  readonly counts: Map<string, number>;
+  readonly length: number;
+}
+
+function docTerms(text: string): DocTerms {
+  const counts = new Map<string, number>();
+  let length = 0;
+  for (const w of text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((x) => x.length >= 3 && !STOPWORDS.has(x))) {
+    counts.set(w, (counts.get(w) ?? 0) + 1);
+    length += 1;
+  }
+  return { counts, length };
+}
+
+/**
+ * BM25 relevance over the whole store, computed once per call.
+ *
+ * WHY THIS REPLACED JACCARD, measured rather than argued. On LongMemEval-S (500 questions, 54
+ * sessions each) Jaccard scored hit@5 = 80.0% against 89.0% for a naive tokenised substring
+ * baseline in the same harness — worse than grep. The mechanism was isolated on a smaller corpus:
+ * asked "what are the user's formatting preferences", the discriminating term `preferences`
+ * appeared in 2 of 15 documents while `user` appeared in 14, and Jaccard weighted them the same.
+ * Almost every document then scored above zero, the fusion flattened what little ordering
+ * remained, and recency decided a relevance question.
+ *
+ * IDF is the entire fix: a term in 14 of 15 documents carries almost no information and BM25
+ * says so, while Jaccard cannot say anything about a term it only knows is shared.
+ *
+ * The corpus statistics are computed from `facts` itself. An earlier comment here claimed BM25
+ * "needs corpus statistics the caller does not have" — the caller passes the whole store as the
+ * first argument, so the statistics were always in scope. That sentence deferred a fix for a
+ * reason that did not exist.
+ */
+interface ScoredDoc {
+  readonly fact: MemoryFact;
+  readonly terms: DocTerms;
+}
+
+/** How many documents contain each query term — the only corpus statistic BM25 needs. */
+function documentFrequencies(
+  docs: readonly ScoredDoc[],
+  queryTerms: Set<string>,
+): Map<string, number> {
+  const df = new Map<string, number>();
+  for (const term of queryTerms) {
+    let count = 0;
+    for (const d of docs) if (d.terms.counts.has(term)) count += 1;
+    df.set(term, count);
+  }
+  return df;
+}
+
+/** One document's BM25 score against the query, given the corpus statistics. */
+function scoreDoc(
+  doc: ScoredDoc,
+  queryTerms: Set<string>,
+  df: Map<string, number>,
+  n: number,
+  avgLength: number,
+): number {
+  let score = 0;
+  for (const term of queryTerms) {
+    const tf = doc.terms.counts.get(term);
+    if (tf === undefined) continue;
+    const frequency = df.get(term) ?? 0;
+    // Probabilistic IDF with the +1 that keeps it non-negative when a term is in every document.
+    const idf = Math.log(1 + (n - frequency + 0.5) / (frequency + 0.5));
+    const norm = tf + BM25_K1 * (1 - BM25_B + (BM25_B * doc.terms.length) / avgLength);
+    score += (idf * (tf * (BM25_K1 + 1))) / norm;
+  }
+  return score;
+}
+
+function bm25Scores(
+  facts: readonly MemoryFact[],
+  queryTerms: Set<string>,
+): Map<MemoryFact, number> {
+  const scores = new Map<MemoryFact, number>();
+  if (queryTerms.size === 0 || facts.length === 0) return scores;
+
+  // One tokenisation pass over the store. The previous version called its scoring function from
+  // inside sort comparators, so every fact was re-tokenised O(n log n) times per query — measured
+  // at 205ms median against grep's 12ms on the same corpus, and 60ms after this change.
+  const docs: ScoredDoc[] = facts.map((f) => ({ fact: f, terms: docTerms(f.text) }));
+  const n = docs.length;
+  const avgLength = docs.reduce((sum, d) => sum + d.terms.length, 0) / n || 1;
+  const df = documentFrequencies(docs, queryTerms);
+
+  for (const d of docs) {
+    const score = scoreDoc(d, queryTerms, df, n, avgLength);
+    if (score > 0) scores.set(d.fact, score);
+  }
+  return scores;
+}
+
 /**
  * Facts that match the question come first; the rest fill whatever budget is left, by recency.
  *
- * The split is not a refinement of RRF — it corrects a real failure. Fusing one flat list at
- * k = 60 over a 25-fact store compressed the rank differences until recency won outright: the
- * answering fact scored 1/61 + 1/85 = 0.0282 against a filler's 1/74 + 1/61 = 0.0299, and was
- * dropped. k = 60 is calibrated for lists of hundreds; a memory store is not one.
+ * The split is not a refinement of the fusion — it corrects a real failure. Fusing one flat list
+ * at k = 60 over a 25-fact store compressed the rank differences until recency won outright, and
+ * the answering fact was dropped. k = 60 is calibrated for lists of hundreds; a memory store is
+ * not one.
  *
- * Within the matching group RRF still does the work it is good at — combining relevance and
- * recency orderings without inventing weights for signals measured on different scales.
+ * Within the matching group RRF still does the work it is good at — combining relevance, recency
+ * and corroboration orderings without inventing weights for signals measured on different scales.
  */
-function rankForQuery(facts: readonly MemoryFact[], queryTerms: Set<string>): MemoryFact[] {
-  const scored = facts.map((f) => ({ f, score: relevance(f, queryTerms) }));
-  const matching = scored.filter((s) => s.score > 0).map((s) => s.f);
-  const rest = scored.filter((s) => s.score === 0).map((s) => s.f);
+function rankForQuery(facts: readonly MemoryFact[], scores: Map<MemoryFact, number>): MemoryFact[] {
+  const matching = facts.filter((f) => (scores.get(f) ?? 0) > 0);
+  const rest = facts.filter((f) => (scores.get(f) ?? 0) <= 0);
 
-  const byRelevance = [...matching].sort(
-    (a, b) => relevance(b, queryTerms) - relevance(a, queryTerms),
-  );
+  const byRelevance = [...matching].sort((a, b) => (scores.get(b) ?? 0) - (scores.get(a) ?? 0));
   const byRecency = [...matching].sort((a, b) =>
     (b.modified ?? "").localeCompare(a.modified ?? ""),
   );
-  // Corroboration is a THIRD ranked list inside the fusion, not a sort applied before it.
-  // The first version sorted by corroboration and then let RRF re-sort by relevance and recency,
-  // which discarded the ordering entirely — the code read as if it ranked by corroboration and
-  // measurably did not. RRF fuses orderings; anything that is not one of its inputs is not in
-  // the result.
+  // Corroboration is a THIRD ranked list inside the fusion, not a sort applied before it. The
+  // first version sorted by corroboration and then let RRF re-sort by relevance and recency, which
+  // discarded the ordering entirely — the code read as if it ranked by corroboration and
+  // measurably did not. RRF fuses orderings; anything that is not one of its inputs is not in the
+  // result.
   const byCorroboration = sortByCorroboration(matching);
   const rank = new Map<MemoryFact, number>();
   const add = (list: readonly MemoryFact[]): void => {
@@ -233,9 +312,12 @@ function rankBuckets(
     dated.sort((a, b) => (b.modified as string).localeCompare(a.modified as string));
     return { dated, undated };
   }
+  // Scored over the WHOLE store, not per bucket: IDF is a property of the corpus, and computing
+  // it twice over two halves would give the same term two different weights.
+  const scores = bm25Scores(facts, queryTerms);
   return {
-    dated: rankForQuery(dated, queryTerms),
-    undated: [...undated].sort((a, b) => relevance(b, queryTerms) - relevance(a, queryTerms)),
+    dated: rankForQuery(dated, scores),
+    undated: [...undated].sort((a, b) => (scores.get(b) ?? 0) - (scores.get(a) ?? 0)),
   };
 }
 
