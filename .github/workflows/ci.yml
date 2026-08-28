@@ -8,7 +8,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, feat/**]
+    branches: [main, develop]
   # Both promotion legs of the flow are PRs — workspace -> develop and
   # develop -> main — so both bases must be listed here. Until 2026-08-17 only
   # `main` was, which left the workspace -> develop PR with no CI at all: the
@@ -47,7 +47,7 @@ jobs:
         # these legs by name. Requiring a leg that skips leaves the check at "Expected — Waiting
         # for status to be reported" forever, which is exactly what happened when this was first
         # tried; see the `ci-ok` job for the mechanism.
-        node-version: ${{ github.event_name == 'pull_request' && fromJSON('["22"]') || fromJSON('["22.12", "22"]') }}
+        node-version: ${{ github.event_name == 'pull_request' && fromJSON('["22.12"]') || fromJSON('["22.12", "22"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
