@@ -69,26 +69,25 @@ jobs:
       # policy defends against a THIRD PARTY moving a ref under us, and this is the same
       # organisation. What the action RUNS stays pinned — every action inside it by digest.
       - uses: usetheokit/shared-workflows/actions/setup@v1 # zizmor: ignore[unpinned-uses]
-
-      # Turbo's task cache, keyed so it cannot serve a result for different inputs.
-      #
-      # `turbo.json` declares explicit `inputs` for build, test and typecheck, and turbo folds
-      # each package's dependency hashes into its own — so a hit means the same sources produced
-      # the same task before. Without this the runner is cold on every push: 26 packages rebuild
-      # and re-test to answer a pull request that touched one of them.
-      #
-      # The key carries the commit so each run writes its own entry; `restore-keys` lets a run
-      # start from the nearest previous one rather than from nothing.
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Turbo cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: .turbo
-          key: turbo-${{ runner.os }}-node${{ matrix.node-version }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-node${{ matrix.node-version }}-
+      # NO TURBO CACHE HERE, and that is a measurement rather than an omission.
+      #
+      # One was added and removed the same day. It ran correctly — restore and save both fired,
+      # 0-2 seconds each on fresh commits — and `validate` took 2.3 minutes with it and 2.3
+      # minutes without it, on the same commit. It saved nothing measurable.
+      #
+      # It had been credited with taking this job from 9.5 minutes to 2.3. That number came from
+      # a `gh run rerun` of an unchanged commit, where the SHA-keyed entry hits exactly and every
+      # task is restored — the best case, and one that says nothing about a normal push. The real
+      # gain came from elsewhere in the same batch, and attributing it here was correlation read
+      # as cause. The pnpm store is already cached by the setup action above, which is most likely
+      # what was doing the work all along.
+      #
+      # Worth re-testing only against a measurement, not against the intuition that a cache must
+      # help. Configuration that does nothing is debt wearing an optimisation's clothes, and the
+      # approving comment beside it is worse, because it convinces the next reader.
 
       - name: Biome check
         run: pnpm check
@@ -276,15 +275,6 @@ jobs:
       # version, so there is no second place to forget.
       - uses: usetheokit/shared-workflows/actions/setup@v1 # zizmor: ignore[unpinned-uses]
 
-      # Same turbo cache as `validate`, with its own key: this job has no matrix, and sharing a
-      # key with a matrix leg would let one job's entry answer for the other's inputs.
-      - name: Turbo cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: .turbo
-          key: turbo-${{ runner.os }}-coverage-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-coverage-
 
 
       # B-139: this job ran the sdk suite against an UNBUILT tree. The suite includes
