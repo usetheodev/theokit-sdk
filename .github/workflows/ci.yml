@@ -39,19 +39,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Both legs, on every event.
+        # 22.12 is the declared floor; 22 is current. Both matter and they do not both have to
+        # gate every pull request — the floor is a compatibility question, not a review one — so
+        # it runs on pushes to the long-lived branches while the current version gates PRs.
         #
-        # This was briefly conditional — 22 on pull requests, both on the long-lived branches —
-        # to halve the runner minutes a PR costs. It made every pull request unmergeable:
-        # `validate (node 22.12)` is a REQUIRED check, and a required check that never runs sits
-        # at "Expected — Waiting for status to be reported" forever. Branch protection cannot tell
-        # "deliberately skipped" from "not reported yet".
-        #
-        # The fix is not a cleverer condition, it is a gateway job: one required check that needs
-        # every other job, runs with `if: always()`, and treats a skipped job as a pass. Until
-        # branch protection points at such a job instead of at these legs, the matrix has to be
-        # unconditional.
-        node-version: ['22.12', '22']
+        # This is only safe because branch protection now requires the `CI` gateway rather than
+        # these legs by name. Requiring a leg that skips leaves the check at "Expected — Waiting
+        # for status to be reported" forever, which is exactly what happened when this was first
+        # tried; see the `ci-ok` job for the mechanism.
+        node-version: ${{ github.event_name == 'pull_request' && fromJSON('["22"]') || fromJSON('["22.12", "22"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -441,7 +437,15 @@ jobs:
   #
   # Automatic Analysis is OFF for this project — the scanner refuses to run beside it.
   sonar:
-    needs: coverage
+    # NOT `needs: coverage`, deliberately.
+    #
+    # This is a reusable workflow that runs its own `build-command` and `coverage-command` (see
+    # `with:` below) and consumes no artifact from any job here. The dependency was ordering
+    # only, and it cost the whole wall clock: measured on a real run, `coverage` occupied
+    # +11.8 to +15.3 and `sonar` +15.3 to +21.1 — a 3.5-minute wait in front of a 5.8-minute job,
+    # for nothing that job needed. Detached, they overlap and the chain becomes the longer of the
+    # two rather than their sum.
+    #
     # Analyse the main branch and pull requests, and NOT pushes to `develop`.
     #
     # The reason is narrow: this organisation's plan does not serve data for non-main branches.
