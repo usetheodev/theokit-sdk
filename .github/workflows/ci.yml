@@ -39,11 +39,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 22.12 is the declared floor and 22 is current. Both matter, and they do not both have
-        # to gate every pull request: the floor is a compatibility question, not a review one, so
-        # it runs on pushes to the long-lived branches and the current version gates PRs. Halves
-        # the runner minutes a PR costs without changing what reaches `main`.
-        node-version: ${{ github.event_name == 'pull_request' && fromJSON('["22"]') || fromJSON('["22.12", "22"]') }}
+        # Both legs, on every event.
+        #
+        # This was briefly conditional — 22 on pull requests, both on the long-lived branches —
+        # to halve the runner minutes a PR costs. It made every pull request unmergeable:
+        # `validate (node 22.12)` is a REQUIRED check, and a required check that never runs sits
+        # at "Expected — Waiting for status to be reported" forever. Branch protection cannot tell
+        # "deliberately skipped" from "not reported yet".
+        #
+        # The fix is not a cleverer condition, it is a gateway job: one required check that needs
+        # every other job, runs with `if: always()`, and treats a skipped job as a pass. Until
+        # branch protection points at such a job instead of at these legs, the matrix has to be
+        # unconditional.
+        node-version: ['22.12', '22']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -464,3 +472,57 @@ jobs:
       # while still passing. Measured — that is exactly what the first run did.
       build-command: pnpm build
       coverage-command: pnpm quality:coverage
+
+  # ────────────────────────────────────────────────────────────────────────────────────────────
+  # The one check branch protection should require.
+  #
+  # WHY THIS EXISTS. Requiring the individual jobs above works only while every one of them runs
+  # on every event. The moment a job becomes conditional — a matrix leg that skips on pull
+  # requests, a path filter, a shard that only exists for some runs — a required check that never
+  # reports sits at "Expected — Waiting for status to be reported" and the pull request can never
+  # merge. Branch protection cannot distinguish "deliberately skipped" from "not reported yet".
+  # This repository hit exactly that: making the Node floor run only on the long-lived branches
+  # made every PR unmergeable, and the change had to be reverted rather than fixed.
+  #
+  # HOW IT WORKS. It needs every job, runs with `if: always()` so it reports even when something
+  # upstream failed, and fails when any dependency failed or was cancelled. A SKIPPED dependency
+  # counts as a pass — that is the whole point, and it is what makes conditional jobs, path
+  # filters and test sharding safe to adopt.
+  #
+  # `cancelled` is checked as well as `failure`: a cancelled run must not report green, or the
+  # concurrency group's own cancellations would look like approvals.
+  #
+  # ONE THING THIS DOES NOT DO. It cannot make a job that never ran into evidence. It reports
+  # that nothing FAILED, which is a weaker claim than "everything passed" and is the correct one
+  # for a gate over conditional work. Whether a given job should have run is a question for the
+  # job's own `if`, not for this one.
+  ci-ok:
+    name: CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs:
+      - validate
+      - coverage
+      - dependency-review
+      - no-reconsumed-changesets
+      - sonar
+    steps:
+      - name: Report
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$RESULTS"
+          # `contains` over the serialized results rather than a per-job list: a job added above
+          # and forgotten here would silently stop being gated, and this way the only thing to
+          # keep in step is `needs`.
+          if echo "$RESULTS" | grep -q '"result": *"failure"'; then
+            echo "::error::a required job failed"
+            exit 1
+          fi
+          if echo "$RESULTS" | grep -q '"result": *"cancelled"'; then
+            echo "::error::a required job was cancelled"
+            exit 1
+          fi
+          echo "no required job failed or was cancelled"
