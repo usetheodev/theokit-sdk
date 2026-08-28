@@ -403,19 +403,20 @@ jobs:
     needs: coverage
     # Analyse the main branch and pull requests, and NOT pushes to `develop`.
     #
-    # This organisation's SonarQube Cloud plan does not serve data for non-main branches — the
-    # API and the UI both answer "Organization is not allowed to access data from non main
-    # branches" for `?branch=develop`. The scan itself succeeds (every background task on the
-    # project reads Success); what cannot be served is the branch's quality gate, and the
-    # `SonarCloud Code Analysis` check that reports it goes red on a branch nobody can inspect.
+    # The reason is narrow: this organisation's plan does not serve data for non-main branches.
+    # Both the API and the UI answer "Organization is not allowed to access data from non main
+    # branches" for `?branch=develop`, so a branch analysis of `develop` produces a quality gate
+    # nobody in this organisation can open. Analysis that cannot be read is cost without a
+    # reader; pull requests still cover every change on its way in, and `main` on merge.
     #
-    # That check is REQUIRED on `main`, so a red one blocks every release, and it blocks it with
-    # a failure that no dashboard will explain. It first appeared with #443, which moved analysis
-    # into CI: before that only pull-request analyses existed, which the plan does serve, which is
-    # why PRs #440 and #441 were green and #447 and #448 were not.
+    # WHAT THIS IS NOT. It was first written here as the cause of a red required
+    # `SonarCloud Code Analysis` check that blocked a release, and that was wrong. The gate was
+    # failing on the PULL REQUEST analysis, which this plan does serve and which was therefore
+    # readable the whole time: `new_security_rating` was 3 against a threshold of 1, over exactly
+    # one issue. Guessing at an unreadable branch dashboard cost a round trip that one API call
+    # against `?pullRequest=` would have avoided.
     #
-    # Analysing `develop` bought nothing anyone could read. Pull-request analysis still covers
-    # every change on its way in, and main is still analysed on merge.
+    # So: this restriction stands on its own merit, and it fixed nothing.
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     # `@v1` is a moving ref by design — a policy fix in shared-workflows must reach every
     # caller without eleven pull requests, which is the reason that repository exists.
