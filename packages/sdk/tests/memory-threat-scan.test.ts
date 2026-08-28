@@ -17,8 +17,14 @@ import { describe, expect, it } from "vitest";
 import { appendFactToMarkdown } from "../src/internal/memory/storage/markdown-store.js";
 import { scanForThreats, THREAT_PATTERN_IDS } from "../src/internal/memory/storage/threat-scan.js";
 
-const ZERO_WIDTH = "​";
-const RTL_OVERRIDE = "‮";
+/**
+ * Written as escapes, never as literals — the same rule `threat-scan.ts` applies to its own
+ * pattern, and for the same reason: a file that carries invisible characters cannot be checked
+ * by reading it. Applying that discipline to the source and not to its test is how a scanner
+ * for bidirectional characters ended up shipping one (S6389).
+ */
+const ZERO_WIDTH = "\u200B";
+const RTL_OVERRIDE = "\u202E";
 
 describe("scanForThreats — the attack half", () => {
   it("rejects text that addresses the model's instructions", () => {
