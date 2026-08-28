@@ -3,6 +3,7 @@ import {
   parseMemoryFile,
   renderMemoryFile,
   slugForFact,
+  titleForFact,
 } from "../../../src/internal/memory/storage/memory-file.js";
 
 /*
@@ -85,9 +86,30 @@ it("returns undefined for a file that is not a memory at all", () => {
   expect(parseMemoryFile("---\nname: x\n---\n\nno description\n")).toBeUndefined();
 });
 
-it("derives a readable, filesystem-safe slug from the fact", () => {
-  expect(slugForFact("the user prefers pnpm over npm")).toBe("the-user-prefers-pnpm-over-npm");
-  expect(slugForFact("Billing runs on the 1st!")).toBe("billing-runs-on-the-1st");
+it("names the memory after its subject, not after its whole text", () => {
+  // The interop partner names files after the topic — measured at 30.6 characters over 688 real
+  // files. Function words carry no topic signal and are dropped.
+  expect(slugForFact("the user prefers pnpm over npm")).toBe("user-prefers-pnpm-npm");
+  expect(slugForFact("Billing runs on the 1st!")).toBe("billing-runs-1st");
+});
+
+it("keeps a payload out of the filename by naming the subject (#446)", () => {
+  // Not a rule about secrets — a rule about names. A secret rule would have to RECOGNISE the
+  // secret, and pattern matching cannot recognise `sirius-sod521`. Naming the memory after what
+  // it is about excludes the tail of the sentence whatever the tail happens to be.
+  const slug = slugForFact("The deploy passphrase for the atlas cluster is sirius-sod521");
+
+  expect(slug).toBe("deploy-passphrase-atlas-cluster");
+  expect(slug).not.toContain("sirius");
+  expect(slug).not.toContain("sod521");
+});
+
+it("derives a title in the shape the index is read in", () => {
+  // Measured over 673 real index lines: median 4 words, 29 characters, p90 at 39.
+  expect(titleForFact("The deploy passphrase for the atlas cluster is sirius-sod521")).toBe(
+    "Deploy passphrase atlas cluster",
+  );
+  expect(titleForFact("the user prefers pnpm over npm")).toBe("User prefers pnpm npm");
 });
 
 it("falls back to a hashed slug when the text has no usable characters", () => {
