@@ -39,6 +39,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Both legs, on every event.
+        #
+        # This was briefly conditional — 22 on pull requests, both on the long-lived branches —
+        # to halve the runner minutes a PR costs. It made every pull request unmergeable:
+        # `validate (node 22.12)` is a REQUIRED check, and a required check that never runs sits
+        # at "Expected — Waiting for status to be reported" forever. Branch protection cannot tell
+        # "deliberately skipped" from "not reported yet".
+        #
+        # The fix is not a cleverer condition, it is a gateway job: one required check that needs
+        # every other job, runs with `if: always()`, and treats a skipped job as a pass. Until
+        # branch protection points at such a job instead of at these legs, the matrix has to be
+        # unconditional.
         node-version: ['22.12', '22']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -61,8 +73,26 @@ jobs:
       # policy defends against a THIRD PARTY moving a ref under us, and this is the same
       # organisation. What the action RUNS stays pinned — every action inside it by digest.
       - uses: usetheokit/shared-workflows/actions/setup@v1 # zizmor: ignore[unpinned-uses]
+
+      # Turbo's task cache, keyed so it cannot serve a result for different inputs.
+      #
+      # `turbo.json` declares explicit `inputs` for build, test and typecheck, and turbo folds
+      # each package's dependency hashes into its own — so a hit means the same sources produced
+      # the same task before. Without this the runner is cold on every push: 26 packages rebuild
+      # and re-test to answer a pull request that touched one of them.
+      #
+      # The key carries the commit so each run writes its own entry; `restore-keys` lets a run
+      # start from the nearest previous one rather than from nothing.
         with:
           node-version: ${{ matrix.node-version }}
+
+      - name: Turbo cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-node${{ matrix.node-version }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-node${{ matrix.node-version }}-
 
       - name: Biome check
         run: pnpm check
@@ -250,6 +280,17 @@ jobs:
       # version, so there is no second place to forget.
       - uses: usetheokit/shared-workflows/actions/setup@v1 # zizmor: ignore[unpinned-uses]
 
+      # Same turbo cache as `validate`, with its own key: this job has no matrix, and sharing a
+      # key with a matrix leg would let one job's entry answer for the other's inputs.
+      - name: Turbo cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-coverage-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-coverage-
+
+
       # B-139: this job ran the sdk suite against an UNBUILT tree. The suite includes
       # `tests/sdk-2-0-npm-publish-readiness.test.ts`, which asserts every extracted package
       # emits `dist/index.js` — so it failed with "missing dist/index.js — run 'pnpm build'"
@@ -431,3 +472,57 @@ jobs:
       # while still passing. Measured — that is exactly what the first run did.
       build-command: pnpm build
       coverage-command: pnpm quality:coverage
+
+  # ────────────────────────────────────────────────────────────────────────────────────────────
+  # The one check branch protection should require.
+  #
+  # WHY THIS EXISTS. Requiring the individual jobs above works only while every one of them runs
+  # on every event. The moment a job becomes conditional — a matrix leg that skips on pull
+  # requests, a path filter, a shard that only exists for some runs — a required check that never
+  # reports sits at "Expected — Waiting for status to be reported" and the pull request can never
+  # merge. Branch protection cannot distinguish "deliberately skipped" from "not reported yet".
+  # This repository hit exactly that: making the Node floor run only on the long-lived branches
+  # made every PR unmergeable, and the change had to be reverted rather than fixed.
+  #
+  # HOW IT WORKS. It needs every job, runs with `if: always()` so it reports even when something
+  # upstream failed, and fails when any dependency failed or was cancelled. A SKIPPED dependency
+  # counts as a pass — that is the whole point, and it is what makes conditional jobs, path
+  # filters and test sharding safe to adopt.
+  #
+  # `cancelled` is checked as well as `failure`: a cancelled run must not report green, or the
+  # concurrency group's own cancellations would look like approvals.
+  #
+  # ONE THING THIS DOES NOT DO. It cannot make a job that never ran into evidence. It reports
+  # that nothing FAILED, which is a weaker claim than "everything passed" and is the correct one
+  # for a gate over conditional work. Whether a given job should have run is a question for the
+  # job's own `if`, not for this one.
+  ci-ok:
+    name: CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs:
+      - validate
+      - coverage
+      - dependency-review
+      - no-reconsumed-changesets
+      - sonar
+    steps:
+      - name: Report
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$RESULTS"
+          # `contains` over the serialized results rather than a per-job list: a job added above
+          # and forgotten here would silently stop being gated, and this way the only thing to
+          # keep in step is `needs`.
+          if echo "$RESULTS" | grep -q '"result": *"failure"'; then
+            echo "::error::a required job failed"
+            exit 1
+          fi
+          if echo "$RESULTS" | grep -q '"result": *"cancelled"'; then
+            echo "::error::a required job was cancelled"
+            exit 1
+          fi
+          echo "no required job failed or was cancelled"
