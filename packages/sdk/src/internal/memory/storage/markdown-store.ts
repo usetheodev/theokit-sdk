@@ -11,7 +11,7 @@ import { MEMORY_KINDS, type MemoryConfig, type MemoryFact, redactSecrets } from 
 import { parseMemoryFile, renderMemoryFile, slugForFact, titleForFact } from "./memory-file.js";
 import { scanForThreats } from "./threat-scan.js";
 
-/**
+/*
  * Markdown-first memory storage (ADR D1 of memory-system-peer-project-parity).
  *
  * Layout, converged with the one the Claude Code CLI reads:
@@ -35,7 +35,8 @@ import { scanForThreats } from "./threat-scan.js";
  * edge-case review) so concurrent `appendFact` calls within the same process
  * serialize. Multi-process safety is NOT provided.
  *
- * @internal
+ * Module header, not a JSDoc block: it describes the file, and a JSDoc comment attaching to
+ * nothing ships the symbol below undocumented and this text invisible.
  */
 
 /**
