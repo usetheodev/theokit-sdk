@@ -75,6 +75,9 @@ jobs:
       #
       # The key carries the commit so each run writes its own entry; `restore-keys` lets a run
       # start from the nearest previous one rather than from nothing.
+        with:
+          node-version: ${{ matrix.node-version }}
+
       - name: Turbo cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -82,9 +85,6 @@ jobs:
           key: turbo-${{ runner.os }}-node${{ matrix.node-version }}-${{ github.sha }}
           restore-keys: |
             turbo-${{ runner.os }}-node${{ matrix.node-version }}-
-
-        with:
-          node-version: ${{ matrix.node-version }}
 
       - name: Biome check
         run: pnpm check
