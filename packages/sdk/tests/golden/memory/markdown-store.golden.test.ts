@@ -56,7 +56,9 @@ describe("MarkdownMemoryStore", () => {
     await appendMemoryFact(cwd, cfg, { text: "fact B" });
     await appendMemoryFact(cwd, cfg, { text: "fact C" });
     const raw = await readFile(memoryMdPath(cwd), "utf8");
-    expect(raw).toMatch(/\[fact A\]\(fact-a\.md\)[\s\S]*\[fact B\][\s\S]*\[fact C\]/);
+    // `- [Title](slug.md) — hook`. The three share a topic name, so the second and third move
+    // aside rather than overwrite — what this protects is that none of them is lost.
+    expect(raw).toMatch(/— fact A[\s\S]*— fact B[\s\S]*— fact C/);
     const facts = await readMemoryFacts(cwd, cfg);
     expect(facts.map((f) => f.text)).toEqual(["fact A", "fact B", "fact C"]);
   });
@@ -127,7 +129,7 @@ describe("MarkdownMemoryStore", () => {
     await appendFactToMarkdown(cwd, { text: "new fact" });
     const raw = await readFile(path, "utf8");
     expect(raw).toContain("Some free-form content the user wrote.");
-    expect(raw).toContain("[new fact](new-fact.md)");
+    expect(raw).toContain("[New fact](new-fact.md) — new fact");
   });
 
   it("serializes concurrent appendFact calls (EC-4)", async () => {

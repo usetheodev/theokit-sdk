@@ -28,6 +28,9 @@ export interface MemoryConfig {
  *
  * A kind is never INFERRED. A wrong kind is worse than none, because it makes retention and recall
  * confident about the wrong thing — so a fact whose author did not say stays untyped.
+ *
+ * Four, not more, and deliberately: a wider vocabulary exists to drive differentiated retention, and
+ * there is no retention here to differentiate. See `packages/sdk/docs/memory-decisions.md` § 2.
  */
 export type MemoryKind = "user" | "feedback" | "project" | "reference";
 
@@ -36,6 +39,22 @@ export const MEMORY_KINDS: readonly MemoryKind[] = ["user", "feedback", "project
 
 export interface MemoryFact {
   text: string;
+  /**
+   * A short concept name for this memory — what the index shows in its link, and what the file is
+   * named after.
+   *
+   * Optional because the common write path has only a sentence. When absent it is derived, and the
+   * derivation is mechanical on purpose: the interop partner's names are authored by a model that
+   * knows the subject, and a heuristic will not match that. An explicit field with a fallback is
+   * honest; a fallback presented as authorship is not.
+   */
+  title?: string;
+  /**
+   * The one-line summary the index shows after the dash and the frontmatter carries.
+   *
+   * Absent means "same as `text`", which is what a single-sentence memory should produce.
+   */
+  description?: string;
   /**
    * What this fact is (#389). Absent means untyped, which is what a hand-written bullet under
    * `## Facts` stays — those files are already on disk in consumers' repositories and the store's
@@ -50,6 +69,15 @@ export interface MemoryFact {
    * from four months ago. Absent on a fact written before this existed, or hand-added.
    */
   modified?: string;
+  /**
+   * How many times this exact text has been recorded. Absent means one — uncorroborated.
+   *
+   * Gates CONFIDENCE, never presence: an uncorroborated fact is still recalled, and still
+   * reaches the model. It reaches it MARKED, so a single write cannot pass itself off as
+   * something the store has seen confirmed. Blocking it outright would break the system's
+   * central promise, which is that a fact written once is available in the next session.
+   */
+  observations?: number;
 }
 
 // `redactSecrets` is now re-exported from the canonical security module

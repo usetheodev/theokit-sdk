@@ -15,6 +15,10 @@
  */
 
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+
+import type { CredentialStoreConfig } from "../../auth/auth-types.js";
+import { readStoredOAuth } from "../../auth/credential-store.js";
 
 const FIXTURE_API_KEY_PREFIX = "theo_test_";
 
@@ -89,6 +93,11 @@ export function presentProviderCredentialEnvVars(): readonly string[] {
  */
 export function shouldUseRealLocalRuntime(apiKey: string | undefined): boolean {
   if (isFixtureApiKey(apiKey)) return false;
+  // #445: an OAuth provider holds NO apiKey and sets NO env var — the credential lives on disk,
+  // which is the whole point of `/login`. Both gates below reject it by construction, so a
+  // logged-in `openai-chatgpt` consumer silently got the fixture responder and a plausible
+  // answer with no error. This check runs FIRST, because the apiKey gate is what rejects it.
+  if (isStoredOAuthAvailable()) return true;
   if (apiKey === undefined || apiKey.length === 0) return false;
   // ADR D182 / T1.2: `authType: "none"` providers (Ollama, LM Studio,
   // llama.cpp) do not require any provider env var. Treat their presence
@@ -103,6 +112,42 @@ export function shouldUseRealLocalRuntime(apiKey: string | undefined): boolean {
     isGcpVertexAuthAvailable() ||
     isLocalNoAuthProviderAvailable()
   );
+}
+
+/**
+ * The SDK's ambient credential store, mirroring the one `openai-chatgpt` reads. Kept in sync with
+ * `providers/builtin/openai-chatgpt.ts`; `THEOKIT_AUTH_HOME` (not `THEOKIT_HOME`) is the override.
+ */
+const AMBIENT_STORE: CredentialStoreConfig = {
+  home: homedir(),
+  dirName: ".theokit",
+  fileName: "auth.json",
+  homeEnvVar: "THEOKIT_AUTH_HOME",
+};
+
+/**
+ * #445 — a stored OAuth credential green-lights the real runtime, the same way Bedrock and Vertex
+ * do for their own non-env auth. Without it, `authType: "oauth_device_code"` providers fall through
+ * to the fixture responder after a SUCCESSFUL login: the docblock's rule ("a non-fixture API key AND
+ * at least one provider env credential") predates OAuth providers and was never revisited when
+ * `openai-chatgpt` landed.
+ *
+ * Reads only — never refreshes, never writes. Presence is the signal; validity is the transform's
+ * problem at request time, and an expired credential must surface as an auth error rather than as
+ * a fixture answer that looks like success.
+ *
+ * @internal
+ */
+export function isStoredOAuthAvailable(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  try {
+    return readStoredOAuth(AMBIENT_STORE, env) !== undefined;
+  } catch {
+    // An unreadable or malformed store is not a green light, but it is also not a crash:
+    // the caller falls through to the env-var path and the failure surfaces there.
+    return false;
+  }
 }
 
 /**

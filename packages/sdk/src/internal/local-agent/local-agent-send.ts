@@ -19,6 +19,7 @@ import {
 import type { MemoryProvider } from "../runtime/memory/memory-provider.js";
 import type { MemoryFact } from "../runtime/memory/memory-store.js";
 import { readMemoryFacts } from "../runtime/memory/memory-store.js";
+import { selectFactsForInjection } from "../runtime/memory/select-facts.js";
 import { normalizeModel } from "../runtime/model-selection.js";
 import { runInputProcessors } from "../runtime/processors/run-processors.js";
 import { createTripwireRun } from "../runtime/processors/tripwire-run.js";
@@ -176,6 +177,7 @@ export async function executeSendLocked(
     inputs.workspaceCwd,
     inputs.options.memory,
     memoryHome,
+    userText,
   );
   const portPathActive = shouldUsePortMemoryPath();
   const legacyTools = portPathActive ? undefined : await inputs.memoryGlue.ensureTools();
@@ -254,7 +256,20 @@ function readMemoryForSend(
   workspaceCwd: string,
   memoryConfig: AgentOptions["memory"],
   memoryHome?: string,
+  query?: string,
 ): Promise<MemoryFact[]> {
   if (memoryConfig?.enabled !== true) return Promise.resolve([]);
-  return safeCall(() => readMemoryFacts(workspaceCwd, memoryConfig, memoryHome), [], "memory read");
+  // Rank and cut before the facts reach the prompt. Without the cut the injected block tracked
+  // the store (r = 0.958 across 99 real stores, past the session budget at 16 facts); without
+  // the QUERY the cut was recency-only, and a live 25-fact run showed the answering fact
+  // dropped for being old rather than irrelevant. Both halves are needed: one bounds the cost,
+  // the other decides what survives.
+  return safeCall(
+    async () =>
+      selectFactsForInjection(await readMemoryFacts(workspaceCwd, memoryConfig, memoryHome), {
+        ...(query === undefined ? {} : { query }),
+      }),
+    [],
+    "memory read",
+  );
 }

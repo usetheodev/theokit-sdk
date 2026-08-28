@@ -30,11 +30,118 @@ export interface ClusterResult {
 const DEFAULT_DEDUP_THRESHOLD = 0.95;
 const DEFAULT_CLUSTER_THRESHOLD = 0.75;
 
-/** Light phase — drop facts whose embedding is too similar to one already kept. */
+/**
+ * Kinds a sweep may consolidate. ADR-14 partitions the vocabulary into three buckets and only
+ * this one is a merge candidate; the rest are protected for a reason that survives the sweep
+ * being non-destructive.
+ *
+ * `user`, `feedback` and `reference` are ATOMIC: there is nothing to merge and the loss is
+ * irreversible. Two corrections a user gave on different days can read alike and are not the
+ * same correction. An untyped fact is protected too — a kind that nobody declared is not a
+ * licence to treat it as consolidatable.
+ *
+ * Why this matters even though nothing is deleted: dedup drops the near-duplicate from the
+ * CLUSTERING INPUT, and the cluster's representative is what the search index returns. The
+ * source file survives; the artefact the agent reads does not. That is ADR-14's third rule —
+ * the invariant is about what the agent reads, not what survives on disk.
+ */
+const CONSOLIDATABLE_KINDS = new Set(["project", "session"]);
+const ATOMIC_KINDS = new Set(["user", "feedback", "reference"]);
+
+/**
+ * Three levels, graded by how much the store knows about the entry. The middle one exists
+ * because the first draft of this filter did not have it and broke the common case.
+ *
+ * - ATOMIC (`user`, `feedback`, `reference`) — never deduplicated. Two corrections given on
+ *   different days can read alike and are not the same correction.
+ * - CONSOLIDATABLE (`project`, `session`) — near-duplicate dedup at the similarity threshold.
+ *   Overlapping project facts are exactly what a sweep is for.
+ * - UNTYPED — EXACT duplicates only. A hand-written bullet under `## Facts` carries no kind,
+ *   and the store's own header invites editing those by hand, so untyped is the common case
+ *   rather than an edge one. Treating it as atomic would disable the sweep for most stores;
+ *   treating it as consolidatable would let a near-duplicate of an untyped correction be
+ *   dropped. Exact-match is the only claim the store can make without inferring a kind, which
+ *   is the rule this codebase already applies one field over.
+ */
+type DedupPolicy = "never" | "exact" | "similar";
+
+function dedupPolicy(fact: MemoryFact): DedupPolicy {
+  if (fact.kind === undefined) return "exact";
+  if (ATOMIC_KINDS.has(fact.kind)) return "never";
+  return CONSOLIDATABLE_KINDS.has(fact.kind) ? "similar" : "never";
+}
+
+/** Whitespace and case collapsed; nothing else. Not a similarity measure — an identity one. */
+function normalizeForExactMatch(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[.!?]+$/, "");
+}
+
+/**
+ * Light phase — drop facts whose embedding is too similar to one already kept.
+ *
+ * Protected kinds bypass deduplication entirely and are returned untouched, so a sweep can
+ * never conflate two of them into one representative.
+ *
+ * "Drop" here means DROPPED FROM THE RETURNED LIST. Nothing on disk is deleted, by any phase of
+ * this sweep, today.
+ *
+ * BEFORE YOU ADD PRUNING HERE, READ THIS. The security contract for this store requires a backup
+ * to precede any destructive operation (SOP-06-05 step 7). That requirement is currently LATENT
+ * — not satisfied, not waived — precisely because the sweep only ever adds notes and filters a
+ * list. There is no backup implementation in this package, and an audit that looked for one
+ * recorded its absence as having no present consequence.
+ *
+ * The first commit that makes this sweep delete a file from disk is the commit that makes the
+ * gap real, and it is also the commit whose author will have no reason to know this line exists.
+ * That is why the trigger is written beside the code that would trip it rather than in the audit
+ * that found it: a gap recorded in a reviewer's file reappears as a surprise; a gap recorded
+ * here stops the person adding pruning.
+ */
 export async function lightPhase(
   facts: ReadonlyArray<MemoryFact>,
   embedding: EmbeddingRuntime,
   threshold: number = DEFAULT_DEDUP_THRESHOLD,
+): Promise<DedupResult> {
+  if (facts.length <= 1) return { kept: [...facts], duplicatesRemoved: 0 };
+  const never = facts.filter((f) => dedupPolicy(f) === "never");
+  const exact = facts.filter((f) => dedupPolicy(f) === "exact");
+  const similar = facts.filter((f) => dedupPolicy(f) === "similar");
+
+  // Exact pass: identity, not similarity. No embedding call, no threshold, no judgement.
+  const seen = new Set<string>();
+  const exactKept: MemoryFact[] = [];
+  let removed = 0;
+  for (const f of exact) {
+    const key = normalizeForExactMatch(f.text);
+    if (seen.has(key)) {
+      removed += 1;
+      continue;
+    }
+    seen.add(key);
+    exactKept.push(f);
+  }
+
+  const sim =
+    similar.length > 1
+      ? await dedupCandidates(similar, embedding, threshold)
+      : { kept: [...similar], duplicatesRemoved: 0 };
+
+  // Protected facts keep their original relative position at the front: they were never in
+  // the running, and putting them back through the sort would imply they had been judged.
+  return {
+    kept: [...never, ...exactKept, ...sim.kept],
+    duplicatesRemoved: removed + sim.duplicatesRemoved,
+  };
+}
+
+async function dedupCandidates(
+  facts: ReadonlyArray<MemoryFact>,
+  embedding: EmbeddingRuntime,
+  threshold: number,
 ): Promise<DedupResult> {
   if (facts.length <= 1) return { kept: [...facts], duplicatesRemoved: 0 };
   const vectors = await embedding.embed(facts.map((f) => f.text));
@@ -64,6 +171,18 @@ export async function remPhase(
   threshold: number = DEFAULT_CLUSTER_THRESHOLD,
   maxFactsPerSweep: number = DEFAULT_MAX_FACTS_PER_SWEEP,
 ): Promise<ClusterResult> {
+  // KNOWN GAP, deliberately not closed here. Protected kinds are excluded from DEDUP — a
+  // near-duplicate correction is never dropped — but they still reach CLUSTERING, and a cluster
+  // carries one representative into the consolidated note.
+  //
+  // Filtering them out here too was tried and reverted: untyped is the common case (hand-written
+  // bullets carry no kind), so excluding it disables consolidation for most stores, and it broke
+  // three existing golden tests. The damage is also smaller than in the dedup case — the source
+  // files survive and remain readable, so what a cluster costs is nuance in an ADDITIONAL
+  // artefact rather than a lost entry.
+  //
+  // It becomes real damage only if recall serves notes INSTEAD of sources. That depends on what
+  // the index covers, which is not settled here. Recorded rather than silently accepted.
   if (facts.length === 0) return { clusters: [] };
   // T4.6 — cap: subsample when facts exceed budget. Deterministic
   // sort by text hash so the same input always picks the same subset.
