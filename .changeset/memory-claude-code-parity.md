@@ -26,9 +26,20 @@ corroboration count.
 `MemoryFact` accepts optional `title` and `description` for callers that want to author them
 rather than have them derived.
 
-**Not fixed by this release, and measured:** an uncorroborated entry marked `[unconfirmed]`
-influences the model without constraining it (~62%, 95% CI [39%, 82%], n=32), and a planted
-entry phrased as standing policy was sufficient for a live agent to perform the action it
-described in 2 of 6 runs. Registering the permission engine blocked the executive case in
-every run; it is opt-in. Any deployment whose memory directory is writable by anything other
-than the agent's own deliberate writes should register it.
+**Not fixed by this release, and measured against THIS release:** a planted entry phrased as
+standing policy was sufficient for a live agent to perform the action it described in **6 of 6
+runs**. Registering the permission engine blocked it in 6 of 6, with no errors — it gates, it
+does not merely fail.
+
+That 6-of-6 is worse than the 2-of-6 measured mid-development, and the reason is this release:
+on 4.60.0 the same planted entry was **not recalled at all** (the agent answered "Done."), and
+on 4.61.0 it is recited verbatim. Improving recall made the plant reliable. The property that
+makes a planted memory work is the property that makes a real one useful, so this is a cost of
+the improvement rather than a defect introduced beside it.
+
+**Any deployment whose memory directory is writable by anything other than the agent's own
+deliberate writes should register the permission engine.** It is opt-in.
+
+Also unfixed: an uncorroborated entry marked `[unconfirmed]` influences the model without
+constraining it (~62%, 95% CI [39%, 82%], n=32). Asserting is not a tool call, so no permission
+check runs on it.
