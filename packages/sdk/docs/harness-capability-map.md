@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1137 export(s) across 46 entry point(s).
+1151 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -529,6 +529,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `appendDiaryEntry` | function | Append one entry to the dream diary, creating the file with a `# Dream Diary` header when it does not exist yet.  |
 | `appendFact` | function | Record a fact, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves without touching disk.  |
 | `appendFactToMarkdown` | function | Write a fact as its own memory file and point the `MEMORY.md` index at it.  |
+| `asMemoryRoot` | function | Treat a directory as a memory root without resolving one.  |
 | `assertValidBackend` | function | EC-1: runtime guard for `opts.backend`.  |
 | `azureOpenAiMemoryEmbeddingProviderAdapter` | const | Azure OpenAI embeddings.  |
 | `buildErrorMetadata` | function | Build an `ErrorMetadata` object with all optional fields included conditionally (no `undefined` keys in the output). |
@@ -564,7 +565,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `DEFAULT_OPENAI_EMBEDDING_MODEL` | const | OpenAI embedding adapter (ADR D3) — built on the shared OpenAI-compatible factory.  |
 | `DEFAULT_OPENROUTER_EMBEDDING_MODEL` | const | OpenRouter embedding adapter — routes through OpenRouter's `POST /api/v1/embeddings` endpoint (OpenAI-compatible request/response shape).  |
 | `DEFAULT_VOYAGE_EMBEDDING_MODEL` | const | Voyage AI embedding adapter — `POST /v1/embeddings` at `https://api.voyageai.com` with the OpenAI-compatible `{ model, input }` request shape.  |
-| `defaultIndexPath` | function | Where the SQLite index lives when the caller does not name a path: `<cwd>/.theokit/memory/.index/memory.sqlite`.  |
+| `defaultIndexPath` | function | `<index root>/.index/memory.sqlite`.  |
 | `DiaryEntry` | interface | Dream-diary append (ADR D7).  |
 | `diaryPath` | function | Path to the dream diary, `<memory root>/dream-diary.md`.  |
 | `discoverSessionFiles` | function | List the session summaries under `sessions/`, with each path expressed relative to the memory root so the index can store a stable `sessions/<id>.md`.  |
@@ -582,6 +583,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `entryHash` | function | A sha256 over the five counts of an entry, as a hex string.  |
 | `geminiMemoryEmbeddingProviderAdapter` | const | Google Gemini embeddings through Google's OpenAI-compatible surface at `/v1beta/openai/embeddings`.  |
 | `identityMatches` | function | Compare two embedding identities field by field.  |
+| `indexBudgetWarning` | function | What to say about an index that the interop partner will truncate, or `undefined` when there is nothing true to say.  |
 | `IndexManager` | class | The default memory index: SQLite for storage, FTS5 for text matching, and sqlite-vec for vectors when an embedding runtime is supplied.  |
 | `IndexStatus` | interface | A snapshot of index health.  |
 | `isLanceAvailable` | function | Test helper for {@link LanceIndex } : indicates whether the Lance module is loadable in the current environment.  |
@@ -592,30 +594,33 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `LanceMemoryAdapter` | class | Presents a `LanceIndex` as a {@link MemoryIndex } , so a consumer written against the SQLite index runs unchanged on `backend: "lance"`.  |
 | `LanceSearchHit` | interface | One Lance search result.  |
 | `LanceSearchOptions` | interface | Filters for `LanceIndex.search`.  |
-| `lanceStoragePath` | function | Test helper: re-export the storage path computation. |
+| `lanceStoragePath` | function | `<memory root>/lance`.  |
 | `legacyMemoryJsonPath` | function | Resolve the legacy JSON memory path used pre-ADR-D8 (kept for migration helpers + tests).  |
 | `lightPhase` | function | Light phase — drop facts whose embedding is too similar to one already kept. |
 | `listNotes` | function | List the `.md` files directly under `notes/`.  |
 | `loadSqliteVecExtension` | function | Load the `sqlite-vec` extension into an opened SQLite connection.  |
 | `mapOpenAICompatibleError` | function | Turn a failed OpenAI-shaped HTTP response into the typed error the SDK throws.  |
 | `MEMORY_EMBEDDING_ADAPTERS` | const | Memory embedding adapter catalog, indexed by provider id.  |
+| `MEMORY_INDEX_MAX_BYTES` | const | The byte limit the Claude Code CLI applies when it loads a `MEMORY.md`, whichever it reaches first.  |
+| `MEMORY_INDEX_MAX_LINES` | const | The line limit the Claude Code CLI applies when it loads a `MEMORY.md`.  |
 | `MemoryBackend` | type | Vector backend selector.  |
 | `MemoryChunk` | interface | A semantically meaningful slice of a markdown memory file, produced by `chunkMarkdown`.  |
 | `MemoryConfig` | interface | Per-agent memory configuration.  |
 | `MemoryDb` | interface | Thin wrapper around the SQLite driver.  |
-| `memoryDir` | function | The memory root for a workspace: `<cwd>/.theokit/memory`.  |
 | `MemoryEmbeddingProviderAdapter` | interface | Memory embedding provider adapter contract (ADR D3 of memory-system-peer-project-parity).  |
 | `MemoryFact` | interface | One remembered statement.  |
 | `MemoryFileEntry` | interface | Lightweight reference to a markdown file in the memory corpus.  |
 | `MemoryGetToolOptions` | interface | Options for {@link createMemoryGetTool } .  |
 | `MemoryIndex` | interface | The four operations both backends implement, and the type every consumer should hold.  |
+| `MemoryLocationConfig` | type | Only `directory` is read; the full config is accepted so callers pass what they already hold. |
 | `memoryMdPath` | function | Path to `MEMORY.md`, the index that points at the per-memory files — and, in stores written before #389, the flat `## Facts` list itself.  |
 | `MemoryReadResult` | interface | Result of `reader.readFile`.  |
+| `memoryReadRoots` | function | Every directory a read must cover, deduplicated and in precedence order.  |
+| `MemoryRoot` | type | A path that {@link resolveMemoryRoot } produced — the only thing the subsystem's path helpers accept.  |
 | `MemorySearchHit` | interface | Memory index manager contract — leaf types shared by `index-manager.ts` (orchestrator), `index-manager-dispatch.ts` (backend dispatch), `lance-memory-adapter.ts` (Lance backend), and `memory-index.... |
 | `MemorySearchToolOptions` | interface | Options for {@link createMemorySearchTool } . |
 | `MemoryTool` | interface | A memory tool ready to hand to the agent loop: the JSON-serialisable description an LLM sees, plus the `execute` that runs it.  |
 | `MemoryToolJson` | interface | Memory tools (`memory_search` + `memory_get`) — ADR D5 of memory-system-peer-project-parity.  |
-| `memoryWriteDir` | function | Where a NEW fact should be written.  |
 | `META_KEY_DIMENSION` | const | `meta` table key holding the vector width the `embeddings` vec0 table was created with. |
 | `META_KEY_MODEL` | const | `meta` table key holding the embedding model id the vectors were produced with. |
 | `META_KEY_PROVIDER_ID` | const | `meta` table key holding the id of the embedding provider that produced the vectors currently on disk (for example `openai`, `ollama`). |
@@ -641,6 +646,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `parseSearchOptions` | function | Common search-options parser used by both `IndexManager.search` and `LanceMemoryAdapter.search`.  |
 | `persistActiveMemoryTranscript` | function | Write one recall transcript to `<memory root>/transcripts/active-memory/<runId>.json`, creating the parent directories and replacing the file atomically.  |
 | `PRAGMA_STATEMENTS` | const | Non-WAL pragmas.  |
+| `projectMemoryDir` | function | The project store: `<cwd>/.theokit/memory`.  |
 | `readEmbeddingIdentity` | function | Read the embedding identity recorded in the `meta` table.  |
 | `readFacts` | function | Every memory in the store, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves to `[]` without touching disk.  |
 | `readFactsFromMarkdown` | function | Every memory in the store: the per-memory files, plus any legacy `## Facts` bullets still in `MEMORY.md`.  |
@@ -650,6 +656,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `remPhase` | function | REM phase — single-link agglomerative clustering by cosine similarity. |
 | `renderDiaryEntry` | function | Render one entry as the markdown block {@link appendDiaryEntry } writes: an h2 heading carrying the ISO timestamp, then a bullet list of the counts, prefixed by the first eight hex characters of {@... |
 | `resetMigrationStateForTests` | function | Test-only — reset the in-process migration flag map. |
+| `resolveMemoryRoot` | function | The memory root for this agent: `memory.directory` when set, the project store otherwise.  |
 | `runActiveMemory` | function | Run one blocking recall before the system prompt is assembled, and report what happened.  |
 | `RunActiveMemoryArgs` | interface | Everything {@link runActiveMemory } needs for one attempt.  |
 | `runDreamingSweep` | function | Run one consolidation sweep over `MEMORY.md`: drop near-duplicate facts, cluster what is left, write a consolidated note under `notes/`, and append a diary entry.  |
@@ -1011,13 +1018,20 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 |---|---|---|
 | `appendFact` | function | Record a fact, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves without touching disk.  |
 | `appendFactToMarkdown` | function | Write a fact as its own memory file and point the `MEMORY.md` index at it.  |
+| `asMemoryRoot` | function | Treat a directory as a memory root without resolving one.  |
 | `claudeProjectMemoryDir` | function | Where the Claude Code CLI keeps THIS project's memories.  |
-| `memoryDir` | function | The memory root for a workspace: `<cwd>/.theokit/memory`.  |
+| `indexBudgetWarning` | function | What to say about an index that the interop partner will truncate, or `undefined` when there is nothing true to say.  |
+| `MEMORY_INDEX_MAX_BYTES` | const | The byte limit the Claude Code CLI applies when it loads a `MEMORY.md`, whichever it reaches first.  |
+| `MEMORY_INDEX_MAX_LINES` | const | The line limit the Claude Code CLI applies when it loads a `MEMORY.md`.  |
+| `MemoryLocationConfig` | type | Only `directory` is read; the full config is accepted so callers pass what they already hold. |
 | `memoryMdPath` | function | Path to `MEMORY.md`, the index that points at the per-memory files — and, in stores written before #389, the flat `## Facts` list itself.  |
-| `memoryWriteDir` | function | Where a NEW fact should be written.  |
+| `memoryReadRoots` | function | Every directory a read must cover, deduplicated and in precedence order.  |
+| `MemoryRoot` | type | A path that {@link resolveMemoryRoot } produced — the only thing the subsystem's path helpers accept.  |
 | `notesDir` | function | Path to `<memory root>/notes`, where per-topic notes and the consolidated notes a dreaming sweep writes live.  |
+| `projectMemoryDir` | function | The project store: `<cwd>/.theokit/memory`.  |
 | `readFacts` | function | Every memory in the store, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves to `[]` without touching disk.  |
 | `readFactsFromMarkdown` | function | Every memory in the store: the per-memory files, plus any legacy `## Facts` bullets still in `MEMORY.md`.  |
+| `resolveMemoryRoot` | function | The memory root for this agent: `memory.directory` when set, the project store otherwise.  |
 
 ## `@theokit/sdk/internal/persistence`
 

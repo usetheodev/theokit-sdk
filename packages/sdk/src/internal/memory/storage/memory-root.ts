@@ -59,7 +59,6 @@ export function asMemoryRoot(dir: string): MemoryRoot {
   return dir as MemoryRoot;
 }
 
-/** The `directory` slice of the memory config — all the resolver reads. */
 /** Only `directory` is read; the full config is accepted so callers pass what they already hold. */
 export type MemoryLocationConfig = Partial<MemoryConfig>;
 
@@ -112,11 +111,16 @@ export function resolveMemoryRoot(cwd: string, config?: MemoryLocationConfig): M
 }
 
 /**
- * The line and byte limits the Claude Code CLI applies when it loads a `MEMORY.md`.
+ * The line limit the Claude Code CLI applies when it loads a `MEMORY.md`.
  *
- * Its numbers, not ours, and that is the point — see {@link indexBudgetWarning}.
+ * Its number, not ours, and that is the point — see {@link indexBudgetWarning}.
  */
 export const MEMORY_INDEX_MAX_LINES = 200;
+
+/**
+ * The byte limit the Claude Code CLI applies when it loads a `MEMORY.md`, whichever it reaches
+ * first. Also its number — see {@link indexBudgetWarning}.
+ */
 export const MEMORY_INDEX_MAX_BYTES = 25 * 1024;
 
 /**

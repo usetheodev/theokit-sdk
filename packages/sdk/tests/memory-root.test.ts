@@ -13,6 +13,7 @@ import {
 import {
   claudeProjectMemoryDir,
   memoryReadRoots,
+  projectMemoryDir,
   resolveMemoryRoot,
 } from "../src/internal/memory/storage/memory-root.js";
 
@@ -112,7 +113,26 @@ describe("a fact written into a configured memory directory", () => {
     expect(files.map((f) => f.absolutePath)).toContain(join(dir, "moved-fact.md"));
   });
 
-  it("test_the_index_database_follows_the_root_instead_of_the_project_store", () => {
+  // The DATABASE deliberately does NOT follow the configured root, and this is the one place where
+  // "one root" stops. `memory.directory` may name the directory the Claude Code CLI manages; that
+  // CLI has no index format, so a binary artefact it does not understand does not belong there.
+  // The facts are what a user would lose — the index is derived and rebuildable
+  // (`docs/memory-decisions.md` § 1). What IS indexed is the configured root; only the file moves.
+  it("test_the_index_database_stays_in_the_project_store_even_when_the_facts_move", async () => {
+    const { IndexManager } = await import("../src/internal/memory/index-manager.js");
+    const index = await IndexManager.open({
+      cwd,
+      memoryRoot: resolveMemoryRoot(cwd, config),
+    });
+    try {
+      expect(existsSync(join(projectMemoryDir(cwd), ".index", "memory.sqlite"))).toBe(true);
+      expect(existsSync(join(dir, ".index", "memory.sqlite"))).toBe(false);
+    } finally {
+      index.close?.();
+    }
+  });
+
+  it("test_the_path_helper_still_places_the_database_under_whatever_root_it_is_given", () => {
     expect(defaultIndexPath(resolveMemoryRoot(cwd, config))).toBe(
       join(dir, ".index", "memory.sqlite"),
     );

@@ -56,6 +56,10 @@ speaks ONLY when `memory.directory` points at the store the CLI reads, says what
 drops entries) rather than what is not (memory stops working), and never throws: the fact file and
 the index rewrite are one atomic operation, so refusing the second would lose the first.
 
-One path deliberately does NOT follow the option: `legacyMemoryJsonPath`, which locates the
+**Two things deliberately do NOT follow the option.** The index DATABASE stays in the project store
+even when the facts move: `memory.directory` may name the directory the Claude Code CLI manages, and
+that CLI has no index format — a binary artefact it does not understand does not belong in a
+directory it owns. What gets INDEXED is still the configured root; only the file's location is held
+back (`docs/memory-decisions.md` § 1). And one path: `legacyMemoryJsonPath`, which locates the
 pre-#389 JSON store. That store was written before the option existed, so pointing it at a
 configured root would look for a legacy file where a legacy file cannot be.

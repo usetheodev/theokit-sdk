@@ -52,11 +52,18 @@ export async function openMemoryDb(opts: OpenDbOptions): Promise<MemoryDb> {
 }
 
 /**
- * `<memory root>/.index/memory.sqlite`.
+ * `<index root>/.index/memory.sqlite`. Pure path computation.
  *
- * Takes the RESOLVED ROOT. This function used to spell the default layout out again as a string
- * literal — a fourteenth answer to "where does memory live?", and the one no `memoryDir` grep
- * would have found (#463).
+ * Takes a resolved root rather than a `cwd`: this function used to spell the default layout out
+ * again as a string literal — an answer to "where does memory live?" that no search for the shared
+ * helper would have found (#463).
+ *
+ * **The root it is given is the PROJECT store, even when the facts move.** `memory.directory` may
+ * point at the directory the Claude Code CLI manages, and that CLI has no index format — putting a
+ * binary artefact it does not understand inside a directory it owns is a different decision from
+ * putting the facts there, and it was made deliberately. The facts are what a user would lose; the
+ * index is derived and rebuildable from them. See `docs/memory-decisions.md` § 1 before relocating
+ * this, and `IndexManager.openSqliteInternal` for the caller that keeps the two apart.
  */
 export function defaultIndexPath(root: MemoryRoot): string {
   return join(root, ".index", "memory.sqlite");

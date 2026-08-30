@@ -16,7 +16,7 @@ import {
 import { type MemoryIndex, parseSearchOptions } from "./memory-index.js";
 import { loadSqliteVecExtension } from "./sqlite-vec-loader.js";
 import { chunkMarkdown } from "./storage/chunk-markdown.js";
-import { type MemoryRoot, resolveMemoryRoot } from "./storage/memory-root.js";
+import { type MemoryRoot, projectMemoryDir, resolveMemoryRoot } from "./storage/memory-root.js";
 
 // T4.1 — query-vector LRU cache (DR4 finding #1). Keyed by
 // sha256(query); caches the embedding vector so repeated search
@@ -94,7 +94,12 @@ export class IndexManager implements MemoryIndex {
   /** Internal SQLite-path open. Renamed from previous public `open`. */
   private static async openSqliteInternal(opts: OpenIndexOptions): Promise<IndexManager> {
     const memoryRoot = opts.memoryRoot ?? resolveMemoryRoot(opts.cwd);
-    const filePath = opts.filePath ?? defaultIndexPath(memoryRoot);
+    // What gets INDEXED and where the DATABASE lives are two decisions, and they diverge on
+    // purpose. The corpus is the configured root; the database stays in the project store, because
+    // `memory.directory` may name the directory the Claude Code CLI manages and that CLI has no
+    // index format (`docs/memory-decisions.md` § 1). Collapsing them writes a binary the partner
+    // does not understand into a directory it owns.
+    const filePath = opts.filePath ?? defaultIndexPath(projectMemoryDir(opts.cwd));
     const db = await openMemoryDb({ filePath });
     const manager = new IndexManager(memoryRoot, db, opts.embedding);
     if (opts.embedding !== undefined) await manager.initVectorBackend(opts.embedding);
