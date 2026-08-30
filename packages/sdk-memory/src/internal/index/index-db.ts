@@ -82,18 +82,12 @@ export async function openMemoryDb(opts: OpenDbOptions): Promise<MemoryDb> {
 }
 
 /**
- * `<index root>/.index/memory.sqlite`. Pure path computation. The file sits under a memory root but
- * outside the markdown corpus, so it is never indexed as content.
+ * `<index root>/.index/memory.sqlite`. Pure path computation.
  *
- * Takes a resolved root rather than a `cwd`: this spelled the default layout out again as a string
- * literal — an answer to "where does memory live?" that no search for the shared helper would have
- * found (#463).
- *
- * **The root it is given is the PROJECT store, even when the facts move.** With `memory.directory`
- * set, memories are written where the Claude Code CLI reads them — the index is not, because that
- * CLI has no index format, and a binary artefact it does not understand does not belong in a
- * directory it manages. The facts are what a user would lose; the index is derived and rebuildable
- * from them. See `packages/sdk/docs/memory-decisions.md` § 1 before relocating this.
+ * The root it is given is the PROJECT store even when the facts move, and the reasoning for that is
+ * stated once — in the SDK's `internal/memory/index-db.ts` and `docs/memory-decisions.md` § 1.
+ * Restating it here would put one decision in two places, which is the shape of defect this package
+ * pair keeps paying for (#430, #463).
  */
 export function defaultIndexPath(root: MemoryRoot): string {
   return join(root, ".index", "memory.sqlite");

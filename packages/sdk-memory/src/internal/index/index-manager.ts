@@ -164,10 +164,7 @@ export class IndexManager implements MemoryIndex {
   /** Internal SQLite-path open. Renamed from previous public `open`. */
   private static async openSqliteInternal(opts: OpenIndexOptions): Promise<IndexManager> {
     const memoryRoot = opts.memoryRoot ?? resolveMemoryRoot(opts.cwd);
-    // Corpus and database diverge on purpose: the corpus is the configured root, the database
-    // stays in the project store, because `memory.directory` may name the directory the Claude
-    // Code CLI manages and that CLI has no index format (`packages/sdk/docs/memory-decisions.md`
-    // § 1).
+    // Corpus and database diverge on purpose — see `defaultIndexPath` for why (#463).
     const filePath = opts.filePath ?? defaultIndexPath(projectMemoryDir(opts.cwd));
     const db = await openMemoryDb({ filePath });
     const manager = new IndexManager(memoryRoot, db, opts.embedding);

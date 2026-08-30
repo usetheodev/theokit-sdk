@@ -324,8 +324,7 @@ export function isLanceAvailable(): boolean {
 }
 
 /**
- * `<memory root>/lance`. Takes the RESOLVED ROOT (#463), so a configured `memory.directory` carries
- * the Lance store with it instead of leaving it in a path derived from a literal of its own.
+ * `<memory root>/lance`. Takes the RESOLVED ROOT, like its counterpart in the SDK (#463).
  *
  * @internal
  */
