@@ -24,11 +24,11 @@ import {
   legacyMemoryJsonPath,
   type MemoryConfig,
   type MigrationResult,
-  memoryDir,
   memoryMdPath,
   migrateLegacyJson,
   readFactsFromMarkdown,
   resetMigrationStateForTests,
+  resolveMemoryRoot,
 } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -82,7 +82,7 @@ describe("sdk-memory migration (iter 63)", () => {
       expect(migrated).toContain("first");
       expect(migrated).toContain("second");
       // The index the reader starts from has to name them, or the files are orphans.
-      const index = await readFile(memoryMdPath(cwd), "utf8");
+      const index = await readFile(memoryMdPath(resolveMemoryRoot(cwd)), "utf8");
       expect(index).toContain("first.md");
       expect(index).toContain("second.md");
 
@@ -102,8 +102,8 @@ describe("sdk-memory migration (iter 63)", () => {
     await seedLegacyJson(cwd, cfg, [{ text: "ignored" }]);
 
     // Create MEMORY.md first.
-    await mkdir(memoryDir(cwd), { recursive: true });
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- existing\n");
+    await mkdir(resolveMemoryRoot(cwd), { recursive: true });
+    await writeFile(memoryMdPath(resolveMemoryRoot(cwd)), "# Memory\n\n## Facts\n\n- existing\n");
 
     const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     try {
@@ -112,7 +112,7 @@ describe("sdk-memory migration (iter 63)", () => {
       expect(result.reason).toBe("markdown-exists");
 
       // Existing MEMORY.md unchanged + legacy JSON NOT unlinked (both intact contract).
-      const raw = await readFile(memoryMdPath(cwd), "utf8");
+      const raw = await readFile(memoryMdPath(resolveMemoryRoot(cwd)), "utf8");
       expect(raw).toContain("- existing");
       expect(raw).not.toContain("- ignored");
 

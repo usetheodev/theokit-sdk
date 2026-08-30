@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { memoryDir } from "./markdown-store.js";
+import type { MemoryRoot } from "./memory-root.js";
 import { sessionsDir } from "./session-summary-writer.js";
 
 /**
@@ -28,18 +28,17 @@ export interface SessionFile {
   relPath: string;
 }
 
-export async function discoverSessionFiles(cwd: string): Promise<SessionFile[]> {
+export async function discoverSessionFiles(root: MemoryRoot): Promise<SessionFile[]> {
   let entries: string[];
   try {
-    entries = await readdir(sessionsDir(cwd));
+    entries = await readdir(sessionsDir(root));
   } catch {
     return [];
   }
-  const root = memoryDir(cwd);
   return entries
     .filter((entry) => entry.endsWith(".md"))
     .map((entry) => {
-      const absolutePath = join(sessionsDir(cwd), entry);
+      const absolutePath = join(sessionsDir(root), entry);
       return {
         absolutePath,
         relPath: relativeToRoot(root, absolutePath),

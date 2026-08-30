@@ -7,6 +7,7 @@ import { MEMORY_EMBEDDING_ADAPTERS } from "../memory/adapters/catalog.js";
 import type { EmbeddingRuntime } from "../memory/embedding-adapter.js";
 import { IndexManager } from "../memory/index-manager.js";
 import type { MemoryIndex } from "../memory/memory-index.js";
+import { type MemoryRoot, resolveMemoryRoot } from "../memory/storage/memory-root.js";
 import { createMemoryGetTool, createMemorySearchTool } from "../memory/tools.js";
 import { CircuitBreaker } from "../resilience/circuit-breaker.js";
 import type { TelemetryHandle } from "../telemetry/tracer.js";
@@ -23,6 +24,7 @@ export class LocalAgentMemory {
   private toolsCache: ReadonlyArray<MemoryToolSpec> | undefined;
   private breaker: CircuitBreaker | undefined;
   private cache: ActiveMemoryCache | undefined;
+  private memoryRootCache: MemoryRoot | undefined;
 
   constructor(
     private readonly options: AgentOptions,
@@ -52,18 +54,22 @@ export class LocalAgentMemory {
     if (this.toolsCache !== undefined) return this.toolsCache;
     try {
       const embedding = await this.maybeCreateEmbeddingRuntime();
+      // ONE resolution per agent, shared by the index and the read tool. They used to derive a
+      // root each, and `appendFact` derived a third — see `storage/memory-root.ts` (#463).
+      const memoryRoot = this.memoryRoot();
       const openOpts: {
         cwd: string;
+        memoryRoot: MemoryRoot;
         embedding?: EmbeddingRuntime;
         backend?: "sqlite-vec" | "lance";
-      } = { cwd: this.workspaceCwd };
+      } = { cwd: this.workspaceCwd, memoryRoot };
       if (embedding !== undefined) openOpts.embedding = embedding;
       if (cfg?.backend !== undefined) openOpts.backend = cfg.backend;
       this.index = await IndexManager.open(openOpts);
       await this.index.sync();
       this.toolsCache = [
         createMemorySearchTool({ index: this.index }),
-        createMemoryGetTool({ cwd: this.workspaceCwd }),
+        createMemoryGetTool({ root: memoryRoot }),
       ];
       return this.toolsCache;
     } catch (cause) {
@@ -102,11 +108,21 @@ export class LocalAgentMemory {
       cache: this.cache,
       agentKey: this.agentId,
       cwd: this.workspaceCwd,
+      memoryRoot: this.memoryRoot(),
       ...(cfg.persistTranscripts === true ? { persistTranscripts: true } : {}),
       runId: `${this.agentId}-${Date.now()}`,
       ...this.buildTelemetryRecallArgs(telemetry),
     });
     return result.summary;
+  }
+
+  /**
+   * Where this agent's memory lives — resolved once and shared by the index, the `memory_get` tool
+   * and the active-memory transcript writer. Three separate resolutions is how they drifted (#463).
+   */
+  private memoryRoot(): MemoryRoot {
+    this.memoryRootCache ??= resolveMemoryRoot(this.workspaceCwd, this.options.memory);
+    return this.memoryRootCache;
   }
 
   private buildActiveMemoryOptions(cfg: NonNullable<AgentOptions["memory"]>["activeRecall"]) {

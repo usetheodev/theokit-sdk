@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { openSqliteResilient } from "../persistence/sqlite-open.js";
 import { PRAGMA_STATEMENTS, SCHEMA_STATEMENTS } from "./index-schema.js";
+import type { MemoryRoot } from "./storage/memory-root.js";
 
 /**
  * Memory index DB handle + opener.
@@ -50,6 +51,13 @@ export async function openMemoryDb(opts: OpenDbOptions): Promise<MemoryDb> {
   });
 }
 
-export function defaultIndexPath(cwd: string): string {
-  return join(cwd, ".theokit", "memory", ".index", "memory.sqlite");
+/**
+ * `<memory root>/.index/memory.sqlite`.
+ *
+ * Takes the RESOLVED ROOT. This function used to spell the default layout out again as a string
+ * literal — a fourteenth answer to "where does memory live?", and the one no `memoryDir` grep
+ * would have found (#463).
+ */
+export function defaultIndexPath(root: MemoryRoot): string {
+  return join(root, ".index", "memory.sqlite");
 }

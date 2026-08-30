@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { atomicWriteJson } from "@theokit/sdk/persistence";
 
-import { memoryDir } from "./markdown-store.js";
+import type { MemoryRoot } from "./markdown-store.js";
 
 /**
  * Optional on-disk persistence for Active Memory recall transcripts (ADR D6).
@@ -53,11 +53,11 @@ export interface ActiveMemoryTranscript {
  * writer, nothing sanitises it here, so pass an id you control.
  */
 export async function persistActiveMemoryTranscript(
-  cwd: string,
+  root: MemoryRoot,
   transcript: ActiveMemoryTranscript,
 ): Promise<void> {
   try {
-    const dir = join(memoryDir(cwd), "transcripts", "active-memory");
+    const dir = join(root, "transcripts", "active-memory");
     const file = join(dir, `${transcript.runId}.json`);
     // atomicWriteJson auto-creates the parent directory + writes atomically
     // (no torn writes during crash).

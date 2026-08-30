@@ -14,7 +14,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createInMemoryMarkdownProvider } from "@theokit/sdk-memory";
+import { createInMemoryMarkdownProvider, resolveMemoryRoot } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("recordSessionSummary secret redaction (iter 42)", () => {
@@ -35,7 +35,8 @@ describe("recordSessionSummary secret redaction (iter 42)", () => {
     // Realistic-shape but bogus key matching OpenAI's `sk-` pattern.
     const FAKE_KEY = "sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     await provider.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "redact-test-1",
       agentId: "agent-redact",
       userText: `set OPENAI_API_KEY=${FAKE_KEY} and continue`,
@@ -60,7 +61,8 @@ describe("recordSessionSummary secret redaction (iter 42)", () => {
     const FAKE_USER_KEY = "sk-proj-USERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     const FAKE_ASSISTANT_KEY = "sk-ant-api03-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
     await provider.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "redact-test-2",
       agentId: "agent-redact",
       userText: `here's my key: ${FAKE_USER_KEY}`,
@@ -81,7 +83,8 @@ describe("recordSessionSummary secret redaction (iter 42)", () => {
     if (provider.recordSessionSummary === undefined) throw new Error("missing");
 
     await provider.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "no-secrets",
       agentId: "agent-redact",
       userText: "what is the capital of France?",

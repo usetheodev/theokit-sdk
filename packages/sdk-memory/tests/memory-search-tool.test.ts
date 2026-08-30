@@ -11,7 +11,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createInMemoryMarkdownProvider } from "@theokit/sdk-memory";
+import { createInMemoryMarkdownProvider, resolveMemoryRoot } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { textHandler } from "./text-handler.js";
 
@@ -64,7 +64,8 @@ describe("memory_search LLM-facing tool (iter 35)", () => {
       throw new Error("missing recordSessionSummary");
     }
     await provider.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "past-1",
       agentId: "agent-1",
       userText: "user is allergic to peanuts",
@@ -132,7 +133,8 @@ describe("memory_search LLM-facing tool (iter 35)", () => {
     if (provider.recordSessionSummary === undefined) throw new Error("missing");
     for (let i = 0; i < 7; i++) {
       await provider.recordSessionSummary({
-        cwd,
+        cwd: cwd,
+        memoryRoot: resolveMemoryRoot(cwd),
         runId: `cap-${i}`,
         agentId: "a",
         userText: `shared-needle ${i}`,

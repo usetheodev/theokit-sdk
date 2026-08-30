@@ -44,6 +44,7 @@ import type { OTelSpan, TelemetryHandle } from "@theokit/sdk";
 import type { CircuitBreaker } from "../circuit-breaker.js";
 import type { MemorySearchHit } from "../index/index-manager-contract.js";
 import type { MemoryIndex } from "../index/memory-index.js";
+import { resolveMemoryRoot } from "../store/markdown-store.js";
 import { persistActiveMemoryTranscript } from "../store/transcript-store.js";
 import type { ActiveMemoryCache, TenantContext } from "./active-memory-cache.js";
 // T4.1 / D438 — `ActiveMemoryResult` and its helpers moved to `./active-memory-types.ts`
@@ -325,7 +326,7 @@ async function finalize(
   };
   args.cache?.set(args.userText, queryMode, result, tenantCtx);
   if (args.persistTranscripts === true && args.cwd !== undefined) {
-    await persistActiveMemoryTranscript(args.cwd, {
+    await persistActiveMemoryTranscript(resolveMemoryRoot(args.cwd), {
       runId: args.runId ?? `run-${Date.now()}`,
       startedAtMs: Date.now() - result.durationMs,
       userText: args.userText,

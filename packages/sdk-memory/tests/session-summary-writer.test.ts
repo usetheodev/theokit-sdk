@@ -21,6 +21,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  resolveMemoryRoot,
   type SessionSummaryInput,
   sessionSummaryPath,
   sessionsDir,
@@ -30,7 +31,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 function sampleInput(overrides: Partial<SessionSummaryInput> = {}): SessionSummaryInput {
   return {
-    cwd: "/will-be-overridden",
+    memoryRoot: resolveMemoryRoot("/will-be-overridden"),
     runId: "abc-123",
     agentId: "test-agent",
     userText: "hello",
@@ -53,11 +54,11 @@ describe("sdk-memory session-summary-writer (iter 61)", () => {
 
   describe("path helpers", () => {
     it("test_sessionsDir_resolves_to_theokit_memory_sessions", () => {
-      expect(sessionsDir(cwd)).toBe(join(cwd, ".theokit", "memory", "sessions"));
+      expect(sessionsDir(resolveMemoryRoot(cwd))).toBe(join(cwd, ".theokit", "memory", "sessions"));
     });
 
     it("test_sessionSummaryPath_uses_runId_md_filename", () => {
-      expect(sessionSummaryPath(cwd, "abc-123")).toBe(
+      expect(sessionSummaryPath(resolveMemoryRoot(cwd), "abc-123")).toBe(
         join(cwd, ".theokit", "memory", "sessions", "abc-123.md"),
       );
     });
@@ -67,13 +68,13 @@ describe("sdk-memory session-summary-writer (iter 61)", () => {
       // Input: "../../etc/passwd" — 2 dots + slash + 2 dots + slash +
       // "etc" + slash + "passwd" → 6 underscores + "etc" + 1 underscore
       // + "passwd". Verifies a malicious runId can't escape sessionsDir.
-      const path = sessionSummaryPath(cwd, "../../etc/passwd");
+      const path = sessionSummaryPath(resolveMemoryRoot(cwd), "../../etc/passwd");
       expect(path).toBe(join(cwd, ".theokit", "memory", "sessions", "______etc_passwd.md"));
     });
 
     it("test_sessionSummaryPath_truncates_long_runId_to_128", () => {
       const long = "a".repeat(300);
-      const path = sessionSummaryPath(cwd, long);
+      const path = sessionSummaryPath(resolveMemoryRoot(cwd), long);
       const basename = path.split("/").pop() ?? "";
       expect(basename).toBe(`${"a".repeat(128)}.md`);
     });
@@ -81,24 +82,32 @@ describe("sdk-memory session-summary-writer (iter 61)", () => {
 
   describe("writeSessionSummary EC-9 status gate", () => {
     it("test_writes_when_status_finished", async () => {
-      await writeSessionSummary(sampleInput({ cwd, status: "finished" }));
-      const file = sessionSummaryPath(cwd, "abc-123");
+      await writeSessionSummary(
+        sampleInput({ memoryRoot: resolveMemoryRoot(cwd), status: "finished" }),
+      );
+      const file = sessionSummaryPath(resolveMemoryRoot(cwd), "abc-123");
       await expect(access(file)).resolves.toBeUndefined();
     });
 
     it("test_skips_when_status_running", async () => {
-      await writeSessionSummary(sampleInput({ cwd, status: "running" }));
-      await expect(access(sessionSummaryPath(cwd, "abc-123"))).rejects.toThrow();
+      await writeSessionSummary(
+        sampleInput({ memoryRoot: resolveMemoryRoot(cwd), status: "running" }),
+      );
+      await expect(access(sessionSummaryPath(resolveMemoryRoot(cwd), "abc-123"))).rejects.toThrow();
     });
 
     it("test_skips_when_status_error", async () => {
-      await writeSessionSummary(sampleInput({ cwd, status: "error" }));
-      await expect(access(sessionSummaryPath(cwd, "abc-123"))).rejects.toThrow();
+      await writeSessionSummary(
+        sampleInput({ memoryRoot: resolveMemoryRoot(cwd), status: "error" }),
+      );
+      await expect(access(sessionSummaryPath(resolveMemoryRoot(cwd), "abc-123"))).rejects.toThrow();
     });
 
     it("test_skips_when_status_cancelled", async () => {
-      await writeSessionSummary(sampleInput({ cwd, status: "cancelled" }));
-      await expect(access(sessionSummaryPath(cwd, "abc-123"))).rejects.toThrow();
+      await writeSessionSummary(
+        sampleInput({ memoryRoot: resolveMemoryRoot(cwd), status: "cancelled" }),
+      );
+      await expect(access(sessionSummaryPath(resolveMemoryRoot(cwd), "abc-123"))).rejects.toThrow();
     });
   });
 
@@ -106,12 +115,12 @@ describe("sdk-memory session-summary-writer (iter 61)", () => {
     it("test_body_has_frontmatter_user_assistant_sections", async () => {
       await writeSessionSummary(
         sampleInput({
-          cwd,
+          memoryRoot: resolveMemoryRoot(cwd),
           userText: "the user asked X",
           assistantText: "the assistant said Y",
         }),
       );
-      const raw = await readFile(sessionSummaryPath(cwd, "abc-123"), "utf8");
+      const raw = await readFile(sessionSummaryPath(resolveMemoryRoot(cwd), "abc-123"), "utf8");
       expect(raw).toContain("---");
       expect(raw).toContain("runId: abc-123");
       expect(raw).toContain("agentId: test-agent");
@@ -123,8 +132,10 @@ describe("sdk-memory session-summary-writer (iter 61)", () => {
 
     it("test_truncates_user_text_above_MAX_TURN_CHARS_2000", async () => {
       const longUser = "u".repeat(2500);
-      await writeSessionSummary(sampleInput({ cwd, userText: longUser }));
-      const raw = await readFile(sessionSummaryPath(cwd, "abc-123"), "utf8");
+      await writeSessionSummary(
+        sampleInput({ memoryRoot: resolveMemoryRoot(cwd), userText: longUser }),
+      );
+      const raw = await readFile(sessionSummaryPath(resolveMemoryRoot(cwd), "abc-123"), "utf8");
       // Should contain 2000 'u' chars + ellipsis, not the original 2500.
       expect(raw).not.toContain("u".repeat(2500));
       expect(raw).toContain(`${"u".repeat(2000)}…`);
@@ -132,24 +143,33 @@ describe("sdk-memory session-summary-writer (iter 61)", () => {
 
     it("test_truncates_assistant_text_above_MAX_TURN_CHARS_2000", async () => {
       const longAssistant = "a".repeat(2500);
-      await writeSessionSummary(sampleInput({ cwd, assistantText: longAssistant }));
-      const raw = await readFile(sessionSummaryPath(cwd, "abc-123"), "utf8");
+      await writeSessionSummary(
+        sampleInput({ memoryRoot: resolveMemoryRoot(cwd), assistantText: longAssistant }),
+      );
+      const raw = await readFile(sessionSummaryPath(resolveMemoryRoot(cwd), "abc-123"), "utf8");
       expect(raw).not.toContain("a".repeat(2500));
       expect(raw).toContain(`${"a".repeat(2000)}…`);
     });
 
     it("test_redacts_secrets_in_user_text_before_persist", async () => {
       const FAKE_KEY = "sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-      await writeSessionSummary(sampleInput({ cwd, userText: `my key is ${FAKE_KEY}` }));
-      const raw = await readFile(sessionSummaryPath(cwd, "abc-123"), "utf8");
+      await writeSessionSummary(
+        sampleInput({ memoryRoot: resolveMemoryRoot(cwd), userText: `my key is ${FAKE_KEY}` }),
+      );
+      const raw = await readFile(sessionSummaryPath(resolveMemoryRoot(cwd), "abc-123"), "utf8");
       expect(raw).not.toContain(FAKE_KEY);
       expect(raw).toContain("my key is");
     });
 
     it("test_redacts_secrets_in_assistant_text_before_persist", async () => {
       const FAKE_KEY = "sk-ant-api03-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
-      await writeSessionSummary(sampleInput({ cwd, assistantText: `here you go: ${FAKE_KEY}` }));
-      const raw = await readFile(sessionSummaryPath(cwd, "abc-123"), "utf8");
+      await writeSessionSummary(
+        sampleInput({
+          memoryRoot: resolveMemoryRoot(cwd),
+          assistantText: `here you go: ${FAKE_KEY}`,
+        }),
+      );
+      const raw = await readFile(sessionSummaryPath(resolveMemoryRoot(cwd), "abc-123"), "utf8");
       expect(raw).not.toContain(FAKE_KEY);
       expect(raw).toContain("here you go:");
     });

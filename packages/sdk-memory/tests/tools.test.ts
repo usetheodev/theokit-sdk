@@ -26,7 +26,7 @@ import {
   type IndexStatus,
   type MemoryIndex,
   type MemorySearchHit,
-  memoryDir,
+  resolveMemoryRoot,
 } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -150,14 +150,14 @@ describe("sdk-memory tools (iter 64)", () => {
     let cwd: string;
     beforeEach(async () => {
       cwd = await mkdtemp(join(tmpdir(), "sdk-memory-tools-"));
-      await mkdir(memoryDir(cwd), { recursive: true });
+      await mkdir(resolveMemoryRoot(cwd), { recursive: true });
     });
     afterEach(async () => {
       await rm(cwd, { recursive: true, force: true });
     });
 
     it("test_get_tool_metadata_shape", () => {
-      const tool = createMemoryGetTool({ cwd });
+      const tool = createMemoryGetTool({ root: resolveMemoryRoot(cwd) });
       expect(tool.name).toBe("memory_get");
       expect(tool.inputSchema).toMatchObject({
         type: "object",
@@ -171,9 +171,9 @@ describe("sdk-memory tools (iter 64)", () => {
 
     it("test_get_reads_bounded_excerpt_from_memory_root", async () => {
       const content = Array.from({ length: 10 }, (_, i) => `line${i + 1}`).join("\n");
-      await writeFile(join(memoryDir(cwd), "MEMORY.md"), content);
+      await writeFile(join(resolveMemoryRoot(cwd), "MEMORY.md"), content);
 
-      const tool = createMemoryGetTool({ cwd });
+      const tool = createMemoryGetTool({ root: resolveMemoryRoot(cwd) });
       const result = await tool.execute({ path: "MEMORY.md", from: 3, lines: 3 });
       const parsed = JSON.parse(result) as {
         path: string;
@@ -188,14 +188,14 @@ describe("sdk-memory tools (iter 64)", () => {
     });
 
     it("test_get_rejects_path_traversal_with_typed_ConfigurationError_EC2", async () => {
-      const tool = createMemoryGetTool({ cwd });
+      const tool = createMemoryGetTool({ root: resolveMemoryRoot(cwd) });
       await expect(tool.execute({ path: "../../../etc/passwd" })).rejects.toMatchObject({
         message: expect.stringContaining("memory_get rejected path that escapes memory root"),
       });
     });
 
     it("test_get_throws_typed_error_when_path_missing", async () => {
-      const tool = createMemoryGetTool({ cwd });
+      const tool = createMemoryGetTool({ root: resolveMemoryRoot(cwd) });
       await expect(tool.execute({})).rejects.toMatchObject({
         message: expect.stringContaining("path is required"),
       });

@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-
 import { replaceFileAtomic } from "../../persistence/atomic-write.js";
-import { memoryDir } from "../storage/markdown-store.js";
+import type { MemoryRoot } from "../storage/memory-root.js";
 
 /**
  * Dream-diary append (ADR D7).
@@ -27,8 +26,9 @@ export interface DiaryEntry {
   notesWritten: number;
 }
 
-export function diaryPath(cwd: string): string {
-  return join(memoryDir(cwd), "dream-diary.md");
+/** `<memory root>/dream-diary.md`. Takes the RESOLVED ROOT — see `storage/memory-root.ts` (#463). */
+export function diaryPath(root: MemoryRoot): string {
+  return join(root, "dream-diary.md");
 }
 
 export function renderDiaryEntry(entry: DiaryEntry): string {
@@ -47,8 +47,8 @@ export function renderDiaryEntry(entry: DiaryEntry): string {
   ].join("\n");
 }
 
-export async function appendDiaryEntry(cwd: string, entry: DiaryEntry): Promise<void> {
-  const path = diaryPath(cwd);
+export async function appendDiaryEntry(root: MemoryRoot, entry: DiaryEntry): Promise<void> {
+  const path = diaryPath(root);
   let raw = "";
   try {
     raw = await readFile(path, "utf8");

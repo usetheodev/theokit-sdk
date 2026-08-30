@@ -26,6 +26,7 @@ import {
   isLanceAvailable,
   LanceIndex,
   lanceStoragePath,
+  resolveMemoryRoot,
 } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -44,8 +45,16 @@ function stubEmbedding(
 
 describe("sdk-memory lance-index (iter 68)", () => {
   describe("pure helpers — always run", () => {
-    it("test_lanceStoragePath_resolves_under_theokit_memory_lance", () => {
-      expect(lanceStoragePath("/tmp/x")).toBe("/tmp/x/.theokit/memory/lance");
+    it("test_lanceStoragePath_resolves_under_the_default_memory_root", () => {
+      expect(lanceStoragePath(resolveMemoryRoot("/tmp/x"))).toBe("/tmp/x/.theokit/memory/lance");
+    });
+
+    // The half the default hides: with `memory.directory` set the Lance store follows the root
+    // instead of re-deriving `<cwd>/.theokit/memory` from a literal of its own (#463).
+    it("test_lanceStoragePath_follows_a_configured_memory_directory", () => {
+      expect(lanceStoragePath(resolveMemoryRoot("/tmp/x", { directory: "/srv/mem" }))).toBe(
+        "/srv/mem/lance",
+      );
     });
 
     it("test_isLanceAvailable_returns_boolean_consistent_with_environment", () => {

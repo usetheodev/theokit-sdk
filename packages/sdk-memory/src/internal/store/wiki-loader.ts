@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { memoryDir } from "./markdown-store.js";
+import type { MemoryRoot } from "./markdown-store.js";
 
 /**
  * Wiki supplement discovery (ADR Phase 10 of memory-system-peer-project-parity).
@@ -31,8 +31,8 @@ export interface WikiFile {
  * this package writes there — it is for material a human or another tool puts
  * in place. Pure path computation.
  */
-export function wikiDir(cwd: string): string {
-  return join(memoryDir(cwd), "wiki");
+export function wikiDir(root: MemoryRoot): string {
+  return join(root, "wiki");
 }
 
 /**
@@ -41,18 +41,17 @@ export function wikiDir(cwd: string): string {
  * `[]` when the directory does not exist. Does not recurse, so wiki material
  * organised into sub-directories is not picked up.
  */
-export async function discoverWikiFiles(cwd: string): Promise<WikiFile[]> {
+export async function discoverWikiFiles(root: MemoryRoot): Promise<WikiFile[]> {
   let entries: string[];
   try {
-    entries = await readdir(wikiDir(cwd));
+    entries = await readdir(wikiDir(root));
   } catch {
     return [];
   }
-  const root = memoryDir(cwd);
   return entries
     .filter((entry) => entry.endsWith(".md"))
     .map((entry) => ({
-      absolutePath: join(wikiDir(cwd), entry),
+      absolutePath: join(wikiDir(root), entry),
       relPath: join("wiki", entry),
     }))
     .map((file) => ({

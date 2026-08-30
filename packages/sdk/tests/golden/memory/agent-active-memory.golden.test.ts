@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { Agent } from "../../../src/index.js";
-import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
@@ -77,9 +78,9 @@ describe("Active Memory wired through Agent.send", () => {
     onTestFinished(async () => {
       await removeTempDirRobust(__cwdCleanup1);
     });
-    await mkdir(memoryDir(cwd), { recursive: true });
+    await mkdir(resolveMemoryRoot(cwd), { recursive: true });
     await writeFile(
-      memoryMdPath(cwd),
+      memoryMdPath(resolveMemoryRoot(cwd)),
       "# Memory\n\n## Facts\n\n- the magic-number for this workspace is 8675309.\n- another unrelated fact about cats.\n",
       "utf8",
     );

@@ -9,6 +9,7 @@ import {
   memoryMdPath,
   readFactsFromMarkdown,
 } from "../../../src/internal/memory/storage/markdown-store.js";
+import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 import {
   appendMemoryFact,
   type MemoryConfig,
@@ -44,7 +45,7 @@ describe("MarkdownMemoryStore", () => {
     // text and the count rather than on object identity — the guarantee is "one fact in, the same
     // fact out", not the exact field set.
     expect(facts.map((f) => f.text)).toEqual(["magic-number is 8675309"]);
-    expect(existsSync(memoryMdPath(cwd))).toBe(true);
+    expect(existsSync(memoryMdPath(resolveMemoryRoot(cwd)))).toBe(true);
   });
 
   it("multiple appends each get a file, and the index points at all of them", async () => {
@@ -55,7 +56,7 @@ describe("MarkdownMemoryStore", () => {
     await appendMemoryFact(cwd, cfg, { text: "fact A" });
     await appendMemoryFact(cwd, cfg, { text: "fact B" });
     await appendMemoryFact(cwd, cfg, { text: "fact C" });
-    const raw = await readFile(memoryMdPath(cwd), "utf8");
+    const raw = await readFile(memoryMdPath(resolveMemoryRoot(cwd)), "utf8");
     // `- [Title](slug.md) — hook`. The three share a topic name, so the second and third move
     // aside rather than overwrite — what this protects is that none of them is lost.
     expect(raw).toMatch(/— fact A[\s\S]*— fact B[\s\S]*— fact C/);
@@ -73,7 +74,7 @@ describe("MarkdownMemoryStore", () => {
     );
     const facts = await readMemoryFacts(cwd, cfg);
     expect(facts.map((f) => f.text)).toEqual(["legacy A", "legacy B"]);
-    expect(existsSync(memoryMdPath(cwd))).toBe(true);
+    expect(existsSync(memoryMdPath(resolveMemoryRoot(cwd)))).toBe(true);
     expect(existsSync(jsonPath)).toBe(false);
   });
 
@@ -87,7 +88,11 @@ describe("MarkdownMemoryStore", () => {
     // would leave it behind and the assertion would be testing the fixture rather than migration.
     await rm(join(cwd, ".theokit", "memory"), { recursive: true, force: true });
     await mkdir(join(cwd, ".theokit", "memory"), { recursive: true });
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- only-one\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- only-one\n",
+      "utf8",
+    );
     const facts = await readMemoryFacts(cwd, cfg);
     expect(facts.map((f) => f.text)).toEqual(["only-one"]);
   });
@@ -98,7 +103,11 @@ describe("MarkdownMemoryStore", () => {
     const jsonPath = join(jsonDir, "agent-u1.json");
     await writeFile(jsonPath, JSON.stringify({ facts: [{ text: "json-fact" }] }));
     await mkdir(join(cwd, ".theokit", "memory"), { recursive: true });
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- md-fact\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- md-fact\n",
+      "utf8",
+    );
     const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     const facts = await readMemoryFacts(cwd, cfg);
     // Markdown source wins; JSON is left intact.
@@ -111,7 +120,7 @@ describe("MarkdownMemoryStore", () => {
     await appendMemoryFact(cwd, cfg, {
       text: "token=sk-abcdef0123456789ghijklmn",
     });
-    const raw = await readFile(memoryMdPath(cwd), "utf8");
+    const raw = await readFile(memoryMdPath(resolveMemoryRoot(cwd)), "utf8");
     // T0.2 (ADR D68/D71): canonical redaction uses two-bucket masking —
     // long tokens keep prefix+suffix for debuggability instead of bare ***.
     // Security property under test is no-leak of the original secret.
@@ -124,7 +133,7 @@ describe("MarkdownMemoryStore", () => {
     // the header invites editing it by hand. That half is unchanged. What changed is the shape the
     // append adds: an index entry pointing at the memory's own file, not a `## Facts` bullet.
     await mkdir(join(cwd, ".theokit", "memory"), { recursive: true });
-    const path = memoryMdPath(cwd);
+    const path = memoryMdPath(resolveMemoryRoot(cwd));
     await writeFile(path, "# Memory\n\nSome free-form content the user wrote.\n", "utf8");
     await appendFactToMarkdown(cwd, { text: "new fact" });
     const raw = await readFile(path, "utf8");

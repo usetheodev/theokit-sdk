@@ -24,12 +24,12 @@ import {
   appendFactToMarkdown,
   listNotes,
   type MemoryConfig,
-  memoryDir,
   memoryMdPath,
   type NoteFile,
   notesDir,
   readFacts,
   readFactsFromMarkdown,
+  resolveMemoryRoot,
 } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -45,13 +45,15 @@ describe("sdk-memory markdown-store (iter 56)", () => {
 
   describe("path helpers", () => {
     it("test_memoryDir_returns_dot_theokit_memory", () => {
-      expect(memoryDir(cwd)).toBe(join(cwd, ".theokit", "memory"));
+      expect(resolveMemoryRoot(cwd)).toBe(join(cwd, ".theokit", "memory"));
     });
     it("test_memoryMdPath_returns_MEMORY_md_inside_dir", () => {
-      expect(memoryMdPath(cwd)).toBe(join(cwd, ".theokit", "memory", "MEMORY.md"));
+      expect(memoryMdPath(resolveMemoryRoot(cwd))).toBe(
+        join(cwd, ".theokit", "memory", "MEMORY.md"),
+      );
     });
     it("test_notesDir_returns_notes_inside_dir", () => {
-      expect(notesDir(cwd)).toBe(join(cwd, ".theokit", "memory", "notes"));
+      expect(notesDir(resolveMemoryRoot(cwd))).toBe(join(cwd, ".theokit", "memory", "notes"));
     });
   });
 
@@ -63,8 +65,8 @@ describe("sdk-memory markdown-store (iter 56)", () => {
 
     it("test_returns_facts_from_bullet_list", async () => {
       const content = "# Memory\n\n## Facts\n\n- one\n- two\n- three\n";
-      await mkdir(memoryDir(cwd), { recursive: true });
-      await writeFile(memoryMdPath(cwd), content);
+      await mkdir(resolveMemoryRoot(cwd), { recursive: true });
+      await writeFile(memoryMdPath(resolveMemoryRoot(cwd)), content);
 
       const facts = await readFactsFromMarkdown(cwd);
       expect(facts).toEqual([{ text: "one" }, { text: "two" }, { text: "three" }]);
@@ -72,8 +74,8 @@ describe("sdk-memory markdown-store (iter 56)", () => {
 
     it("test_stops_at_next_h2_heading", async () => {
       const content = "# Memory\n\n## Facts\n\n- inside\n\n## Other Section\n\n- outside\n";
-      await mkdir(memoryDir(cwd), { recursive: true });
-      await writeFile(memoryMdPath(cwd), content);
+      await mkdir(resolveMemoryRoot(cwd), { recursive: true });
+      await writeFile(memoryMdPath(resolveMemoryRoot(cwd)), content);
 
       const facts = await readFactsFromMarkdown(cwd);
       expect(facts.map((f) => f.text)).toEqual(["inside"]);
@@ -86,9 +88,11 @@ describe("sdk-memory markdown-store (iter 56)", () => {
     // store written today is not in it.
     it("test_writes_the_fact_as_its_own_file_and_points_the_index_at_it", async () => {
       await appendFactToMarkdown(cwd, { text: "first fact" });
-      const written = await readFile(join(memoryDir(cwd), "first-fact.md"), "utf8");
+      const written = await readFile(join(resolveMemoryRoot(cwd), "first-fact.md"), "utf8");
       expect(written).toContain("first fact");
-      expect(await readFile(memoryMdPath(cwd), "utf8")).toContain("first-fact.md");
+      expect(await readFile(memoryMdPath(resolveMemoryRoot(cwd)), "utf8")).toContain(
+        "first-fact.md",
+      );
     });
 
     it("test_every_appended_fact_is_read_back", async () => {
@@ -106,7 +110,7 @@ describe("sdk-memory markdown-store (iter 56)", () => {
       const FAKE_KEY = "sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
       await appendFactToMarkdown(cwd, { text: `api key is ${FAKE_KEY}` });
 
-      const raw = await readFile(memoryMdPath(cwd), "utf8");
+      const raw = await readFile(memoryMdPath(resolveMemoryRoot(cwd)), "utf8");
       expect(raw).not.toContain(FAKE_KEY);
       expect(raw).toContain("api key is");
     });
@@ -141,10 +145,10 @@ describe("sdk-memory markdown-store (iter 56)", () => {
     });
 
     it("test_returns_only_markdown_files_with_slugs", async () => {
-      await mkdir(notesDir(cwd), { recursive: true });
-      await writeFile(join(notesDir(cwd), "foo.md"), "foo");
-      await writeFile(join(notesDir(cwd), "bar.md"), "bar");
-      await writeFile(join(notesDir(cwd), "baz.txt"), "ignored");
+      await mkdir(notesDir(resolveMemoryRoot(cwd)), { recursive: true });
+      await writeFile(join(notesDir(resolveMemoryRoot(cwd)), "foo.md"), "foo");
+      await writeFile(join(notesDir(resolveMemoryRoot(cwd)), "bar.md"), "bar");
+      await writeFile(join(notesDir(resolveMemoryRoot(cwd)), "baz.txt"), "ignored");
 
       const notes = await listNotes(cwd);
       const slugs = notes.map((n) => n.slug).sort();

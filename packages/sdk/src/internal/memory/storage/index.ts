@@ -19,11 +19,23 @@
 export {
   appendFact,
   appendFactToMarkdown,
-  claudeProjectMemoryDir,
-  memoryDir,
   memoryMdPath,
-  memoryWriteDir,
   notesDir,
   readFacts,
   readFactsFromMarkdown,
 } from "./markdown-store.js";
+// Root resolution moved out of the store and into one module (#463). `memoryDir` and
+// `memoryWriteDir` are gone: the first was one of fourteen places that answered "where does memory
+// live?", and the second was the only one that answered differently.
+export {
+  asMemoryRoot,
+  claudeProjectMemoryDir,
+  indexBudgetWarning,
+  MEMORY_INDEX_MAX_BYTES,
+  MEMORY_INDEX_MAX_LINES,
+  type MemoryLocationConfig,
+  type MemoryRoot,
+  memoryReadRoots,
+  projectMemoryDir,
+  resolveMemoryRoot,
+} from "./memory-root.js";

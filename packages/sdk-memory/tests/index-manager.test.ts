@@ -23,7 +23,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { type EmbeddingRuntime, IndexManager, memoryDir } from "@theokit/sdk-memory";
+import { type EmbeddingRuntime, IndexManager, resolveMemoryRoot } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 async function hasNativeStack(): Promise<boolean> {
@@ -78,9 +78,9 @@ describe("sdk-memory index-manager (iter 72)", () => {
         ctx.skip("better-sqlite3 native stack unavailable on this runner");
       }
       // Seed a tiny memory corpus.
-      await mkdir(memoryDir(cwd), { recursive: true });
+      await mkdir(resolveMemoryRoot(cwd), { recursive: true });
       await writeFile(
-        join(memoryDir(cwd), "MEMORY.md"),
+        join(resolveMemoryRoot(cwd), "MEMORY.md"),
         "# Memory\n\n## Facts\n\n- The user likes pour-over coffee.\n- The user dislikes meetings before 10am.\n",
       );
 
@@ -122,8 +122,8 @@ describe("sdk-memory index-manager (iter 72)", () => {
       if (!(await hasNativeStack())) {
         ctx.skip("better-sqlite3 native stack unavailable on this runner");
       }
-      await mkdir(memoryDir(cwd), { recursive: true });
-      await writeFile(join(memoryDir(cwd), "MEMORY.md"), "# Memory\n\n## Facts\n\n- pin\n");
+      await mkdir(resolveMemoryRoot(cwd), { recursive: true });
+      await writeFile(join(resolveMemoryRoot(cwd), "MEMORY.md"), "# Memory\n\n## Facts\n\n- pin\n");
       const idx = await IndexManager.open({ cwd });
 
       const first = await idx.sync();

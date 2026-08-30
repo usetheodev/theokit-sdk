@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { ConfigurationError } from "@theokit/sdk/errors";
 
 import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
+import { type MemoryRoot, resolveMemoryRoot } from "../store/markdown-store.js";
 
 /**
  * LanceDB-backed memory index (ADR D43). Implements the same logical
@@ -94,6 +95,8 @@ export interface LanceFactRecord {
  */
 export interface OpenLanceOptions {
   cwd: string;
+  /** The resolved memory root. Defaults to `<cwd>/.theokit/memory` (#463). */
+  memoryRoot?: MemoryRoot;
   embedding: EmbeddingRuntime;
   /** Override storage location. Default: `<cwd>/.theokit/memory/lance/`. */
   storagePath?: string;
@@ -160,7 +163,8 @@ export class LanceIndex {
 
   static async open(opts: OpenLanceOptions): Promise<LanceIndex> {
     const lance = requireLance();
-    const storagePath = opts.storagePath ?? join(opts.cwd, ".theokit", "memory", "lance");
+    const storagePath =
+      opts.storagePath ?? lanceStoragePath(opts.memoryRoot ?? resolveMemoryRoot(opts.cwd));
     mkdirSync(storagePath, { recursive: true });
     const conn = await lance.connect(storagePath);
     const dim = opts.embedding.dimension;
@@ -324,8 +328,9 @@ export function isLanceAvailable(): boolean {
  *
  * @internal
  */
-export function lanceStoragePath(cwd: string): string {
-  return join(cwd, ".theokit", "memory", "lance");
+/** `<memory root>/lance`. Takes the RESOLVED ROOT (#463). */
+export function lanceStoragePath(root: MemoryRoot): string {
+  return join(root, "lance");
 }
 
 void existsSync; // imported but only used conditionally via mkdirSync

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vit
 import type { EmbeddingRuntime } from "../../../src/internal/memory/embedding-adapter.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
@@ -57,7 +58,7 @@ describe("vector index + hybrid search", () => {
 
   it("stores one vector per chunk on sync (hybrid backend)", async () => {
     await writeFile(
-      memoryMdPath(cwd),
+      memoryMdPath(resolveMemoryRoot(cwd)),
       "# Memory\n\n## Facts\n\n- magic-number is 8675309.\n- vitest is the test runner.\n",
       "utf8",
     );
@@ -70,7 +71,11 @@ describe("vector index + hybrid search", () => {
   });
 
   it("skips embedding unchanged chunks on re-sync", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- one fact.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- one fact.\n",
+      "utf8",
+    );
     manager = await IndexManager.open({ cwd, embedding: fakeAdapter() });
     const first = await manager.sync();
     expect(first.chunksEmbedded).toBeGreaterThan(0);
@@ -80,7 +85,7 @@ describe("vector index + hybrid search", () => {
 
   it("hybrid search includes vector score in results", async () => {
     await writeFile(
-      memoryMdPath(cwd),
+      memoryMdPath(resolveMemoryRoot(cwd)),
       "# Memory\n\n## Facts\n\n- magic-number is 8675309.\n- random unrelated.\n",
       "utf8",
     );
@@ -95,7 +100,11 @@ describe("vector index + hybrid search", () => {
   });
 
   it("force re-embed on dimension change (EC-1)", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- fact one.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- fact one.\n",
+      "utf8",
+    );
     manager = await IndexManager.open({ cwd, embedding: fakeAdapter({ dimension: 8 }) });
     const first = await manager.sync();
     expect(first.chunksEmbedded).toBeGreaterThan(0);
@@ -108,7 +117,11 @@ describe("vector index + hybrid search", () => {
   });
 
   it("falls back to FTS-only when embedding runtime is undefined", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- fact.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- fact.\n",
+      "utf8",
+    );
     manager = await IndexManager.open({ cwd });
     await manager.sync();
     const status = manager.status();
@@ -119,7 +132,11 @@ describe("vector index + hybrid search", () => {
   });
 
   it("force re-embed when provider id changes (EC-1)", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- fact.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- fact.\n",
+      "utf8",
+    );
     manager = await IndexManager.open({ cwd, embedding: fakeAdapter({ id: "providerA" }) });
     await manager.sync();
     manager.close();

@@ -24,7 +24,7 @@ import {
   appendFactToMarkdown,
   type DreamingResult,
   type EmbeddingRuntime,
-  memoryDir,
+  resolveMemoryRoot,
   runDreamingSweep,
 } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -87,13 +87,13 @@ describe("sdk-memory dreaming-run (iter 60)", () => {
     expect(result.notesWritten).toBe(1);
 
     // Verify notes file was created.
-    const notesDir = join(memoryDir(cwd), "notes");
+    const notesDir = join(resolveMemoryRoot(cwd), "notes");
     const entries = await readdir(notesDir);
     const dreamed = entries.filter((e) => e.startsWith("dreamed-"));
     expect(dreamed.length).toBe(1);
 
     // Verify diary entry appended.
-    const diary = await readFile(join(memoryDir(cwd), "dream-diary.md"), "utf8");
+    const diary = await readFile(join(resolveMemoryRoot(cwd), "dream-diary.md"), "utf8");
     expect(diary).toContain("# Dream Diary");
     expect(diary).toContain("- facts before: 3");
     expect(diary).toContain("- facts after: 2");
@@ -111,7 +111,7 @@ describe("sdk-memory dreaming-run (iter 60)", () => {
     expect(result.status).toBe("ok");
     expect(result.notesWritten).toBe(1);
 
-    const notesDir = join(memoryDir(cwd), "notes");
+    const notesDir = join(resolveMemoryRoot(cwd), "notes");
     const entries = await readdir(notesDir);
     const dreamed = entries.find((e) => e.startsWith("dreamed-"));
     expect(dreamed).toBeDefined();
@@ -173,7 +173,7 @@ describe("sdk-memory dreaming-run (iter 60)", () => {
     expect(a.status).toBe("ok");
     expect(b.status).toBe("ok");
 
-    const diary = await readFile(join(memoryDir(cwd), "dream-diary.md"), "utf8");
+    const diary = await readFile(join(resolveMemoryRoot(cwd), "dream-diary.md"), "utf8");
     // 2 sweeps → 2 diary entries (both headers present).
     const headerMatches = diary.match(/^## 2026-01-01T12:00:0[01]/gm) ?? [];
     expect(headerMatches.length).toBe(2);

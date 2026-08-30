@@ -5,7 +5,12 @@ import { join, relative } from "node:path";
 import { sanitizeFts5Query } from "@theokit/sdk/persistence";
 import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
 import { chunkMarkdown } from "../store/chunk-markdown.js";
-import { memoryDir, memoryMdPath, notesDir } from "../store/markdown-store.js";
+import {
+  type MemoryRoot,
+  memoryMdPath,
+  notesDir,
+  resolveMemoryRoot,
+} from "../store/markdown-store.js";
 import { discoverSessionFiles } from "../store/session-loader.js";
 import { discoverWikiFiles } from "../store/wiki-loader.js";
 import { defaultIndexPath, type MemoryDb, openMemoryDb } from "./index-db.js";
@@ -88,6 +93,13 @@ interface SearchOptions {
 
 interface OpenIndexOptions {
   cwd: string;
+  /**
+   * The memory root to index and to place the database under. Defaults to `<cwd>/.theokit/memory`.
+   *
+   * Optional here and required below: this is the entry point a caller reaches with a workspace in
+   * hand, while every path helper under it demands a resolved root (#463).
+   */
+  memoryRoot?: MemoryRoot;
   filePath?: string;
   embedding?: EmbeddingRuntime;
   backend?: "sqlite-vec" | "lance";
@@ -127,7 +139,7 @@ export class IndexManager implements MemoryIndex {
   private vectorReady = false;
 
   private constructor(
-    private readonly cwd: string,
+    private readonly memoryRoot: MemoryRoot,
     private readonly db: MemoryDb,
     private readonly embedding: EmbeddingRuntime | undefined,
   ) {}
@@ -150,9 +162,10 @@ export class IndexManager implements MemoryIndex {
 
   /** Internal SQLite-path open. Renamed from previous public `open`. */
   private static async openSqliteInternal(opts: OpenIndexOptions): Promise<IndexManager> {
-    const filePath = opts.filePath ?? defaultIndexPath(opts.cwd);
+    const memoryRoot = opts.memoryRoot ?? resolveMemoryRoot(opts.cwd);
+    const filePath = opts.filePath ?? defaultIndexPath(memoryRoot);
     const db = await openMemoryDb({ filePath });
-    const manager = new IndexManager(opts.cwd, db, opts.embedding);
+    const manager = new IndexManager(memoryRoot, db, opts.embedding);
     if (opts.embedding !== undefined) await manager.initVectorBackend(opts.embedding);
     return manager;
   }
@@ -182,7 +195,7 @@ export class IndexManager implements MemoryIndex {
     chunksWritten: number;
     chunksEmbedded: number;
   }> {
-    const files = await collectMarkdownFiles(this.cwd);
+    const files = await collectMarkdownFiles(this.memoryRoot);
     let filesUpdated = 0;
     let chunksWritten = 0;
     const existingByPath = this.loadFilesIndex();
@@ -453,15 +466,14 @@ interface DiscoveredFile {
   source: "memory" | "wiki" | "sessions";
 }
 
-async function collectMarkdownFiles(cwd: string): Promise<DiscoveredFile[]> {
-  const root = memoryDir(cwd);
+async function collectMarkdownFiles(root: MemoryRoot): Promise<DiscoveredFile[]> {
   const results: DiscoveredFile[] = [];
   // MEMORY.md
   try {
-    await stat(memoryMdPath(cwd));
+    await stat(memoryMdPath(root));
     results.push({
-      absolutePath: memoryMdPath(cwd),
-      relPath: relative(root, memoryMdPath(cwd)),
+      absolutePath: memoryMdPath(root),
+      relPath: relative(root, memoryMdPath(root)),
       source: "memory",
     });
   } catch {
@@ -469,17 +481,17 @@ async function collectMarkdownFiles(cwd: string): Promise<DiscoveredFile[]> {
   }
   // notes/*.md
   try {
-    const entries = await readdir(notesDir(cwd));
+    const entries = await readdir(notesDir(root));
     for (const entry of entries) {
       if (!entry.endsWith(".md")) continue;
-      const abs = join(notesDir(cwd), entry);
+      const abs = join(notesDir(root), entry);
       results.push({ absolutePath: abs, relPath: relative(root, abs), source: "memory" });
     }
   } catch {
     // notes dir doesn't exist yet — that's fine
   }
   // wiki/*.md (Phase 10 — read-only supplements)
-  const wikiFiles = await discoverWikiFiles(cwd);
+  const wikiFiles = await discoverWikiFiles(root);
   for (const wiki of wikiFiles) {
     results.push({
       absolutePath: wiki.absolutePath,
@@ -488,7 +500,7 @@ async function collectMarkdownFiles(cwd: string): Promise<DiscoveredFile[]> {
     });
   }
   // sessions/*.md (ADR D20 — per-run summaries for corpus="sessions" recall)
-  const sessionFiles = await discoverSessionFiles(cwd);
+  const sessionFiles = await discoverSessionFiles(root);
   for (const session of sessionFiles) {
     results.push({
       absolutePath: session.absolutePath,

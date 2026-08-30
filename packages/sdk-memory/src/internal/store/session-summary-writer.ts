@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { replaceFileAtomic } from "@theokit/sdk/persistence";
 import { redactSecrets } from "../memory-types.js";
-import { memoryDir } from "./markdown-store.js";
+import type { MemoryRoot } from "./markdown-store.js";
 
 /**
  * Per-run session summary writer (ADR D20).
@@ -30,7 +30,8 @@ import { memoryDir } from "./markdown-store.js";
  */
 
 export interface SessionSummaryInput {
-  cwd: string;
+  /** The RESOLVED memory root, not a cwd — see `memory-root.ts` in the SDK (#463). */
+  memoryRoot: MemoryRoot;
   runId: string;
   agentId: string;
   userText: string;
@@ -46,8 +47,8 @@ const MAX_TURN_CHARS = 2000;
  * is written. `IndexManager.sync()` indexes these with `source: "sessions"`.
  * Pure path computation.
  */
-export function sessionsDir(cwd: string): string {
-  return join(memoryDir(cwd), "sessions");
+export function sessionsDir(root: MemoryRoot): string {
+  return join(root, "sessions");
 }
 
 /**
@@ -59,8 +60,8 @@ export function sessionsDir(cwd: string): string {
  * means two different ids can collide onto one file — pass ids that are already
  * within the safe alphabet if that matters.
  */
-export function sessionSummaryPath(cwd: string, runId: string): string {
-  return join(sessionsDir(cwd), `${sanitizeRunId(runId)}.md`);
+export function sessionSummaryPath(root: MemoryRoot, runId: string): string {
+  return join(sessionsDir(root), `${sanitizeRunId(runId)}.md`);
 }
 
 function sanitizeRunId(runId: string): string {
@@ -83,8 +84,8 @@ function truncate(text: string): string {
  */
 export async function writeSessionSummary(input: SessionSummaryInput): Promise<void> {
   if (input.status !== "finished") return;
-  const path = sessionSummaryPath(input.cwd, input.runId);
-  await mkdir(sessionsDir(input.cwd), { recursive: true });
+  const path = sessionSummaryPath(input.memoryRoot, input.runId);
+  await mkdir(sessionsDir(input.memoryRoot), { recursive: true });
 
   const safeUser = redactSecrets(truncate(input.userText));
   const safeAssistant = redactSecrets(truncate(input.assistantText));

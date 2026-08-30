@@ -22,7 +22,11 @@ import { chmod, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { type ActiveMemoryTranscript, persistActiveMemoryTranscript } from "@theokit/sdk-memory";
+import {
+  type ActiveMemoryTranscript,
+  persistActiveMemoryTranscript,
+  resolveMemoryRoot,
+} from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 function sampleTranscript(runId = "run-001"): ActiveMemoryTranscript {
@@ -60,7 +64,7 @@ describe("sdk-memory transcript-store (iter 58)", () => {
 
   it("test_persists_to_expected_path_layout", async () => {
     const tx = sampleTranscript("abc-123");
-    await persistActiveMemoryTranscript(cwd, tx);
+    await persistActiveMemoryTranscript(resolveMemoryRoot(cwd), tx);
 
     const expectedFile = join(
       cwd,
@@ -81,7 +85,7 @@ describe("sdk-memory transcript-store (iter 58)", () => {
   it("test_creates_parent_directories_automatically", async () => {
     // No `.theokit/memory/transcripts/...` pre-created — the call must
     // mkdir up the chain via atomicWriteJson's parent-dir auto-create.
-    await persistActiveMemoryTranscript(cwd, sampleTranscript("auto-mk"));
+    await persistActiveMemoryTranscript(resolveMemoryRoot(cwd), sampleTranscript("auto-mk"));
     const dir = join(cwd, ".theokit", "memory", "transcripts", "active-memory");
     const raw = await readFile(join(dir, "auto-mk.json"), "utf8");
     expect(JSON.parse(raw).runId).toBe("auto-mk");
@@ -99,7 +103,7 @@ describe("sdk-memory transcript-store (iter 58)", () => {
 
     try {
       // Must not throw.
-      await persistActiveMemoryTranscript(cwd, sampleTranscript("fail-001"));
+      await persistActiveMemoryTranscript(resolveMemoryRoot(cwd), sampleTranscript("fail-001"));
       expect(stderrSpy).toHaveBeenCalled();
       const msg = String(stderrSpy.mock.calls[0]?.[0] ?? "");
       expect(msg).toContain("active-memory transcript persist failed");
@@ -119,7 +123,7 @@ describe("sdk-memory transcript-store (iter 58)", () => {
       summary: undefined,
       hits: [],
     };
-    await persistActiveMemoryTranscript(cwd, tx);
+    await persistActiveMemoryTranscript(resolveMemoryRoot(cwd), tx);
     const raw = await readFile(
       join(cwd, ".theokit", "memory", "transcripts", "active-memory", "round-trip.json"),
       "utf8",

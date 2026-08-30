@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { replaceFileAtomic } from "@theokit/sdk/persistence";
 
-import { memoryDir } from "../store/markdown-store.js";
+import type { MemoryRoot } from "../store/markdown-store.js";
 
 /**
  * Dream-diary append (ADR D7).
@@ -42,8 +42,8 @@ export interface DiaryEntry {
 }
 
 /** Path to the dream diary, `<memory root>/dream-diary.md`. Pure path computation. */
-export function diaryPath(cwd: string): string {
-  return join(memoryDir(cwd), "dream-diary.md");
+export function diaryPath(root: MemoryRoot): string {
+  return join(root, "dream-diary.md");
 }
 
 /**
@@ -80,8 +80,8 @@ export function renderDiaryEntry(entry: DiaryEntry): string {
  * Appending is unconditional: passing an entry that was already written adds a
  * second block. The hash identifies repeated content, it does not suppress it.
  */
-export async function appendDiaryEntry(cwd: string, entry: DiaryEntry): Promise<void> {
-  const path = diaryPath(cwd);
+export async function appendDiaryEntry(root: MemoryRoot, entry: DiaryEntry): Promise<void> {
+  const path = diaryPath(root);
   let raw = "";
   try {
     raw = await readFile(path, "utf8");

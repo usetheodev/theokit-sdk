@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 import { defaultIndexPath } from "../../../src/internal/memory/index-db.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryMdPath, notesDir } from "../../../src/internal/memory/storage/markdown-store.js";
+import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
@@ -44,7 +45,7 @@ describe("IndexManager", () => {
 
   it("indexes markdown chunks on sync", async () => {
     await writeFile(
-      memoryMdPath(cwd),
+      memoryMdPath(resolveMemoryRoot(cwd)),
       "# Memory\n\n## Facts\n\n- The magic-number is 8675309.\n- Vitest is the preferred test runner.\n",
       "utf8",
     );
@@ -60,7 +61,7 @@ describe("IndexManager", () => {
 
   it("FTS5 search returns ranked hits", async () => {
     await writeFile(
-      memoryMdPath(cwd),
+      memoryMdPath(resolveMemoryRoot(cwd)),
       "# Memory\n\n## Facts\n\n- The magic-number is 8675309.\n- Vitest is the preferred test runner.\n- Random unrelated thought about cats.\n",
       "utf8",
     );
@@ -75,13 +76,21 @@ describe("IndexManager", () => {
   });
 
   it("reindexes a changed file (old chunks gone, new ones present)", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- old fact one.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- old fact one.\n",
+      "utf8",
+    );
     manager = await IndexManager.open({ cwd });
     await manager.sync();
     const before = await manager.search("old");
     expect(before.length).toBeGreaterThan(0);
 
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- new fact two.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- new fact two.\n",
+      "utf8",
+    );
     await manager.sync();
     const afterOld = await manager.search("old");
     expect(afterOld.length).toBe(0);
@@ -90,7 +99,11 @@ describe("IndexManager", () => {
   });
 
   it("status reports counts after sync", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- one\n- two\n- three\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- one\n- two\n- three\n",
+      "utf8",
+    );
     manager = await IndexManager.open({ cwd });
     await manager.sync();
     const status = manager.status();
@@ -109,7 +122,11 @@ describe("IndexManager", () => {
   });
 
   it("survives a re-open after schema initialization (no orphan chunks)", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- foo bar baz.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- foo bar baz.\n",
+      "utf8",
+    );
     manager = await IndexManager.open({ cwd });
     await manager.sync();
     manager.close();
@@ -121,7 +138,7 @@ describe("IndexManager", () => {
   });
 
   it("recovers from a corrupt DB by renaming aside + rebuilding schema (EC-7)", async () => {
-    const dbPath = defaultIndexPath(cwd);
+    const dbPath = defaultIndexPath(resolveMemoryRoot(cwd));
     await mkdir(join(cwd, ".theokit", "memory", ".index"), { recursive: true });
     await writeFile(dbPath, "this is not a valid SQLite database file", "utf8");
     const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
@@ -131,8 +148,12 @@ describe("IndexManager", () => {
     expect(stderr).toHaveBeenCalled();
     stderr.mockRestore();
     // Notes directory should still be discoverable
-    await mkdir(notesDir(cwd), { recursive: true });
-    await writeFile(join(notesDir(cwd), "topic.md"), "# Topic\n\nSome notes.\n", "utf8");
+    await mkdir(notesDir(resolveMemoryRoot(cwd)), { recursive: true });
+    await writeFile(
+      join(notesDir(resolveMemoryRoot(cwd)), "topic.md"),
+      "# Topic\n\nSome notes.\n",
+      "utf8",
+    );
     const synced = await manager.sync();
     expect(synced.filesScanned).toBe(1);
   });

@@ -16,6 +16,7 @@ import {
 import { type MemoryIndex, parseSearchOptions } from "./memory-index.js";
 import { loadSqliteVecExtension } from "./sqlite-vec-loader.js";
 import { chunkMarkdown } from "./storage/chunk-markdown.js";
+import { type MemoryRoot, resolveMemoryRoot } from "./storage/memory-root.js";
 
 // T4.1 — query-vector LRU cache (DR4 finding #1). Keyed by
 // sha256(query); caches the embedding vector so repeated search
@@ -69,7 +70,7 @@ export class IndexManager implements MemoryIndex {
   private vectorReady = false;
 
   private constructor(
-    private readonly cwd: string,
+    private readonly memoryRoot: MemoryRoot,
     private readonly db: MemoryDb,
     private readonly embedding: EmbeddingRuntime | undefined,
   ) {}
@@ -92,9 +93,10 @@ export class IndexManager implements MemoryIndex {
 
   /** Internal SQLite-path open. Renamed from previous public `open`. */
   private static async openSqliteInternal(opts: OpenIndexOptions): Promise<IndexManager> {
-    const filePath = opts.filePath ?? defaultIndexPath(opts.cwd);
+    const memoryRoot = opts.memoryRoot ?? resolveMemoryRoot(opts.cwd);
+    const filePath = opts.filePath ?? defaultIndexPath(memoryRoot);
     const db = await openMemoryDb({ filePath });
-    const manager = new IndexManager(opts.cwd, db, opts.embedding);
+    const manager = new IndexManager(memoryRoot, db, opts.embedding);
     if (opts.embedding !== undefined) await manager.initVectorBackend(opts.embedding);
     return manager;
   }
@@ -124,7 +126,7 @@ export class IndexManager implements MemoryIndex {
     chunksWritten: number;
     chunksEmbedded: number;
   }> {
-    const files = await collectMarkdownFiles(this.cwd);
+    const files = await collectMarkdownFiles(this.memoryRoot);
     let filesUpdated = 0;
     let chunksWritten = 0;
     const existingByPath = this.loadFilesIndex();

@@ -5,6 +5,7 @@ import { ConfigurationError } from "../../errors.js";
 import { redactSecrets } from "../security/index.js";
 import { defaultIndexPath, openMemoryDb } from "./index-db.js";
 import { LanceIndex, lanceStoragePath } from "./lance-index.js";
+import { type MemoryRoot, resolveMemoryRoot } from "./storage/memory-root.js";
 
 /**
  * Migrate Memory.index from SQLite to LanceDB (ADR D44).
@@ -16,6 +17,11 @@ import { LanceIndex, lanceStoragePath } from "./lance-index.js";
 
 export interface MigrateOptions {
   cwd: string;
+  /**
+   * Absolute path (or `~/`-prefixed) of the memory root to migrate, when the agent that wrote it
+   * set `memory.directory`. Defaults to `<cwd>/.theokit/memory` (#463).
+   */
+  directory?: string;
   dryRun?: boolean;
   batchSize?: number;
   /** Inject for tests; defaults to console.log. */
@@ -53,8 +59,8 @@ interface SqliteFactRow {
  *
  * @internal
  */
-async function readAllSqliteFacts(cwd: string): Promise<SqliteFactRow[]> {
-  const dbPath = defaultIndexPath(cwd);
+async function readAllSqliteFacts(root: MemoryRoot): Promise<SqliteFactRow[]> {
+  const dbPath = defaultIndexPath(root);
   if (!existsSync(dbPath)) return [];
   const db = await openMemoryDb({ filePath: dbPath });
   try {
@@ -101,8 +107,10 @@ function nfcEqual(a: string, b: string): boolean {
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: migration is a single transaction (read → write → validate → commit-or-rollback); splitting harms atomicity reasoning.
 export async function migrateSqliteToLance(opts: MigrateOptions): Promise<MigrateResult> {
   const cwd = opts.cwd;
-  const finalPath = lanceStoragePath(cwd);
-  const newPath = join(cwd, ".theokit", "memory", "lance-new");
+  // One resolution, reused by every path this migration touches (#463).
+  const memoryRoot = resolveMemoryRoot(cwd, { directory: opts.directory });
+  const finalPath = lanceStoragePath(memoryRoot);
+  const newPath = join(memoryRoot, "lance-new");
   // T1.4 (ADR D68): wrap logger so any fact text containing secrets is
   // masked before reaching the destination (console or user-supplied sink).
   // Caller-supplied loggers cannot bypass — by design (D70).
@@ -123,7 +131,7 @@ export async function migrateSqliteToLance(opts: MigrateOptions): Promise<Migrat
   }
 
   log(`Reading SQLite facts from ${cwd}/.theokit/memory/index.sqlite ...`);
-  const sqliteFacts = await readAllSqliteFacts(cwd);
+  const sqliteFacts = await readAllSqliteFacts(memoryRoot);
   log(`SQLite has ${sqliteFacts.length} facts.`);
   if (sqliteFacts.length === 0) {
     return {

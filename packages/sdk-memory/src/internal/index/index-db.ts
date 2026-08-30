@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { openSqliteResilient } from "@theokit/sdk/persistence";
-
+import type { MemoryRoot } from "../store/markdown-store.js";
 import { PRAGMA_STATEMENTS, SCHEMA_STATEMENTS } from "./index-schema.js";
 
 /**
@@ -93,6 +93,12 @@ export async function openMemoryDb(opts: OpenDbOptions): Promise<MemoryDb> {
  * it manages. The facts are what a user would lose; the index is derived and rebuildable from them.
  * See `packages/sdk/docs/memory-decisions.md` § 1 before relocating this.
  */
-export function defaultIndexPath(cwd: string): string {
-  return join(cwd, ".theokit", "memory", ".index", "memory.sqlite");
+/**
+ * `<memory root>/.index/memory.sqlite`.
+ *
+ * Takes the RESOLVED ROOT. This spelled the default layout out again as a string literal — one more
+ * answer to "where does memory live?" that no search for the shared helper would have found (#463).
+ */
+export function defaultIndexPath(root: MemoryRoot): string {
+  return join(root, ".index", "memory.sqlite");
 }

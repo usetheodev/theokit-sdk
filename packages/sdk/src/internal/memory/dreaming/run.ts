@@ -4,7 +4,8 @@ import { diag } from "../../diagnostics.js";
 import { replaceFileAtomic } from "../../persistence/atomic-write.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
 import type { EmbeddingRuntime } from "../embedding-adapter.js";
-import { memoryDir, readFactsFromMarkdown } from "../storage/markdown-store.js";
+import { readFactsFromMarkdown } from "../storage/markdown-store.js";
+import { type MemoryRoot, resolveMemoryRoot } from "../storage/memory-root.js";
 import { appendDiaryEntry } from "./diary.js";
 import { deepPhase, lightPhase, remPhase } from "./phases.js";
 
@@ -25,6 +26,11 @@ import { deepPhase, lightPhase, remPhase } from "./phases.js";
 
 export interface DreamingOptions {
   cwd: string;
+  /**
+   * The memory root to sweep. Defaults to the project store — right for a caller with no
+   * `memory.directory`, and wrong for one that has it, which is why it is passable (#463).
+   */
+  memoryRoot?: MemoryRoot;
   embedding: EmbeddingRuntime;
   dedupThreshold?: number;
   clusterThreshold?: number;
@@ -50,13 +56,17 @@ async function runInner(options: DreamingOptions): Promise<DreamingResult> {
   const now = options.now ?? Date.now;
   const timestampMs = now();
   try {
-    const facts = await readFactsFromMarkdown(options.cwd);
+    const root = options.memoryRoot ?? resolveMemoryRoot(options.cwd);
+    const facts = await readFactsFromMarkdown(
+      options.cwd,
+      options.memoryRoot ? { directory: options.memoryRoot } : undefined,
+    );
     if (facts.length === 0) {
       return emptyResult("skipped");
     }
     const dedup = await lightPhase(facts, options.embedding, options.dedupThreshold);
     const rem = await remPhase(dedup.kept, options.embedding, options.clusterThreshold);
-    const notesWritten = await writeConsolidatedNotes(options.cwd, rem.clusters, timestampMs);
+    const notesWritten = await writeConsolidatedNotes(root, rem.clusters, timestampMs);
     const result: DreamingResult = {
       status: "ok",
       factsBefore: facts.length,
@@ -66,7 +76,7 @@ async function runInner(options: DreamingOptions): Promise<DreamingResult> {
       notesWritten,
       diaryEntryHash: undefined,
     };
-    await appendDiaryEntry(options.cwd, {
+    await appendDiaryEntry(root, {
       timestampMs,
       factsBefore: result.factsBefore,
       factsAfter: result.factsAfter,
@@ -83,12 +93,12 @@ async function runInner(options: DreamingOptions): Promise<DreamingResult> {
 }
 
 async function writeConsolidatedNotes(
-  cwd: string,
+  root: MemoryRoot,
   clusters: ReadonlyArray<{ representativeText: string; members: ReadonlyArray<{ text: string }> }>,
   timestampMs: number,
 ): Promise<number> {
   if (clusters.length === 0) return 0;
-  const notesDir = join(memoryDir(cwd), "notes");
+  const notesDir = join(root, "notes");
   await mkdir(notesDir, { recursive: true });
   const isoSlug = new Date(timestampMs).toISOString().replace(/[^\dT]/g, "-");
   const file = join(notesDir, `dreamed-${isoSlug}.md`);
