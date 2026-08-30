@@ -39,3 +39,22 @@ export {
   projectMemoryDir,
   resolveMemoryRoot,
 } from "./memory-root.js";
+export { discoverSessionFiles, type SessionFile } from "./session-loader.js";
+// The session/wiki/transcript cluster, shared for the reason `markdown-store` is (#430): the
+// satellite carried byte-identical copies, and `Memory.runDreamingSweep` swaps this implementation
+// for the peer's whenever the peer is installed — so the copy that RAN was not the copy anyone had
+// updated. One implementation, imported by both, is the remedy theokit#160 applied to the embedding
+// runtime in the same package pair.
+//
+// Sharing them cost their internal-visibility tags, and the cost has a sharp edge: `stripInternal`
+// matches that tag as TEXT anywhere in the comment leading an export — backticks and negation do
+// not help. Writing the tag's name here, to explain its absence, deleted the export below it.
+// Measured three times while landing #463; do not name it in this file.
+export {
+  type SessionSummaryInput,
+  sessionSummaryPath,
+  sessionsDir,
+  writeSessionSummary,
+} from "./session-summary-writer.js";
+export { type ActiveMemoryTranscript, persistActiveMemoryTranscript } from "./transcript-store.js";
+export { discoverWikiFiles, type WikiFile, wikiDir } from "./wiki-loader.js";

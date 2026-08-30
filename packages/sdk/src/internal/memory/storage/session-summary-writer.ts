@@ -17,7 +17,11 @@ import type { MemoryRoot } from "./memory-root.js";
  * EC-9: only `status === "finished"` runs trigger a write. Cancelled/errored
  * runs would otherwise pollute the recall corpus with partial transcripts.
  *
- * @internal
+ * Shared with `@theokit/sdk-memory` through the semver-exempt `internal/memory-store`
+ * sub-path, so it carries no internal-visibility tag. `stripInternal` matches that tag as TEXT
+ * anywhere in the block, so naming it here — even in backticks, even to say it is absent — deletes
+ * this symbol from the published declarations and forces the satellite back onto a copy. Measured:
+ * the first draft of this very note did exactly that. See #430 and #463.
  */
 
 export interface SessionSummaryInput {
@@ -38,6 +42,13 @@ export function sessionsDir(root: MemoryRoot): string {
   return join(root, "sessions");
 }
 
+/**
+ * The file one run's summary occupies: `<memory root>/sessions/<safe-id>.md`.
+ *
+ * The id passes through `safeFilenameForId`, so a UUID keeps its own name and anything else gets a
+ * deterministic `h-<16hex>` token. Deterministic matters more than readable here — a name that
+ * varied per call would orphan the summary it names.
+ */
 export function sessionSummaryPath(root: MemoryRoot, runId: string): string {
   // M0-4: total id->filename helper. UUID runIds (the production case, from
   // randomUUID) pass through to the identical name; non-conforming ids get a
@@ -55,7 +66,11 @@ function truncate(text: string): string {
  * without touching disk. Secrets in both user and assistant text are
  * redacted via the shared `redactSecrets` pattern.
  *
- * @internal
+ * Shared with `@theokit/sdk-memory` through the semver-exempt `internal/memory-store`
+ * sub-path, so it carries no internal-visibility tag. `stripInternal` matches that tag as TEXT
+ * anywhere in the block, so naming it here — even in backticks, even to say it is absent — deletes
+ * this symbol from the published declarations and forces the satellite back onto a copy. Measured:
+ * the first draft of this very note did exactly that. See #430 and #463.
  */
 export async function writeSessionSummary(input: SessionSummaryInput): Promise<void> {
   if (input.status !== "finished") return;

@@ -64,19 +64,26 @@ describe("sdk-memory session-summary-writer (iter 61)", () => {
     });
 
     it("test_sessionSummaryPath_sanitizes_path_traversal_runId", () => {
-      // Every char outside `[a-zA-Z0-9_-]` gets replaced with `_`.
-      // Input: "../../etc/passwd" — 2 dots + slash + 2 dots + slash +
-      // "etc" + slash + "passwd" → 6 underscores + "etc" + 1 underscore
-      // + "passwd". Verifies a malicious runId can't escape sessionsDir.
+      // The PROPERTY, not the spelling: a malicious runId cannot escape sessionsDir. This asserted
+      // the pre-M0-4 lossy `______etc_passwd` because this package carried its own copy of the
+      // helper; the shared one hashes a non-conforming id to a `h-<16hex>` token, which is
+      // collision-resistant where the underscore collapse was not. The test pinned the copy's
+      // staleness — exactly the drift #430 removed and #463 paid for again.
       const path = sessionSummaryPath(resolveMemoryRoot(cwd), "../../etc/passwd");
-      expect(path).toBe(join(cwd, ".theokit", "memory", "sessions", "______etc_passwd.md"));
+      const dir = join(cwd, ".theokit", "memory", "sessions");
+      expect(path.startsWith(`${dir}/`)).toBe(true);
+      expect(path.slice(dir.length + 1)).toMatch(/^[a-zA-Z0-9_-]+\.md$/);
     });
 
-    it("test_sessionSummaryPath_truncates_long_runId_to_128", () => {
+    it("test_sessionSummaryPath_bounds_a_long_runId_and_stays_deterministic", () => {
       const long = "a".repeat(300);
-      const path = sessionSummaryPath(resolveMemoryRoot(cwd), long);
-      const basename = path.split("/").pop() ?? "";
-      expect(basename).toBe(`${"a".repeat(128)}.md`);
+      const basename = sessionSummaryPath(resolveMemoryRoot(cwd), long).split("/").pop() ?? "";
+      // Bounded and stable: the shared helper hashes rather than truncating, so the name no longer
+      // carries the first 128 characters. What must hold is that it is short, safe, and the same
+      // every time — a filename that varied per call would orphan the summary it names.
+      expect(basename.length).toBeLessThanOrEqual(132);
+      expect(basename).toMatch(/^[a-zA-Z0-9_-]+\.md$/);
+      expect(sessionSummaryPath(resolveMemoryRoot(cwd), long).split("/").pop()).toBe(basename);
     });
   });
 

@@ -11,7 +11,11 @@ import type { MemoryRoot } from "./memory-root.js";
  * passes `persistTranscripts: true`. Failures are swallowed with a stderr
  * warning so transcript IO never crashes the agent run.
  *
- * @internal
+ * Shared with `@theokit/sdk-memory` through the semver-exempt `internal/memory-store`
+ * sub-path, so it carries no internal-visibility tag. `stripInternal` matches that tag as TEXT
+ * anywhere in the block, so naming it here — even in backticks, even to say it is absent — deletes
+ * this symbol from the published declarations and forces the satellite back onto a copy. Measured:
+ * the first draft of this very note did exactly that. See #430 and #463.
  */
 
 export interface ActiveMemoryTranscript {
@@ -31,6 +35,12 @@ export interface ActiveMemoryTranscript {
   }>;
 }
 
+/**
+ * Write one active-memory recall transcript under `<memory root>/transcripts/active-memory`.
+ *
+ * Never throws. Transcript IO is observability, and observability must not break the run it merely
+ * observes — a failure is reported through the diagnostics sink and swallowed.
+ */
 export async function persistActiveMemoryTranscript(
   root: MemoryRoot,
   transcript: ActiveMemoryTranscript,

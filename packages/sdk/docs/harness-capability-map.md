@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1151 export(s) across 46 entry point(s).
+1162 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -568,8 +568,8 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `defaultIndexPath` | function | `<index root>/.index/memory.sqlite`.  |
 | `DiaryEntry` | interface | Dream-diary append (ADR D7).  |
 | `diaryPath` | function | Path to the dream diary, `<memory root>/dream-diary.md`.  |
-| `discoverSessionFiles` | function | List the session summaries under `sessions/`, with each path expressed relative to the memory root so the index can store a stable `sessions/<id>.md`.  |
-| `discoverWikiFiles` | function | List the `.md` files directly under `wiki/`, with each path expressed relative to the memory root so the index can store a stable `wiki/<name>.md`.  |
+| `discoverSessionFiles` | function | Every session summary under `<memory root>/sessions`, as `{ absolutePath, relPath }` records.  |
+| `discoverWikiFiles` | function | Every wiki supplement under `<memory root>/wiki`, as `{ absolutePath, relPath }` records.  |
 | `DreamingOptions` | interface | Dreaming sweep orchestrator (ADR D7 of memory-system-peer-project-parity).  |
 | `DreamingResult` | interface | What one sweep did.  |
 | `dropVectorIndex` | function | Drop the `embeddings` table, discarding every stored vector.  |
@@ -644,7 +644,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `packVector` | function | Pack a Float32Array into a Buffer suitable for sqlite-vec BLOB binding. |
 | `parseRetryAfter` | function | Parse `retry-after` header in numeric-seconds form.  |
 | `parseSearchOptions` | function | Common search-options parser used by both `IndexManager.search` and `LanceMemoryAdapter.search`.  |
-| `persistActiveMemoryTranscript` | function | Write one recall transcript to `<memory root>/transcripts/active-memory/<runId>.json`, creating the parent directories and replacing the file atomically.  |
+| `persistActiveMemoryTranscript` | function | Write one active-memory recall transcript under `<memory root>/transcripts/active-memory`.  |
 | `PRAGMA_STATEMENTS` | const | Non-WAL pragmas.  |
 | `projectMemoryDir` | function | The project store: `<cwd>/.theokit/memory`.  |
 | `readEmbeddingIdentity` | function | Read the embedding identity recorded in the `meta` table.  |
@@ -663,9 +663,9 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `SCHEMA_STATEMENTS` | const | SQLite schema for the memory index.  |
 | `SearchOptions` | interface | Search tuning.  |
 | `SessionFile` | interface | Session summary discovery (ADR D20).  |
-| `sessionsDir` | function | Path to `<memory root>/sessions`, where one markdown summary per finished run is written.  |
+| `sessionsDir` | function | `<memory root>/sessions`.  |
 | `SessionSummaryInput` | interface | Per-run session summary writer (ADR D20).  |
-| `sessionSummaryPath` | function | Path of the summary file for a run.  |
+| `sessionSummaryPath` | function | The file one run's summary occupies: `<memory root>/sessions/<safe-id>.md`.  |
 | `SyncResult` | interface | What one `sync()` did.  |
 | `TenantContext` | interface | T4.9 — Tenant isolation context for cache key derivation.  |
 | `truncateRaw` | function | Truncate raw response body to ~2KB and redact known credential patterns so it can ride inside `ErrorMetadata.raw` without ballooning logs OR leaking tokens.  |
@@ -674,7 +674,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `VectorHitRow` | interface | One row of a vec0 KNN result: the chunk id and its raw distance from the query vector.  |
 | `vectorSearch` | function | Run a k-nearest-neighbour query against the `embeddings` table and return the matches ordered by ascending distance (closest first).  |
 | `voyageMemoryEmbeddingProviderAdapter` | const | Voyage AI embeddings, over the standard OpenAI wire.  |
-| `wikiDir` | function | Path to `<memory root>/wiki`, the read-only supplement directory.  |
+| `wikiDir` | function | `<memory root>/wiki`.  |
 | `WikiFile` | interface | Wiki supplement discovery (ADR Phase 10 of memory-system-peer-project-parity).  |
 | `writeEmbeddingIdentity` | function | Record the embedding identity in the `meta` table, upserting each of the three keys.  |
 | `writeSessionSummary` | function | Write a session summary file.  |
@@ -1016,10 +1016,13 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 
 | Symbol | Kind | Summary |
 |---|---|---|
+| `ActiveMemoryTranscript` | interface | Optional on-disk persistence for Active Memory recall transcripts (ADR D6).  |
 | `appendFact` | function | Record a fact, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves without touching disk.  |
 | `appendFactToMarkdown` | function | Write a fact as its own memory file and point the `MEMORY.md` index at it.  |
 | `asMemoryRoot` | function | Treat a directory as a memory root without resolving one.  |
 | `claudeProjectMemoryDir` | function | Where the Claude Code CLI keeps THIS project's memories.  |
+| `discoverSessionFiles` | function | Every session summary under `<memory root>/sessions`, as `{ absolutePath, relPath }` records.  |
+| `discoverWikiFiles` | function | Every wiki supplement under `<memory root>/wiki`, as `{ absolutePath, relPath }` records.  |
 | `indexBudgetWarning` | function | What to say about an index that the interop partner will truncate, or `undefined` when there is nothing true to say.  |
 | `MEMORY_INDEX_MAX_BYTES` | const | The byte limit the Claude Code CLI applies when it loads a `MEMORY.md`, whichever it reaches first.  |
 | `MEMORY_INDEX_MAX_LINES` | const | The line limit the Claude Code CLI applies when it loads a `MEMORY.md`.  |
@@ -1028,10 +1031,18 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `memoryReadRoots` | function | Every directory a read must cover, deduplicated and in precedence order.  |
 | `MemoryRoot` | type | A path that {@link resolveMemoryRoot } produced — the only thing the subsystem's path helpers accept.  |
 | `notesDir` | function | Path to `<memory root>/notes`, where per-topic notes and the consolidated notes a dreaming sweep writes live.  |
+| `persistActiveMemoryTranscript` | function | Write one active-memory recall transcript under `<memory root>/transcripts/active-memory`.  |
 | `projectMemoryDir` | function | The project store: `<cwd>/.theokit/memory`.  |
 | `readFacts` | function | Every memory in the store, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves to `[]` without touching disk.  |
 | `readFactsFromMarkdown` | function | Every memory in the store: the per-memory files, plus any legacy `## Facts` bullets still in `MEMORY.md`.  |
 | `resolveMemoryRoot` | function | The memory root for this agent: `memory.directory` when set, the project store otherwise.  |
+| `SessionFile` | interface | Session summary discovery (ADR D20).  |
+| `sessionsDir` | function | `<memory root>/sessions`.  |
+| `SessionSummaryInput` | interface | Per-run session summary writer (ADR D20).  |
+| `sessionSummaryPath` | function | The file one run's summary occupies: `<memory root>/sessions/<safe-id>.md`.  |
+| `wikiDir` | function | `<memory root>/wiki`.  |
+| `WikiFile` | interface | Wiki supplement discovery (ADR Phase 10 of memory-system-peer-project-parity).  |
+| `writeSessionSummary` | function | Write a session summary file.  |
 
 ## `@theokit/sdk/internal/persistence`
 

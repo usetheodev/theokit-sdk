@@ -20,7 +20,11 @@ import { sessionsDir } from "./session-summary-writer.js";
  * the sentence now names the type the function actually returns. A docblock
  * asserting agreement between two shapes is worth no more than the agreement.
  *
- * @internal
+ * Shared with `@theokit/sdk-memory` through the semver-exempt `internal/memory-store`
+ * sub-path, so it carries no internal-visibility tag. `stripInternal` matches that tag as TEXT
+ * anywhere in the block, so naming it here — even in backticks, even to say it is absent — deletes
+ * this symbol from the published declarations and forces the satellite back onto a copy. Measured:
+ * the first draft of this very note did exactly that. See #430 and #463.
  */
 
 export interface SessionFile {
@@ -28,6 +32,13 @@ export interface SessionFile {
   relPath: string;
 }
 
+/**
+ * Every session summary under `<memory root>/sessions`, as `{ absolutePath, relPath }` records.
+ *
+ * Returns `[]` when the directory does not exist, so a workspace that has never finished a run is
+ * not an error. `IndexManager` tags what this returns with `source="sessions"`, which is what
+ * `memory_search({ corpus: "sessions" })` filters on.
+ */
 export async function discoverSessionFiles(root: MemoryRoot): Promise<SessionFile[]> {
   let entries: string[];
   try {

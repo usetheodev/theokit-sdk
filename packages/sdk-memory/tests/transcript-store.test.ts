@@ -27,7 +27,7 @@ import {
   persistActiveMemoryTranscript,
   resolveMemoryRoot,
 } from "@theokit/sdk-memory";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 function sampleTranscript(runId = "run-001"): ActiveMemoryTranscript {
   return {
@@ -91,25 +91,24 @@ describe("sdk-memory transcript-store (iter 58)", () => {
     expect(JSON.parse(raw).runId).toBe("auto-mk");
   });
 
-  it("test_swallows_failure_with_stderr_warn", async () => {
-    // Force a disk write failure: make the memory parent dir non-writable.
-    // atomicWriteJson tries to mkdir under it and fails. The call MUST
-    // NOT throw; instead it writes a warning line to stderr.
+  it("test_a_write_failure_is_swallowed_and_never_throws", async () => {
+    // Force a disk write failure: make the memory parent dir non-writable. `atomicWriteJson` tries
+    // to mkdir under it and fails. The call MUST NOT throw — transcript IO is observability, and
+    // observability never breaks the run it merely observes.
+    //
+    // This used to also assert a line on `process.stderr`. It no longer can, and should not: the
+    // shared implementation reports through the SDK's diagnostics sink, which is silent unless the
+    // host installs one (#147 — "a library must not assume the host's stdout/stderr are free-form
+    // log sinks; in a TUI they are the render surface"). This package's copy predated that and
+    // wrote raw stderr; the assertion pinned the copy's staleness. Where the report goes is now the
+    // SDK's contract, tested there. What this package still guarantees is the swallow.
     const memoryParent = join(cwd, ".theokit");
     await mkdir(memoryParent, { recursive: true });
     await chmod(memoryParent, 0o555); // r-x only, no write
 
-    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-
-    try {
-      // Must not throw.
-      await persistActiveMemoryTranscript(resolveMemoryRoot(cwd), sampleTranscript("fail-001"));
-      expect(stderrSpy).toHaveBeenCalled();
-      const msg = String(stderrSpy.mock.calls[0]?.[0] ?? "");
-      expect(msg).toContain("active-memory transcript persist failed");
-    } finally {
-      stderrSpy.mockRestore();
-    }
+    await expect(
+      persistActiveMemoryTranscript(resolveMemoryRoot(cwd), sampleTranscript("fail-001")),
+    ).resolves.toBeUndefined();
   });
 
   it("test_transcript_shape_round_trip_preserves_fields", async () => {
