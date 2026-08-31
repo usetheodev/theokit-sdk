@@ -3,6 +3,7 @@ import { isAbsolute, join, sep } from "node:path";
 
 import { ConfigurationError } from "../../../errors.js";
 import { encodeProjectDir } from "../../persistence/session-transcript.js";
+import { findGitRoot } from "../../runtime/context/context-discovery.js";
 import type { MemoryConfig } from "../types.js";
 
 /*
@@ -79,11 +80,21 @@ export function projectMemoryDir(cwd: string): MemoryRoot {
  *
  * Read, never written. This is the half of the interop that decoupling the write MUST NOT cost: a
  * memory the CLI recorded stays visible whatever `memory.directory` says.
+ *
+ * **Keyed by the GIT ROOT, not by `cwd` (#479).** The CLI derives this path from the repository, so
+ * every subdirectory and worktree shares one auto-memory directory; outside a repository it uses the
+ * directory itself. Keying by `cwd` meant an agent running from a monorepo package, a `tools/`
+ * script or a nested test read a directory the CLI never writes to — finding nothing, and saying
+ * nothing, which is the same observation an empty store produces.
+ *
+ * TRANSCRIPTS ARE THE TRAP, and the reason this went unnoticed: the CLI keys THOSE by `cwd`, and
+ * `encodeProjectDir` is right for them. One encoder for two axes made the two indistinguishable in
+ * the code. The encoder is still shared — the path it is given is not.
  */
 export function claudeProjectMemoryDir(cwd: string): MemoryRoot {
   const home = process.env.CLAUDE_CONFIG_DIR?.trim();
   const root = home !== undefined && home.length > 0 ? home : join(homedir(), ".claude");
-  return join(root, "projects", encodeProjectDir(cwd), "memory") as MemoryRoot;
+  return join(root, "projects", encodeProjectDir(findGitRoot(cwd) ?? cwd), "memory") as MemoryRoot;
 }
 
 /**
