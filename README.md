@@ -114,7 +114,7 @@ and MCP servers included.
 
 **Start here** — [Why](#why-theokitsdk) · [Overview](#overview) · [Installation](#installation) · [Quick start](#quick-start) · [Core concepts](#core-concepts)
 
-**Build with it** — [Creating an agent](#creating-a-local-agent) · [Sending messages](#sending-messages) · [Stream events](#stream-events) · [Resuming](#resuming-agents) · [MCP servers](#mcp-servers) · [Subagents](#subagents) · [Memory & skills](#memory-context-and-skills) · [Hooks](#hooks) · [Cron](#cron-jobs) · [Artifacts](#artifacts)
+**Build with it** — [Creating an agent](#creating-a-local-agent) · [Sending messages](#sending-messages) · [Stream events](#stream-events) · [Resuming](#resuming-agents) · [MCP servers](#mcp-servers) · [Three kinds of plugin](#three-things-are-called-plugin) · [Subagents](#subagents) · [Memory & skills](#memory-context-and-skills) · [Hooks](#hooks) · [Cron](#cron-jobs) · [Artifacts](#artifacts)
 
 **Operate it** — [Authentication](#authentication) · [Resource management](#resource-management) · [Errors](#errors) · [Cloud runtime](#cloud-runtime--pre-release) · [Configuration](#configuration-reference)
 
@@ -147,7 +147,7 @@ read first and nothing about it changes — `.claude` is read beside it.
 | Rules | `.claude/rules/*.md` | Plain markdown, no frontmatter required |
 | Hooks | `.claude/hooks.json`, `settings.json`, `settings.local.json` | Merged, not one-wins — two files' hooks both run |
 | Plugins | `.claude/plugins/*/` | A bundle's `skills/` and `agents/` are contributed |
-| Memories | `<claudeHome>/projects/<encoded-cwd>/memory/` | Read; writes still go to `.theokit/memory` |
+| Memories | `<claudeHome>/projects/<encoded-cwd>/memory/` | Read unconditionally; set `memory.directory` to that path to write there too |
 
 Two limits worth stating rather than discovering:
 
@@ -548,6 +548,26 @@ Local agents load servers from these sources (first-match wins on conflicting na
 
 Without `local.settingSources`, only inline servers are loaded. Local OAuth-protected servers require you to have signed in previously through the Theo app — the SDK can't prompt for sign-in.
 
+## Three things are called "plugin"
+
+They share a word and almost nothing else. Two of the three share **the same option**, which is
+where the confusion becomes a bug.
+
+| | Registered by | Extends |
+|---|---|---|
+| **Framework plugin** — `@theokit/plugin-canvas`, `@theokit/auth-github`, … | installed into a `theokit` app and declared in its config | the application: routes, UI, devtools, CLI verbs |
+| **SDK code plugin** — `PermissionPlugin.create(…)`, `Handoff.asPlugin(…)` | `Agent.create({ plugins: [ … ] })` — an array | the agent |
+| **SDK file-discovered plugin** | `Agent.create({ plugins: { enabled: ["name"] } })`, read from `.theokit/plugins/` | the agent |
+
+The last two are **mutually exclusive forms of one option**: pass an array or pass
+`{ enabled: [...] }`, never both. An array is registered directly by the runtime and needs no
+`local.settingSources` entry; `{ enabled: [...] }` selects plugins discovered on disk and does.
+
+**A consequence worth knowing before you debug it:** `agent.pluginsManager` only ever holds the
+file-discovered form. Passing `plugins: [PermissionPlugin.create(new PermissionEngine([]))]` leaves
+it reporting `plugins: []` while the plugin is registered and working — an empty manager beside a
+populated `options.plugins` is the normal shape, not a symptom.
+
 ## Subagents
 
 Define named subagents that the main agent spawns via the Agent tool.
@@ -589,7 +609,7 @@ const agent = await Agent.create({
 ```
 
 - **Context** — file-based (`.theokit/context.json`) or inline; bounded by `maxTokens`; surfaced via `agent.context.snapshot()`. Snapshots never expose secrets.
-- **Memory** — durable facts persisted across agent instances, keyed by `{ namespace, userId, scope }`. Must not store credentials. Local `storePath` must stay inside the workspace.
+- **Memory** — durable facts persisted across agent instances, keyed by `{ namespace, userId, scope }`. Must not store credentials. Local `storePath` must stay inside the workspace. `memory.directory` (absolute, or `~/`-prefixed) moves the whole store — index, sessions and notes included; a relative value is refused rather than resolved against a base you did not pick.
 - **Skills** — capability packs at `.theokit/skills/<name>/SKILL.md`. Listed via `agent.skills.list()` (metadata only — full skill bodies never appear in public streams).
 
 `agent.reload()` re-reads file-based context and skills without disposing. The runtime implementation lands with the contract — see [Status](#status) below.
