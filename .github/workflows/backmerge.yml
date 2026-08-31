@@ -1,20 +1,32 @@
-name: Back-merge main into develop
+name: Back-merge main into the long-lived branches
 
 # B-109 — carry the release bump back, without needing anyone to notice that it did not happen.
 #
 # `changesets/action` runs on `push: [main]` and opens a "Version Packages" PR into `main`. That PR
 # is what consumes the `.changeset/*.md` files and bumps every `package.json` — and nothing carries
-# either back to `develop`. So `develop` falls one release further behind on every cut, silently,
-# and the drift is only visible to whoever happens to run `git rev-list --count`.
+# either back. So a long-lived branch falls one release further behind on every cut, silently, and
+# the drift is only visible to whoever happens to run `git rev-list --count`.
 #
 # It reached 10 commits and three already-consumed changesets on 2026-08-11, during a SECURITY
 # release, which is when a process defect is most expensive. Four back-merges were opened by hand
 # that day (#193, #196, #200, #204). This workflow opens the fifth one and every one after it.
 #
+# WHY BOTH BRANCHES, and not just `develop` (#485). This covered `develop` alone, and `workspace` is
+# the other permanent branch — `rules/git-safety.md` makes it the one where all work is BORN, never
+# deleted and never recreated. It drifted exactly the same way and nothing said so: measured
+# 2026-08-31, `workspace` sat 10 commits behind `main` at 4.63.1 while `main` was at 4.63.3, still
+# carrying the two changesets those releases had consumed. `grep -c workspace` on this file returned
+# 0, and no PR had ever been opened with `base=workspace` — it only ever advanced by a local push.
+#
+# The first signal was a promotion FAILING on `no-reconsumed-changesets`, which is the right gate in
+# the right place — between the version cut and the publish is the only point where re-releasing
+# shipped work is catchable. But by then the work is written, the PR is open and a CI run is spent.
+# This moves the signal earlier without weakening the gate: it opens a PR, the gate still refuses.
+#
 # It opens the PR and stops there. Merging stays a human action, consistent with how every other
 # branch advances here — the friction this removes is REMEMBERING, not reviewing. A CI job
 # (`no-reconsumed-changesets`) independently refuses a `develop → main` PR that would re-release
-# shipped work, so forgetting to merge this one is caught rather than compounded.
+# shipped work, so forgetting to merge one is caught rather than compounded.
 
 on:
   push:
@@ -30,8 +42,14 @@ permissions:
 
 jobs:
   open-backmerge-pr:
-    name: Open main → develop PR when develop is behind
+    name: Open main → ${{ matrix.branch }} PR when it is behind
     runs-on: ubuntu-latest
+    strategy:
+      # Both permanent branches, and never cancelled as a pair: `develop` being up to date must not
+      # keep `workspace` from getting its PR, which is the shape of the defect being fixed.
+      fail-fast: false
+      matrix:
+        branch: [develop, workspace]
     # The job is two git counts and at most one `gh pr create`; it has finished in
     # 8-11s on every run so far. A ceiling this tight turns a hang into a fast,
     # obvious failure instead of a runner held for GitHub's 6-hour default.
@@ -51,8 +69,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          behind="$(git rev-list --count origin/develop..origin/main)"
-          echo "develop is ${behind} commit(s) behind main"
+          target="${{ matrix.branch }}"
+          behind="$(git rev-list --count "origin/${target}..origin/main")"
+          echo "${target} is ${behind} commit(s) behind main"
 
           # The steady state. Saying so explicitly keeps a green run from being read as "the job
           # did not run".
@@ -61,26 +80,31 @@ jobs:
             exit 0
           fi
 
-          existing="$(gh pr list --base develop --head main --state open --json number \
+          existing="$(gh pr list --base "${target}" --head main --state open --json number \
             --jq '.[0].number // empty')"
           if [ -n "${existing}" ]; then
             echo "✓ PR #${existing} is already open and will pick these commits up"
             exit 0
           fi
 
+          # `workspace` is a LIVE checkout, unlike `develop`. Opening the PR touches no working
+          # tree, but whoever merges it may need a clean one, and saying so in the body costs a
+          # line and saves a confusing refusal.
+          note=""
+          if [ "${target}" = "workspace" ]; then
+            note=$'\n\n`workspace` is where work is born and is usually checked out somewhere with\nuncommitted changes. Opening this PR touches nothing; merging it may need a clean tree.'
+          fi
+
           gh pr create \
-            --base develop \
+            --base "${target}" \
             --head main \
-            --title "chore: back-merge main into develop" \
-            --body "$(cat <<'BODY'
-          Opened automatically after a push to `main` (B-109).
+            --title "chore: back-merge main into ${target}" \
+            --body "Opened automatically after a push to \`main\` (B-109).
 
-          The release bump and the consumed `.changeset/*.md` deletions live only on `main` until
-          this lands. While it is open, `develop` still declares the previous version and still
-          holds changesets that have already shipped — so a `develop → main` PR cut from that state
-          would re-release them.
+          The release bump and the consumed \`.changeset/*.md\` deletions live only on \`main\` until
+          this lands. While it is open, \`${target}\` still declares the previous version and still
+          holds changesets that have already shipped — so a promotion cut from that state would
+          re-release them.
 
-          The `no-reconsumed-changesets` CI job refuses exactly that, so nothing breaks if this sits
-          for a while. It just needs to land before the next release is cut.
-          BODY
-          )"
+          The \`no-reconsumed-changesets\` CI job refuses exactly that, so nothing breaks if this
+          sits for a while. It just needs to land before the next release is cut.${note}"
