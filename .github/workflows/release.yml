@@ -326,7 +326,41 @@ jobs:
           fi
           echo "publishing a snapshot from $pending pending changeset(s) under dist-tag '$SNAPSHOT_TAG'"
 
+          # THE REF IS PART OF THE MEASUREMENT, so it gets recorded rather than assumed.
+          # A dispatch runs against whatever ref was selected, and a snapshot version is
+          # derived from the pending changesets ON THAT TREE. Dispatched from a branch that
+          # sits behind the published state, it faithfully packages that older tree — and
+          # whoever installs the tag has no way to tell, because the version string says
+          # nothing about where it came from.
+          #
+          # The ref is NOT restricted to `main`: snapshotting a fix before it reaches `main`
+          # is the entire reason this path exists, and forcing `main` would leave it able to
+          # publish only what no longer needs publishing. So the ref is made visible instead,
+          # in the log and in the run summary, next to the versions it produced.
+          echo "ref=${GITHUB_REF} sha=${GITHUB_SHA}"
+
           pnpm changeset version --snapshot "$SNAPSHOT_TAG"
+
+          {
+            echo "### Snapshot published under \`${SNAPSHOT_TAG}\`"
+            echo
+            echo "| what | value |"
+            echo "|---|---|"
+            echo "| ref | \`${GITHUB_REF}\` |"
+            echo "| commit | \`${GITHUB_SHA}\` |"
+            echo "| changesets consumed | ${pending} |"
+            echo
+            echo "| package | version |"
+            echo "|---|---|"
+            # Single-quoted program, path through argv: backticks inside a double-quoted
+            # shell string are command substitution, not markdown.
+            for m in packages/*/package.json; do
+              node -e 'const j = require(process.argv[1]); if (!j.private) console.log("| " + j.name + " | " + j.version + " |");' "$PWD/$m"
+            done
+            echo
+            echo "Install with \`npm i <package>@${SNAPSHOT_TAG}\`, or pin the exact version above."
+            echo "This is **not** on \`latest\` and is never garbage-collected — an npm version is immutable."
+          } >> "$GITHUB_STEP_SUMMARY"
 
           # `release:snapshot` and `release` share their guard chain through
           # `prepublish:guards` in package.json. They are deliberately not two copies: a guard
