@@ -7,8 +7,14 @@ name: Promotion gate
 # That rule had one enforcement point and it was the wrong one. `hooks/validate-command.sh` refuses
 # a local `git merge` into `develop` — and nobody merges into `develop` locally. Every promotion in
 # this repository lands through `gh pr merge`, server-side, where no local hook runs. Measured
-# 2026-08-31 (#496): thirty `main → develop` pull requests merged, against a rule that forbids them
-# and a hook that blocks them, because the hook watched the path nobody uses.
+# 2026-08-31 (#496): 48 `main → develop` pull requests merged — #193 on 2026-08-11 through #493 on
+# 2026-08-31 — against a rule that forbids them and a hook that blocks them, because the hook
+# watched the path nobody uses.
+#
+# That figure was first reported as thirty, which is `gh pr list`'s default page size and not a
+# count. A total landing exactly on the default limit is a total nobody counted; 48 is the same
+# query with `--limit` and cross-checked against the search API's `total_count`. The difference is
+# not pedantic: thirty over twenty days reads as history, 48 reads as current practice.
 #
 # This is the enforcement point that matches the practice. It refuses the pull request itself.
 #

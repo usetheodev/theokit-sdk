@@ -24,11 +24,11 @@ name: Back-merge main into the long-lived branches
 # This moves the signal earlier without weakening the gate: it opens a PR, the gate still refuses.
 #
 # WHY `workspace` ONLY, and not `develop` too (#496). This opened `main → develop` as well until
-# 2026-08-31, and thirty of those were merged — while `rules/git-safety.md` § 1 says `develop`
+# 2026-08-31, and 48 of those were merged — while `rules/git-safety.md` § 1 says `develop`
 # "advances only by promoting `workspace`" and "never merge anything other than `workspace` into
 # it", and `hooks/validate-command.sh` blocks exactly that. The rule forbade it, the hook blocked
 # it, this workflow did it, and nobody noticed because the hook watches `git merge` on a local
-# checkout while every one of the thirty went through `gh pr merge`, server-side, where no hook runs.
+# checkout while every one of the 48 went through `gh pr merge`, server-side, where no hook runs.
 #
 # Two resolutions were possible: write an exception into the rule, or stop doing it. This is the
 # second. The first needs an exception phrased precisely enough not to grow into "this merge does
