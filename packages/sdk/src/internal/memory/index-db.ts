@@ -12,7 +12,7 @@ import type { MemoryRoot } from "./storage/memory-root.js";
  * primitive in `internal/persistence`; this module only declares the memory
  * schema application (PRAGMA + SCHEMA) via its `onOpen` callback.
  *
- * @internal
+ * Shared with `@theokit/sdk-memory`; see the memory-store barrel.
  */
 
 export interface MemoryDb {

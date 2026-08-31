@@ -6,11 +6,12 @@ import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
 import { chunkMarkdown } from "../store/chunk-markdown.js";
 import {
   collectMarkdownFiles,
+  defaultIndexPath,
   type MemoryRoot,
   projectMemoryDir,
   resolveMemoryRoot,
 } from "../store/markdown-store.js";
-import { defaultIndexPath, type MemoryDb, openMemoryDb } from "./index-db.js";
+import { type MemoryDb, openMemoryDb } from "./index-db.js";
 import { assertValidBackend, openLanceIndex } from "./index-manager-dispatch.js";
 import { type MemoryIndex, parseSearchOptions } from "./memory-index.js";
 import { loadSqliteVecExtension } from "./sqlite-vec-loader.js";

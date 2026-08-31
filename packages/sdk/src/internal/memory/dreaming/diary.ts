@@ -14,7 +14,7 @@ import type { MemoryRoot } from "../storage/memory-root.js";
  * Writes go through `replaceFileAtomic` (EC-3 of edge-case review) so a
  * crash mid-write can never leave a half-written diary.
  *
- * @internal
+ * Shared with `@theokit/sdk-memory`; see the memory-store barrel.
  */
 
 export interface DiaryEntry {

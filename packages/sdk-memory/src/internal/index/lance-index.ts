@@ -1,11 +1,10 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
 
 import { ConfigurationError } from "@theokit/sdk/errors";
 
 import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
-import { type MemoryRoot, resolveMemoryRoot } from "../store/markdown-store.js";
+import { lanceStoragePath, type MemoryRoot, resolveMemoryRoot } from "../store/markdown-store.js";
 
 /**
  * LanceDB-backed memory index (ADR D43). Implements the same logical
@@ -321,15 +320,6 @@ export function isLanceAvailable(): boolean {
   } catch {
     return false;
   }
-}
-
-/**
- * `<memory root>/lance`. Takes the RESOLVED ROOT, like its counterpart in the SDK (#463).
- *
- * @internal
- */
-export function lanceStoragePath(root: MemoryRoot): string {
-  return join(root, "lance");
 }
 
 void existsSync; // imported but only used conditionally via mkdirSync

@@ -20,7 +20,7 @@ import { type MemoryRoot, resolveMemoryRoot } from "./storage/memory-root.js";
  *
  * EC-8: embedding dimension is validated when opening an existing table.
  *
- * @internal
+ * Shared with `@theokit/sdk-memory`; see the memory-store barrel.
  */
 
 interface LanceModule {
@@ -288,7 +288,8 @@ export function isLanceAvailable(): boolean {
  * beside a second copy of the same literal in `open()` — two more answers to "where does memory
  * live?" that no `memoryDir` search would have surfaced (#463).
  *
- * @internal
+ * Shared with `@theokit/sdk-memory` through the memory-store barrel, so it carries no
+ * visibility tag — naming that tag in this block would delete the function below it (#463).
  */
 export function lanceStoragePath(root: MemoryRoot): string {
   return join(root, "lance");

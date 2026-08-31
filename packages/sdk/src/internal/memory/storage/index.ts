@@ -16,11 +16,16 @@
  * `package.json` `exports`, so the names below must survive into the published declarations.
  */
 
+export { diaryPath } from "../dreaming/diary.js";
+// Path helpers the satellite also needs. Each was a copy on both sides, and each is a pure function
+// over the memory root — the cheapest possible thing to share and the least excusable to duplicate.
+export { defaultIndexPath } from "../index-db.js";
 // The corpus walk, shared for the reason the cluster above is. The satellite's copy had drifted
 // further than the others: it walked `notes/`, `wiki/` and `sessions/` and never picked up the
 // per-memory files at the root — the layout #389 converged on — so installing that package made
 // every converged memory unsearchable while reporting no error at all.
 export { collectMarkdownFiles, type DiscoveredFile } from "../index-manager-helpers.js";
+export { lanceStoragePath } from "../lance-index.js";
 export {
   appendFact,
   appendFactToMarkdown,

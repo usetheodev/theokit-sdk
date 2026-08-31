@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 
 import { replaceFileAtomic } from "@theokit/sdk/persistence";
 
 import type { MemoryRoot } from "../store/markdown-store.js";
+import { diaryPath } from "../store/markdown-store.js";
 
 /**
  * Dream-diary append (ADR D7).
@@ -39,11 +39,6 @@ export interface DiaryEntry {
   duplicatesRemoved: number;
   clustersCreated: number;
   notesWritten: number;
-}
-
-/** Path to the dream diary, `<memory root>/dream-diary.md`. Pure path computation. */
-export function diaryPath(root: MemoryRoot): string {
-  return join(root, "dream-diary.md");
 }
 
 /**

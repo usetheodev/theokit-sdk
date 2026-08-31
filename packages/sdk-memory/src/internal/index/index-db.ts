@@ -1,7 +1,4 @@
-import { join } from "node:path";
-
 import { openSqliteResilient } from "@theokit/sdk/persistence";
-import type { MemoryRoot } from "../store/markdown-store.js";
 import { PRAGMA_STATEMENTS, SCHEMA_STATEMENTS } from "./index-schema.js";
 
 /**
@@ -79,16 +76,4 @@ export async function openMemoryDb(opts: OpenDbOptions): Promise<MemoryDb> {
       for (const stmt of SCHEMA_STATEMENTS) db.exec(stmt);
     },
   });
-}
-
-/**
- * `<index root>/.index/memory.sqlite`. Pure path computation.
- *
- * The root it is given is the PROJECT store even when the facts move, and the reasoning for that is
- * stated once — in the SDK's `internal/memory/index-db.ts` and `docs/memory-decisions.md` § 1.
- * Restating it here would put one decision in two places, which is the shape of defect this package
- * pair keeps paying for (#430, #463).
- */
-export function defaultIndexPath(root: MemoryRoot): string {
-  return join(root, ".index", "memory.sqlite");
 }

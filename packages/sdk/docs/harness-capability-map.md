@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1166 export(s) across 46 entry point(s).
+1169 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -568,7 +568,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `DEFAULT_VOYAGE_EMBEDDING_MODEL` | const | Voyage AI embedding adapter — `POST /v1/embeddings` at `https://api.voyageai.com` with the OpenAI-compatible `{ model, input }` request shape.  |
 | `defaultIndexPath` | function | `<index root>/.index/memory.sqlite`.  |
 | `DiaryEntry` | interface | Dream-diary append (ADR D7).  |
-| `diaryPath` | function | Path to the dream diary, `<memory root>/dream-diary.md`.  |
+| `diaryPath` | function | `<memory root>/dream-diary.md`.  |
 | `DiscoveredFile` | interface | One markdown file the corpus walk found, with the source bucket the indexer tags it with.  |
 | `discoverSessionFiles` | function | Every session summary under `<memory root>/sessions`, as `{ absolutePath, relPath }` records.  |
 | `discoverWikiFiles` | function | Every wiki supplement under `<memory root>/wiki`, as `{ absolutePath, relPath }` records.  |
@@ -1024,10 +1024,13 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `asMemoryRoot` | function | Treat a directory as a memory root without resolving one.  |
 | `claudeProjectMemoryDir` | function | Where the Claude Code CLI keeps THIS project's memories.  |
 | `collectMarkdownFiles` | function | Every markdown file the memory corpus holds: the index, the per-memory files, `notes/`, `wiki/` and `sessions/`, each tagged with the bucket `memory_search`'s `corpus` filters on.  |
+| `defaultIndexPath` | function | `<index root>/.index/memory.sqlite`.  |
+| `diaryPath` | function | `<memory root>/dream-diary.md`.  |
 | `DiscoveredFile` | interface | One markdown file the corpus walk found, with the source bucket the indexer tags it with.  |
 | `discoverSessionFiles` | function | Every session summary under `<memory root>/sessions`, as `{ absolutePath, relPath }` records.  |
 | `discoverWikiFiles` | function | Every wiki supplement under `<memory root>/wiki`, as `{ absolutePath, relPath }` records.  |
 | `indexBudgetWarning` | function | What to say about an index that the interop partner will truncate, or `undefined` when there is nothing true to say.  |
+| `lanceStoragePath` | function | `<memory root>/lance`.  |
 | `MEMORY_INDEX_MAX_BYTES` | const | The byte limit the Claude Code CLI applies when it loads a `MEMORY.md`, whichever it reaches first.  |
 | `MEMORY_INDEX_MAX_LINES` | const | The line limit the Claude Code CLI applies when it loads a `MEMORY.md`.  |
 | `MemoryLocationConfig` | type | Only `directory` is read; the full config is accepted so callers pass what they already hold. |
