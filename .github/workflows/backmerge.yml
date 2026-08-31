@@ -23,6 +23,23 @@ name: Back-merge main into the long-lived branches
 # shipped work is catchable. But by then the work is written, the PR is open and a CI run is spent.
 # This moves the signal earlier without weakening the gate: it opens a PR, the gate still refuses.
 #
+# WHY `workspace` ONLY, and not `develop` too (#496). This opened `main → develop` as well until
+# 2026-08-31, and thirty of those were merged — while `rules/git-safety.md` § 1 says `develop`
+# "advances only by promoting `workspace`" and "never merge anything other than `workspace` into
+# it", and `hooks/validate-command.sh` blocks exactly that. The rule forbade it, the hook blocked
+# it, this workflow did it, and nobody noticed because the hook watches `git merge` on a local
+# checkout while every one of the thirty went through `gh pr merge`, server-side, where no hook runs.
+#
+# Two resolutions were possible: write an exception into the rule, or stop doing it. This is the
+# second. The first needs an exception phrased precisely enough not to grow into "this merge does
+# not introduce anything new either", which is how exceptions to an absolute rule grow.
+#
+# Dropping the leg costs nothing, which is the part worth stating: `main → workspace` followed by
+# the ordinary `workspace → develop` promotion is the path a human already has to take, so `develop`
+# still receives everything — it just receives it through the gate instead of around it. Confirmed
+# by `theokit-gateways`, whose workflow was built this way from the start and whose forty-three
+# merges into `develop` all came from `workspace`.
+#
 # It opens the PR and stops there. Merging stays a human action, consistent with how every other
 # branch advances here — the friction this removes is REMEMBERING, not reviewing. A CI job
 # (`no-reconsumed-changesets`) independently refuses a `develop → main` PR that would re-release
@@ -45,11 +62,12 @@ jobs:
     name: Open main → ${{ matrix.branch }} PR when it is behind
     runs-on: ubuntu-latest
     strategy:
-      # Both permanent branches, and never cancelled as a pair: `develop` being up to date must not
-      # keep `workspace` from getting its PR, which is the shape of the defect being fixed.
+      # `workspace` only, as of #496. The `develop` leg was removed rather than kept — see the
+      # header. The matrix survives a single entry so re-adding a target is one line, and
+      # `fail-fast: false` stays for the same reason.
       fail-fast: false
       matrix:
-        branch: [develop, workspace]
+        branch: [workspace]
     # The job is two git counts and at most one `gh pr create`; it has finished in
     # 8-11s on every run so far. A ceiling this tight turns a hang into a fast,
     # obvious failure instead of a runner held for GitHub's 6-hour default.

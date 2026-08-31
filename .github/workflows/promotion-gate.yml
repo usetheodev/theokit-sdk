@@ -1,0 +1,67 @@
+name: Promotion gate
+
+# `rules/git-safety.md` § 1: `develop` integrates work and never originates it — it advances ONLY by
+# promoting `workspace`, and nothing other than `workspace` may be merged into it. The purpose is
+# that every change ORIGINATES on `workspace`, where the local hooks see it.
+#
+# That rule had one enforcement point and it was the wrong one. `hooks/validate-command.sh` refuses
+# a local `git merge` into `develop` — and nobody merges into `develop` locally. Every promotion in
+# this repository lands through `gh pr merge`, server-side, where no local hook runs. Measured
+# 2026-08-31 (#496): thirty `main → develop` pull requests merged, against a rule that forbids them
+# and a hook that blocks them, because the hook watched the path nobody uses.
+#
+# This is the enforcement point that matches the practice. It refuses the pull request itself.
+#
+# It does NOT replace the hook. The hook guards the local path and this guards the server path;
+# a repository with only one of them is guarded on one side. `git-safety.md` § 1 already makes the
+# same distinction between the hook (origin) and branch protection (review) — this is the third
+# column that was missing from it.
+#
+# REQUIRED, or it is decoration. An advisory check on a pull request is a green tick nobody reads;
+# what makes it a gate is branch protection listing it. Adding it as required BEFORE it has ever
+# reported would block every pull request on a context that never arrives — so it is armed after
+# its first green run, never in the same change.
+
+on:
+  pull_request:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promotion-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  head-must-be-workspace:
+    name: promotion into develop comes from workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Refuse a head that is not workspace
+        env:
+          # Through the environment, never `${{ }}` inside `run:`. On a pull request from a fork the
+          # head branch name is text the author chose, so interpolating it into the script would put
+          # an attacker's string where the shell parses commands.
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          echo "head: ${HEAD_REPO}:${HEAD_REF} -> base: ${BASE_REPO}:develop"
+
+          # A fork can never be the promotion source: `workspace` is a branch OF THIS repository, and
+          # a fork's branch of the same name is a different branch that no local hook ever saw.
+          if [ "${HEAD_REPO}" != "${BASE_REPO}" ]; then
+            echo "::error::a pull request into develop must come from this repository's own workspace branch, not from ${HEAD_REPO}"
+            exit 1
+          fi
+
+          if [ "${HEAD_REF}" != "workspace" ]; then
+            echo "::error::develop only accepts the promotion from 'workspace' (rules/git-safety.md § 1); this pull request's head is '${HEAD_REF}'. Land the work on workspace first, then promote."
+            exit 1
+          fi
+
+          echo "✓ head is workspace"
