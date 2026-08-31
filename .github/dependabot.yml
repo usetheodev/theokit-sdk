@@ -4,9 +4,24 @@ version: 2
 # us, and replaces it with the risk that a pinned SHA quietly rots — including
 # past a security fix. This file is the other half of that trade: the SHAs move
 # on a schedule, through a reviewed pull request, instead of silently or never.
+#
+# `target-branch: workspace` is what makes that trade real, and its absence is what
+# made it a claim (#498). Without it Dependabot opens against the DEFAULT branch —
+# `main` — which `rules/git-safety.md` § 1 makes release-only: it accepts a
+# `develop → main` release pull request and nothing else. So every pull request the
+# bot opened was aimed at the one branch policy forbids it to reach. Measured
+# 2026-08-31: twenty-two opened since this file was written, ZERO merged, the oldest
+# seven sitting BLOCKED for fourteen days.
+#
+# The SHAs were moving `never` — the half of the trade this header promised would not
+# happen. `workspace` is where all work is born, so a dependency bump belongs there
+# like any other change, and reaches `main` the way everything else does: through the
+# promotion and the release.
 updates:
   - package-ecosystem: github-actions
     directory: /
+    # See the header: without this the bot targets `main`, which is release-only.
+    target-branch: workspace
     schedule:
       interval: weekly
       day: monday
@@ -21,6 +36,8 @@ updates:
 
   - package-ecosystem: npm
     directory: /
+    # See the header: without this the bot targets `main`, which is release-only.
+    target-branch: workspace
     schedule:
       interval: weekly
       day: monday
