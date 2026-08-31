@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { openSqliteResilient } from "../persistence/sqlite-open.js";
 import { PRAGMA_STATEMENTS, SCHEMA_STATEMENTS } from "./index-schema.js";
+import type { MemoryRoot } from "./storage/memory-root.js";
 
 /**
  * Memory index DB handle + opener.
@@ -11,7 +12,7 @@ import { PRAGMA_STATEMENTS, SCHEMA_STATEMENTS } from "./index-schema.js";
  * primitive in `internal/persistence`; this module only declares the memory
  * schema application (PRAGMA + SCHEMA) via its `onOpen` callback.
  *
- * @internal
+ * Shared with `@theokit/sdk-memory`; see the memory-store barrel.
  */
 
 export interface MemoryDb {
@@ -50,6 +51,20 @@ export async function openMemoryDb(opts: OpenDbOptions): Promise<MemoryDb> {
   });
 }
 
-export function defaultIndexPath(cwd: string): string {
-  return join(cwd, ".theokit", "memory", ".index", "memory.sqlite");
+/**
+ * `<index root>/.index/memory.sqlite`. Pure path computation.
+ *
+ * Takes a resolved root rather than a `cwd`: this function used to spell the default layout out
+ * again as a string literal — an answer to "where does memory live?" that no search for the shared
+ * helper would have found (#463).
+ *
+ * **The root it is given is the PROJECT store, even when the facts move.** `memory.directory` may
+ * point at the directory the Claude Code CLI manages, and that CLI has no index format — putting a
+ * binary artefact it does not understand inside a directory it owns is a different decision from
+ * putting the facts there, and it was made deliberately. The facts are what a user would lose; the
+ * index is derived and rebuildable from them. See `docs/memory-decisions.md` § 1 before relocating
+ * this, and `IndexManager.openSqliteInternal` for the caller that keeps the two apart.
+ */
+export function defaultIndexPath(root: MemoryRoot): string {
+  return join(root, ".index", "memory.sqlite");
 }

@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { diaryPath } from "../../../src/internal/memory/dreaming/diary.js";
 import { runDreamingSweep } from "../../../src/internal/memory/dreaming/run.js";
 import type { EmbeddingRuntime } from "../../../src/internal/memory/embedding-adapter.js";
-import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 // Phase 9 T9.1 — dreaming/REM consolidation (deterministic mode).
@@ -57,12 +58,12 @@ describe("dreaming sweep", () => {
     onTestFinished(async () => {
       await removeTempDirRobust(__cwdCleanup1);
     });
-    await mkdir(memoryDir(cwd), { recursive: true });
+    await mkdir(resolveMemoryRoot(cwd), { recursive: true });
   });
 
   it("deduplicates near-identical facts (light phase)", async () => {
     await writeFile(
-      memoryMdPath(cwd),
+      memoryMdPath(resolveMemoryRoot(cwd)),
       "# Memory\n\n## Facts\n\n- dupe fact one.\n- dupe fact one.\n- dupe fact one.\n- topica unique fact.\n",
       "utf8",
     );
@@ -78,7 +79,7 @@ describe("dreaming sweep", () => {
 
   it("clusters thematically related facts (REM phase)", async () => {
     await writeFile(
-      memoryMdPath(cwd),
+      memoryMdPath(resolveMemoryRoot(cwd)),
       "# Memory\n\n## Facts\n\n- topica fact one.\n- topica fact two.\n- topicb fact three.\n- topicb fact four.\n",
       "utf8",
     );
@@ -93,42 +94,54 @@ describe("dreaming sweep", () => {
   });
 
   it("writes a diary entry under .theokit/memory/dream-diary.md", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- topica only fact.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- topica only fact.\n",
+      "utf8",
+    );
     await runDreamingSweep({
       cwd,
       embedding: fakeEmbedding(),
       now: () => 1700000000000,
     });
-    expect(existsSync(diaryPath(cwd))).toBe(true);
-    const content = await readFile(diaryPath(cwd), "utf8");
+    expect(existsSync(diaryPath(resolveMemoryRoot(cwd)))).toBe(true);
+    const content = await readFile(diaryPath(resolveMemoryRoot(cwd)), "utf8");
     expect(content).toContain("# Dream Diary");
     expect(content).toContain("entry-hash:");
     expect(content).toContain("facts before:");
   });
 
   it("is idempotent — same input + same timestamp produces the same diary entry hash", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- topica fact one.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- topica fact one.\n",
+      "utf8",
+    );
     const r1 = await runDreamingSweep({
       cwd,
       embedding: fakeEmbedding(),
       now: () => 1700000000000,
     });
-    const diary1 = await readFile(diaryPath(cwd), "utf8");
+    const diary1 = await readFile(diaryPath(resolveMemoryRoot(cwd)), "utf8");
     // Rewrite source state, then run again at the same timestamp.
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- topica fact one.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- topica fact one.\n",
+      "utf8",
+    );
     const r2 = await runDreamingSweep({
       cwd,
       embedding: fakeEmbedding(),
       now: () => 1700000000001,
     });
-    const diary2 = await readFile(diaryPath(cwd), "utf8");
+    const diary2 = await readFile(diaryPath(resolveMemoryRoot(cwd)), "utf8");
     expect(r1.factsBefore).toBe(r2.factsBefore);
     expect(diary2.length).toBeGreaterThan(diary1.length); // second entry appended
   });
 
   it("writes consolidated notes under notes/dreamed-<ts>.md", async () => {
     await writeFile(
-      memoryMdPath(cwd),
+      memoryMdPath(resolveMemoryRoot(cwd)),
       "# Memory\n\n## Facts\n\n- topica alpha.\n- topica beta.\n- topicb gamma.\n",
       "utf8",
     );
@@ -137,10 +150,10 @@ describe("dreaming sweep", () => {
       embedding: fakeEmbedding(),
       now: () => 1700000000000,
     });
-    const notes = await readdir(join(memoryDir(cwd), "notes")).catch(() => []);
+    const notes = await readdir(join(resolveMemoryRoot(cwd), "notes")).catch(() => []);
     const dreamed = notes.filter((n) => n.startsWith("dreamed-"));
     expect(dreamed).toHaveLength(1);
-    const noteContent = await readFile(join(memoryDir(cwd), "notes", dreamed[0]!), "utf8");
+    const noteContent = await readFile(join(resolveMemoryRoot(cwd), "notes", dreamed[0]!), "utf8");
     expect(noteContent).toContain("# Dreamed ");
     expect(noteContent).toContain("Cluster 1");
   });
@@ -152,17 +165,21 @@ describe("dreaming sweep", () => {
       now: () => 1700000000000,
     });
     expect(result.status).toBe("skipped");
-    expect(existsSync(diaryPath(cwd))).toBe(false);
+    expect(existsSync(diaryPath(resolveMemoryRoot(cwd)))).toBe(false);
   });
 
   it("notes are written atomically — no .tmp file remains after success (EC-3)", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- topica only.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- topica only.\n",
+      "utf8",
+    );
     await runDreamingSweep({
       cwd,
       embedding: fakeEmbedding(),
       now: () => 1700000000000,
     });
-    const notesDir = join(memoryDir(cwd), "notes");
+    const notesDir = join(resolveMemoryRoot(cwd), "notes");
     const files = await readdir(notesDir);
     expect(files.some((f) => f.endsWith(".tmp"))).toBe(false);
   });

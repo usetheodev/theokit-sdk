@@ -3,8 +3,12 @@ import { join } from "node:path";
 
 import { ConfigurationError } from "@theokit/sdk/errors";
 import { redactSecrets } from "../memory-types.js";
-import { defaultIndexPath, openMemoryDb } from "./index-db.js";
-import { LanceIndex, lanceStoragePath } from "./lance-index.js";
+import {
+  lanceStoragePath,
+  readAllSqliteFacts,
+  resolveMemoryRoot,
+} from "../store/markdown-store.js";
+import { LanceIndex } from "./lance-index.js";
 
 /**
  * Migrate Memory.index from SQLite to LanceDB (ADR D44).
@@ -27,6 +31,11 @@ import { LanceIndex, lanceStoragePath } from "./lance-index.js";
 
 export interface MigrateOptions {
   cwd: string;
+  /**
+   * Absolute path (or `~/`-prefixed) of the memory root to migrate, when the agent that wrote it
+   * set `memory.directory`. Defaults to `<cwd>/.theokit/memory` (#463).
+   */
+  directory?: string;
   dryRun?: boolean;
   batchSize?: number;
   /** Inject for tests; defaults to console.log. */
@@ -58,51 +67,6 @@ export interface MigrateResult {
   committed: boolean;
 }
 
-interface SqliteFactRow {
-  id: string;
-  path: string;
-  source: "memory" | "sessions" | "wiki";
-  start_line: number;
-  end_line: number;
-  text: string;
-  namespace?: string | null;
-  scope?: string | null;
-  user_id?: string | null;
-}
-
-/**
- * Read all facts from the SQLite memory index. Returns empty array if the
- * SQLite db file does not exist (workspace never used Memory).
- *
- * @internal
- */
-async function readAllSqliteFacts(cwd: string): Promise<SqliteFactRow[]> {
-  const dbPath = defaultIndexPath(cwd);
-  if (!existsSync(dbPath)) return [];
-  const db = await openMemoryDb({ filePath: dbPath });
-  try {
-    // SQLite schema: chunks table holds the facts. Schema may vary; we
-    // probe column existence and fall back to safe defaults.
-    const stmt = db.prepare("SELECT id, path, source, start_line, end_line, text FROM chunks");
-    const rows = stmt.all() as Array<{
-      id: string;
-      path: string;
-      source: "memory" | "sessions" | "wiki";
-      start_line: number;
-      end_line: number;
-      text: string;
-    }>;
-    return rows.map((r) => ({
-      ...r,
-      namespace: "default",
-      scope: "agent",
-      user_id: "default",
-    }));
-  } finally {
-    db.close();
-  }
-}
-
 /**
  * Compare two strings via NFC normalization (EC-3 MUST FIX). Required
  * because SQLite/Lance native bindings can normalize unicode differently
@@ -124,8 +88,10 @@ function nfcEqual(a: string, b: string): boolean {
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: migration is a single transaction (read → write → validate → commit-or-rollback); splitting harms atomicity reasoning.
 export async function migrateSqliteToLance(opts: MigrateOptions): Promise<MigrateResult> {
   const cwd = opts.cwd;
-  const finalPath = lanceStoragePath(cwd);
-  const newPath = join(cwd, ".theokit", "memory", "lance-new");
+  // One resolution, reused by every path this migration touches (#463).
+  const memoryRoot = resolveMemoryRoot(cwd, { directory: opts.directory });
+  const finalPath = lanceStoragePath(memoryRoot);
+  const newPath = join(memoryRoot, "lance-new");
   // T1.4 (ADR D68): wrap logger so any fact text containing secrets is
   // masked before reaching the destination (console or user-supplied sink).
   // Caller-supplied loggers cannot bypass — by design (D70).
@@ -146,7 +112,7 @@ export async function migrateSqliteToLance(opts: MigrateOptions): Promise<Migrat
   }
 
   log(`Reading SQLite facts from ${cwd}/.theokit/memory/index.sqlite ...`);
-  const sqliteFacts = await readAllSqliteFacts(cwd);
+  const sqliteFacts = await readAllSqliteFacts(memoryRoot);
   log(`SQLite has ${sqliteFacts.length} facts.`);
   if (sqliteFacts.length === 0) {
     return {

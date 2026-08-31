@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
-import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 import { wikiDir } from "../../../src/internal/memory/storage/wiki-loader.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
@@ -21,8 +22,8 @@ describe("memory-wiki supplements", () => {
     onTestFinished(async () => {
       await removeTempDirRobust(__cwdCleanup1);
     });
-    await mkdir(memoryDir(cwd), { recursive: true });
-    await mkdir(wikiDir(cwd), { recursive: true });
+    await mkdir(resolveMemoryRoot(cwd), { recursive: true });
+    await mkdir(wikiDir(resolveMemoryRoot(cwd)), { recursive: true });
   });
 
   afterEach(() => {
@@ -31,9 +32,13 @@ describe("memory-wiki supplements", () => {
   });
 
   it("indexes wiki/*.md files with source='wiki'", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- memory entry alpha.\n", "utf8");
     await writeFile(
-      join(wikiDir(cwd), "guide.md"),
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- memory entry alpha.\n",
+      "utf8",
+    );
+    await writeFile(
+      join(wikiDir(resolveMemoryRoot(cwd)), "guide.md"),
       "# Guide\n\nWiki content about wikiword zoltar.\n",
       "utf8",
     );
@@ -49,8 +54,16 @@ describe("memory-wiki supplements", () => {
   });
 
   it("corpus=wiki filter returns only wiki hits", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- topic foo.\n", "utf8");
-    await writeFile(join(wikiDir(cwd), "wiki-foo.md"), "# Foo\n\nfoo from wiki side.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- topic foo.\n",
+      "utf8",
+    );
+    await writeFile(
+      join(wikiDir(resolveMemoryRoot(cwd)), "wiki-foo.md"),
+      "# Foo\n\nfoo from wiki side.\n",
+      "utf8",
+    );
     manager = await IndexManager.open({ cwd });
     await manager.sync();
     const onlyWiki = await manager.search("foo", { sources: ["wiki"] });
@@ -59,9 +72,13 @@ describe("memory-wiki supplements", () => {
   });
 
   it("default search (no sources filter) returns both memory + wiki hits", async () => {
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- shared keyword alpha.\n", "utf8");
     await writeFile(
-      join(wikiDir(cwd), "wiki-alpha.md"),
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- shared keyword alpha.\n",
+      "utf8",
+    );
+    await writeFile(
+      join(wikiDir(resolveMemoryRoot(cwd)), "wiki-alpha.md"),
       "# Wiki\n\nshared keyword alpha discussion.\n",
       "utf8",
     );

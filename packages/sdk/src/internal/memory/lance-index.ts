@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
+import { type MemoryRoot, resolveMemoryRoot } from "./storage/memory-root.js";
 
 /**
  * LanceDB-backed memory index (ADR D43). Implements the same logical
@@ -19,7 +20,7 @@ import type { EmbeddingRuntime } from "./embedding-adapter.js";
  *
  * EC-8: embedding dimension is validated when opening an existing table.
  *
- * @internal
+ * Shared with `@theokit/sdk-memory`; see the memory-store barrel.
  */
 
 interface LanceModule {
@@ -67,8 +68,10 @@ export interface LanceFactRecord {
 
 export interface OpenLanceOptions {
   cwd: string;
+  /** The resolved memory root. Defaults to `<cwd>/.theokit/memory` (#463). */
+  memoryRoot?: MemoryRoot;
   embedding: EmbeddingRuntime;
-  /** Override storage location. Default: `<cwd>/.theokit/memory/lance/`. */
+  /** Override storage location. Default: `<memory root>/lance/`. */
   storagePath?: string;
 }
 
@@ -122,7 +125,8 @@ export class LanceIndex {
 
   static async open(opts: OpenLanceOptions): Promise<LanceIndex> {
     const lance = requireLance();
-    const storagePath = opts.storagePath ?? join(opts.cwd, ".theokit", "memory", "lance");
+    const storagePath =
+      opts.storagePath ?? lanceStoragePath(opts.memoryRoot ?? resolveMemoryRoot(opts.cwd));
     mkdirSync(storagePath, { recursive: true });
     const conn = await lance.connect(storagePath);
     const dim = opts.embedding.dimension;
@@ -278,12 +282,17 @@ export function isLanceAvailable(): boolean {
 }
 
 /**
- * Test helper: re-export the storage path computation.
+ * `<memory root>/lance`.
  *
- * @internal
+ * Takes the RESOLVED ROOT. This used to spell the default layout out again as a string literal,
+ * beside a second copy of the same literal in `open()` — two more answers to "where does memory
+ * live?" that no `memoryDir` search would have surfaced (#463).
+ *
+ * Shared with `@theokit/sdk-memory` through the memory-store barrel, so it carries no
+ * visibility tag — naming that tag in this block would delete the function below it (#463).
  */
-export function lanceStoragePath(cwd: string): string {
-  return join(cwd, ".theokit", "memory", "lance");
+export function lanceStoragePath(root: MemoryRoot): string {
+  return join(root, "lance");
 }
 
 void existsSync; // imported but only used conditionally via mkdirSync

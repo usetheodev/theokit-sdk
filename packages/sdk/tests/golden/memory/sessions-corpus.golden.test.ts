@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
-import { memoryDir } from "../../../src/internal/memory/storage/markdown-store.js";
+import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 import { discoverSessionFiles } from "../../../src/internal/memory/storage/session-loader.js";
 import {
   sessionSummaryPath,
@@ -57,7 +57,7 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
     await agent.dispose();
 
     expect(result.status).toBe("finished");
-    const summaryPath = sessionSummaryPath(cwd, result.id);
+    const summaryPath = sessionSummaryPath(resolveMemoryRoot(cwd), result.id);
     const body = await readFile(summaryPath, "utf8");
     expect(body).toContain("## User");
     expect(body).toContain("magic-number question");
@@ -66,9 +66,9 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
   });
 
   it("memory-search-corpus-sessions-returns-hit — pre-seed sessions/, search returns ranked hit", async () => {
-    await mkdir(sessionsDir(cwd), { recursive: true });
+    await mkdir(sessionsDir(resolveMemoryRoot(cwd)), { recursive: true });
     await writeSessionSummary({
-      cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "run-prefill-1",
       agentId: "agent-seed",
       userText: "what's the magic-number for this workspace?",
@@ -77,7 +77,7 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
       at: Date.now(),
     });
     await writeSessionSummary({
-      cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "run-prefill-2",
       agentId: "agent-seed",
       userText: "tell me about vitest",
@@ -103,15 +103,15 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
 
   it("memory-search-corpus-memory-excludes-sessions — corpus filter is strict", async () => {
     // Seed a session file + a MEMORY.md fact mentioning the same keyword.
-    await mkdir(memoryDir(cwd), { recursive: true });
+    await mkdir(resolveMemoryRoot(cwd), { recursive: true });
     await writeFile(
-      join(memoryDir(cwd), "MEMORY.md"),
+      join(resolveMemoryRoot(cwd), "MEMORY.md"),
       "# Memory\n\n- The favorite framework is Vitest.\n",
       "utf8",
     );
-    await mkdir(sessionsDir(cwd), { recursive: true });
+    await mkdir(sessionsDir(resolveMemoryRoot(cwd)), { recursive: true });
     await writeSessionSummary({
-      cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "run-session-vitest",
       agentId: "agent-seed",
       userText: "remind me about vitest",
@@ -138,7 +138,7 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
 
   it("session-summary-redacts-secrets — sk-* tokens replaced before write", async () => {
     await writeSessionSummary({
-      cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "run-redact-test",
       agentId: "agent-redact",
       userText: "share my key sk-real-leaked-token-1234567890",
@@ -146,16 +146,19 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
       status: "finished",
       at: Date.now(),
     });
-    const body = await readFile(sessionSummaryPath(cwd, "run-redact-test"), "utf8");
+    const body = await readFile(
+      sessionSummaryPath(resolveMemoryRoot(cwd), "run-redact-test"),
+      "utf8",
+    );
     expect(body).not.toContain("sk-real-leaked-token-1234567890");
     expect(body).not.toContain("sk-other-leak-xyz");
   });
 
   it("malformed-session-file-skipped — corrupt .md file does not crash sync", async () => {
-    await mkdir(sessionsDir(cwd), { recursive: true });
+    await mkdir(sessionsDir(resolveMemoryRoot(cwd)), { recursive: true });
     // Valid file
     await writeSessionSummary({
-      cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "run-valid",
       agentId: "agent-x",
       userText: "valid question",
@@ -165,7 +168,7 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
     });
     // Corrupt file (binary bytes)
     await writeFile(
-      join(sessionsDir(cwd), "corrupt.md"),
+      join(sessionsDir(resolveMemoryRoot(cwd)), "corrupt.md"),
       Buffer.from([0xff, 0xfe, 0x00, 0x01, 0x02, 0x03]),
     );
 
@@ -199,7 +202,7 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
     await agent.dispose();
 
     // Confirm the summary file exists.
-    const sessionFiles = await discoverSessionFiles(cwd);
+    const sessionFiles = await discoverSessionFiles(resolveMemoryRoot(cwd));
     expect(sessionFiles.length).toBeGreaterThanOrEqual(1);
 
     // Open a fresh index and confirm the session is searchable with the
@@ -222,7 +225,7 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
     // must return without touching disk.
     for (const status of ["running", "error", "cancelled"] as const) {
       await writeSessionSummary({
-        cwd,
+        memoryRoot: resolveMemoryRoot(cwd),
         runId: `run-${status}`,
         agentId: "agent-x",
         userText: "u",
@@ -234,7 +237,7 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
     // No files written under sessions/.
     let entries: string[] = [];
     try {
-      entries = await readdir(sessionsDir(cwd));
+      entries = await readdir(sessionsDir(resolveMemoryRoot(cwd)));
     } catch {
       entries = [];
     }
@@ -243,7 +246,7 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
 
   it('no-summary-on-errored-run (EC-9) — only status === "finished" triggers a write', async () => {
     await writeSessionSummary({
-      cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "run-finished-ok",
       agentId: "agent-y",
       userText: "user",
@@ -252,7 +255,7 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
       at: Date.now(),
     });
     await writeSessionSummary({
-      cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "run-errored",
       agentId: "agent-y",
       userText: "user",
@@ -260,7 +263,7 @@ describe("Session-corpus indexing (T3.1 / ADR D20)", () => {
       status: "error",
       at: Date.now(),
     });
-    const entries = await readdir(sessionsDir(cwd));
+    const entries = await readdir(sessionsDir(resolveMemoryRoot(cwd)));
     expect(entries).toContain("run-finished-ok.md");
     expect(entries).not.toContain("run-errored.md");
   });

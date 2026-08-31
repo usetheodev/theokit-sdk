@@ -216,24 +216,29 @@ describe("a real Claude Code project, read end to end", () => {
 
   // The other direction, and the one the scope named: a memory this SDK records has to land where
   // the CLI looks, not only be able to read what the CLI wrote.
+  //
+  // `memory.directory` is the switch, and it used to be `local.sessionDir`. The transcript home
+  // answered "where does memory go?" as a side effect, and only the writer heard the answer — the
+  // indexer and the `memory_get` guard kept reading the project store (#463). One option, one
+  // question.
   it("test_a_memory_this_agent_records_lands_where_the_cli_reads", async () => {
+    const cliMemory = join(claudeHome, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"), "memory");
     const { Agent } = await import("../src/index.js");
     const agent = await Agent.create({
       model: { id: "anthropic/claude-sonnet-4-6" },
       apiKey: "theo_test_e2e",
       local: { cwd, sessionDir: claudeHome },
-      memory: { enabled: true },
+      memory: { enabled: true, directory: cliMemory },
     });
     await agent.send("Remember (feedback): shared with the cli");
 
-    const cliMemory = join(claudeHome, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"), "memory");
     const written = readFileSync(join(cliMemory, "shared-cli.md"), "utf8");
     expect(written).toContain("type: feedback");
     // The index the CLI reads has to name it, and has to sit beside it.
     expect(readFileSync(join(cliMemory, "MEMORY.md"), "utf8")).toContain("shared-cli.md");
   });
 
-  it("test_without_a_session_dir_nothing_moves", async () => {
+  it("test_without_a_configured_directory_nothing_moves", async () => {
     const plain = mkdtempSync(join(tmpdir(), "cc-e2e-plain-"));
     const { Agent } = await import("../src/index.js");
     const agent = await Agent.create({

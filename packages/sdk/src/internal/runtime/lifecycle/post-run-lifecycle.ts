@@ -11,6 +11,7 @@ import { emitRunEvent } from "../../../types/run-events.js";
 import type { SessionStore } from "../../../types/session-store.js";
 import { diag } from "../../diagnostics.js";
 import type { LocalAgentMemory } from "../../local-agent/local-agent-memory.js";
+import { resolveMemoryRoot } from "../../memory/storage/memory-root.js";
 import { writeSessionSummary } from "../../memory/storage/session-summary-writer.js";
 import { getCatalogModelInfo } from "../../providers/catalog-loader.js";
 import { buildDefaultSummarizer } from "../../session/compact-session.js";
@@ -253,6 +254,9 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   ) {
     const summaryArgs = {
       cwd: workspaceCwd,
+      // Resolved once, here, and handed to both writers. Recomputing it inside either one is how
+      // the summary ended up in a directory the indexer never scanned (#463).
+      memoryRoot: resolveMemoryRoot(workspaceCwd, inputs.memory),
       runId: result.id,
       agentId,
       userText,

@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { notesDir } from "@theokit/sdk/internal/memory-store";
+import { notesDir, resolveMemoryRoot } from "@theokit/sdk/internal/memory-store";
 
 /**
  * Markdown-first memory storage — re-exported from `@theokit/sdk`, not reimplemented here.
@@ -26,13 +26,26 @@ import { notesDir } from "@theokit/sdk/internal/memory-store";
 export {
   appendFact,
   appendFactToMarkdown,
+  asMemoryRoot,
   claudeProjectMemoryDir,
-  memoryDir,
+  collectMarkdownFiles,
+  type DiscoveredFile,
+  defaultIndexPath,
+  indexBudgetWarning,
+  lanceStoragePath,
+  MEMORY_INDEX_MAX_BYTES,
+  MEMORY_INDEX_MAX_LINES,
+  type MemoryLocationConfig,
+  type MemoryRoot,
   memoryMdPath,
-  memoryWriteDir,
+  memoryReadRoots,
   notesDir,
+  projectMemoryDir,
+  readAllSqliteFacts,
   readFacts,
   readFactsFromMarkdown,
+  resolveMemoryRoot,
+  type SqliteFactRow,
 } from "@theokit/sdk/internal/memory-store";
 
 /** One note discovered under `notes/`: its file name without the `.md` suffix, and its absolute path. */
@@ -51,11 +64,14 @@ export interface NoteFile {
 export async function listNotes(cwd: string): Promise<NoteFile[]> {
   let entries: string[] = [];
   try {
-    entries = await readdir(notesDir(cwd));
+    entries = await readdir(notesDir(resolveMemoryRoot(cwd)));
   } catch {
     return [];
   }
   return entries
     .filter((name) => name.endsWith(".md"))
-    .map((name) => ({ slug: name.replace(/\.md$/, ""), path: join(notesDir(cwd), name) }));
+    .map((name) => ({
+      slug: name.replace(/\.md$/, ""),
+      path: join(notesDir(resolveMemoryRoot(cwd)), name),
+    }));
 }

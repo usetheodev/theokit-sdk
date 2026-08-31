@@ -67,6 +67,14 @@ export interface RecordSessionSummaryArgs {
    * compute the markdown file path.
    */
   readonly cwd: string;
+  /**
+   * The memory root the kernel resolved for this agent, from `memory.directory` or the default.
+   *
+   * Supplied by the kernel, never constructed by an implementor — which is why it is required
+   * rather than optional. An implementation that recomputed it from `cwd` would write the summary
+   * into a different directory than the one the rest of the subsystem uses (#463).
+   */
+  readonly memoryRoot: import("../internal/memory/storage/memory-root.js").MemoryRoot;
   /** Run id used as the filename key. */
   readonly runId: string;
   /** Agent identity for scope (foldering). */

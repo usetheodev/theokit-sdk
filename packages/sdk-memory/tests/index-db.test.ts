@@ -20,7 +20,12 @@ import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { defaultIndexPath, type MemoryDb, openMemoryDb } from "@theokit/sdk-memory";
+import {
+  defaultIndexPath,
+  type MemoryDb,
+  openMemoryDb,
+  resolveMemoryRoot,
+} from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 async function hasBetterSqlite3(): Promise<boolean> {
@@ -50,7 +55,7 @@ describe("sdk-memory index-db (iter 65)", () => {
 
   describe("defaultIndexPath", () => {
     it("test_resolves_to_theokit_memory_dotindex_memory_sqlite", () => {
-      expect(defaultIndexPath(cwd)).toBe(
+      expect(defaultIndexPath(resolveMemoryRoot(cwd))).toBe(
         join(cwd, ".theokit", "memory", ".index", "memory.sqlite"),
       );
     });
@@ -62,7 +67,7 @@ describe("sdk-memory index-db (iter 65)", () => {
       // having asserted nothing, so a machine without the capability looked identical to one
       // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
       if (!(await hasBetterSqlite3())) ctx.skip();
-      const filePath = defaultIndexPath(cwd);
+      const filePath = defaultIndexPath(resolveMemoryRoot(cwd));
       const db: MemoryDb = await openMemoryDb({ filePath });
 
       // exec + prepare must work — proves SCHEMA_STATEMENTS already ran.
@@ -86,7 +91,7 @@ describe("sdk-memory index-db (iter 65)", () => {
       // having asserted nothing, so a machine without the capability looked identical to one
       // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
       if (!(await hasBetterSqlite3())) ctx.skip();
-      const db = await openMemoryDb({ filePath: defaultIndexPath(cwd) });
+      const db = await openMemoryDb({ filePath: defaultIndexPath(resolveMemoryRoot(cwd)) });
       // chunks_fts virtual table should exist (FTS5 search foundation).
       const row = db
         .prepare(
@@ -102,7 +107,7 @@ describe("sdk-memory index-db (iter 65)", () => {
       // having asserted nothing, so a machine without the capability looked identical to one
       // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
       if (!(await hasBetterSqlite3())) ctx.skip();
-      const filePath = defaultIndexPath(cwd);
+      const filePath = defaultIndexPath(resolveMemoryRoot(cwd));
 
       // Pre-seed the path with garbage bytes — SQLite will refuse to open.
       const { mkdir } = await import("node:fs/promises");
@@ -127,7 +132,7 @@ describe("sdk-memory index-db (iter 65)", () => {
       // having asserted nothing, so a machine without the capability looked identical to one
       // where every assertion held. `ctx.skip()` makes the runner report it SKIPPED instead.
       if (!(await hasBetterSqlite3())) ctx.skip();
-      const filePath = defaultIndexPath(cwd);
+      const filePath = defaultIndexPath(resolveMemoryRoot(cwd));
 
       const { mkdir } = await import("node:fs/promises");
       await mkdir(join(cwd, ".theokit", "memory", ".index"), { recursive: true });

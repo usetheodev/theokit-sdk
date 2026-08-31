@@ -2,10 +2,8 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  claudeProjectMemoryDir,
-  readFactsFromMarkdown,
-} from "../src/internal/memory/storage/markdown-store.js";
+import { readFactsFromMarkdown } from "../src/internal/memory/storage/markdown-store.js";
+import { claudeProjectMemoryDir } from "../src/internal/memory/storage/memory-root.js";
 
 /*
  * Memories written by the Claude Code CLI.

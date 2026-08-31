@@ -29,8 +29,11 @@ const MEMORY_FILE = (name: string, body: string) =>
 describe("the store this package exposes and the SDK's", () => {
   it("test_they_read_the_same_facts_from_the_same_store", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "parity-"));
-    await mkdir(sdk.memoryDir(cwd), { recursive: true });
-    await writeFile(join(sdk.memoryDir(cwd), "written.md"), MEMORY_FILE("written", "A-FACT."));
+    await mkdir(sdk.resolveMemoryRoot(cwd), { recursive: true });
+    await writeFile(
+      join(sdk.resolveMemoryRoot(cwd), "written.md"),
+      MEMORY_FILE("written", "A-FACT."),
+    );
 
     const bySdk = (await sdk.readFactsFromMarkdown(cwd)).map((f) => f.text);
     const byPeer = (await peer.readFactsFromMarkdown(cwd)).map((f) => f.text);

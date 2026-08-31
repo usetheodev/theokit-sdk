@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { replaceFileAtomic, withCwdMutex } from "@theokit/sdk/persistence";
 import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
-import { memoryDir, readFactsFromMarkdown } from "../store/markdown-store.js";
+import { readFactsFromMarkdown, resolveMemoryRoot } from "../store/markdown-store.js";
 import { appendDiaryEntry } from "./dreaming-diary.js";
 import { deepPhase, lightPhase, remPhase } from "./dreaming-phases.js";
 
@@ -112,7 +112,7 @@ async function runInner(options: DreamingOptions): Promise<DreamingResult> {
       notesWritten,
       diaryEntryHash: undefined,
     };
-    await appendDiaryEntry(options.cwd, {
+    await appendDiaryEntry(resolveMemoryRoot(options.cwd), {
       timestampMs,
       factsBefore: result.factsBefore,
       factsAfter: result.factsAfter,
@@ -134,7 +134,7 @@ async function writeConsolidatedNotes(
   timestampMs: number,
 ): Promise<number> {
   if (clusters.length === 0) return 0;
-  const notesDir = join(memoryDir(cwd), "notes");
+  const notesDir = join(resolveMemoryRoot(cwd), "notes");
   await mkdir(notesDir, { recursive: true });
   const isoSlug = new Date(timestampMs).toISOString().replace(/[^\dT]/g, "-");
   const file = join(notesDir, `dreamed-${isoSlug}.md`);

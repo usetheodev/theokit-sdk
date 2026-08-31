@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-
 import { replaceFileAtomic } from "../../persistence/atomic-write.js";
-import { memoryDir } from "../storage/markdown-store.js";
+import type { MemoryRoot } from "../storage/memory-root.js";
 
 /**
  * Dream-diary append (ADR D7).
@@ -15,7 +14,7 @@ import { memoryDir } from "../storage/markdown-store.js";
  * Writes go through `replaceFileAtomic` (EC-3 of edge-case review) so a
  * crash mid-write can never leave a half-written diary.
  *
- * @internal
+ * Shared with `@theokit/sdk-memory`; see the memory-store barrel.
  */
 
 export interface DiaryEntry {
@@ -27,10 +26,16 @@ export interface DiaryEntry {
   notesWritten: number;
 }
 
-export function diaryPath(cwd: string): string {
-  return join(memoryDir(cwd), "dream-diary.md");
+/** `<memory root>/dream-diary.md`. Takes the RESOLVED ROOT — see `storage/memory-root.ts` (#463). */
+export function diaryPath(root: MemoryRoot): string {
+  return join(root, "dream-diary.md");
 }
 
+/**
+ * One diary entry as the markdown that gets appended: a timestamp heading, the short entry hash,
+ * and the counts the sweep produced. The hash is what makes a re-run recognisable as the same
+ * sweep rather than a new one.
+ */
 export function renderDiaryEntry(entry: DiaryEntry): string {
   const stamp = new Date(entry.timestampMs).toISOString();
   const hash = entryHash(entry).slice(0, 8);
@@ -47,8 +52,14 @@ export function renderDiaryEntry(entry: DiaryEntry): string {
   ].join("\n");
 }
 
-export async function appendDiaryEntry(cwd: string, entry: DiaryEntry): Promise<void> {
-  const path = diaryPath(cwd);
+/**
+ * Append one sweep's entry to `<memory root>/dream-diary.md`, creating the file with its header
+ * when this is the first sweep. The diary is a human-readable record of what dreaming changed —
+ * consolidations are otherwise invisible, because they alter the notes rather than announce
+ * themselves.
+ */
+export async function appendDiaryEntry(root: MemoryRoot, entry: DiaryEntry): Promise<void> {
+  const path = diaryPath(root);
   let raw = "";
   try {
     raw = await readFile(path, "utf8");
@@ -59,6 +70,10 @@ export async function appendDiaryEntry(cwd: string, entry: DiaryEntry): Promise<
   await replaceFileAtomic(path, next);
 }
 
+/**
+ * A stable hash of one entry's counts, so two sweeps that did the same work read as the same work.
+ * Rendered truncated in the entry; the full value is what callers compare.
+ */
 export function entryHash(entry: DiaryEntry): string {
   return createHash("sha256")
     .update(

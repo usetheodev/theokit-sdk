@@ -6,6 +6,7 @@ import { ConfigurationError } from "../../../src/errors.js";
 import type { EmbeddingRuntime } from "../../../src/internal/memory/embedding-adapter.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 import { createMemoryGetTool, createMemorySearchTool } from "../../../src/internal/memory/tools.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
@@ -46,7 +47,7 @@ describe("memory_search tool", () => {
     });
     await mkdir(join(cwd, ".theokit", "memory"), { recursive: true });
     await writeFile(
-      memoryMdPath(cwd),
+      memoryMdPath(resolveMemoryRoot(cwd)),
       "# Memory\n\n## Facts\n\n- magic-number is 8675309.\n- vitest preferred test runner.\n- random unrelated thought.\n",
       "utf8",
     );
@@ -74,7 +75,7 @@ describe("memory_search tool", () => {
       { length: 50 },
       (_, i) => `## Topic ${i}\n\n${"matchword ".repeat(120).trim()}\n`,
     ).join("\n");
-    await writeFile(memoryMdPath(cwd), `# Memory\n\n${bigParagraphs}\n`, "utf8");
+    await writeFile(memoryMdPath(resolveMemoryRoot(cwd)), `# Memory\n\n${bigParagraphs}\n`, "utf8");
     manager = await IndexManager.open({ cwd });
     await manager.sync();
     const tool = createMemorySearchTool({ index: manager, maxTotalChars: 2000 });
@@ -105,11 +106,11 @@ describe("memory_get tool", () => {
     });
     await mkdir(join(cwd, ".theokit", "memory"), { recursive: true });
     const lines = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n");
-    await writeFile(memoryMdPath(cwd), `${lines}\n`, "utf8");
+    await writeFile(memoryMdPath(resolveMemoryRoot(cwd)), `${lines}\n`, "utf8");
   });
 
   it("returns bounded excerpt JSON", async () => {
-    const tool = createMemoryGetTool({ cwd });
+    const tool = createMemoryGetTool({ root: resolveMemoryRoot(cwd) });
     const out = await tool.execute({ path: "MEMORY.md", from: 5, lines: 3 });
     const parsed = JSON.parse(out) as { text: string; linesReturned: number };
     expect(parsed.linesReturned).toBe(3);
@@ -117,7 +118,7 @@ describe("memory_get tool", () => {
   });
 
   it("rejects path traversal that escapes the memory root (EC-2)", async () => {
-    const tool = createMemoryGetTool({ cwd });
+    const tool = createMemoryGetTool({ root: resolveMemoryRoot(cwd) });
     await expect(tool.execute({ path: "../../etc/passwd" })).rejects.toBeInstanceOf(
       ConfigurationError,
     );
@@ -127,7 +128,7 @@ describe("memory_get tool", () => {
   });
 
   it("rejects absolute paths outside the memory root", async () => {
-    const tool = createMemoryGetTool({ cwd });
+    const tool = createMemoryGetTool({ root: resolveMemoryRoot(cwd) });
     await expect(tool.execute({ path: "/etc/passwd" })).rejects.toBeInstanceOf(ConfigurationError);
   });
 });

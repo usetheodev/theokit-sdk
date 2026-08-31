@@ -9,6 +9,7 @@ import {
   LanceIndex,
   lanceStoragePath,
 } from "../../../src/internal/memory/lance-index.js";
+import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 
 /**
  * LanceIndex tests — Phase 5 of v1.2 plan (ADR D43).
@@ -31,7 +32,7 @@ describe("LanceIndex (ADR D43)", () => {
   it.skipIf(isLanceAvailable())(
     "throws ConfigurationError(lance_backend_unavailable) when module absent",
     async () => {
-      const tmp = lanceStoragePath("/tmp/lance-unavailable-test");
+      const tmp = lanceStoragePath(resolveMemoryRoot("/tmp/lance-unavailable-test"));
       expect(tmp.endsWith(".theokit/memory/lance")).toBe(true);
       // Mock embedding runtime — never invoked because open() fails fast.
       const fakeEmbedding = {
@@ -54,9 +55,18 @@ describe("LanceIndex (ADR D43)", () => {
     expect(typeof isLanceAvailable()).toBe("boolean");
   });
 
-  it("lanceStoragePath returns path under <cwd>/.theokit/memory/lance", () => {
-    const p = lanceStoragePath("/some/project");
-    expect(p).toBe("/some/project/.theokit/memory/lance");
+  it("lanceStoragePath returns path under the resolved memory root", () => {
+    expect(lanceStoragePath(resolveMemoryRoot("/some/project"))).toBe(
+      "/some/project/.theokit/memory/lance",
+    );
+  });
+
+  // The half the default hides: with `memory.directory` set, the Lance store follows the root
+  // rather than re-deriving `<cwd>/.theokit/memory` from a literal of its own (#463).
+  it("lanceStoragePath follows a configured memory directory", () => {
+    expect(lanceStoragePath(resolveMemoryRoot("/some/project", { directory: "/srv/mem" }))).toBe(
+      "/srv/mem/lance",
+    );
   });
 
   it("ConfigurationError code 'lance_backend_unavailable' is informative", () => {

@@ -16,6 +16,11 @@ export interface MemoryConfig {
   userId?: string;
   scope?: "agent" | "user" | "team";
   storePath?: string;
+  /**
+   * Absolute path (or `~/`-prefixed) of the memory root. Defaults to `<cwd>/.theokit/memory`.
+   * See `storage/memory-root.ts` for why a relative value is refused rather than resolved.
+   */
+  directory?: string;
 }
 
 /**
@@ -89,6 +94,13 @@ export { redactSecrets } from "../security/index.js";
  * Resolve the legacy JSON memory path used pre-ADR-D8 (kept for migration
  * helpers + tests). Centralized here so `migration.ts` and the legacy-aware
  * `runtime/memory-store.ts` don't duplicate the path logic (jscpd cleanup).
+ */
+/*
+ * Deliberately does NOT follow `memory.directory` (#463), unlike every other memory path.
+ *
+ * This locates the pre-#389 JSON store, which was written before that option existed and can
+ * therefore only be in the default location. Pointing it at a configured root would look for a
+ * legacy file where a legacy file cannot be — a migration that silently finds nothing.
  */
 export function legacyMemoryJsonPath(cwd: string, config: MemoryConfig): string {
   // ADRs D79-D81: storePath is programmatic (trusted); namespace/scope/userId

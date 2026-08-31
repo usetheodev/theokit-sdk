@@ -4,7 +4,7 @@ import { ConfigurationError } from "../../errors.js";
 import { atOrInsideRoot } from "../runtime/context/path-containment.js";
 import type { MemorySearchHit } from "./index-manager.js";
 import type { MemoryIndex } from "./memory-index.js";
-import { memoryDir } from "./storage/markdown-store.js";
+import type { MemoryRoot } from "./storage/memory-root.js";
 import { readMemoryFileBounded } from "./storage/reader.js";
 
 /**
@@ -90,11 +90,17 @@ export function createMemorySearchTool(opts: MemorySearchToolOptions): MemoryToo
 }
 
 export interface MemoryGetToolOptions {
-  cwd: string;
+  /**
+   * The RESOLVED memory root the tool may read inside — not a cwd (#463).
+   *
+   * This guard used to derive its own root from `cwd` while `appendFact` wrote somewhere else, so
+   * a relocated memory was unreadable by the tool whose whole job is reading memory.
+   */
+  root: MemoryRoot;
 }
 
 export function createMemoryGetTool(opts: MemoryGetToolOptions): MemoryTool {
-  const memoryRoot = resolvePath(memoryDir(opts.cwd));
+  const memoryRoot = resolvePath(opts.root);
   return {
     name: "memory_get",
     description: GET_DESCRIPTION,

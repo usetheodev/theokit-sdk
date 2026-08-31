@@ -24,8 +24,8 @@ import {
   type DiaryEntry,
   diaryPath,
   entryHash,
-  memoryDir,
   renderDiaryEntry,
+  resolveMemoryRoot,
 } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -51,7 +51,7 @@ describe("sdk-memory dreaming-diary (iter 59)", () => {
     // appendDiaryEntry, and notesDir's parent is memoryDir — so the
     // diary's parent is guaranteed before this function runs). Mirror
     // that contract in the test setup.
-    await mkdir(memoryDir(cwd), { recursive: true });
+    await mkdir(resolveMemoryRoot(cwd), { recursive: true });
   });
   afterEach(async () => {
     await rm(cwd, { recursive: true, force: true });
@@ -59,7 +59,9 @@ describe("sdk-memory dreaming-diary (iter 59)", () => {
 
   describe("diaryPath", () => {
     it("test_resolves_to_dot_theokit_memory_dream_diary_md", () => {
-      expect(diaryPath(cwd)).toBe(join(cwd, ".theokit", "memory", "dream-diary.md"));
+      expect(diaryPath(resolveMemoryRoot(cwd))).toBe(
+        join(cwd, ".theokit", "memory", "dream-diary.md"),
+      );
     });
   });
 
@@ -113,18 +115,27 @@ describe("sdk-memory dreaming-diary (iter 59)", () => {
 
   describe("appendDiaryEntry", () => {
     it("test_creates_file_with_header_on_first_append", async () => {
-      await appendDiaryEntry(cwd, sampleEntry());
-      const raw = await readFile(diaryPath(cwd), "utf8");
+      await appendDiaryEntry(resolveMemoryRoot(cwd), sampleEntry());
+      const raw = await readFile(diaryPath(resolveMemoryRoot(cwd)), "utf8");
       expect(raw).toContain("# Dream Diary");
       expect(raw).toContain("## 2026-01-01T12:00:00.000Z");
     });
 
     it("test_appends_to_existing_diary", async () => {
-      await appendDiaryEntry(cwd, sampleEntry({ timestampMs: Date.UTC(2026, 0, 1) }));
-      await appendDiaryEntry(cwd, sampleEntry({ timestampMs: Date.UTC(2026, 0, 2) }));
-      await appendDiaryEntry(cwd, sampleEntry({ timestampMs: Date.UTC(2026, 0, 3) }));
+      await appendDiaryEntry(
+        resolveMemoryRoot(cwd),
+        sampleEntry({ timestampMs: Date.UTC(2026, 0, 1) }),
+      );
+      await appendDiaryEntry(
+        resolveMemoryRoot(cwd),
+        sampleEntry({ timestampMs: Date.UTC(2026, 0, 2) }),
+      );
+      await appendDiaryEntry(
+        resolveMemoryRoot(cwd),
+        sampleEntry({ timestampMs: Date.UTC(2026, 0, 3) }),
+      );
 
-      const raw = await readFile(diaryPath(cwd), "utf8");
+      const raw = await readFile(diaryPath(resolveMemoryRoot(cwd)), "utf8");
       expect(raw).toContain("2026-01-01");
       expect(raw).toContain("2026-01-02");
       expect(raw).toContain("2026-01-03");
@@ -133,8 +144,8 @@ describe("sdk-memory dreaming-diary (iter 59)", () => {
     });
 
     it("test_diary_ends_with_newline_after_append", async () => {
-      await appendDiaryEntry(cwd, sampleEntry());
-      const raw = await readFile(diaryPath(cwd), "utf8");
+      await appendDiaryEntry(resolveMemoryRoot(cwd), sampleEntry());
+      const raw = await readFile(diaryPath(resolveMemoryRoot(cwd)), "utf8");
       expect(raw.endsWith("\n")).toBe(true);
     });
   });
