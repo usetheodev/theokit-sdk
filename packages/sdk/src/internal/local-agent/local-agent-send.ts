@@ -1,8 +1,9 @@
-import { AgentDisposedError } from "../../errors.js";
+import { AgentDisposedError, ConfigurationError } from "../../errors.js";
 import type { AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { emitRunEvent } from "../../types/run-events.js";
 import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import { diagFailure } from "../diagnostics.js";
 import type { PluginManager } from "../plugins/manager.js";
 import { anySignal } from "../runtime/concurrency/abort-utils.js";
 import {
@@ -239,6 +240,33 @@ function buildCompletionCheckDeps(): CompletionCheckDeps {
   };
 }
 
+/**
+ * Configurations already reported, so the refusal is said once rather than on every turn (#474).
+ *
+ * Per PROCESS and keyed by the configuration itself, not per agent: two agents built from the same
+ * bad `directory` would otherwise each shout the same sentence, and the second one tells the reader
+ * nothing the first did not. The set's size is the number of DISTINCT misconfigurations a process
+ * holds, which is one in every case anybody has, and it never grows with turns.
+ *
+ * A warning that arrives every turn is a warning somebody turns off — the criterion already applied
+ * to the near-miss diagnostic in #462.
+ */
+const reportedRefusedDirectories = new Set<string>();
+
+function reportRefusedMemoryDirectoryOnce(
+  workspaceCwd: string,
+  directory: string | undefined,
+  message: string,
+): void {
+  const key = `${workspaceCwd}\u0000${directory ?? ""}`;
+  if (reportedRefusedDirectories.has(key)) return;
+  reportedRefusedDirectories.add(key);
+  diagFailure(
+    `[theokit-sdk] memory is enabled but its directory was refused, so recall is empty on every ` +
+      `turn and nothing is stored: ${message}`,
+  );
+}
+
 function readMemoryForSend(
   workspaceCwd: string,
   memoryConfig: AgentOptions["memory"],
@@ -251,10 +279,30 @@ function readMemoryForSend(
   // dropped for being old rather than irrelevant. Both halves are needed: one bounds the cost,
   // the other decides what survives.
   return safeCall(
-    async () =>
-      selectFactsForInjection(await readMemoryFacts(workspaceCwd, memoryConfig), {
-        ...(query === undefined ? {} : { query }),
-      }),
+    async () => {
+      try {
+        return selectFactsForInjection(await readMemoryFacts(workspaceCwd, memoryConfig), {
+          ...(query === undefined ? {} : { query }),
+        });
+      } catch (cause) {
+        // A REFUSED CONFIGURATION is not a read that went wrong; it is a read that will never go
+        // right (#474). `safeCall` is correct for the case it was added for — a corrupt memory file
+        // must not abort the turn (EC-4) — and it reports on `diag`, which the host may never read.
+        // For a transient failure that is the right trade. A `ConfigurationError` from the resolver
+        // repeats on EVERY turn, forever, and is fixable in one line by the person being kept in
+        // the dark, so it goes on the channel a failure cannot be dropped from.
+        //
+        // The narrowing is DEFENSIVE, not load-bearing, and saying so is the point: today
+        // `resolveMemoryRoot` is the only thing under `readMemoryFacts` that throws — both readers
+        // swallow their own I/O errors and return `[]` (`markdown-store.ts:139-163`), so no test
+        // can distinguish this line from `catch (cause)`. It stays because the message below is a
+        // claim about CONFIGURATION; a future throw of another kind would inherit a sentence that
+        // is false about it, on the one channel a host cannot silence.
+        if (!(cause instanceof ConfigurationError)) throw cause;
+        reportRefusedMemoryDirectoryOnce(workspaceCwd, memoryConfig?.directory, cause.message);
+        return [];
+      }
+    },
     [],
     "memory read",
   );
