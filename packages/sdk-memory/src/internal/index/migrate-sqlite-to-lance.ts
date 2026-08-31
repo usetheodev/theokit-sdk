@@ -4,12 +4,10 @@ import { join } from "node:path";
 import { ConfigurationError } from "@theokit/sdk/errors";
 import { redactSecrets } from "../memory-types.js";
 import {
-  defaultIndexPath,
   lanceStoragePath,
-  type MemoryRoot,
+  readAllSqliteFacts,
   resolveMemoryRoot,
 } from "../store/markdown-store.js";
-import { openMemoryDb } from "./index-db.js";
 import { LanceIndex } from "./lance-index.js";
 
 /**
@@ -67,51 +65,6 @@ export interface MigrateResult {
   lancePath: string;
   /** Was the migration committed (false for dry-run). */
   committed: boolean;
-}
-
-interface SqliteFactRow {
-  id: string;
-  path: string;
-  source: "memory" | "sessions" | "wiki";
-  start_line: number;
-  end_line: number;
-  text: string;
-  namespace?: string | null;
-  scope?: string | null;
-  user_id?: string | null;
-}
-
-/**
- * Read all facts from the SQLite memory index. Returns empty array if the
- * SQLite db file does not exist (workspace never used Memory).
- *
- * @internal
- */
-async function readAllSqliteFacts(root: MemoryRoot): Promise<SqliteFactRow[]> {
-  const dbPath = defaultIndexPath(root);
-  if (!existsSync(dbPath)) return [];
-  const db = await openMemoryDb({ filePath: dbPath });
-  try {
-    // SQLite schema: chunks table holds the facts. Schema may vary; we
-    // probe column existence and fall back to safe defaults.
-    const stmt = db.prepare("SELECT id, path, source, start_line, end_line, text FROM chunks");
-    const rows = stmt.all() as Array<{
-      id: string;
-      path: string;
-      source: "memory" | "sessions" | "wiki";
-      start_line: number;
-      end_line: number;
-      text: string;
-    }>;
-    return rows.map((r) => ({
-      ...r,
-      namespace: "default",
-      scope: "agent",
-      user_id: "default",
-    }));
-  } finally {
-    db.close();
-  }
 }
 
 /**

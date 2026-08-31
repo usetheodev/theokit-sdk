@@ -42,9 +42,11 @@ export {
   memoryReadRoots,
   notesDir,
   projectMemoryDir,
+  readAllSqliteFacts,
   readFacts,
   readFactsFromMarkdown,
   resolveMemoryRoot,
+  type SqliteFactRow,
 } from "@theokit/sdk/internal/memory-store";
 
 /** One note discovered under `notes/`: its file name without the `.md` suffix, and its absolute path. */

@@ -26,6 +26,8 @@ export { defaultIndexPath } from "../index-db.js";
 // every converged memory unsearchable while reporting no error at all.
 export { collectMarkdownFiles, type DiscoveredFile } from "../index-manager-helpers.js";
 export { lanceStoragePath } from "../lance-index.js";
+// The SQLite fact reader the Lance migration uses. 26 lines, zero diverging between the packages.
+export { readAllSqliteFacts, type SqliteFactRow } from "../migrate-sqlite-to-lance.js";
 export {
   appendFact,
   appendFactToMarkdown,

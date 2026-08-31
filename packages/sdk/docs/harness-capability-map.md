@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1169 export(s) across 46 entry point(s).
+1173 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -649,6 +649,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `persistActiveMemoryTranscript` | function | Write one active-memory recall transcript under `<memory root>/transcripts/active-memory`.  |
 | `PRAGMA_STATEMENTS` | const | Non-WAL pragmas.  |
 | `projectMemoryDir` | function | The project store: `<cwd>/.theokit/memory`.  |
+| `readAllSqliteFacts` | function | Read all facts from the SQLite memory index.  |
 | `readEmbeddingIdentity` | function | Read the embedding identity recorded in the `meta` table.  |
 | `readFacts` | function | Every memory in the store, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves to `[]` without touching disk.  |
 | `readFactsFromMarkdown` | function | Every memory in the store: the per-memory files, plus any legacy `## Facts` bullets still in `MEMORY.md`.  |
@@ -668,6 +669,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `sessionsDir` | function | `<memory root>/sessions`.  |
 | `SessionSummaryInput` | interface | Per-run session summary writer (ADR D20).  |
 | `sessionSummaryPath` | function | The file one run's summary occupies: `<memory root>/sessions/<safe-id>.md`.  |
+| `SqliteFactRow` | interface | One row of the SQLite memory index, as the Lance migration reads it: the chunk plus the tenant columns the target table needs.  |
 | `SyncResult` | interface | What one `sync()` did.  |
 | `TenantContext` | interface | T4.9 — Tenant isolation context for cache key derivation.  |
 | `truncateRaw` | function | Truncate raw response body to ~2KB and redact known credential patterns so it can ride inside `ErrorMetadata.raw` without ballooning logs OR leaking tokens.  |
@@ -1040,6 +1042,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `notesDir` | function | Path to `<memory root>/notes`, where per-topic notes and the consolidated notes a dreaming sweep writes live.  |
 | `persistActiveMemoryTranscript` | function | Write one active-memory recall transcript under `<memory root>/transcripts/active-memory`.  |
 | `projectMemoryDir` | function | The project store: `<cwd>/.theokit/memory`.  |
+| `readAllSqliteFacts` | function | Read all facts from the SQLite memory index.  |
 | `readFacts` | function | Every memory in the store, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves to `[]` without touching disk.  |
 | `readFactsFromMarkdown` | function | Every memory in the store: the per-memory files, plus any legacy `## Facts` bullets still in `MEMORY.md`.  |
 | `resolveMemoryRoot` | function | The memory root for this agent: `memory.directory` when set, the project store otherwise.  |
@@ -1047,6 +1050,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `sessionsDir` | function | `<memory root>/sessions`.  |
 | `SessionSummaryInput` | interface | Per-run session summary writer (ADR D20).  |
 | `sessionSummaryPath` | function | The file one run's summary occupies: `<memory root>/sessions/<safe-id>.md`.  |
+| `SqliteFactRow` | interface | One row of the SQLite memory index, as the Lance migration reads it: the chunk plus the tenant columns the target table needs.  |
 | `wikiDir` | function | `<memory root>/wiki`.  |
 | `WikiFile` | interface | Wiki supplement discovery (ADR Phase 10 of memory-system-peer-project-parity).  |
 | `writeSessionSummary` | function | Write a session summary file.  |

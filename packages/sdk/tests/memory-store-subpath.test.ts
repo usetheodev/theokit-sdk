@@ -3,6 +3,7 @@ import * as diary from "../src/internal/memory/dreaming/diary.js";
 import * as indexDb from "../src/internal/memory/index-db.js";
 import * as helpers from "../src/internal/memory/index-manager-helpers.js";
 import * as lance from "../src/internal/memory/lance-index.js";
+import * as migrate from "../src/internal/memory/migrate-sqlite-to-lance.js";
 import * as barrel from "../src/internal/memory/storage/index.js";
 import * as store from "../src/internal/memory/storage/markdown-store.js";
 import * as root from "../src/internal/memory/storage/memory-root.js";
@@ -64,6 +65,7 @@ describe("the internal/memory-store sub-path", () => {
       ...indexDb,
       ...diary,
       ...lance,
+      ...migrate,
     } as Record<string, unknown>;
     for (const [name, value] of Object.entries(barrel)) {
       expect(sources).toHaveProperty(name);

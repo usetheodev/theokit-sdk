@@ -12,7 +12,7 @@ import { type MemoryRoot, resolveMemoryRoot } from "./storage/memory-root.js";
  *
  * EC-3 MUST FIX: validation uses NFC unicode normalization on both sides.
  *
- * @internal
+ * Shared with `@theokit/sdk-memory` through the memory-store barrel (#463).
  */
 
 export interface MigrateOptions {
@@ -41,7 +41,11 @@ export interface MigrateResult {
   committed: boolean;
 }
 
-interface SqliteFactRow {
+/**
+ * One row of the SQLite memory index, as the Lance migration reads it: the chunk plus the tenant
+ * columns the target table needs. Shared with `@theokit/sdk-memory`, which migrates the same table.
+ */
+export interface SqliteFactRow {
   id: string;
   path: string;
   source: "memory" | "sessions" | "wiki";
@@ -57,9 +61,10 @@ interface SqliteFactRow {
  * Read all facts from the SQLite memory index. Returns empty array if the
  * SQLite db file does not exist (workspace never used Memory).
  *
- * @internal
+ * Shared with `@theokit/sdk-memory` through the memory-store barrel, so it carries no visibility
+ * tag — naming that tag in this block would delete the function below it (#463).
  */
-async function readAllSqliteFacts(root: MemoryRoot): Promise<SqliteFactRow[]> {
+export async function readAllSqliteFacts(root: MemoryRoot): Promise<SqliteFactRow[]> {
   const dbPath = defaultIndexPath(root);
   if (!existsSync(dbPath)) return [];
   const db = await openMemoryDb({ filePath: dbPath });
