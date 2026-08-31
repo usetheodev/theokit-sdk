@@ -52,6 +52,17 @@ export interface CreateRunVitestToolOptions {
  * The fields lifted from vitest's JSON report. All optional, because the object is the report's own
  * top level passed through unvalidated — a vitest version that renames a field yields `undefined`
  * here rather than an error, so treat a missing `success` as unknown, never as failed.
+ *
+ * That risk is the reason the peer range is unbounded (`vitest >=2.0.0`), and it was measured on
+ * 2026-08-31 rather than left as a worry: the same two-test suite run under 2.1.9, 3.2.7 and 4.1.11
+ * emitted all four fields, correctly, every time. Two majors above the declared floor are already
+ * published and the promise holds.
+ *
+ * What that does NOT establish: this is the JSON REPORTER's contract, not a typed API — nothing
+ * imports vitest here, the tool shells out to `npx --no-install vitest run --reporter=json`. So no
+ * compiler will notice when a future major renames a field; the measurement above is a dated
+ * observation, not a guarantee, and it expires the day vitest 5 ships. Re-run it before widening
+ * anything that depends on these names.
  */
 export interface VitestSummary {
   numTotalTests?: number;
