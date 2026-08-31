@@ -17,7 +17,7 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createInMemoryMarkdownProvider } from "@theokit/sdk-memory";
+import { createInMemoryMarkdownProvider, resolveMemoryRoot } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("createInMemoryMarkdownProvider.recordSessionSummary (iter 33)", () => {
@@ -36,7 +36,8 @@ describe("createInMemoryMarkdownProvider.recordSessionSummary (iter 33)", () => 
       throw new Error("recordSessionSummary not defined on provider");
     }
     await provider.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "run-abc",
       agentId: "agent-1",
       userText: "what is 2+2?",
@@ -67,7 +68,8 @@ describe("createInMemoryMarkdownProvider.recordSessionSummary (iter 33)", () => 
       throw new Error("recordSessionSummary not defined");
     }
     await provider.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "run-err",
       agentId: "agent-1",
       userText: "u",
@@ -86,7 +88,8 @@ describe("createInMemoryMarkdownProvider.recordSessionSummary (iter 33)", () => 
     }
     // Attempted traversal — should be sanitized to underscores.
     await provider.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "../../etc/passwd",
       agentId: "agent-1",
       userText: "u",
@@ -110,7 +113,8 @@ describe("createInMemoryMarkdownProvider.recordSessionSummary (iter 33)", () => 
     }
     const longText = "x".repeat(2500);
     await provider.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "run-trunc",
       agentId: "agent-1",
       userText: longText,
@@ -137,7 +141,8 @@ describe("createInMemoryMarkdownProvider.recordSessionSummary (iter 33)", () => 
     await expect(stat(join(cwd, ".theokit", "memory", "sessions"))).rejects.toThrow();
 
     await provider.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "first-run",
       agentId: "agent-1",
       userText: "u",

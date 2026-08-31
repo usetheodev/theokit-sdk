@@ -18,10 +18,10 @@ decision the next refactor deletes.
 .theokit/memory/.index/memory.sqlite   on the first send, when memory is enabled
 ```
 
-**Why it looks wrong.** With `local.sessionDir` set, memory *facts* are written to
-`<sessionDir>/projects/<encoded-cwd>/memory/` — where the CLI reads them. So a project that never
-adopted this SDK ends up with a `.theokit/` directory anyway, which reads like the "write where the
-CLI reads" promise leaking.
+**Why it looks wrong.** With `memory.directory` pointed at the CLI's store, memory *facts* are
+written to `<claudeHome>/projects/<encoded-cwd>/memory/` — where the CLI reads them. So a project
+that never adopted this SDK ends up with a `.theokit/` directory anyway, which reads like the
+"write where the CLI reads" promise leaking.
 
 **Why it is right.** What lands in `.theokit/` is this SDK's own state, and neither piece has a
 Claude Code shape to be written in:
@@ -178,14 +178,51 @@ entries, ~3.2 KB per entry. Feeding the largest — 66 entries, 275 KB on disk �
 turn's system prompt**, before the user has said anything. Nine more stores are already past the
 point where the injection exceeds a session budget.
 
-Two things make this worse than a size problem. The CLI's store is read **whether or not
-`local.sessionDir` is set**, so a consumer who never opted into CLI interop still gets it. And the
+Two things make this worse than a size problem. The CLI's store is read **unconditionally** —
+`memory.directory` decides where writes go, never what the read covers — so a consumer who never
+opted into CLI interop still gets it. And the
 cost is invisible: nothing errors, the window just fills, and the tokens are not attributed to
 memory. An earlier version of this document said "at 64 entries it does not hurt" — that was an
 assumption, and measuring it is what disproved it.
 
 `metadata.modified` is already written (`markdown-store.ts:210`) and parsed (`:177`) and consumed by
 nothing — the data for a staleness signal is on disk today, unused.
+
+---
+
+## One resolver, one root (#463)
+
+**What happens.** `memory.directory` — absolute, or `~/`-prefixed — is the only thing that decides
+where this agent's memory lives. Everything under the root follows it: `MEMORY.md`, the per-memory
+files, `notes/`, `sessions/`, `wiki/`, `transcripts/`, `dream-diary.md` and `.index/memory.sqlite`.
+
+**What it replaced.** The location used to be a side effect of `local.sessionDir`, the option that
+names the *transcript* home, on the reasoning that a consumer who set it had already opted into CLI
+interop. One option answered two questions — and of the fourteen places that computed a memory
+path, exactly one heard the second answer. `appendFact` relocated; the indexer, the `memory_get`
+path guard, `MEMORY.md`, `sessions/` and the index database did not. A relocated fact was written,
+never indexed, unreadable by the tool whose job is reading memory, and shadowed by a second
+`MEMORY.md` in the store it had left.
+
+**Why the root is a branded type.** `MemoryRoot` is `string` with a brand, produced only by
+`resolveMemoryRoot`. A cwd and a root are both strings, so without the brand the thirteen path
+helpers would go on accepting either, and the next helper added has the same even chance of taking
+the wrong one that produced this defect. The brand makes "every path derives from one resolution" a
+compiler rule instead of a convention.
+
+**The gap that remains, stated rather than hidden.** `IndexManager.open()` is a public entry point
+that takes a `cwd`, so its `memoryRoot` is optional and falls back to the default. Inside an agent
+the root is resolved once and handed to both the index and the read tool; a consumer opening the
+index by hand against a non-default directory has to pass it.
+
+**A relative `directory` is refused, not resolved.** The two plausible bases — the workspace and the
+process cwd — put the store in two different places, and picking one silently is how a store ends up
+split across both. `ConfigurationError` with code `invalid_memory_directory`.
+
+**How to check it still holds:** `tests/memory-root.test.ts`, in particular
+`test_the_indexer_scans_the_configured_directory_so_the_fact_is_searchable` and
+`test_the_project_store_gets_no_second_index_pointing_at_files_it_does_not_have` — the two halves
+that were broken.
 
 ---
 
@@ -196,7 +233,7 @@ Each row says what would close it, not only that it is open — the two invite v
 | gap | where | what would close it |
 |---|---|---|
 | ~~The default recall path has no selection at all~~ — **closed** in `721a311f` | `local-agent-send.ts:257-272` | Closed: lexical relevance + recency, capped. Measured end to end against the real model — a 67-entry store went from ~66K to **13,606 tokens on the wire**, and the answering fact is recalled whether it is the oldest or the newest entry. |
-| The CLI's store is read whether or not `local.sessionDir` is set | `markdown-store.ts:114` — `claudeProjectMemoryDir(cwd)` is an unconditional read root | A decision, not a fix: it is deliberate (*write one, read all*, so a consumer's existing memories are never orphaned) and it means a consumer who never opted into CLI interop still receives what the CLI accumulated in that project. Cheap while the cap holds; revisit if the cap is ever removed. |
+| The CLI's store is read whether or not the consumer opted in | `storage/memory-root.ts` — `claudeProjectMemoryDir(cwd)` is an unconditional entry in `memoryReadRoots` | A decision, not a fix: it is deliberate (*write one, read all*, so a consumer's existing memories are never orphaned) and it means a consumer who never opted into CLI interop still receives what the CLI accumulated in that project. Cheap while the cap holds; revisit if the cap is ever removed. |
 | No retention of any kind — no TTL, prune, or decay | searched `ttl\|prune\|expire\|retention` across both packages: zero | A per-kind TTL plus a prune step in the sweep. Needs the kind vocabulary to mean something first (§ 2), which is why this orders before widening it. |
 | Quarantine marks but does not constrain | `memory-file.ts:96`, `memory-provider.ts:48` | Implemented: three states, and `[unconfirmed]` on entries the store counted once. **Measured against the real model and it does not close the hole** — a planted memory alone is acted on 5/5, and beside a corroborated contradiction it is still asserted ~62% of runs (n=32). Marking influences the model; it does not constrain it. The guarantee is not available at this layer: blocking an uncorroborated entry would break the promise that a fact written once is recallable next session. |
 | A planted memory can make the agent ACT | measured: `RELEASE_OVERRIDE.txt` created in 2 of 6 runs | Register the permission layer — `PermissionPlugin.create(new PermissionEngine(…))` — which blocks it every time. This is the half that IS closable at the tool boundary; the informational half above is not. Any deployment where the memory directory is writable by anything other than this agent needs it. |

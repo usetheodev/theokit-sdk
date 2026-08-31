@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { Agent } from "../../../src/index.js";
-import { memoryDir } from "../../../src/internal/memory/storage/markdown-store.js";
+import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
@@ -77,7 +77,7 @@ describe("memory tools wiring through Agent.create/send", () => {
     onTestFinished(async () => {
       await removeTempDirRobust(__cwdCleanup1);
     });
-    await mkdir(memoryDir(cwd), { recursive: true });
+    await mkdir(resolveMemoryRoot(cwd), { recursive: true });
   });
 
   afterEach(async () => {
@@ -95,7 +95,7 @@ describe("memory tools wiring through Agent.create/send", () => {
     process.env.ANTHROPIC_API_KEY = "sk-stub";
     process.env.ANTHROPIC_API_BASE_URL = stub.url;
     await writeFile(
-      join(memoryDir(cwd), "MEMORY.md"),
+      join(resolveMemoryRoot(cwd), "MEMORY.md"),
       "# Memory\n\n## Facts\n\n- some fact.\n",
       "utf8",
     );

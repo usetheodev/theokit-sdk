@@ -13,6 +13,7 @@ import type {
 } from "./active-memory-types.js";
 import type { MemorySearchHit } from "./index-manager.js";
 import type { MemoryIndex } from "./memory-index.js";
+import { type MemoryRoot, resolveMemoryRoot } from "./storage/memory-root.js";
 import { persistActiveMemoryTranscript } from "./storage/transcript-store.js";
 
 export type { ActiveMemoryQueryMode, ActiveMemoryResult, ActiveMemoryStatus };
@@ -59,7 +60,13 @@ export interface RunActiveMemoryArgs {
   cache?: ActiveMemoryCache;
   /** Workspace root for transcript persistence. */
   cwd?: string;
-  /** When true, write transcript JSON under .theokit/memory/transcripts/active-memory/. */
+  /**
+   * The memory root the caller already resolved. Falls back to the project store, which is right
+   * for a caller that has no `memory.directory` and wrong for one that does — so an agent passes
+   * its own (#463).
+   */
+  memoryRoot?: MemoryRoot;
+  /** When true, write transcript JSON under `<memory root>/transcripts/active-memory/`. */
   persistTranscripts?: boolean;
   /** Stable key the breaker + cache key by (default `default`). */
   agentKey?: string;
@@ -261,7 +268,7 @@ async function finalize(
   };
   args.cache?.set(args.userText, queryMode, result, tenantCtx);
   if (args.persistTranscripts === true && args.cwd !== undefined) {
-    await persistActiveMemoryTranscript(args.cwd, {
+    await persistActiveMemoryTranscript(args.memoryRoot ?? resolveMemoryRoot(args.cwd), {
       runId: args.runId ?? `run-${Date.now()}`,
       startedAtMs: Date.now() - result.durationMs,
       userText: args.userText,

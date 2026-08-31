@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 import { runActiveMemory } from "../../../src/internal/memory/active-memory.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 import { SystemPromptPipeline } from "../../../src/internal/runtime/system-prompt/pipeline.js";
 import { ActiveMemoryPromptProvider } from "../../../src/internal/runtime/system-prompt/sources/active-memory-provider.js";
 import type { SystemPromptAssemblyContext } from "../../../src/internal/runtime/system-prompt/types.js";
@@ -26,7 +27,7 @@ describe("runActiveMemory", () => {
     });
     await mkdir(join(cwd, ".theokit", "memory"), { recursive: true });
     await writeFile(
-      memoryMdPath(cwd),
+      memoryMdPath(resolveMemoryRoot(cwd)),
       "# Memory\n\n## Facts\n\n- magic-number is 8675309.\n- vitest preferred test runner.\n- alice prefers dark mode.\n",
       "utf8",
     );

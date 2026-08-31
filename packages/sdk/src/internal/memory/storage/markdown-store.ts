@@ -1,14 +1,21 @@
 import { mkdir, readdir, readFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { ConfigurationError } from "../../../errors.js";
+import { diag } from "../../diagnostics.js";
 import { replaceFileAtomic } from "../../persistence/atomic-write.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
-import { encodeProjectDir } from "../../persistence/session-transcript.js";
 import { safeFilenameForId } from "../../security/path-guard.js";
 import { MEMORY_KINDS, type MemoryConfig, type MemoryFact, redactSecrets } from "../types.js";
 import { parseMemoryFile, renderMemoryFile, slugForFact, titleForFact } from "./memory-file.js";
+import {
+  indexBudgetWarning,
+  type MemoryLocationConfig,
+  type MemoryRoot,
+  memoryReadRoots,
+  projectMemoryDir,
+  resolveMemoryRoot,
+} from "./memory-root.js";
 import { scanForThreats } from "./threat-scan.js";
 
 /*
@@ -50,66 +57,23 @@ const FACTS_HEADING = "## Facts";
 const MAX_NAME_VARIANTS = 50;
 
 /**
- * The memory root for a workspace: `<cwd>/.theokit/memory`. Every other path here derives from it,
- * and `memory_get` refuses to read outside it. Pure path computation — nothing is created on disk.
- */
-export function memoryDir(cwd: string): string {
-  return join(cwd, ".theokit", "memory");
-}
-
-/**
- * Where a NEW fact should be written.
- *
- * `.theokit/memory` by default, exactly as before. When the agent was given a `local.sessionDir`,
- * it becomes `<sessionDir>/projects/<encoded-cwd>/memory` — the same place the transcript for that
- * project goes, so a session and the memories recorded during it land beside each other.
- *
- * `local.sessionDir` is the switch because it is already the option this project documents for CLI
- * interop: point it at `~/.claude` and the CLI can `--continue` a session this agent wrote. Someone
- * who set it has said they share state with that CLI, and memory following is what the sentence
- * already implied. It needs no new option, and nothing moves for anyone who never set it.
- *
- * Safe because of the rule this pairs with — WRITE ONE, READ ALL. {@link readFactsFromMarkdown}
- * covers every location, so a consumer whose new facts move keeps every fact they already had. The
- * change relocates where the next one lands; it orphans nothing.
- */
-export function memoryWriteDir(cwd: string, sessionDir: string | undefined): string {
-  if (sessionDir === undefined || sessionDir.trim().length === 0) return memoryDir(cwd);
-  return join(sessionDir, "projects", encodeProjectDir(cwd), "memory");
-}
-
-/**
- * Where the Claude Code CLI keeps THIS project's memories.
- *
- * `<claudeHome>/projects/<encoded-cwd>/memory` — the same `encodeProjectDir` scheme the transcripts
- * already use, which is why no new encoding is invented here. `CLAUDE_CONFIG_DIR` names the home
- * when set (the CLI's own variable); `~/.claude` otherwise.
- *
- * Read, never written. Writing here by default would relocate every existing consumer's memories,
- * and an additive change must not move what is already on disk — so this is the direction that
- * costs nothing: a memory the CLI wrote becomes visible, and a memory the SDK wrote stays where the
- * SDK put it.
- */
-export function claudeProjectMemoryDir(cwd: string): string {
-  const home = process.env.CLAUDE_CONFIG_DIR?.trim();
-  const root = home !== undefined && home.length > 0 ? home : join(homedir(), ".claude");
-  return join(root, "projects", encodeProjectDir(cwd), "memory");
-}
-
-/**
  * Path to `MEMORY.md`, the index that points at the per-memory files — and, in stores written before
  * #389, the flat `## Facts` list itself. Pure path computation; the file may not exist.
+ *
+ * Takes the RESOLVED ROOT, not a `cwd`. Every path helper here does, so a caller that has not asked
+ * {@link resolveMemoryRoot} where memory lives does not compile — see `memory-root.ts` for the
+ * defect that made that the requirement (#463).
  */
-export function memoryMdPath(cwd: string): string {
-  return join(memoryDir(cwd), "MEMORY.md");
+export function memoryMdPath(root: MemoryRoot): string {
+  return join(root, "MEMORY.md");
 }
 
 /**
  * Path to `<memory root>/notes`, where per-topic notes and the consolidated notes a dreaming sweep
  * writes live. Pure path computation — the directory may not exist.
  */
-export function notesDir(cwd: string): string {
-  return join(memoryDir(cwd), "notes");
+export function notesDir(root: MemoryRoot): string {
+  return join(root, "notes");
 }
 
 /**
@@ -144,49 +108,58 @@ function byNaturalName(a: string, b: string): number {
  */
 export async function readFactsFromMarkdown(
   cwd: string,
-  sessionDir?: string,
+  config?: MemoryLocationConfig,
 ): Promise<MemoryFact[]> {
   const facts: MemoryFact[] = [];
-  // Both stores: this SDK's, then the one the Claude Code CLI keeps for the same project. The
-  // format has been shared since #389; only the directory was not, so a memory the CLI recorded was
-  // invisible to an agent working in the same repository.
-  // READ ALL: the project store, the location a configured `sessionDir` writes to, and the one the
-  // CLI uses by default. Deduplicated, because with `sessionDir` pointed at the CLI's own home the
-  // last two are the same directory and a fact would otherwise be recalled twice.
-  const roots = [
-    ...new Set([memoryDir(cwd), memoryWriteDir(cwd, sessionDir), claudeProjectMemoryDir(cwd)]),
-  ];
-  for (const dir of roots) {
-    let entries: string[];
-    try {
-      entries = await readdir(dir);
-    } catch {
-      continue;
-    }
-    // Read order is chronological, not alphabetical. Filename order used to approximate insertion
-    // order because a name WAS the entry; once colliding names get a `-2` suffix that stops being
-    // true — `fact-2.md` sorts before `fact.md` — and three appends came back as B, C, A. The
-    // store already stamps `modified` on every write, so the order is recorded; it just was not
-    // being read.
-    //
-    // Undated entries keep their filename order and come first. They carry no time signal, and
-    // inventing one for them is the inference this codebase refuses one field over.
-    const inDir: MemoryFact[] = [];
-    for (const entry of entries.sort(byNaturalName)) {
-      const fact = await readMemoryFileIn(dir, entry);
-      if (fact !== undefined) inDir.push(fact);
-    }
-    // Stable: equal timestamps keep the natural-name order the read used.
-    inDir.sort((a, b) => (a.modified ?? "").localeCompare(b.modified ?? ""));
-    facts.push(...inDir);
-  }
-
-  try {
-    facts.push(...parseFactsSection(await readFile(memoryMdPath(cwd), "utf8")));
-  } catch {
-    // no index yet — the per-memory files above are the whole store
-  }
+  // READ ALL — the configured root, the project store, and the one the Claude Code CLI keeps for
+  // this project. The format has been shared since #389; only the directory was not, so a memory
+  // the CLI recorded was invisible to an agent working in the same repository. `memoryReadRoots`
+  // owns the list and the deduplication; see `memory-root.ts` for why the write is a single root
+  // while the read is all of them.
+  const roots = memoryReadRoots(cwd, config);
+  for (const dir of roots) facts.push(...(await readMemoryFilesIn(dir)));
+  // Legacy `## Facts` bullets, in EVERY root rather than only the project store's index. A store
+  // that moved carries its own index, and reading one of them would have dropped the other's
+  // bullets — the same half-read this change exists to remove.
+  for (const dir of roots) facts.push(...(await readLegacyFactsSectionIn(dir)));
   return facts;
+}
+
+/**
+ * The per-memory files in one directory, in the order they were recorded.
+ *
+ * Read order is chronological, not alphabetical. Filename order used to approximate insertion order
+ * because a name WAS the entry; once colliding names get a `-2` suffix that stops being true —
+ * `fact-2.md` sorts before `fact.md` — and three appends came back as B, C, A. The store already
+ * stamps `modified` on every write, so the order is recorded; it just was not being read.
+ *
+ * Undated entries keep their filename order and come first. They carry no time signal, and
+ * inventing one for them is the inference this codebase refuses one field over.
+ */
+async function readMemoryFilesIn(dir: string): Promise<MemoryFact[]> {
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return [];
+  }
+  const facts: MemoryFact[] = [];
+  for (const entry of entries.sort(byNaturalName)) {
+    const fact = await readMemoryFileIn(dir, entry);
+    if (fact !== undefined) facts.push(fact);
+  }
+  // Stable: equal timestamps keep the natural-name order the read used.
+  facts.sort((a, b) => (a.modified ?? "").localeCompare(b.modified ?? ""));
+  return facts;
+}
+
+/** The pre-#389 `## Facts` bullets in one root's index, or `[]` when there is no index there. */
+async function readLegacyFactsSectionIn(dir: string): Promise<MemoryFact[]> {
+  try {
+    return parseFactsSection(await readFile(join(dir, "MEMORY.md"), "utf8"));
+  } catch {
+    return []; // no index in this root — the per-memory files are the whole store here
+  }
 }
 
 /**
@@ -265,7 +238,7 @@ function assertWritable(fact: MemoryFact, text: string): void {
 export function appendFactToMarkdown(
   cwd: string,
   fact: MemoryFact,
-  targetDir: string = memoryDir(cwd),
+  targetDir: string = projectMemoryDir(cwd),
 ): Promise<void> {
   return withCwdMutex(targetDir, async () => {
     const text = redactSecrets(fact.text);
@@ -289,10 +262,13 @@ export function appendFactToMarkdown(
     );
     // The index lives BESIDE the files it lists. A `MEMORY.md` in one directory pointing at
     // memories in another names files that are not there — and the CLI reads that index.
-    await replaceFileAtomic(
-      join(targetDir, "MEMORY.md"),
-      await nextIndex(targetDir, description, name, title),
-    );
+    const index = await nextIndex(targetDir, description, name, title);
+    await replaceFileAtomic(join(targetDir, "MEMORY.md"), index);
+    // AFTER the write, never instead of it. The fact file and the index are one atomic operation,
+    // so refusing the second would lose the first — and the thing being reported is a limit the
+    // interop partner applies when reading, not a failure of this write.
+    const warning = indexBudgetWarning(index, targetDir);
+    if (warning !== undefined) diag(`[theokit-sdk] ${warning}\n`);
   });
 }
 
@@ -454,13 +430,9 @@ function parseFactsSection(raw: string): MemoryFact[] {
  * disabled the call resolves to `[]` without touching disk. Configuration-aware entry point;
  * {@link readFactsFromMarkdown} is the same read without the gate.
  */
-export async function readFacts(
-  cwd: string,
-  config: MemoryConfig,
-  memoryHome?: string,
-): Promise<MemoryFact[]> {
+export async function readFacts(cwd: string, config: MemoryConfig): Promise<MemoryFact[]> {
   if (!config.enabled) return [];
-  return readFactsFromMarkdown(cwd, memoryHome);
+  return readFactsFromMarkdown(cwd, config);
 }
 
 /**
@@ -468,15 +440,15 @@ export async function readFacts(
  * call resolves without touching disk. Configuration-aware entry point;
  * {@link appendFactToMarkdown} is the same write without the gate.
  *
- * `memoryHome` is the agent's `local.sessionDir` when it has one — see {@link memoryWriteDir} for
- * which store that sends the fact to.
+ * The destination comes from `memory.directory` and from nothing else. It used to come from
+ * `local.sessionDir` — the option that names the TRANSCRIPT home — so one option answered two
+ * questions and only this call site heard the second answer (#463).
  */
 export async function appendFact(
   cwd: string,
   config: MemoryConfig,
   fact: MemoryFact,
-  memoryHome?: string,
 ): Promise<void> {
   if (!config.enabled) return;
-  await appendFactToMarkdown(cwd, fact, memoryWriteDir(cwd, memoryHome));
+  await appendFactToMarkdown(cwd, fact, resolveMemoryRoot(cwd, config));
 }

@@ -14,6 +14,7 @@
  */
 
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import { resolveMemoryRoot } from "../src/internal/memory/storage/memory-root.js";
 import type {
   MemoryProvider,
   RecordSessionSummaryArgs,
@@ -58,6 +59,7 @@ async function runRecordSessionSummary(args: {
 
 const SUMMARY_ARGS: RecordSessionSummaryArgs = {
   cwd: "/workspace",
+  memoryRoot: resolveMemoryRoot("/workspace"),
   runId: "run-123",
   agentId: "agent-test",
   userText: "user says hi",

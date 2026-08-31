@@ -317,6 +317,17 @@ export interface MemorySettings {
   scope?: "agent" | "user" | "team";
   storePath?: string;
   /**
+   * Where this agent's memory lives. Default `<cwd>/.theokit/memory`.
+   *
+   * Must be an absolute path or start with `~/` — a relative value is refused rather than
+   * resolved, because the two plausible bases put the store in two different places.
+   *
+   * Point it at `~/.claude/projects/<encoded-cwd>/memory` to WRITE where the Claude Code CLI
+   * reads. That store is READ unconditionally either way, so setting this is only needed to
+   * share the writes.
+   */
+  directory?: string;
+  /**
    * Whether the SDK auto-injects recalled facts as a `<memory>` block in the
    * LLM system prompt. Default `true`.
    */

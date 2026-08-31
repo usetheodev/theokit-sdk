@@ -18,7 +18,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createInMemoryMarkdownProvider } from "@theokit/sdk-memory";
+import { createInMemoryMarkdownProvider, resolveMemoryRoot } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("cross-session recall via disk-backed summaries (iter 34)", () => {
@@ -39,7 +39,8 @@ describe("cross-session recall via disk-backed summaries (iter 34)", () => {
       throw new Error("recordSessionSummary not defined");
     }
     await providerA.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "session-A",
       agentId: "agent-1",
       userText: "user prefers TypeScript over JavaScript",
@@ -89,7 +90,8 @@ describe("cross-session recall via disk-backed summaries (iter 34)", () => {
     // Write 7 summaries all containing "common-keyword".
     for (let i = 0; i < 7; i++) {
       await writer.recordSessionSummary({
-        cwd,
+        cwd: cwd,
+        memoryRoot: resolveMemoryRoot(cwd),
         runId: `run-${i}`,
         agentId: "agent-1",
         userText: `common-keyword reference ${i}`,
@@ -118,7 +120,8 @@ describe("cross-session recall via disk-backed summaries (iter 34)", () => {
     const handle = await writer.init({ cwd });
     if (writer.recordSessionSummary === undefined) throw new Error("missing");
     await writer.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "run-md",
       agentId: "a",
       userText: "needle-only-in-md",
@@ -161,7 +164,8 @@ describe("cross-session recall via disk-backed summaries (iter 34)", () => {
     if (writer.recordSessionSummary === undefined) throw new Error("missing");
     // Write disk summary
     await writer.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "from-disk",
       agentId: "a",
       userText: "shared-keyword from previous run",

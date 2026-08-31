@@ -1,6 +1,7 @@
 import { MEMORY_EMBEDDING_ADAPTERS } from "./internal/memory/adapters/catalog.js";
 import { runDreamingSweep as runDreamingSweepInternal } from "./internal/memory/dreaming/run.js";
 import { tryLoadSdkMemoryPeer } from "./internal/memory/sdk-memory-peer-loader.js";
+import { type MemoryRoot, resolveMemoryRoot } from "./internal/memory/storage/memory-root.js";
 
 /**
  * Public handle to an open memory index. Mirrors the internal `MemoryIndex`
@@ -60,6 +61,11 @@ export interface MemoryIndexHandle {
 export interface DreamingSweepOptions {
   /** Workspace cwd holding `.theokit/memory/`. */
   cwd: string;
+  /**
+   * Absolute path (or `~/`-prefixed) of the memory root to sweep, when the agent that wrote it set
+   * `memory.directory`. Defaults to `<cwd>/.theokit/memory`.
+   */
+  directory?: string;
   /**
    * Embedding provider for semantic dedup + clustering. Required — dreaming
    * relies on real embeddings to score cosine similarity. Supported providers:
@@ -246,6 +252,8 @@ function buildIndexOpenArgs(opts: OpenMemoryIndexOptions, embedding: unknown): I
 
 interface DreamingSweepArgs {
   cwd: string;
+  /** Resolved once here so the facts, the notes and the diary all land in one place (#463). */
+  memoryRoot: MemoryRoot;
   embedding: unknown;
   dedupThreshold?: number;
   clusterThreshold?: number;
@@ -259,6 +267,7 @@ async function buildDreamingSweepArgs(
   const runtime = await resolveEmbedding(opts.embedding, catalog);
   return {
     cwd: opts.cwd,
+    memoryRoot: resolveMemoryRoot(opts.cwd, { directory: opts.directory }),
     embedding: runtime,
     ...(opts.dedupThreshold !== undefined ? { dedupThreshold: opts.dedupThreshold } : {}),
     ...(opts.clusterThreshold !== undefined ? { clusterThreshold: opts.clusterThreshold } : {}),

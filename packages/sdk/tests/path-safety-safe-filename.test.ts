@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ConfigurationError } from "../src/errors.js";
+import { asMemoryRoot } from "../src/internal/memory/storage/memory-root.js";
 import { sessionSummaryPath } from "../src/internal/memory/storage/session-summary-writer.js";
 import { safeFilenameForId } from "../src/path-safety.js";
 
@@ -59,6 +60,6 @@ describe("safeFilenameForId", () => {
 
   it("test_sessionSummary_filename_unchanged_for_uuid_runId", () => {
     const uuid = "550e8400-e29b-41d4-a716-446655440000";
-    expect(sessionSummaryPath("/tmp/proj", uuid).endsWith(`${uuid}.md`)).toBe(true);
+    expect(sessionSummaryPath(asMemoryRoot("/tmp/proj"), uuid).endsWith(`${uuid}.md`)).toBe(true);
   });
 });

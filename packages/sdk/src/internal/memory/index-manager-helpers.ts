@@ -3,7 +3,8 @@ import { readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 import type { MemorySearchHit, SearchOptions } from "./index-manager-contract.js";
-import { memoryDir, memoryMdPath, notesDir } from "./storage/markdown-store.js";
+import { memoryMdPath, notesDir } from "./storage/markdown-store.js";
+import type { MemoryRoot } from "./storage/memory-root.js";
 import { discoverSessionFiles } from "./storage/session-loader.js";
 import { discoverWikiFiles } from "./storage/wiki-loader.js";
 
@@ -47,7 +48,11 @@ export function blendScores(
 
 // ───── file discovery ─────────────────────────────────────────────────
 
-/** @internal */
+/**
+ * One markdown file the corpus walk found, with the source bucket the indexer tags it with.
+ * Shared through the semver-exempt `internal/memory-store` sub-path, so it carries no
+ * visibility tag — see that barrel for why naming the tag here would delete this symbol.
+ */
 export interface DiscoveredFile {
   absolutePath: string;
   relPath: string;
@@ -78,16 +83,22 @@ async function markdownFilesIn(
     }));
 }
 
-/** @internal */
-export async function collectMarkdownFiles(cwd: string): Promise<DiscoveredFile[]> {
-  const root = memoryDir(cwd);
+/**
+ * Every markdown file the memory corpus holds: the index, the per-memory files, `notes/`,
+ * `wiki/` and `sessions/`, each tagged with the bucket `memory_search`'s `corpus` filters on.
+ *
+ * Shared through the semver-exempt `internal/memory-store` sub-path so `@theokit/sdk-memory` walks
+ * the same corpus. Its own copy did not: it never picked up the per-memory files at the root, so
+ * installing that package made every converged memory unsearchable and reported nothing.
+ */
+export async function collectMarkdownFiles(root: MemoryRoot): Promise<DiscoveredFile[]> {
   const results: DiscoveredFile[] = [];
   // MEMORY.md
   try {
-    await stat(memoryMdPath(cwd));
+    await stat(memoryMdPath(root));
     results.push({
-      absolutePath: memoryMdPath(cwd),
-      relPath: relative(root, memoryMdPath(cwd)),
+      absolutePath: memoryMdPath(root),
+      relPath: relative(root, memoryMdPath(root)),
       source: "memory",
     });
   } catch {
@@ -95,10 +106,10 @@ export async function collectMarkdownFiles(cwd: string): Promise<DiscoveredFile[
   }
   // <memoryDir>/*.md — one file per memory, the converged layout. MEMORY.md is the index and is
   // discovered above; picking it up twice would index every memory's link alongside its text.
-  results.push(...(await markdownFilesIn(memoryDir(cwd), root, ["MEMORY.md"])));
-  results.push(...(await markdownFilesIn(notesDir(cwd), root)));
+  results.push(...(await markdownFilesIn(root, root, ["MEMORY.md"])));
+  results.push(...(await markdownFilesIn(notesDir(root), root)));
   // wiki/*.md (Phase 10 — read-only supplements)
-  const wikiFiles = await discoverWikiFiles(cwd);
+  const wikiFiles = await discoverWikiFiles(root);
   for (const wiki of wikiFiles) {
     results.push({
       absolutePath: wiki.absolutePath,
@@ -107,7 +118,7 @@ export async function collectMarkdownFiles(cwd: string): Promise<DiscoveredFile[
     });
   }
   // sessions/*.md (ADR D20 — per-run summaries for corpus="sessions" recall)
-  const sessionFiles = await discoverSessionFiles(cwd);
+  const sessionFiles = await discoverSessionFiles(root);
   for (const session of sessionFiles) {
     results.push({
       absolutePath: session.absolutePath,

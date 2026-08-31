@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { runActiveMemory } from "../../../src/internal/memory/active-memory.js";
 import { ActiveMemoryCache } from "../../../src/internal/memory/active-memory-cache.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
-import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 import { CircuitBreaker } from "../../../src/internal/resilience/circuit-breaker.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
@@ -165,7 +166,11 @@ describe("transcript persistence", () => {
       await removeTempDirRobust(__cwdCleanup1);
     });
     await mkdir(join(cwd, ".theokit", "memory"), { recursive: true });
-    await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- magic 8675309.\n", "utf8");
+    await writeFile(
+      memoryMdPath(resolveMemoryRoot(cwd)),
+      "# Memory\n\n## Facts\n\n- magic 8675309.\n",
+      "utf8",
+    );
   });
 
   it("writes transcript JSON when persistTranscripts=true", async () => {
@@ -180,7 +185,7 @@ describe("transcript persistence", () => {
       persistTranscripts: true,
       runId: "test-run-1",
     });
-    const transcriptsDir = join(memoryDir(cwd), "transcripts", "active-memory");
+    const transcriptsDir = join(resolveMemoryRoot(cwd), "transcripts", "active-memory");
     expect(existsSync(transcriptsDir)).toBe(true);
     const files = await readdir(transcriptsDir);
     expect(files).toContain("test-run-1.json");
@@ -201,7 +206,7 @@ describe("transcript persistence", () => {
       options: { enabled: true, queryMode: "message" },
       cwd,
     });
-    const transcriptsDir = join(memoryDir(cwd), "transcripts", "active-memory");
+    const transcriptsDir = join(resolveMemoryRoot(cwd), "transcripts", "active-memory");
     expect(existsSync(transcriptsDir)).toBe(false);
     index.close();
   });

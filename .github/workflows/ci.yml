@@ -8,7 +8,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, feat/**]
+    branches: [main, develop]
   # Both promotion legs of the flow are PRs — workspace -> develop and
   # develop -> main — so both bases must be listed here. Until 2026-08-17 only
   # `main` was, which left the workspace -> develop PR with no CI at all: the
@@ -39,7 +39,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['22.12', '22']
+        # 22.12 is the declared floor; 22 is current. Both matter and they do not both have to
+        # gate every pull request — the floor is a compatibility question, not a review one — so
+        # it runs on pushes to the long-lived branches while the current version gates PRs.
+        #
+        # This is only safe because branch protection now requires the `CI` gateway rather than
+        # these legs by name. Requiring a leg that skips leaves the check at "Expected — Waiting
+        # for status to be reported" forever, which is exactly what happened when this was first
+        # tried; see the `ci-ok` job for the mechanism.
+        node-version: ${{ github.event_name == 'pull_request' && fromJSON('["22.12"]') || fromJSON('["22.12", "22"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -63,6 +71,23 @@ jobs:
       - uses: usetheokit/shared-workflows/actions/setup@v1 # zizmor: ignore[unpinned-uses]
         with:
           node-version: ${{ matrix.node-version }}
+
+      # NO TURBO CACHE HERE, and that is a measurement rather than an omission.
+      #
+      # One was added and removed the same day. It ran correctly — restore and save both fired,
+      # 0-2 seconds each on fresh commits — and `validate` took 2.3 minutes with it and 2.3
+      # minutes without it, on the same commit. It saved nothing measurable.
+      #
+      # It had been credited with taking this job from 9.5 minutes to 2.3. That number came from
+      # a `gh run rerun` of an unchanged commit, where the SHA-keyed entry hits exactly and every
+      # task is restored — the best case, and one that says nothing about a normal push. The real
+      # gain came from elsewhere in the same batch, and attributing it here was correlation read
+      # as cause. The pnpm store is already cached by the setup action above, which is most likely
+      # what was doing the work all along.
+      #
+      # Worth re-testing only against a measurement, not against the intuition that a cache must
+      # help. Configuration that does nothing is debt wearing an optimisation's clothes, and the
+      # approving comment beside it is worse, because it convinces the next reader.
 
       - name: Biome check
         run: pnpm check
@@ -250,6 +275,8 @@ jobs:
       # version, so there is no second place to forget.
       - uses: usetheokit/shared-workflows/actions/setup@v1 # zizmor: ignore[unpinned-uses]
 
+
+
       # B-139: this job ran the sdk suite against an UNBUILT tree. The suite includes
       # `tests/sdk-2-0-npm-publish-readiness.test.ts`, which asserts every extracted package
       # emits `dist/index.js` — so it failed with "missing dist/index.js — run 'pnpm build'"
@@ -400,7 +427,15 @@ jobs:
   #
   # Automatic Analysis is OFF for this project — the scanner refuses to run beside it.
   sonar:
-    needs: coverage
+    # NOT `needs: coverage`, deliberately.
+    #
+    # This is a reusable workflow that runs its own `build-command` and `coverage-command` (see
+    # `with:` below) and consumes no artifact from any job here. The dependency was ordering
+    # only, and it cost the whole wall clock: measured on a real run, `coverage` occupied
+    # +11.8 to +15.3 and `sonar` +15.3 to +21.1 — a 3.5-minute wait in front of a 5.8-minute job,
+    # for nothing that job needed. Detached, they overlap and the chain becomes the longer of the
+    # two rather than their sum.
+    #
     # Analyse the main branch and pull requests, and NOT pushes to `develop`.
     #
     # The reason is narrow: this organisation's plan does not serve data for non-main branches.
@@ -431,3 +466,57 @@ jobs:
       # while still passing. Measured — that is exactly what the first run did.
       build-command: pnpm build
       coverage-command: pnpm quality:coverage
+
+  # ────────────────────────────────────────────────────────────────────────────────────────────
+  # The one check branch protection should require.
+  #
+  # WHY THIS EXISTS. Requiring the individual jobs above works only while every one of them runs
+  # on every event. The moment a job becomes conditional — a matrix leg that skips on pull
+  # requests, a path filter, a shard that only exists for some runs — a required check that never
+  # reports sits at "Expected — Waiting for status to be reported" and the pull request can never
+  # merge. Branch protection cannot distinguish "deliberately skipped" from "not reported yet".
+  # This repository hit exactly that: making the Node floor run only on the long-lived branches
+  # made every PR unmergeable, and the change had to be reverted rather than fixed.
+  #
+  # HOW IT WORKS. It needs every job, runs with `if: always()` so it reports even when something
+  # upstream failed, and fails when any dependency failed or was cancelled. A SKIPPED dependency
+  # counts as a pass — that is the whole point, and it is what makes conditional jobs, path
+  # filters and test sharding safe to adopt.
+  #
+  # `cancelled` is checked as well as `failure`: a cancelled run must not report green, or the
+  # concurrency group's own cancellations would look like approvals.
+  #
+  # ONE THING THIS DOES NOT DO. It cannot make a job that never ran into evidence. It reports
+  # that nothing FAILED, which is a weaker claim than "everything passed" and is the correct one
+  # for a gate over conditional work. Whether a given job should have run is a question for the
+  # job's own `if`, not for this one.
+  ci-ok:
+    name: CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs:
+      - validate
+      - coverage
+      - dependency-review
+      - no-reconsumed-changesets
+      - sonar
+    steps:
+      - name: Report
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$RESULTS"
+          # `contains` over the serialized results rather than a per-job list: a job added above
+          # and forgotten here would silently stop being gated, and this way the only thing to
+          # keep in step is `needs`.
+          if echo "$RESULTS" | grep -q '"result": *"failure"'; then
+            echo "::error::a required job failed"
+            exit 1
+          fi
+          if echo "$RESULTS" | grep -q '"result": *"cancelled"'; then
+            echo "::error::a required job was cancelled"
+            exit 1
+          fi
+          echo "no required job failed or was cancelled"

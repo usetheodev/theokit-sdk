@@ -1,6 +1,6 @@
 import { access, readFile, unlink } from "node:fs/promises";
 import { legacyMemoryJsonPath, type MemoryConfig, type MemoryFact } from "../memory-types.js";
-import { appendFactToMarkdown, memoryMdPath } from "../store/markdown-store.js";
+import { appendFactToMarkdown, memoryMdPath, resolveMemoryRoot } from "../store/markdown-store.js";
 
 /**
  * One-shot legacy-JSON → markdown migration (ADR D8 of memory-system-peer-project-parity).
@@ -112,7 +112,7 @@ export async function migrateLegacyJson(
   if (!(await fileExists(jsonPath))) {
     return { migrated: false, factCount: 0, reason: "no-legacy-json" };
   }
-  if (await fileExists(memoryMdPath(cwd))) {
+  if (await fileExists(memoryMdPath(resolveMemoryRoot(cwd)))) {
     process.stderr.write(
       `[theokit-sdk] memory migration skipped: both MEMORY.md and legacy JSON exist at ${jsonPath}; leaving both intact\n`,
     );

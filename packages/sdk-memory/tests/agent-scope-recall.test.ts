@@ -12,7 +12,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createInMemoryMarkdownProvider } from "@theokit/sdk-memory";
+import { createInMemoryMarkdownProvider, resolveMemoryRoot } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("agent-scope recall (iter 36)", () => {
@@ -31,7 +31,8 @@ describe("agent-scope recall (iter 36)", () => {
     const handleA = await a.init({ cwd });
     if (a.recordSessionSummary === undefined) throw new Error("missing");
     await a.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "agent-a-run",
       agentId: "agent-A",
       userText: "secret-keyword from agent-A",
@@ -60,7 +61,8 @@ describe("agent-scope recall (iter 36)", () => {
     const hw = await writer.init({ cwd });
     if (writer.recordSessionSummary === undefined) throw new Error("missing");
     await writer.recordSessionSummary({
-      cwd,
+      cwd: cwd,
+      memoryRoot: resolveMemoryRoot(cwd),
       runId: "agent-x-run-1",
       agentId: "agent-X",
       userText: "shared-keyword for agent-X",
@@ -96,6 +98,7 @@ describe("agent-scope recall (iter 36)", () => {
     ]) {
       await setup.recordSessionSummary({
         cwd,
+        memoryRoot: resolveMemoryRoot(cwd),
         runId,
         agentId,
         userText: "common-keyword across agents",

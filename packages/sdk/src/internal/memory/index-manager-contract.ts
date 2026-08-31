@@ -1,4 +1,5 @@
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
+import type { MemoryRoot } from "./storage/memory-root.js";
 
 /**
  * Memory index manager contract — leaf types shared by `index-manager.ts`
@@ -67,6 +68,15 @@ export type MemoryBackend = "sqlite-vec" | "lance";
 
 export interface OpenIndexOptions {
   cwd: string;
+  /**
+   * The memory root to index and to place the database under. Defaults to `<cwd>/.theokit/memory`.
+   *
+   * Optional HERE and required everywhere below, deliberately. This is a public entry point whose
+   * caller may legitimately have only a workspace; inside an agent the root is resolved once from
+   * `memory.directory` and passed in, which is what keeps the index and the writer looking at the
+   * same directory (#463).
+   */
+  memoryRoot?: MemoryRoot;
   filePath?: string;
   /** When provided, vector index is enabled in hybrid mode. */
   embedding?: EmbeddingRuntime;

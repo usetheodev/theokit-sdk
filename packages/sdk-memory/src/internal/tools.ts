@@ -4,7 +4,7 @@ import { ConfigurationError } from "@theokit/sdk/errors";
 
 import type { MemorySearchHit } from "./index/index-manager-contract.js";
 import type { MemoryIndex } from "./index/memory-index.js";
-import { memoryDir } from "./store/markdown-store.js";
+import type { MemoryRoot } from "./store/markdown-store.js";
 import { readMemoryFileBounded } from "./store/reader.js";
 
 /**
@@ -129,7 +129,8 @@ export function createMemorySearchTool(opts: MemorySearchToolOptions): MemoryToo
 
 /** Options for {@link createMemoryGetTool}. `cwd` is the workspace root, not the memory directory. */
 export interface MemoryGetToolOptions {
-  cwd: string;
+  /** The RESOLVED memory root the tool may read inside — not a cwd (#463). */
+  root: MemoryRoot;
 }
 
 /**
@@ -145,7 +146,7 @@ export interface MemoryGetToolOptions {
  * rejects with the filesystem error.
  */
 export function createMemoryGetTool(opts: MemoryGetToolOptions): MemoryTool {
-  const memoryRoot = resolvePath(memoryDir(opts.cwd));
+  const memoryRoot = resolvePath(opts.root);
   return {
     name: "memory_get",
     description: GET_DESCRIPTION,

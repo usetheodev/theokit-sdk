@@ -1,7 +1,4 @@
-import { join } from "node:path";
-
 import { openSqliteResilient } from "@theokit/sdk/persistence";
-
 import { PRAGMA_STATEMENTS, SCHEMA_STATEMENTS } from "./index-schema.js";
 
 /**
@@ -79,20 +76,4 @@ export async function openMemoryDb(opts: OpenDbOptions): Promise<MemoryDb> {
       for (const stmt of SCHEMA_STATEMENTS) db.exec(stmt);
     },
   });
-}
-
-/**
- * Where the SQLite index lives when the caller does not name a path:
- * `<cwd>/.theokit/memory/.index/memory.sqlite`. Pure path computation. The file
- * sits under the memory root but outside the markdown corpus, so it is never
- * indexed as content.
- *
- * It stays in the PROJECT even when the facts do not. With `local.sessionDir` set, memories are
- * written to the Claude Code directory so the CLI can read them — the index is not, because the CLI
- * has no index format, and a binary artefact it does not understand does not belong in a directory
- * it manages. The facts are what a user would lose; the index is derived and rebuildable from them.
- * See `packages/sdk/docs/memory-decisions.md` § 1 before relocating this.
- */
-export function defaultIndexPath(cwd: string): string {
-  return join(cwd, ".theokit", "memory", ".index", "memory.sqlite");
 }
