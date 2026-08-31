@@ -48,7 +48,11 @@ export function blendScores(
 
 // ───── file discovery ─────────────────────────────────────────────────
 
-/** @internal */
+/**
+ * One markdown file the corpus walk found, with the source bucket the indexer tags it with.
+ * Shared through the semver-exempt `internal/memory-store` sub-path, so it carries no
+ * visibility tag — see that barrel for why naming the tag here would delete this symbol.
+ */
 export interface DiscoveredFile {
   absolutePath: string;
   relPath: string;
@@ -79,7 +83,14 @@ async function markdownFilesIn(
     }));
 }
 
-/** @internal */
+/**
+ * Every markdown file the memory corpus holds: the index, the per-memory files, `notes/`,
+ * `wiki/` and `sessions/`, each tagged with the bucket `memory_search`'s `corpus` filters on.
+ *
+ * Shared through the semver-exempt `internal/memory-store` sub-path so `@theokit/sdk-memory` walks
+ * the same corpus. Its own copy did not: it never picked up the per-memory files at the root, so
+ * installing that package made every converged memory unsearchable and reported nothing.
+ */
 export async function collectMarkdownFiles(root: MemoryRoot): Promise<DiscoveredFile[]> {
   const results: DiscoveredFile[] = [];
   // MEMORY.md

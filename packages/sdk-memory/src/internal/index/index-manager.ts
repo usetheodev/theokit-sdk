@@ -1,19 +1,15 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile, stat } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { readFile, stat } from "node:fs/promises";
 
 import { sanitizeFts5Query } from "@theokit/sdk/persistence";
 import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
 import { chunkMarkdown } from "../store/chunk-markdown.js";
 import {
+  collectMarkdownFiles,
   type MemoryRoot,
-  memoryMdPath,
-  notesDir,
   projectMemoryDir,
   resolveMemoryRoot,
 } from "../store/markdown-store.js";
-import { discoverSessionFiles } from "../store/session-loader.js";
-import { discoverWikiFiles } from "../store/wiki-loader.js";
 import { defaultIndexPath, type MemoryDb, openMemoryDb } from "./index-db.js";
 import { assertValidBackend, openLanceIndex } from "./index-manager-dispatch.js";
 import { type MemoryIndex, parseSearchOptions } from "./memory-index.js";
@@ -460,57 +456,6 @@ function blendScores(
     citation: hit.citation,
     ...(vectorScore > 0 ? { vectorScore } : {}),
   };
-}
-
-interface DiscoveredFile {
-  absolutePath: string;
-  relPath: string;
-  source: "memory" | "wiki" | "sessions";
-}
-
-async function collectMarkdownFiles(root: MemoryRoot): Promise<DiscoveredFile[]> {
-  const results: DiscoveredFile[] = [];
-  // MEMORY.md
-  try {
-    await stat(memoryMdPath(root));
-    results.push({
-      absolutePath: memoryMdPath(root),
-      relPath: relative(root, memoryMdPath(root)),
-      source: "memory",
-    });
-  } catch {
-    // skip
-  }
-  // notes/*.md
-  try {
-    const entries = await readdir(notesDir(root));
-    for (const entry of entries) {
-      if (!entry.endsWith(".md")) continue;
-      const abs = join(notesDir(root), entry);
-      results.push({ absolutePath: abs, relPath: relative(root, abs), source: "memory" });
-    }
-  } catch {
-    // notes dir doesn't exist yet — that's fine
-  }
-  // wiki/*.md (Phase 10 — read-only supplements)
-  const wikiFiles = await discoverWikiFiles(root);
-  for (const wiki of wikiFiles) {
-    results.push({
-      absolutePath: wiki.absolutePath,
-      relPath: wiki.relPath,
-      source: "wiki",
-    });
-  }
-  // sessions/*.md (ADR D20 — per-run summaries for corpus="sessions" recall)
-  const sessionFiles = await discoverSessionFiles(root);
-  for (const session of sessionFiles) {
-    results.push({
-      absolutePath: session.absolutePath,
-      relPath: session.relPath,
-      source: "sessions",
-    });
-  }
-  return results;
 }
 
 function sha256(text: string): string {

@@ -28,6 +28,8 @@ export {
   appendFactToMarkdown,
   asMemoryRoot,
   claudeProjectMemoryDir,
+  collectMarkdownFiles,
+  type DiscoveredFile,
   indexBudgetWarning,
   MEMORY_INDEX_MAX_BYTES,
   MEMORY_INDEX_MAX_LINES,

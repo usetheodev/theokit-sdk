@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1162 export(s) across 46 entry point(s).
+1166 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -543,6 +543,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `Cluster` | interface | A group of facts the REM phase judged related.  |
 | `ClusterResult` | interface | What {@link remPhase } produced.  |
 | `cohereMemoryEmbeddingProviderAdapter` | const | Cohere embeddings.  |
+| `collectMarkdownFiles` | function | Every markdown file the memory corpus holds: the index, the per-memory files, `notes/`, `wiki/` and `sessions/`, each tagged with the bucket `memory_search`'s `corpus` filters on.  |
 | `CreateAdapterOptions` | interface | Per-call overrides handed to {@link MemoryEmbeddingProviderAdapter.create } .  |
 | `createCategorizedMemory` | function | Create a typed categorized memory store over the closed `categories` taxonomy.  |
 | `CreateCategorizedMemoryOptions` | interface | Options for {@link createCategorizedMemory } . |
@@ -568,6 +569,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `defaultIndexPath` | function | `<index root>/.index/memory.sqlite`.  |
 | `DiaryEntry` | interface | Dream-diary append (ADR D7).  |
 | `diaryPath` | function | Path to the dream diary, `<memory root>/dream-diary.md`.  |
+| `DiscoveredFile` | interface | One markdown file the corpus walk found, with the source bucket the indexer tags it with.  |
 | `discoverSessionFiles` | function | Every session summary under `<memory root>/sessions`, as `{ absolutePath, relPath }` records.  |
 | `discoverWikiFiles` | function | Every wiki supplement under `<memory root>/wiki`, as `{ absolutePath, relPath }` records.  |
 | `DreamingOptions` | interface | Dreaming sweep orchestrator (ADR D7 of memory-system-peer-project-parity).  |
@@ -1021,6 +1023,8 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `appendFactToMarkdown` | function | Write a fact as its own memory file and point the `MEMORY.md` index at it.  |
 | `asMemoryRoot` | function | Treat a directory as a memory root without resolving one.  |
 | `claudeProjectMemoryDir` | function | Where the Claude Code CLI keeps THIS project's memories.  |
+| `collectMarkdownFiles` | function | Every markdown file the memory corpus holds: the index, the per-memory files, `notes/`, `wiki/` and `sessions/`, each tagged with the bucket `memory_search`'s `corpus` filters on.  |
+| `DiscoveredFile` | interface | One markdown file the corpus walk found, with the source bucket the indexer tags it with.  |
 | `discoverSessionFiles` | function | Every session summary under `<memory root>/sessions`, as `{ absolutePath, relPath }` records.  |
 | `discoverWikiFiles` | function | Every wiki supplement under `<memory root>/wiki`, as `{ absolutePath, relPath }` records.  |
 | `indexBudgetWarning` | function | What to say about an index that the interop partner will truncate, or `undefined` when there is nothing true to say.  |

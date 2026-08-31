@@ -16,6 +16,11 @@
  * `package.json` `exports`, so the names below must survive into the published declarations.
  */
 
+// The corpus walk, shared for the reason the cluster above is. The satellite's copy had drifted
+// further than the others: it walked `notes/`, `wiki/` and `sessions/` and never picked up the
+// per-memory files at the root — the layout #389 converged on — so installing that package made
+// every converged memory unsearchable while reporting no error at all.
+export { collectMarkdownFiles, type DiscoveredFile } from "../index-manager-helpers.js";
 export {
   appendFact,
   appendFactToMarkdown,

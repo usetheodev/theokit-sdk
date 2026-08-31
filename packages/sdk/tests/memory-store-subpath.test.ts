@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as helpers from "../src/internal/memory/index-manager-helpers.js";
 import * as barrel from "../src/internal/memory/storage/index.js";
 import * as store from "../src/internal/memory/storage/markdown-store.js";
 import * as root from "../src/internal/memory/storage/memory-root.js";
@@ -18,7 +19,10 @@ import * as wiki from "../src/internal/memory/storage/wiki-loader.js";
  * The sub-path below is what lets the satellite import this store instead of copying it, the same
  * remedy theokit#160 applied to the embedding runtime in the same package pair.
  *
- * The barrel spans SIX modules now. Root resolution moved out of the store into `memory-root.ts`
+ * The barrel spans SEVEN modules now — the corpus walk joined the cluster once the satellite's
+ * copy of it was found to skip the per-memory files entirely.
+ *
+ * (Was: SIX.) Root resolution moved out of the store into `memory-root.ts`
  * (#463), and the session/wiki/transcript cluster joined it once the satellite's byte-identical
  * copies were replaced by re-exports — the same remedy #430 applied to `markdown-store`, extended
  * to the four modules that were still copies. The guarantee below is unchanged: every name the
@@ -53,6 +57,7 @@ describe("the internal/memory-store sub-path", () => {
       ...sessionLoader,
       ...wiki,
       ...transcripts,
+      ...helpers,
     } as Record<string, unknown>;
     for (const [name, value] of Object.entries(barrel)) {
       expect(sources).toHaveProperty(name);
