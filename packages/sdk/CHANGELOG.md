@@ -1,5 +1,57 @@
 # Changelog
 
+## 4.63.3
+
+### Patch Changes
+
+- 076e1b3: The Claude Code interop memory read is keyed by the git repository root, matching the CLI.
+
+  `claudeProjectMemoryDir` keyed the auto-memory store by `cwd`. The CLI keys it by the repository:
+  _"the `<project>` path is derived from the git repository, so all worktrees and subdirectories within
+  the same repo share one auto memory directory. Outside a git repo, the project root is used
+  instead."_
+
+  So an agent running from any directory below the root — a monorepo package, a script in `tools/`, a
+  test in a subfolder, which is the ordinary case — read a directory the CLI never writes to. It found
+  nothing and reported nothing, and that observation is identical to an empty store, which is why it
+  survived the interop change that introduced it.
+
+  Confirmed from disk before the fix: of the CLI project directories that resolve to a SUBDIRECTORY of
+  a git repository, none had a `memory/` at all, while their repository root held three fact files.
+  The subdirectory directories contained only session transcripts.
+
+  **Transcripts are the trap and stay as they were.** The CLI keys those by `cwd`, correctly, and
+  `encodeProjectDir` is right for them. One encoder serving two axes is what made the two
+  indistinguishable in the code; the encoder is still shared, the path it is given is not.
+
+  `.git` as a FILE — a worktree or a submodule — counts as a repository, so the read does not miss
+  again in the layout that most needs it.
+
+## 4.63.2
+
+### Patch Changes
+
+- 1466750: A refused `memory.directory` is now reported on the read path, not only on the write path.
+
+  A relative `directory` is refused by contract, and the write path has said so since the near-miss
+  diagnostic landed. The read path did not: `readMemoryForSend` wrapped everything in `safeCall`, which
+  reports on `diag` — dropped entirely when the host installed no sink. An app that only CONSUMES
+  memory, which is the served case the option exists for, answered every turn normally with an empty
+  store and never learned why.
+
+  Measured against the published package with no sink installed: `Agent.create` did not throw, the turn
+  answered normally, nothing was written to either the configured path or the default store, and
+  stderr said nothing at all.
+
+  `safeCall` stays where it was added for, and that trade is unchanged: a corrupt memory file must not
+  abort the turn, and reporting it quietly is right because it is transient and local to one entry. A
+  `ConfigurationError` from the resolver is the opposite — permanent, repeating on every turn forever,
+  and fixable in one line by the person being kept in the dark — so it goes on the channel a failure
+  cannot be dropped from.
+
+  Reported **once per configuration per process**, not per turn. A warning that arrives every turn is a
+  warning somebody turns off.
+
 ## 4.63.1
 
 ### Patch Changes
