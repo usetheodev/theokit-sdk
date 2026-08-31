@@ -31,7 +31,6 @@ export {
   collectMarkdownFiles,
   type DiscoveredFile,
   defaultIndexPath,
-  diaryPath,
   indexBudgetWarning,
   lanceStoragePath,
   MEMORY_INDEX_MAX_BYTES,

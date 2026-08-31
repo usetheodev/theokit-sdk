@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1173 export(s) across 46 entry point(s).
+1177 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -526,7 +526,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `ActiveMemoryResult` | interface | Result of one recall attempt.  |
 | `ActiveMemoryStatus` | type | Outcome of one recall attempt.  |
 | `ActiveMemoryTranscript` | interface | Optional on-disk persistence for Active Memory recall transcripts (ADR D6).  |
-| `appendDiaryEntry` | function | Append one entry to the dream diary, creating the file with a `# Dream Diary` header when it does not exist yet.  |
+| `appendDiaryEntry` | function | Append one sweep's entry to `<memory root>/dream-diary.md`, creating the file with its header when this is the first sweep.  |
 | `appendFact` | function | Record a fact, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves without touching disk.  |
 | `appendFactToMarkdown` | function | Write a fact as its own memory file and point the `MEMORY.md` index at it.  |
 | `asMemoryRoot` | function | Treat a directory as a memory root without resolving one.  |
@@ -582,7 +582,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `EmbeddingRuntime` | interface | A live embedding provider, bound to one model.  |
 | `EmbeddingRuntimeStats` | interface | Counters accumulated by a runtime since it was created.  |
 | `embedMissingChunks` | function | Embed every chunk that doesn't yet have a vector. |
-| `entryHash` | function | A sha256 over the five counts of an entry, as a hex string.  |
+| `entryHash` | function | A stable hash of one entry's counts, so two sweeps that did the same work read as the same work.  |
 | `geminiMemoryEmbeddingProviderAdapter` | const | Google Gemini embeddings through Google's OpenAI-compatible surface at `/v1beta/openai/embeddings`.  |
 | `identityMatches` | function | Compare two embedding identities field by field.  |
 | `indexBudgetWarning` | function | What to say about an index that the interop partner will truncate, or `undefined` when there is nothing true to say.  |
@@ -657,7 +657,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `readMemoryFileBounded` | function | Read a bounded slice of a text file and report what was left behind.  |
 | `redactSecrets` | function | Canonical credential-redaction primitive (ADR D68).  |
 | `remPhase` | function | REM phase — single-link agglomerative clustering by cosine similarity. |
-| `renderDiaryEntry` | function | Render one entry as the markdown block {@link appendDiaryEntry } writes: an h2 heading carrying the ISO timestamp, then a bullet list of the counts, prefixed by the first eight hex characters of {@... |
+| `renderDiaryEntry` | function | One diary entry as the markdown that gets appended: a timestamp heading, the short entry hash, and the counts the sweep produced.  |
 | `resetMigrationStateForTests` | function | Test-only — reset the in-process migration flag map. |
 | `resolveMemoryRoot` | function | The memory root for this agent: `memory.directory` when set, the project store otherwise.  |
 | `runActiveMemory` | function | Run one blocking recall before the system prompt is assembled, and report what happened.  |
@@ -1021,16 +1021,19 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | Symbol | Kind | Summary |
 |---|---|---|
 | `ActiveMemoryTranscript` | interface | Optional on-disk persistence for Active Memory recall transcripts (ADR D6).  |
+| `appendDiaryEntry` | function | Append one sweep's entry to `<memory root>/dream-diary.md`, creating the file with its header when this is the first sweep.  |
 | `appendFact` | function | Record a fact, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves without touching disk.  |
 | `appendFactToMarkdown` | function | Write a fact as its own memory file and point the `MEMORY.md` index at it.  |
 | `asMemoryRoot` | function | Treat a directory as a memory root without resolving one.  |
 | `claudeProjectMemoryDir` | function | Where the Claude Code CLI keeps THIS project's memories.  |
 | `collectMarkdownFiles` | function | Every markdown file the memory corpus holds: the index, the per-memory files, `notes/`, `wiki/` and `sessions/`, each tagged with the bucket `memory_search`'s `corpus` filters on.  |
 | `defaultIndexPath` | function | `<index root>/.index/memory.sqlite`.  |
+| `DiaryEntry` | interface | Dream-diary append (ADR D7).  |
 | `diaryPath` | function | `<memory root>/dream-diary.md`.  |
 | `DiscoveredFile` | interface | One markdown file the corpus walk found, with the source bucket the indexer tags it with.  |
 | `discoverSessionFiles` | function | Every session summary under `<memory root>/sessions`, as `{ absolutePath, relPath }` records.  |
 | `discoverWikiFiles` | function | Every wiki supplement under `<memory root>/wiki`, as `{ absolutePath, relPath }` records.  |
+| `entryHash` | function | A stable hash of one entry's counts, so two sweeps that did the same work read as the same work.  |
 | `indexBudgetWarning` | function | What to say about an index that the interop partner will truncate, or `undefined` when there is nothing true to say.  |
 | `lanceStoragePath` | function | `<memory root>/lance`.  |
 | `MEMORY_INDEX_MAX_BYTES` | const | The byte limit the Claude Code CLI applies when it loads a `MEMORY.md`, whichever it reaches first.  |
@@ -1045,6 +1048,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `readAllSqliteFacts` | function | Read all facts from the SQLite memory index.  |
 | `readFacts` | function | Every memory in the store, honouring the `enabled` gate on {@link MemoryConfig } : when memory is disabled the call resolves to `[]` without touching disk.  |
 | `readFactsFromMarkdown` | function | Every memory in the store: the per-memory files, plus any legacy `## Facts` bullets still in `MEMORY.md`.  |
+| `renderDiaryEntry` | function | One diary entry as the markdown that gets appended: a timestamp heading, the short entry hash, and the counts the sweep produced.  |
 | `resolveMemoryRoot` | function | The memory root for this agent: `memory.directory` when set, the project store otherwise.  |
 | `SessionFile` | interface | Session summary discovery (ADR D20).  |
 | `sessionsDir` | function | `<memory root>/sessions`.  |

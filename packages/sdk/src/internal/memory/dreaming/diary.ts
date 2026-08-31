@@ -31,6 +31,11 @@ export function diaryPath(root: MemoryRoot): string {
   return join(root, "dream-diary.md");
 }
 
+/**
+ * One diary entry as the markdown that gets appended: a timestamp heading, the short entry hash,
+ * and the counts the sweep produced. The hash is what makes a re-run recognisable as the same
+ * sweep rather than a new one.
+ */
 export function renderDiaryEntry(entry: DiaryEntry): string {
   const stamp = new Date(entry.timestampMs).toISOString();
   const hash = entryHash(entry).slice(0, 8);
@@ -47,6 +52,12 @@ export function renderDiaryEntry(entry: DiaryEntry): string {
   ].join("\n");
 }
 
+/**
+ * Append one sweep's entry to `<memory root>/dream-diary.md`, creating the file with its header
+ * when this is the first sweep. The diary is a human-readable record of what dreaming changed —
+ * consolidations are otherwise invisible, because they alter the notes rather than announce
+ * themselves.
+ */
 export async function appendDiaryEntry(root: MemoryRoot, entry: DiaryEntry): Promise<void> {
   const path = diaryPath(root);
   let raw = "";
@@ -59,6 +70,10 @@ export async function appendDiaryEntry(root: MemoryRoot, entry: DiaryEntry): Pro
   await replaceFileAtomic(path, next);
 }
 
+/**
+ * A stable hash of one entry's counts, so two sweeps that did the same work read as the same work.
+ * Rendered truncated in the entry; the full value is what callers compare.
+ */
 export function entryHash(entry: DiaryEntry): string {
   return createHash("sha256")
     .update(

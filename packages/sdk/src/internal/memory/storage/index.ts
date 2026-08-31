@@ -16,7 +16,14 @@
  * `package.json` `exports`, so the names below must survive into the published declarations.
  */
 
-export { diaryPath } from "../dreaming/diary.js";
+// The whole diary module, not just its path: 39 lines across three functions, zero diverging.
+export {
+  appendDiaryEntry,
+  type DiaryEntry,
+  diaryPath,
+  entryHash,
+  renderDiaryEntry,
+} from "../dreaming/diary.js";
 // Path helpers the satellite also needs. Each was a copy on both sides, and each is a pure function
 // over the memory root — the cheapest possible thing to share and the least excusable to duplicate.
 export { defaultIndexPath } from "../index-db.js";
