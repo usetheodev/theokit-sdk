@@ -339,6 +339,22 @@ jobs:
           # in the log and in the run summary, next to the versions it produced.
           echo "ref=${GITHUB_REF} sha=${GITHUB_SHA}"
 
+          # A SHA recorded next to a dirty tree promises a reproducibility it does not have:
+          # it describes the commit, and what got published was the commit plus whatever else
+          # sat in the working tree. Checked BEFORE the version bump, because
+          # `changeset version --snapshot` rewrites every package.json and would make this
+          # report dirty by its own doing from there on.
+          #
+          # A GitHub checkout is clean by construction, so in the normal case this costs a
+          # subshell and says nothing. It fires when some future step starts patching the tree
+          # ahead of the publish — the case where the recorded SHA quietly stops being true.
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then
+            echo "::error::working tree is not clean, so ${GITHUB_SHA} would not describe what gets published:"
+            printf '%s\n' "$dirty"
+            exit 1
+          fi
+
           pnpm changeset version --snapshot "$SNAPSHOT_TAG"
 
           {
@@ -348,6 +364,7 @@ jobs:
             echo "|---|---|"
             echo "| ref | \`${GITHUB_REF}\` |"
             echo "| commit | \`${GITHUB_SHA}\` |"
+            echo "| tree at that commit | clean, verified before the version bump |"
             echo "| changesets consumed | ${pending} |"
             echo
             echo "| package | version |"
