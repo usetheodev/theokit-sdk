@@ -1,0 +1,94 @@
+name: Preview releases
+
+# Every fix in this repository used to be unverifiable by a consumer until the next
+# release cut. theokit-examples installs every example from npm at a pinned version,
+# deliberately — an example that resolves through a workspace tests the repository it
+# lives in, not the experience of the person who typed `npm install`. So "does this fix
+# work for a consumer?" could not be answered before publishing.
+#
+# There are now two answers, and they are for different questions:
+#
+#   THIS workflow      — a preview per commit, on pkg.pr.new's own registry, never npm.
+#                        Costs nothing, burns no version, exists for iteration.
+#   release.yml's      — a snapshot on the real registry under a non-`latest` dist-tag.
+#   snapshot path        Burns an immutable npm version. For the artifact npm actually
+#                        serves, when that is the question.
+#
+# Reach for this one first. Reach for the snapshot when the answer has to come from
+# registry.npmjs.org specifically.
+#
+# Requires the `pkg-pr-new` GitHub App on the organisation — it is what posts the pull
+# request comment. Without it the publish still runs and the comment never appears, which
+# looks like the tool being broken rather than uninstalled. Installed on usetheokit
+# 2026-08-31.
+
+on:
+  pull_request:
+  push:
+    # Work is born on `workspace` and only meets a pull request at promotion time, so a
+    # fix would otherwise sit here with no preview during the window it is most worth
+    # iterating on. A push with no pull request gets a `@workspace` tag rather than a
+    # comment, which is exactly the addressable thing wanted.
+    branches: [workspace]
+
+# pkg.pr.new authenticates as its own GitHub App and comments as itself. It needs nothing
+# from GITHUB_TOKEN, so this job holds nothing.
+permissions: {}
+
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Publish a preview of every publishable package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        # No `version:` — the action reads `packageManager` from package.json, which is
+        # already the single authority on the pnpm version.
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+          # Keyed on package.json as well as the lockfile, so a pnpm major bump cannot
+          # restore a store the new pnpm reads as inconsistent. Same reason as release.yml.
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            package.json
+          # NO `registry-url`: it writes an npmrc declaring a credential that does not
+          # exist here. Nothing in this job talks to registry.npmjs.org.
+
+      - run: pnpm install --frozen-lockfile
+
+      # A preview must be installable, so the build has to have run. The full quality gate
+      # deliberately does NOT run here: CI grades this same commit in parallel, and a
+      # preview that took six minutes would stop being reached for. Nothing published here
+      # can reach anyone who did not paste its URL.
+      - run: pnpm run build
+
+      - name: Publish a preview per publishable package
+        run: |
+          set -euo pipefail
+
+          # The list is DERIVED, by a tool that reuses the same `publishablePackages()` the
+          # workspace-protocol guard uses. Globbing `./packages/*` would hand pkg-pr-new the
+          # three private packages too, and that behaviour is undocumented.
+          #
+          # It lives in tools/ rather than inline: JavaScript inside shell inside YAML is
+          # the quoting hazard that produced a real command-substitution bug in release.yml
+          # the same day this was written.
+          mapfile -t dirs < <(node tools/list-publishable-packages.mjs)
+
+          echo "previewing ${#dirs[@]} package(s):"
+          printf '  %s\n' "${dirs[@]}"
+
+          # `pnpm exec`, never `npx`: the tool's own CI guidance is to resolve it from the
+          # lockfile, so a preview cannot silently change tool version between commits.
+          pnpm exec pkg-pr-new publish "${dirs[@]}"

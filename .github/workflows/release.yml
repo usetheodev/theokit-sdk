@@ -24,6 +24,12 @@ name: Release
 # that disagrees with the code it summarizes is worse than no header, and this
 # file has proved that twice.
 #
+# This file also carries the SNAPSHOT path, reachable only from a manual dispatch
+# that supplies a dist-tag. It lives HERE rather than in a workflow of its own because
+# each of the twelve Trusted Publisher connections on npmjs.com names this repository
+# AND this file: a second workflow would need twelve new connections, created by hand
+# through the npm UI. The snapshot step below states what it costs.
+#
 # RELATED, as of the pipeline standardisation: usetheokit/theokit#169 was that
 # repository's release.yml failing with EUNKNOWNCONFIG (--git-checks) from an
 # `npm install -g npm@latest` step. This workflow now installs npm too — pinned to
@@ -34,6 +40,13 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      snapshot:
+        description: >-
+          Publish a SNAPSHOT under this dist-tag instead of cutting a release
+          (for example "pr-479"). Leave empty for the ordinary release path.
+        required: false
+        default: ''
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -203,6 +216,9 @@ jobs:
 
       - name: Create Release Pull Request or Publish
         id: changesets
+        # A dispatch carrying a snapshot tag takes the step below instead. A push to
+        # `main` never supplies one, so the ordinary path is unchanged by construction.
+        if: github.event_name == 'push' || inputs.snapshot == ''
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           # `pnpm release` rather than `changeset publish` directly, so the workspace-protocol
@@ -252,6 +268,123 @@ jobs:
           # repositories: `publishConfig.provenance: true` now sits in all twelve
           # manifests, so provenance is declared beside the package it describes.
 
+      # ── The snapshot path ──────────────────────────────────────────────────
+      #
+      # A fix in this repository becomes verifiable by a consumer only once it is ON THE
+      # REGISTRY. theokit-examples installs every example from npm at a pinned version, on
+      # purpose: an example that resolves through a workspace tests the repository it lives
+      # in, not the experience of the person who typed `npm install`. That promise is what
+      # makes every fix wait for the next release cut.
+      #
+      # A snapshot keeps the promise and drops the wait. `changeset version --snapshot`
+      # derives a prerelease version from the pending changesets, and `changeset publish
+      # --tag` puts it on a dist-tag that is NOT `latest`. It IS the registry, resolved like
+      # any other install — nobody reaches it by asking for `latest`.
+      #
+      # WHAT IT COSTS, stated rather than discovered: an npm version is immutable and cannot
+      # be unpublished after 72 hours. Every snapshot burns one, permanently. That is the
+      # price of being the registry instead of a rehearsal of it.
+      #
+      # It leaves NO trace in this repository. `commit: false` in .changeset/config.json keeps
+      # the version bump in the working tree, `--no-git-tag` keeps it out of the ref namespace,
+      # and nothing in this step pushes.
+      #
+      # The quality gate above runs on this path too. A snapshot is a real publish under a
+      # real package name, so "nothing publishes untested" is not a claim the tag suspends.
+      - name: Publish a snapshot (never on `latest`)
+        if: github.event_name == 'workflow_dispatch' && inputs.snapshot != ''
+        env:
+          # Through the environment, never interpolated into the script body. A `${{ }}` inside
+          # a `run:` is a script-injection sink — zizmor's template-injection rule — and this
+          # value is supplied by whoever dispatches the workflow.
+          SNAPSHOT_TAG: ${{ inputs.snapshot }}
+        run: |
+          set -euo pipefail
+
+          # Two refusals, before the build rather than after it. npm rejects a dist-tag that
+          # parses as a semver version, and `latest` is the single tag this whole path exists
+          # to stay off — reaching it by typo would publish a snapshot to every consumer on a
+          # caret range.
+          if [ "$SNAPSHOT_TAG" = "latest" ]; then
+            echo "::error::refusing to publish a snapshot on 'latest' — that is the tag this path exists to avoid"
+            exit 1
+          fi
+          if ! printf '%s' "$SNAPSHOT_TAG" | grep -qE '^[A-Za-z][A-Za-z0-9._-]*$'; then
+            echo "::error::dist-tag '$SNAPSHOT_TAG' is unusable: start with a letter, then letters, digits, dot, dash or underscore only"
+            exit 1
+          fi
+
+          # A snapshot version is DERIVED FROM the pending changesets. With none pending,
+          # `changeset version --snapshot` rewrites nothing, and the publish that followed would
+          # re-publish the versions already on the registry under a new tag — which is not what
+          # anyone dispatching this asked for. Absence of changesets is a reason to stop, not a
+          # reason to guess.
+          pending=$(find .changeset -maxdepth 1 -name '*.md' ! -name 'README.md' | wc -l)
+          if [ "$pending" -eq 0 ]; then
+            echo "::error::no pending changesets — a snapshot version is derived from them, so there is nothing to publish"
+            exit 1
+          fi
+          echo "publishing a snapshot from $pending pending changeset(s) under dist-tag '$SNAPSHOT_TAG'"
+
+          # THE REF IS PART OF THE MEASUREMENT, so it gets recorded rather than assumed.
+          # A dispatch runs against whatever ref was selected, and a snapshot version is
+          # derived from the pending changesets ON THAT TREE. Dispatched from a branch that
+          # sits behind the published state, it faithfully packages that older tree — and
+          # whoever installs the tag has no way to tell, because the version string says
+          # nothing about where it came from.
+          #
+          # The ref is NOT restricted to `main`: snapshotting a fix before it reaches `main`
+          # is the entire reason this path exists, and forcing `main` would leave it able to
+          # publish only what no longer needs publishing. So the ref is made visible instead,
+          # in the log and in the run summary, next to the versions it produced.
+          echo "ref=${GITHUB_REF} sha=${GITHUB_SHA}"
+
+          # A SHA recorded next to a dirty tree promises a reproducibility it does not have:
+          # it describes the commit, and what got published was the commit plus whatever else
+          # sat in the working tree. Checked BEFORE the version bump, because
+          # `changeset version --snapshot` rewrites every package.json and would make this
+          # report dirty by its own doing from there on.
+          #
+          # A GitHub checkout is clean by construction, so in the normal case this costs a
+          # subshell and says nothing. It fires when some future step starts patching the tree
+          # ahead of the publish — the case where the recorded SHA quietly stops being true.
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then
+            echo "::error::working tree is not clean, so ${GITHUB_SHA} would not describe what gets published:"
+            printf '%s\n' "$dirty"
+            exit 1
+          fi
+
+          pnpm changeset version --snapshot "$SNAPSHOT_TAG"
+
+          {
+            echo "### Snapshot published under \`${SNAPSHOT_TAG}\`"
+            echo
+            echo "| what | value |"
+            echo "|---|---|"
+            echo "| ref | \`${GITHUB_REF}\` |"
+            echo "| commit | \`${GITHUB_SHA}\` |"
+            echo "| tree at that commit | clean, verified before the version bump |"
+            echo "| changesets consumed | ${pending} |"
+            echo
+            echo "| package | version |"
+            echo "|---|---|"
+            # Single-quoted program, path through argv: backticks inside a double-quoted
+            # shell string are command substitution, not markdown.
+            for m in packages/*/package.json; do
+              node -e 'const j = require(process.argv[1]); if (!j.private) console.log("| " + j.name + " | " + j.version + " |");' "$PWD/$m"
+            done
+            echo
+            echo "Install with \`npm i <package>@${SNAPSHOT_TAG}\`, or pin the exact version above."
+            echo "This is **not** on \`latest\` and is never garbage-collected — an npm version is immutable."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # `release:snapshot` and `release` share their guard chain through
+          # `prepublish:guards` in package.json. They are deliberately not two copies: a guard
+          # added to one path and not the other is the failure this repository has paid for
+          # more than once.
+          pnpm run release:snapshot
+
       # B-114 — an exit code is not evidence a ref transferred. git contacts the remote BEFORE
       # `pre-push` runs, the hook can take minutes, and the idle connection is dropped before the
       # transfer: git then dies of SIGPIPE (141) silently, with output ending in a green gate line.
@@ -276,7 +409,10 @@ jobs:
       # script's failure message for the three options). It makes the stuck state say so, here,
       # where a maintainer is already looking, instead of only in `npm view @theokit/sdk version`.
       - name: verify the version pull request can actually be merged
-        if: steps.changesets.outputs.published != 'true'
+        # A snapshot run opens no version pull request, so `published` is empty there and
+        # the bare `!= 'true'` would send this looking for a pull request that was never
+        # meant to exist. The snapshot clause is what keeps it asking about the release path.
+        if: (github.event_name == 'push' || inputs.snapshot == '') && steps.changesets.outputs.published != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
