@@ -14,6 +14,7 @@
 import type { AgentOptions, MemorySettings, SDKAgent } from "../../types/agent.js";
 import type { GoalEvent, GoalOptions, GoalResult } from "../../types/goal-events.js";
 import type { RunToCompletionOptions, RunToCompletionResult } from "../../types/run.js";
+import { diagFailure } from "../diagnostics.js";
 import type { JudgeContext, JudgeOptions } from "../judge/judge-call.js";
 import type { ForkOptions, ForkResult } from "../runtime/lifecycle/fork-agent.js";
 import type { RunUntilDeps } from "../runtime/lifecycle/run-until.js";
@@ -22,8 +23,8 @@ import {
   extractMemoryFact,
   extractMemoryKind,
   isMemoryWritePrompt,
+  unstoredRememberWarning,
 } from "../runtime/memory/memory-store.js";
-import { safeCall } from "../runtime/system-prompt/safe-call.js";
 
 /**
  * Drive {@link runUntilImpl} with the registered `Agent.create` so
@@ -127,6 +128,13 @@ export async function localAgentFork(
  * via `appendMemoryFact`. No-op when memory is disabled, the prompt is
  * not a write directive, or the extracted fact is empty (EC-3/EC-4).
  *
+ * The two no-op paths REPORT (#462). They used to return in silence, so a phrase one token from the
+ * supported one — `Remember, please:` — answered normally, stored nothing, and told nobody; the
+ * caller could only find out by listing the store afterwards. `diagFailure`, not `diag`: the user
+ * asked for something durable and did not get it, and `diag` is dropped entirely with no sink
+ * installed. That is the `#189` distinction — a silently dropped failure is neither visible nor
+ * recoverable, while a diagnostic in a busy terminal is both.
+ *
  * Moved here from `LocalAgent` to keep the class file under G8.
  *
  * @internal
@@ -137,17 +145,26 @@ export async function persistMemoryFactIfWritePrompt(
   userText: string,
 ): Promise<void> {
   if (memoryConfig?.enabled !== true) return;
+  const unstored = unstoredRememberWarning(userText);
+  if (unstored !== undefined) {
+    diagFailure(unstored);
+    return;
+  }
   if (!isMemoryWritePrompt(userText)) return;
   const fact = extractMemoryFact(userText);
   if (fact.length === 0) return;
   const kind = extractMemoryKind(userText);
-  await safeCall(
-    () =>
-      appendMemoryFact(workspaceCwd, memoryConfig, {
-        text: fact,
-        ...(kind === undefined ? {} : { kind }),
-      }),
-    undefined,
-    "memory write",
-  );
+  try {
+    await appendMemoryFact(workspaceCwd, memoryConfig, {
+      text: fact,
+      ...(kind === undefined ? {} : { kind }),
+    });
+  } catch (cause) {
+    // NOT `safeCall`: it reports on `diag`, which is dropped entirely when the host installed no
+    // sink — so a permission error on the memory directory looked exactly like a successful
+    // capture. The swallow itself stays: one unwritable memory must not abort the turn. What
+    // changes is that the swallow now says so on the channel a failure cannot be dropped from.
+    const message = cause instanceof Error ? cause.message : String(cause);
+    diagFailure(`[theokit-sdk] memory write failed, nothing was stored: ${message}`);
+  }
 }

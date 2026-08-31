@@ -50,9 +50,21 @@ const MEASURED_FLOORS: Record<string, { floor: string; because: string }> = {
   // `@theokit/sdk/internal/memory-store`, and that sub-path first ships in 4.60.0. A floor is a
   // promise about what a consumer can install; importing a path an admitted version does not export
   // is the `#399` failure exactly — a load-time crash, not a type error.
+  // Raised a fourth time, and this one is about the CONTENTS of the sub-path rather than its
+  // existence. #463 replaced this package's remaining copies with imports, and the names it now
+  // pulls through `internal/memory-store` — `resolveMemoryRoot`, `sessionsDir`,
+  // `writeSessionSummary`, `discoverSessionFiles`, `discoverWikiFiles`,
+  // `persistActiveMemoryTranscript`, `collectMarkdownFiles`, `defaultIndexPath`,
+  // `lanceStoragePath`, `readAllSqliteFacts`, the diary module — first ship in 4.63.0. Against
+  // 4.60.0 the sub-path resolves and the members are absent, which is the same `#399` shape one
+  // level in: the import succeeds and the symbol is undefined.
+  //
+  // It could not be raised in the release that created 4.63.0. A floor names a version a consumer
+  // can install, and that version did not exist yet; `dep-check`'s floor leg failed for one
+  // release, correctly and out loud, saying so.
   "sdk-memory": {
-    floor: "4.60.0",
-    because: "imports internal/memory-store, added in 4.60.0 (#430)",
+    floor: "4.63.0",
+    because: "imports members of internal/memory-store added in 4.63.0 (#463)",
   },
   // Same reason, and these two PASSED the CI leg — which is what makes them worth recording. That
   // leg builds each package against its floor, and neither of these typechecks the SDK's
