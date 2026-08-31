@@ -56,6 +56,62 @@ export function extractMemoryFact(message: string): string {
 }
 
 /**
+ * Matches a message that OPENS with the capture verb, past an optional politeness prefix.
+ *
+ * The prefix is admitted because `Please remember: …` is one of the reported near-misses and reads
+ * as correct to the person typing it. It is a CLOSED list rather than "any words before the verb":
+ * "I will remember to check that later" is an ordinary sentence, and a warning that fired on it
+ * would be a warning somebody turns off.
+ */
+const LOOKS_LIKE_A_CAPTURE = /^\s*(?:please\s+|can\s+you\s+|could\s+you\s+)?remember\b/i;
+
+/** Enough of the turn to recognise it in a log line, without pasting the whole message into one. */
+const QUOTED_MESSAGE_MAX = 120;
+
+/**
+ * What to say about a `Remember` phrase that stored nothing, or `undefined` when there is nothing
+ * true to say (#462).
+ *
+ * The gate itself is right: a heuristic over user text must not capture aggressively, and widening
+ * it until every phrasing lands would make an ordinary sentence about remembering into a durable
+ * fact. What was missing is the SIGNAL. `persistMemoryFactIfWritePrompt` had three early returns
+ * and a diagnostic on none of them, so a phrase one token from the supported one — `Remember,
+ * please:`, `Remember that:` — answered normally and stored nothing, and the caller could only find
+ * out by listing the store.
+ *
+ * The transcript indexer is what made it expensive. The sentence still lands in `sessions/run-*.md`
+ * and is indexed, so a follow-up question comes back with the right answer and the developer
+ * concludes memory is on. What they have is full-text search over transcripts: no `MEMORY.md`,
+ * nothing to commit, nothing a human can edit, nothing that survives transcript pruning.
+ *
+ * **The supported forms are interpolated from {@link MEMORY_KINDS}, never spelled out.** The
+ * reported defect IS the accepted vocabulary changing between 4.56.0 and 4.57.0 with nothing
+ * announcing it; a hand-written list here would be a second place for that vocabulary to live and
+ * could go stale exactly the same way, one layer up from the bug it explains.
+ *
+ * Returns a string rather than emitting one, in the shape {@link indexBudgetWarning} established:
+ * the caller decides where it goes, and a pure function is testable without a captured stderr.
+ *
+ * @internal
+ */
+export function unstoredRememberWarning(message: string): string | undefined {
+  if (!LOOKS_LIKE_A_CAPTURE.test(message)) return undefined;
+  // A supported phrase that yields a fact is the success path and says nothing. The two failures
+  // reach here for different reasons — an unrecognised form, or a recognised one with nothing after
+  // the colon — and the reader needs the same three things in both cases.
+  if (isMemoryWritePrompt(message) && extractMemoryFact(message).length > 0) return undefined;
+  const trimmed = message.trim();
+  const quoted =
+    trimmed.length > QUOTED_MESSAGE_MAX ? `${trimmed.slice(0, QUOTED_MESSAGE_MAX)}…` : trimmed;
+  return (
+    `[theokit-sdk] NOTHING WAS STORED — this message does not match the memory capture pattern: ` +
+    `${JSON.stringify(quoted)}. Supported: "Remember: <fact>" or ` +
+    `"Remember (${MEMORY_KINDS.join("|")}): <fact>". It still reaches the session transcript, so a ` +
+    `follow-up may answer from it — that is search over transcripts, not a durable memory.`
+  );
+}
+
+/**
  * The kind a `Remember:` prompt declared, if it declared one (#401).
  *
  * `Remember (feedback): prefer tabs` types the fact; a bare `Remember:` leaves it untyped, which is
