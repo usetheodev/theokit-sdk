@@ -91,8 +91,8 @@ importers:
   packages/acp:
     devDependencies:
       '@agentclientprotocol/sdk':
-        specifier: ~0.22.1
-        version: 0.22.1(zod@4.5.2)
+        specifier: ~1.4.0
+        version: 1.4.0(zod@4.5.2)
       '@theokit/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -406,8 +406,8 @@ importers:
 
 packages:
 
-  '@agentclientprotocol/sdk@0.22.1':
-    resolution: {integrity: sha512-DfqXtl/8gO9NImq094MTaCXEU2vkhh6v7q/kT+9UjZxUqj8hYaya2OjLVIqn16MzNHcXEpShTR2RIauLSYeDQQ==}
+  '@agentclientprotocol/sdk@1.4.0':
+    resolution: {integrity: sha512-/eufudw+aFY1LKLolT6yFE6UMmYRl7fMJ/DEONSIyR6wI3slHWITBsANRGqXEY8FRzqUxwh7QEaGiZHcJPVThg==}
     peerDependencies:
       zod: ^4.0.0
 
@@ -5640,7 +5640,7 @@ packages:
 
 snapshots:
 
-  '@agentclientprotocol/sdk@0.22.1(zod@4.5.2)':
+  '@agentclientprotocol/sdk@1.4.0(zod@4.5.2)':
     dependencies:
       zod: 4.5.2
 
@@ -6976,7 +6976,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -7822,10 +7822,11 @@ snapshots:
   '@types/node@26.4.0':
     dependencies:
       undici-types: 8.3.0
+    optional: true
 
   '@types/pg@8.11.0':
     dependencies:
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       pg-protocol: 1.16.0
       pg-types: 4.1.0
 
@@ -9324,7 +9325,7 @@ snapshots:
   jest-util@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11
@@ -10276,7 +10277,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.2
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       long: 5.3.2
     optional: true
 
@@ -11022,7 +11023,8 @@ snapshots:
 
   undici-types@7.16.0: {}
 
-  undici-types@8.3.0: {}
+  undici-types@8.3.0:
+    optional: true
 
   unicode-emoji-modifier-base@1.0.0: {}
 
