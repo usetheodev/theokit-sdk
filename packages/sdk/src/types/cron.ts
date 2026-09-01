@@ -1,3 +1,8 @@
+/**
+ * Owner: `internal/cron/` (4 of 5 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
+ */
 import type { Workflow } from "../workflow.js";
 import type { AgentOptions } from "./agent.js";
 import type { SDKUserMessage } from "./run.js";

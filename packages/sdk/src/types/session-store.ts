@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/session/` (4 of 8 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * SE41 — the pluggable `SessionStore` seam over the NATIVE session transcript.
  *
  * A minimal, two-method port so an external store (Postgres / Redis / KV /

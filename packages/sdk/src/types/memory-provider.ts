@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/memory/storage/` (1 of 2 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * `MemoryProvider` — kernel-facing port for the memory subsystem
  * (SDK 2.0 Phase 1 / T1.1 — Hexagonal Architecture / Ports & Adapters,
  * SOLID Dependency Inversion).

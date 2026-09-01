@@ -1,3 +1,8 @@
+/**
+ * Owner: `internal/agent-loop/` (4 of 8 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
+ */
 import type { ToolCall } from "./updates.js";
 
 // T4.1 / D438 — `UserMessage` moved to `./messages-base.ts` (leaf file) so

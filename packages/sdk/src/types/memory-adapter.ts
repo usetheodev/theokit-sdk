@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/local-agent/` (2 of 4 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Public `MemoryAdapter` contract (T1.1, ADRs D141 / D147).
  *
  * The plugin extension point `{ kind: "memory" }` (ADR D98) declares a

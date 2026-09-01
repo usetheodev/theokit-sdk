@@ -1,4 +1,7 @@
 /**
+ * Owner: `src/` (2 of 7 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Leaf module for content-block types shared by `messages.ts` (assistant/user
  * content) and `agent-prims.ts` (`CustomTool` handler results). Kept
  * import-free so both can depend on it WITHOUT the `agent-prims ↔ messages`

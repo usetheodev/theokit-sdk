@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/plugins/` (3 of 3 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Plugin contract types (T1.1, ADRs D97-D101).
  *
  * Discriminated union by `kind`:

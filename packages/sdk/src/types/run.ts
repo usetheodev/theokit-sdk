@@ -1,3 +1,8 @@
+/**
+ * Owner: `internal/local-agent/` (8 of 34 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
+ */
 // T4.1 / D438 — import primitives from leaf to break the run<->agent cycle (#5).
 import type { CustomTool, ModelSelection, PermissionMode } from "./agent-prims.js";
 import type { ConversationStep, ConversationTurn } from "./conversation.js";

@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/agent-loop/` (3 of 11 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * SE2 — typed runtime EVENT stream, ADDITIVE to the `SDKMessage` content stream.
  *
  * `Run.stream()` yields `SDKMessage`s (the conversation content). `RunEvent`s are

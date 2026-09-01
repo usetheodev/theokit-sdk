@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/task/` (4 of 5 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Public type contract for the Task observability registry (ADRs D361-D374).
  *
  * Tasks are an opt-in observability layer over async work in the SDK

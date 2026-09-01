@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/workflow/` (15 of 19 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Public type contract for `Workflow.create / .run / .resume` (Adoption
  * Roadmap #5; ADRs D230-D248).
  *

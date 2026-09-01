@@ -1,3 +1,8 @@
+/**
+ * Owner: `src/` (13 of 65 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
+ */
 import type { BudgetTracker } from "./budget-tracker.js";
 import type { ContextSettings } from "./context.js";
 import type { McpServerConfig } from "./mcp.js";

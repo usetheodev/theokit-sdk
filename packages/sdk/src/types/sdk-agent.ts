@@ -1,3 +1,8 @@
+/**
+ * Owner: `internal/local-agent/` (1 of 2 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
+ */
 import type { ModelSelection } from "./agent-prims.js";
 import type { SDKContextManager } from "./context.js";
 import type { SDKProvidersManager } from "./providers.js";

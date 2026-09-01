@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/runtime/processors/` (3 of 4 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * SE24 — guardrail processor pipeline. A `Processor` inspects/transforms/blocks
  * the user message (input) or the model's final text (output). Processors run in
  * order; each may rewrite its payload, `abort(reason)` to stop the run (surfaced

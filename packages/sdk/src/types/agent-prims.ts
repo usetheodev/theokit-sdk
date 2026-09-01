@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/agent-loop/` (3 of 11 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Type-leaf — primitives shared between `agent.ts`, `run.ts`, and
  * `messages.ts`. Extracted to break LOW type-only cycles #5 and #7
  * (audit `architecture-output/final_report.md`) per plan

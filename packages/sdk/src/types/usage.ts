@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/budget/` (3 of 8 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Public type contract for token usage + cost tracking (ADRs D376-D379).
  *
  * Surfaces via `RunResult.usage` + `RunResult.cost` after every Run.

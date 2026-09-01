@@ -1,4 +1,7 @@
 /**
+ * Owner: `src/` (1 of 2 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * The shape of a persisted session turn, as a HOST reads it.
  *
  * Lives in `types/` because it is public contract — `Agent.transcript()` returns it (theokit#146).

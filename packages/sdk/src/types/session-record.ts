@@ -1,4 +1,7 @@
 /**
+ * Owner: `src/` (1 of 2 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * `SessionRecord` — the native on-disk transcript record shape (SE40).
  *
  * The theokit session format IS the Claude Code record shape: a
