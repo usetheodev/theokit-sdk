@@ -22,9 +22,22 @@ export interface SanitizeOptions {
    * descended into).
    */
   schema?: ZodType;
-  /** Recurse into nested objects/arrays. Default `false` (shallow). */
+  /**
+   * Recurse into nested plain objects. Default `false` (shallow).
+   *
+   * ARRAYS ARE NOT GATED BY THIS. Their string elements are sanitized by whichever rungs are on —
+   * `trim` is on by default — because a value does not stop being a string by sitting in a list, and
+   * a caller who saw `{ tag: "  a  " }` trimmed has no reason to expect `{ tags: ["  a  "] }` left
+   * alone. What `deep` gates is descending into OBJECTS, wherever they are: at the top level, nested,
+   * or inside an array.
+   */
   deep?: boolean;
-  /** Max recursion depth when `deep` is set. Default `8`. */
+  /**
+   * Max recursion depth. Default `8`.
+   *
+   * Counts every hop, array or object, so a deeply nested structure cannot recurse without bound even
+   * when `deep` is off — array descent is not gated by `deep`, and this is what bounds it.
+   */
   maxDepth?: number;
 }
 
