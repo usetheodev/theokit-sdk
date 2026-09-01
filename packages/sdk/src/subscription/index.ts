@@ -1,4 +1,6 @@
 /**
+ * Published as `@theokit/sdk/subscription`.
+ *
  * Subscription public barrel (G8 v1.7.0) — `@theokit/sdk`.
  *
  * Per ADRs D422-D429 (Form 4 Hybrid + DSL + transport + resume).

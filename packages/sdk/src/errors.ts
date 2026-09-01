@@ -1,3 +1,6 @@
+/**
+ * Published as `@theokit/sdk/errors`.
+ */
 import { readEnv } from "./internal/env.js";
 import { defaultRetriableForCode } from "./internal/error-mappers/default-retriable.js";
 import { redactSecrets } from "./internal/security/redact.js";

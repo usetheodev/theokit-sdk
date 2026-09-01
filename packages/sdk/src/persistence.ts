@@ -1,4 +1,6 @@
 /**
+ * Published as `@theokit/sdk/persistence`.
+ *
  * Public persistence primitives (V2-3 — Theo Harness Capability Map, Theme G).
  *
  * Promotes the consumer-grade persistence helpers from `internal/persistence`

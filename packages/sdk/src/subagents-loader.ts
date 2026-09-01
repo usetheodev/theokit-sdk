@@ -1,4 +1,6 @@
 /**
+ * Published as `@theokit/sdk/subagents-loader`.
+ *
  * M81 — `.theokit/agents` discovery, exposed so a consumer can read the on-disk subagent
  * definitions with one import instead of hand-rolling a second parser.
  *

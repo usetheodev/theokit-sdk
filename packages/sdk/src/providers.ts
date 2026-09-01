@@ -1,4 +1,6 @@
 /**
+ * Published as `@theokit/sdk/providers`.
+ *
  * The provider registry, as public API.
  *
  * It was `@internal`, which meant the SDK was the only thing that could answer "which providers
