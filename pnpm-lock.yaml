@@ -173,7 +173,7 @@ importers:
         version: link:../sdk
       mem0ai:
         specifier: ^3.0.3
-        version: 3.1.7(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.5.2)))(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.2)(zod@4.5.2))(ws@8.21.2))(@mistralai/mistralai@1.15.1)(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(mongodb@7.5.0(@aws-sdk/credential-providers@3.1053.0)(socks@2.8.9))(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(@opentelemetry/api@1.9.1)(socks@2.8.9))(ollama@0.5.18)(pg@8.11.3)(ws@8.21.2)
+        version: 3.1.7(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.5.2)))(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.3)(zod@4.5.2))(ws@8.21.3))(@mistralai/mistralai@1.15.1)(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(mongodb@7.5.0(@aws-sdk/credential-providers@3.1053.0)(socks@2.8.9))(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(@opentelemetry/api@1.9.1)(socks@2.8.9))(ollama@0.5.18)(pg@8.11.3)(ws@8.21.3)
       tsup:
         specifier: ^8.5.0
         version: 8.5.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.25)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
@@ -249,7 +249,7 @@ importers:
         version: 0.28.19(typescript@5.9.3)
       ws:
         specifier: ^8.18.0
-        version: 8.21.0
+        version: 8.21.3
 
   packages/sdk-budget:
     devDependencies:
@@ -5475,20 +5475,8 @@ packages:
     resolution: {integrity: sha512-+QU2zd6OTD8XWIJCbffaiQeH9U73qIqafo1x6V1snCWYGJf6cVE0cDR4D8xRzcEnfI21IFrUPzPGtcPf8AC+Rw==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
 
-  ws@8.21.0:
-    resolution: {integrity: sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==}
-    engines: {node: '>=10.0.0'}
-    peerDependencies:
-      bufferutil: ^4.0.1
-      utf-8-validate: '>=5.0.2'
-    peerDependenciesMeta:
-      bufferutil:
-        optional: true
-      utf-8-validate:
-        optional: true
-
-  ws@8.21.2:
-    resolution: {integrity: sha512-54dMVAo4WIe6SKy3vBgN+9bJZqqQ8IMRevAkOLQALhi49qkkQDQfWdAZ8KQlXiEabw88ARXXdUrlvtbKQX+aKw==}
+  ws@8.21.3:
+    resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -6694,7 +6682,7 @@ snapshots:
       google-auth-library: 10.9.1
       p-retry: 4.6.2
       protobufjs: 7.6.6
-      ws: 8.21.2
+      ws: 8.21.3
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.5.2)
     transitivePeerDependencies:
@@ -6943,12 +6931,12 @@ snapshots:
       '@lancedb/lancedb-win32-arm64-msvc': 0.30.0
       '@lancedb/lancedb-win32-x64-msvc': 0.30.0
 
-  '@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.2)(zod@4.5.2))(ws@8.21.2)':
+  '@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.3)(zod@4.5.2))(ws@8.21.3)':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       '@standard-schema/spec': 1.1.0
       js-tiktoken: 1.0.21
-      langsmith: 0.9.0(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.2)(zod@4.5.2))(ws@8.21.2)
+      langsmith: 0.9.0(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.3)(zod@4.5.2))(ws@8.21.3)
       mustache: 4.2.0
       p-queue: 6.6.2
       zod: 4.5.2
@@ -6983,7 +6971,7 @@ snapshots:
 
   '@mistralai/mistralai@1.15.1':
     dependencies:
-      ws: 8.21.2
+      ws: 8.21.3
       zod: 4.5.2
       zod-to-json-schema: 3.25.2(zod@4.5.2)
     transitivePeerDependencies:
@@ -9287,14 +9275,14 @@ snapshots:
       - '@emnapi/core'
       - '@emnapi/runtime'
 
-  langsmith@0.9.0(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.2)(zod@4.5.2))(ws@8.21.2):
+  langsmith@0.9.0(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.3)(zod@4.5.2))(ws@8.21.3):
     dependencies:
       p-queue: 6.6.2
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/sdk-trace-base': 2.10.0(@opentelemetry/api@1.9.1)
-      openai: 4.104.0(ws@8.21.2)(zod@4.5.2)
-      ws: 8.21.2
+      openai: 4.104.0(ws@8.21.3)(zod@4.5.2)
+      ws: 8.21.3
     optional: true
 
   launch-editor@2.14.1:
@@ -9436,7 +9424,7 @@ snapshots:
   media-typer@1.1.1:
     optional: true
 
-  mem0ai@3.1.7(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.5.2)))(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.2)(zod@4.5.2))(ws@8.21.2))(@mistralai/mistralai@1.15.1)(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(mongodb@7.5.0(@aws-sdk/credential-providers@3.1053.0)(socks@2.8.9))(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(@opentelemetry/api@1.9.1)(socks@2.8.9))(ollama@0.5.18)(pg@8.11.3)(ws@8.21.2):
+  mem0ai@3.1.7(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.5.2)))(@langchain/core@1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.3)(zod@4.5.2))(ws@8.21.3))(@mistralai/mistralai@1.15.1)(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(mongodb@7.5.0(@aws-sdk/credential-providers@3.1053.0)(socks@2.8.9))(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(@opentelemetry/api@1.9.1)(socks@2.8.9))(ollama@0.5.18)(pg@8.11.3)(ws@8.21.3):
     dependencies:
       '@cloudflare/workers-types': 4.20260520.1
       '@types/jest': 29.5.14
@@ -9445,7 +9433,7 @@ snapshots:
       better-sqlite3: 12.10.0
       compromise: 14.15.0
       natural: 8.1.1(@aws-sdk/credential-providers@3.1053.0)(@opentelemetry/api@1.9.1)(socks@2.8.9)
-      openai: 4.104.0(ws@8.21.2)(zod@4.5.2)
+      openai: 4.104.0(ws@8.21.3)(zod@4.5.2)
       pg: 8.11.3
       uuid: 11.1.1
       zod: 4.5.2
@@ -9454,7 +9442,7 @@ snapshots:
       '@azure/identity': 4.13.1
       '@azure/search-documents': 12.2.0
       '@google/genai': 1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.5.2))
-      '@langchain/core': 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.2)(zod@4.5.2))(ws@8.21.2)
+      '@langchain/core': 1.2.3(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.3)(zod@4.5.2))(ws@8.21.3)
       '@mistralai/mistralai': 1.15.1
       '@supabase/supabase-js': 2.106.1
       cloudflare: 4.5.0
@@ -9723,7 +9711,7 @@ snapshots:
       wsl-utils: 0.1.0
     optional: true
 
-  openai@4.104.0(ws@8.21.2)(zod@4.5.2):
+  openai@4.104.0(ws@8.21.3)(zod@4.5.2):
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
@@ -9733,7 +9721,7 @@ snapshots:
       formdata-node: 4.4.1
       node-fetch: 2.7.0
     optionalDependencies:
-      ws: 8.21.2
+      ws: 8.21.3
       zod: 4.5.2
     transitivePeerDependencies:
       - encoding
@@ -10971,10 +10959,7 @@ snapshots:
       imurmurhash: 0.1.4
       signal-exit: 4.1.0
 
-  ws@8.21.0: {}
-
-  ws@8.21.2:
-    optional: true
+  ws@8.21.3: {}
 
   wsl-utils@0.1.0:
     dependencies:
