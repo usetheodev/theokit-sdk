@@ -34,7 +34,10 @@ describe.skipIf(env.shouldSkip)(`real-llm: openrouter stream (${env.provider})`,
       }
       expect(events).toBeGreaterThanOrEqual(1);
       const result = await run.wait();
-      expect(["finished", "running"]).toContain(result.status);
+      // `wait()` resolves when the run reaches a terminal state, so "running" is the one status this
+      // cannot be. Accepting it made the assertion unfalsifiable: a wait() that returned early — the
+      // failure worth catching here — passed.
+      expect(result.status).toBe("finished");
     } finally {
       await agent.dispose();
     }
