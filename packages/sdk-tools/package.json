@@ -1,6 +1,6 @@
 {
   "name": "@theokit/sdk-tools",
-  "version": "0.27.3",
+  "version": "0.27.4-next.0",
   "description": "Built-in tools for @theokit/sdk agents — file system, git, subprocess, search-text, vitest runner.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
@@ -44,7 +44,7 @@
     "prepublishOnly": "node ../../tools/check-publish-no-workspace.mjs ."
   },
   "peerDependencies": {
-    "@theokit/sdk": ">=4.54.0",
+    "@theokit/sdk": ">=4.63.4-next.0",
     "simple-git": "^3.0.0",
     "vitest": ">=2.0.0",
     "zod": "^4.0.0"
