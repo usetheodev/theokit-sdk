@@ -19,8 +19,8 @@ import { AuthenticationError } from "../../../src/errors.js";
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
 import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
 import type { LlmClient, LlmEvent, LlmFinish } from "../../../src/internal/llm/types.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
 import { makeTextLlm } from "../../helpers/llm-stubs.js";
+import { makeLoopInputs } from "./_helpers/make-inputs.js";
 
 /** The envelope these two files assert on: the stub reports token counts. */
 const makeTextLlmWithTokens = (content: string) =>
@@ -36,20 +36,8 @@ function makeThrowingLlm(err: Error): LlmClient {
   };
 }
 
-function makeInputs(llm: LlmClient, opts: Partial<AgentLoopInputs> = {}): AgentLoopInputs {
-  return {
-    agentId: "error-packaging-test",
-    runId: "run-1",
-    userMessage: "hi",
-    model: { id: "mock-model" },
-    llm,
-    mcp: new Map(),
-    hooks: new HooksExecutor(process.cwd()),
-    shellCwd: process.cwd(),
-    shellSandbox: false,
-    ...opts,
-  };
-}
+const makeInputs = (llm: LlmClient, opts: Partial<AgentLoopInputs> = {}): AgentLoopInputs =>
+  makeLoopInputs({ agentId: "error-packaging-test", llm, ...opts });
 
 // Filter assistant events that contain error-shaped content (leak detection)
 function findLeakedErrorAssistant(events: ReadonlyArray<unknown>): unknown | undefined {

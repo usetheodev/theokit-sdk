@@ -15,9 +15,9 @@ import type {
 } from "../../../src/internal/llm/types.js";
 import { PluginManager } from "../../../src/internal/plugins/manager.js";
 import type { Plugin } from "../../../src/internal/plugins/types.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
 import { PermissionEngine } from "../../../src/permission-engine.js";
 import { PermissionPlugin } from "../../../src/permission-plugin.js";
+import { makeLoopInputs } from "./_helpers/make-inputs.js";
 
 /** LLM that emits one tool_use on the first turn, then ends. */
 function toolThenEndLlm(): LlmClient {
@@ -67,17 +67,11 @@ function repeatingToolLlm(onTurn: () => void): LlmClient {
   };
 }
 
-function baseInputs(llm: LlmClient, extra: Partial<AgentLoopInputs>): AgentLoopInputs {
-  return {
+const baseInputs = (llm: LlmClient, extra: Partial<AgentLoopInputs>): AgentLoopInputs =>
+  makeLoopInputs({
     agentId: "hooks-integration",
-    runId: "run-1",
     userMessage: "go",
-    model: { id: "mock-model" },
     llm,
-    mcp: new Map(),
-    hooks: new HooksExecutor(process.cwd()),
-    shellCwd: process.cwd(),
-    shellSandbox: false,
     maxIterations: 8,
     customTools: [
       {
@@ -88,8 +82,7 @@ function baseInputs(llm: LlmClient, extra: Partial<AgentLoopInputs>): AgentLoopI
       },
     ],
     ...extra,
-  };
-}
+  });
 
 function pluginOn(hook: string, fn: (...a: unknown[]) => unknown): Plugin {
   return {

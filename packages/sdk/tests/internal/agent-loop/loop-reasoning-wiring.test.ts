@@ -19,6 +19,7 @@ import type {
   LlmFinish,
   LlmRequest,
 } from "../../../src/internal/llm/types.js";
+import { makeLoopInputs } from "./_helpers/make-inputs.js";
 
 function fakeLlm(events: LlmEvent[], capture?: (req: LlmRequest) => void): LlmClient {
   return {
@@ -31,22 +32,22 @@ function fakeLlm(events: LlmEvent[], capture?: (req: LlmRequest) => void): LlmCl
   };
 }
 
-function makeInputs(
+const makeInputs = (
   llm: LlmClient,
   params: Array<{ id: string; value: string }> | undefined,
   updates: Array<{ type: string; text?: string }>,
-): AgentLoopInputs {
-  return {
+): AgentLoopInputs =>
+  // The `as unknown as AgentLoopInputs` cast this replaced was hiding four omitted required fields,
+  // not narrowing anything on purpose — the shared factory supplies them.
+  makeLoopInputs({
     agentId: "agent-test",
     runId: "run-test",
     model: { id: "deepseek/deepseek-r1", params },
-    userMessage: "hi",
     llm,
     onDelta: (payload: { update: { type: string; text?: string } }) => {
       updates.push(payload.update);
     },
-  } as unknown as AgentLoopInputs;
-}
+  } as Partial<AgentLoopInputs>);
 
 function makeCtx(): LoopContext {
   return {

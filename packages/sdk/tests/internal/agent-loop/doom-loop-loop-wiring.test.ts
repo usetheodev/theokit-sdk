@@ -18,7 +18,7 @@ import type {
   LlmFinish,
   LlmToolCallPart,
 } from "../../../src/internal/llm/types.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
+import { makeLoopInputs } from "./_helpers/make-inputs.js";
 
 /** Stateless mock: returns the identical `tool_use` on EVERY turn — the doom-loop trigger. */
 function repeatingToolLlm(name: string, input: Record<string, unknown>): LlmClient {
@@ -38,23 +38,17 @@ function repeatingToolLlm(name: string, input: Record<string, unknown>): LlmClie
   };
 }
 
-function makeInputs(
+const makeInputs = (
   llm: LlmClient,
   opts: {
     maxIterations: number;
     doomLoop?: false | { softThreshold?: number; hardThreshold?: number };
   },
-): AgentLoopInputs {
-  return {
+): AgentLoopInputs =>
+  makeLoopInputs({
     agentId: "doom-loop-wiring-test",
-    runId: "run-1",
     userMessage: "please loop",
-    model: { id: "mock-model" },
     llm,
-    mcp: new Map(),
-    hooks: new HooksExecutor(process.cwd()),
-    shellCwd: process.cwd(),
-    shellSandbox: false,
     maxIterations: opts.maxIterations,
     // A custom tool that succeeds — matches the tool the mock calls, so dispatch never errors and the
     // consecutive-tool-error cap (3) cannot pre-empt the doom-loop hard threshold (5).
@@ -67,8 +61,7 @@ function makeInputs(
       },
     ],
     ...(opts.doomLoop !== undefined ? { doomLoop: opts.doomLoop } : {}),
-  };
-}
+  });
 
 describe("doom-loop guard wired into runAgentLoop (T2.1)", () => {
   it("test_identical_calls_hit_hard_threshold_stops_run", async () => {

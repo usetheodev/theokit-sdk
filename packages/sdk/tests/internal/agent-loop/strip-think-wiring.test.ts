@@ -13,26 +13,15 @@ import { describe, expect, it } from "vitest";
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
 import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
 import type { LlmClient } from "../../../src/internal/llm/types.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
 import { makeTextLlm } from "../../helpers/llm-stubs.js";
+import { makeLoopInputs } from "./_helpers/make-inputs.js";
 
 /** The envelope these two files assert on: the stub reports token counts. */
 const makeTextLlmWithTokens = (content: string) =>
   makeTextLlm(content, { inputTokens: 0, outputTokens: content.length });
 
-function makeInputs(llm: LlmClient): AgentLoopInputs {
-  return {
-    agentId: "strip-think-wiring-test",
-    runId: "run-1",
-    userMessage: "hi",
-    model: { id: "mock-model" },
-    llm,
-    mcp: new Map(),
-    hooks: new HooksExecutor(process.cwd()),
-    shellCwd: process.cwd(),
-    shellSandbox: false,
-  };
-}
+const makeInputs = (llm: LlmClient): AgentLoopInputs =>
+  makeLoopInputs({ agentId: "strip-think-wiring-test", llm });
 
 describe("strip-think wiring (T7.2 / EC-2)", () => {
   it("strips single <think> block before returning text", async () => {
