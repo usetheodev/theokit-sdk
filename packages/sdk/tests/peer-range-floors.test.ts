@@ -29,6 +29,30 @@ const SATELLITES = [
   "sdk-pty",
 ] as const;
 
+/**
+ * The [major, minor, patch] a range floors at, ignoring any prerelease suffix.
+ *
+ * `>=4.63.4-next.0` floors at 4.63.4 for this purpose. The suffix is deliberately dropped: what the
+ * assertion below protects is that the floor did not DROP, and a prerelease of a version is the
+ * same version for that question.
+ */
+function peerFloorTriple(range: string): [number, number, number] {
+  const m = range.match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+  if (!m) throw new Error(`unparseable peer range: ${range}`);
+  return [Number(m[1]), Number(m[2] ?? 0), Number(m[3] ?? 0)];
+}
+
+/** Is `range`'s floor at least `floor`? */
+function floorAtLeast(range: string, floor: string): boolean {
+  // Destructured rather than indexed: `noUncheckedIndexedAccess` types `a[i]` as possibly
+  // undefined, and comparing those would be a type error the typecheck gate refuses — correctly.
+  const [aMajor, aMinor, aPatch] = peerFloorTriple(range);
+  const [bMajor, bMinor, bPatch] = peerFloorTriple(floor);
+  if (aMajor !== bMajor) return aMajor > bMajor;
+  if (aMinor !== bMinor) return aMinor > bMinor;
+  return aPatch >= bPatch;
+}
+
 /** Extract the numeric major floor from a peer range like ">=4.0.0" or "^4". */
 function peerFloorMajor(range: string): number {
   const m = range.match(/(\d+)(?:\.\d+)?(?:\.\d+)?/);
@@ -97,10 +121,23 @@ describe("SE43 DoD#4 — satellite @theokit/sdk peer-range floors", () => {
           readFileSync(join(REPO_ROOT, "packages", pkg, "package.json"), "utf8"),
         ) as { peerDependencies?: Record<string, string> };
 
+        const declared = manifest.peerDependencies?.["@theokit/sdk"];
+        expect(declared, `${pkg} must declare a @theokit/sdk peerDependency`).toBeDefined();
+
+        // Compared as versions, not as substrings. `toContain` answered a different question and
+        // answered it twice wrongly: `>=14.54.0` CONTAINS "4.54.0" and would have passed, while a
+        // legitimately higher floor fails. Prerelease mode makes the second case routine —
+        // `changeset version` rewrites every internal peer range to the prerelease being cut,
+        // because a prerelease never satisfies a plain range, and no range string can admit future
+        // prereleases (semver by design; measured 2026-09-01 on usetheokit/theokit-sdk#502).
+        //
+        // The docblock above states the invariant this file exists for: a known floor must not
+        // "silently drop back". Dropping is the failure. Raising is not, and asserting against it
+        // blocked every prerelease cut in the repository.
         expect(
-          manifest.peerDependencies?.["@theokit/sdk"],
-          `${pkg} needs ${measured.floor} for ${measured.because}; a lower floor promises a build that fails`,
-        ).toContain(measured.floor);
+          floorAtLeast(declared as string, measured.floor),
+          `${pkg} needs at least ${measured.floor} for ${measured.because}; a lower floor promises a build that fails. Declared: ${declared}`,
+        ).toBe(true);
       });
     }
   }
