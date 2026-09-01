@@ -1,4 +1,4 @@
-import { safeRequire, type TelemetryAdapter } from "../safe-require.js";
+import { safeRequire, type TelemetryAdapter, type TelemetryWiring } from "../safe-require.js";
 
 /**
  * PostHog OTel adapter (ADR D42). Detects `posthog-node` and captures
@@ -43,23 +43,23 @@ export const posthogAdapter: TelemetryAdapter = {
   moduleName: "posthog-node",
   displayName: "PostHog",
   detect: () => safeRequire<PostHogModule>("posthog-node") !== undefined,
-  register: () => {
-    if (registeredHere) return;
+  register: (): TelemetryWiring => {
+    if (registeredHere) return "instrumented";
     const ph = safeRequire<PostHogModule>("posthog-node");
     const otel = safeRequire<{ trace: OTelTraceApi }>("@opentelemetry/api");
-    if (ph === undefined || otel === undefined) return;
+    if (ph === undefined || otel === undefined) return "not-wired";
     const key =
       presentEnv(process.env.POSTHOG_API_KEY) ?? presentEnv(process.env.POSTHOG_PROJECT_API_KEY);
     if (typeof key !== "string" || key.length === 0) {
       // No PostHog key — skip silently (don't error).
-      return;
+      return "not-wired";
     }
     const client = new ph.PostHog(key, {
       host: presentEnv(process.env.POSTHOG_HOST) ?? "https://us.i.posthog.com",
     });
 
     const provider = otel.trace.getTracerProvider();
-    if (provider.addSpanProcessor === undefined) return;
+    if (provider.addSpanProcessor === undefined) return "not-wired";
 
     // Minimal SpanProcessor adapter — capture each ended span as a
     // PostHog event when its name matches our agent.send/llm.call/tool.call
@@ -101,5 +101,6 @@ export const posthogAdapter: TelemetryAdapter = {
     };
     provider.addSpanProcessor(processor);
     registeredHere = true;
+    return "instrumented";
   },
 };

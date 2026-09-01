@@ -1,4 +1,4 @@
-import { safeRequire, type TelemetryAdapter } from "../safe-require.js";
+import { safeRequire, type TelemetryAdapter, type TelemetryWiring } from "../safe-require.js";
 
 /**
  * Arize Phoenix OTel adapter (T10.2, ADR D449). Detects `arize-phoenix-otel`
@@ -23,15 +23,16 @@ export const arizeAdapter: TelemetryAdapter = {
   moduleName: "arize-phoenix-otel",
   displayName: "Arize Phoenix",
   detect: () => safeRequire<ArizeModule>("arize-phoenix-otel") !== undefined,
-  register: () => {
-    if (registeredHere) return;
+  register: (): TelemetryWiring => {
+    if (registeredHere) return "instrumented";
     const arize = safeRequire<ArizeModule>("arize-phoenix-otel");
     const otel = safeRequire<{ trace: OTelTraceApi }>("@opentelemetry/api");
-    if (arize === undefined || otel === undefined) return;
+    if (arize === undefined || otel === undefined) return "not-wired";
     const provider = otel.trace.getTracerProvider();
-    if (provider.addSpanProcessor === undefined) return;
+    if (provider.addSpanProcessor === undefined) return "not-wired";
     const processor = new arize.PhoenixSpanProcessor();
     provider.addSpanProcessor(processor);
     registeredHere = true;
+    return "instrumented";
   },
 };

@@ -1,4 +1,4 @@
-import { safeRequire, type TelemetryAdapter } from "../safe-require.js";
+import { safeRequire, type TelemetryAdapter, type TelemetryWiring } from "../safe-require.js";
 
 /**
  * LangSmith adapter (T10.2, ADR D449). Detects `langsmith` and
@@ -21,12 +21,14 @@ export const langsmithAdapter: TelemetryAdapter = {
   moduleName: "langsmith",
   displayName: "LangSmith",
   detect: () => safeRequire<LangSmithModule>("langsmith") !== undefined,
-  register: () => {
-    if (registeredHere) return;
-    const ls = safeRequire<LangSmithModule>("langsmith");
-    if (ls === undefined) return;
-    // LangSmith auto-instruments via LANGCHAIN_TRACING_V2 env var.
-    // Registration ensures the module is loaded so its auto-hooks fire.
+  register: (): TelemetryWiring => {
+    if (registeredHere) return "vendor-auto-instruments";
+    const mod = safeRequire<LangSmithModule>("langsmith");
+    if (mod === undefined) return "not-wired";
+    // LangSmith auto-instruments from LANGCHAIN_TRACING_V2; there is no processor for us
+    // to install. Loading the module is the whole contribution, and the return
+    // value says so rather than letting the registry call it instrumentation.
     registeredHere = true;
+    return "vendor-auto-instruments";
   },
 };
