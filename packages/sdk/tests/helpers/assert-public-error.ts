@@ -6,7 +6,13 @@ type ErrorCtor<T extends Error = Error> = new (...args: never[]) => T;
 
 export interface PublicErrorShape {
   ctor: ErrorCtor;
-  name: string;
+  /**
+   * The error's own `name`. OPTIONAL, and not defaulted from `ctor`: a call site may legitimately
+   * assert against a BASE class — `toBeInstanceOf(TheokitAgentError)` on an
+   * `UnsupportedRunOperationError` — and deriving the name from the constructor there would assert
+   * something false. Omit it and the name is only required to be a string.
+   */
+  name?: string;
   code?: string;
   isRetryable?: boolean;
   protoErrorCode?: string;
@@ -19,7 +25,7 @@ export function expectPublicError(error: unknown, shape: PublicErrorShape): asse
   expect(error).toBeInstanceOf(shape.ctor);
   expect(error).toBeInstanceOf(TheokitAgentError);
   expect(error).toMatchObject({
-    name: shape.name,
+    name: shape.name ?? expect.any(String),
     message: shape.message ?? expect.any(String),
     isRetryable: shape.isRetryable ?? expect.any(Boolean),
   });

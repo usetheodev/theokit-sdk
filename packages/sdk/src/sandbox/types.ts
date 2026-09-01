@@ -8,6 +8,7 @@
  * @public
  */
 
+import { TheokitAgentError } from "../errors.js";
 import type { EnvPolicy } from "../types/env-policy.js";
 import { shellEscapePosix } from "./shell-escape.js";
 
@@ -67,11 +68,12 @@ export interface SandboxConfig {
  * anything — a container or VM runner enforcing its own policy — can do so in the protocol's
  * vocabulary instead of inventing an error of its own.
  */
-export class SandboxSecurityError extends Error {
-  readonly code = "sandbox_security" as const;
+export class SandboxSecurityError extends TheokitAgentError {
+  override readonly name = "SandboxSecurityError";
+  override readonly code = "sandbox_security" as const;
   constructor(message: string) {
-    super(message);
-    this.name = "SandboxSecurityError";
+    // not retryable: a refused command is refused every time; retrying re-asks the same question
+    super(message, { code: "sandbox_security", isRetryable: false });
   }
 }
 
@@ -85,11 +87,12 @@ export class SandboxSecurityError extends Error {
  * unconfined `LocalSandbox`. Throw this instead from a backend that must never silently run outside
  * its isolation.
  */
-export class SandboxNotAvailableError extends Error {
-  readonly code = "sandbox_not_available" as const;
+export class SandboxNotAvailableError extends TheokitAgentError {
+  override readonly name = "SandboxNotAvailableError";
+  override readonly code = "sandbox_not_available" as const;
   constructor(message: string) {
-    super(message);
-    this.name = "SandboxNotAvailableError";
+    // not retryable: a missing runtime does not appear on a second attempt
+    super(message, { code: "sandbox_not_available", isRetryable: false });
   }
 }
 

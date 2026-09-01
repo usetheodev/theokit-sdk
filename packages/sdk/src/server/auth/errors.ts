@@ -4,16 +4,19 @@
  * Plan T1.2 + v1.1 EC-1 (AuthCancelledError for OAuth provider error response RFC 6749 §4.1.2.1).
  */
 
+import { TheokitAgentError } from "../../errors.js";
+
 /**
  * Thrown at `defineAuth()` time when configuration is invalid
  * (e.g., duplicate provider name, invalid email shape per EC-V1-12).
  */
-export class AuthConfigError extends Error {
+export class AuthConfigError extends TheokitAgentError {
   override readonly name = "AuthConfigError";
-  readonly code: string;
+  override readonly code: string;
 
   constructor(code: string, message: string) {
-    super(`[${code}] ${message}`);
+    // Not retryable: a misconfiguration is fixed by an operator, not by trying again.
+    super(`[${code}] ${message}`, { code, isRetryable: false });
     this.code = code;
   }
 }
@@ -22,13 +25,15 @@ export class AuthConfigError extends Error {
  * Thrown at `startSignIn(providerName, ...)` or `finishSignIn(providerName, ...)`
  * when the named provider is not registered in `providers[]`.
  */
-export class AuthProviderNotFoundError extends Error {
+export class AuthProviderNotFoundError extends TheokitAgentError {
   override readonly name = "AuthProviderNotFoundError";
   readonly providerName: string;
 
   constructor(providerName: string) {
+    // Not retryable: the provider is absent from the configuration until someone adds it.
     super(
       `Auth provider not found: '${providerName}'. Register it in defineAuth({ providers: [...] }).`,
+      { code: "auth_provider_not_found", isRetryable: false },
     );
     this.providerName = providerName;
   }
@@ -46,12 +51,15 @@ export class AuthProviderNotFoundError extends Error {
  *   - 'oauth_userinfo_failed' — userinfo endpoint returned error
  *   - 'oauth_missing_code_or_state' — required query params absent
  */
-export class AuthCallbackError extends Error {
+export class AuthCallbackError extends TheokitAgentError {
+  // Widened to string on purpose: AuthCancelledError below narrows it to its own name.
   override readonly name: string = "AuthCallbackError";
-  readonly code: string;
+  override readonly code: string;
 
   constructor(code: string, message?: string) {
-    super(message ?? `OAuth callback error: ${code}`);
+    // Not retryable here: the code comes from the provider on a callback that already happened;
+    // recovering means restarting the flow, not re-throwing the same callback.
+    super(message ?? `OAuth callback error: ${code}`, { code, isRetryable: false });
     this.code = code;
   }
 }

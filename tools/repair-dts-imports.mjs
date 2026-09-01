@@ -31,9 +31,9 @@
 // nothing and this becomes a no-op — it cannot mask a regression it is not triggered by.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -160,6 +160,47 @@ function bindExternalName(source, name, pkgDir) {
       match[0],
       `import { ${escapeRegExp(name)} } from ${quote}${specifier}${quote};`,
     );
+  }
+  return undefined;
+}
+
+/**
+ * The THIRD shape, measured 2026-09-01 on `@theokit/sdk`: the unresolved name lives in a SIBLING
+ * declaration in the same `dist/`, and the emitted file names no module at all.
+ *
+ * `internal/eval/single-flight.d.ts` declares `class EvalAlreadyRunningError extends
+ * TheokitAgentError` and imports nothing, because `src/errors.ts` is not in that tsc pass's `include`
+ * — it is produced by the rollup path instead — so the compiler elided the import while keeping the
+ * declaration that needs it. Adding `errors.ts` to the include list would give one declaration two
+ * producers, which `tsup.config.ts` documents at length as the hazard to avoid.
+ *
+ * The comment on {@link bindExternalName} declined this case for want of a measured instance. This
+ * is that instance, and it carries the same proof obligation, satisfiable the same way: the import
+ * is written ONLY when a sibling declaration in this dist actually exports the name. Nothing is
+ * guessed — if no sibling exports it, the diagnostic stands.
+ */
+function bindSiblingName(source, name, filePath, distDir) {
+  if (new RegExp(String.raw`\bimport\s*\{[^}]*\b${escapeRegExp(name)}\b`).test(source)) {
+    return undefined; // already bound — not this defect
+  }
+  const candidates = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".d.ts")) candidates.push(full);
+    }
+  };
+  walk(distDir);
+
+  for (const candidate of candidates) {
+    if (candidate === filePath) continue;
+    if (!exportNamesOf(candidate).has(name)) continue;
+    let specifier = relative(dirname(filePath), candidate)
+      .replace(/\\/g, "/")
+      .replace(/\.d\.ts$/, ".js");
+    if (!specifier.startsWith(".")) specifier = `./${specifier}`;
+    return `import { ${name} } from "${specifier}";\n${source}`;
   }
   return undefined;
 }
@@ -405,7 +446,10 @@ for (const [file, names] of unresolved) {
   let source = readFileSync(filePath, "utf8");
   let touched = false;
   for (const name of names) {
-    const next = bindReExportedName(source, name) ?? bindExternalName(source, name, pkgDir);
+    const next =
+      bindReExportedName(source, name) ??
+      bindExternalName(source, name, pkgDir) ??
+      bindSiblingName(source, name, filePath, join(pkgDir, "dist"));
     if (next === undefined) continue;
     source = next;
     touched = true;

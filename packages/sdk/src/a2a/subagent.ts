@@ -16,6 +16,7 @@
  */
 
 import { z } from "zod";
+import { TheokitAgentError } from "../errors.js";
 import {
   currentDelegationDepth,
   withDelegationDepth,
@@ -214,14 +215,18 @@ export interface SubAgentSpec {
  * chain length now travels with the run (`internal/runtime/concurrency/delegation-depth.ts`),
  * and a caller-threaded `parentDepth` still adds to it.
  */
-export class MaxDelegationDepthError extends Error {
-  readonly code = "max_delegation_depth" as const;
+export class MaxDelegationDepthError extends TheokitAgentError {
+  override readonly name = "MaxDelegationDepthError";
+  override readonly code = "max_delegation_depth" as const;
   constructor(
     public readonly currentDepth: number,
     public readonly maxDepth: number,
   ) {
-    super(`Max delegation depth ${maxDepth} exceeded (current: ${currentDepth})`);
-    this.name = "MaxDelegationDepthError";
+    // Not retryable: the depth is a property of the call graph, and it is the same on a retry.
+    super(`Max delegation depth ${maxDepth} exceeded (current: ${currentDepth})`, {
+      code: "max_delegation_depth",
+      isRetryable: false,
+    });
   }
 }
 

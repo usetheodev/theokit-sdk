@@ -7,6 +7,7 @@
  * @public
  */
 
+import { TheokitAgentError } from "../errors.js";
 import { diag } from "../internal/diagnostics.js";
 import type { A2AMessage, MessageHandler } from "./types.js";
 
@@ -27,16 +28,20 @@ import type { A2AMessage, MessageHandler } from "./types.js";
  *
  * @public
  */
-export class A2ARequestTimeoutError extends Error {
-  readonly code = "a2a_request_timeout" as const;
+export class A2ARequestTimeoutError extends TheokitAgentError {
+  override readonly name = "A2ARequestTimeoutError";
+  override readonly code = "a2a_request_timeout" as const;
   constructor(
     /** The peer that did not answer. */
     public readonly to: string,
     /** The limit it exceeded, in milliseconds. */
     public readonly timeoutMs: number,
   ) {
-    super(`A2A request timeout: ${to} did not respond within ${timeoutMs}ms`);
-    this.name = "A2ARequestTimeoutError";
+    // Retryable: a peer that missed one deadline may answer the next request.
+    super(`A2A request timeout: ${to} did not respond within ${timeoutMs}ms`, {
+      code: "a2a_request_timeout",
+      isRetryable: true,
+    });
   }
 }
 

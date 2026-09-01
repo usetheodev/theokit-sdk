@@ -1,3 +1,4 @@
+import { TheokitAgentError } from "../errors.js";
 /**
  * Filesystem backend protocol — a pluggable file *storage* provider for agent
  * tools, the storage-side twin of {@link SandboxBackend} (execution-side).
@@ -55,29 +56,32 @@ export interface FilesystemConfig {
 }
 
 /** A path escaped the backend's `basePath` (traversal or symlink). */
-export class FilesystemSecurityError extends Error {
-  readonly code = "filesystem_security" as const;
+export class FilesystemSecurityError extends TheokitAgentError {
+  override readonly name = "FilesystemSecurityError";
+  override readonly code = "filesystem_security" as const;
   constructor(message: string) {
-    super(message);
-    this.name = "FilesystemSecurityError";
+    // not retryable: a path outside the root stays outside it
+    super(message, { code: "filesystem_security", isRetryable: false });
   }
 }
 
 /** A write was attempted on a read-only backend. */
-export class FilesystemReadOnlyError extends Error {
-  readonly code = "filesystem_readonly" as const;
+export class FilesystemReadOnlyError extends TheokitAgentError {
+  override readonly name = "FilesystemReadOnlyError";
+  override readonly code = "filesystem_readonly" as const;
   constructor(message: string) {
-    super(message);
-    this.name = "FilesystemReadOnlyError";
+    // not retryable: the backend does not become writable
+    super(message, { code: "filesystem_readonly", isRetryable: false });
   }
 }
 
 /** A read/stat targeted a path that does not exist. */
-export class FileNotFoundError extends Error {
-  readonly code = "filesystem_not_found" as const;
+export class FileNotFoundError extends TheokitAgentError {
+  override readonly name = "FileNotFoundError";
+  override readonly code = "filesystem_not_found" as const;
   constructor(public readonly path: string) {
-    super(`File not found: ${path}`);
-    this.name = "FileNotFoundError";
+    // not retryable: a missing file is a fact about the request, not a transient condition
+    super(`File not found: ${path}`, { code: "filesystem_not_found", isRetryable: false });
   }
 }
 
@@ -87,19 +91,18 @@ export class FileNotFoundError extends Error {
  * `EACCES` / `ENOSPC`). Carries the original error as `cause` so no raw,
  * untyped Node `SystemError` ever escapes the backend (Unbreakable Rule 8).
  */
-export class FilesystemError extends Error {
-  readonly code = "filesystem_io" as const;
+export class FilesystemError extends TheokitAgentError {
+  override readonly name = "FilesystemError";
+  override readonly code = "filesystem_io" as const;
   constructor(
     public readonly path: string,
     cause: unknown,
   ) {
+    // retryable: a lower-level I/O failure CAN be transient — EBUSY, EAGAIN, a full disk that frees
     super(
       `Filesystem operation failed on "${path}": ${(cause as { message?: string })?.message ?? cause}`,
-      {
-        cause,
-      },
+      { cause, code: "filesystem_io", isRetryable: true },
     );
-    this.name = "FilesystemError";
   }
 }
 
@@ -107,18 +110,20 @@ export class FilesystemError extends Error {
  * SE32 — a write's `expectedMtime` did not match the file's current mtime: the
  * file changed since it was last read, so the write would silently clobber.
  */
-export class StaleFileError extends Error {
-  readonly code = "filesystem_stale" as const;
+export class StaleFileError extends TheokitAgentError {
+  override readonly name = "StaleFileError";
+  override readonly code = "filesystem_stale" as const;
   constructor(
     public readonly path: string,
     public readonly expectedMtime: number,
     public readonly actualMtime: number,
   ) {
+    // not retryable: the caller must re-read first; retrying the same write reproduces the conflict
     super(
       `Stale write to "${path}": expected mtime ${expectedMtime}, found ${actualMtime} ` +
         `(file changed since last read — re-read before writing)`,
+      { code: "filesystem_stale", isRetryable: false },
     );
-    this.name = "StaleFileError";
   }
 }
 

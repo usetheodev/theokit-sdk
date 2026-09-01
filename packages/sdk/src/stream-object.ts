@@ -1,11 +1,12 @@
 import type { z as ZodNamespace, ZodType } from "zod";
-
+import { StructuredOutputError } from "./errors.js";
 import {
   buildToolPrompt,
   buildTransientAgentOptions,
   disposeAndDeleteTransient,
   extractUsage,
   makeOutputTool,
+  STRUCTURED_OUTPUT_MESSAGES,
   setupStructuredOutput,
 } from "./internal/structured-output-helpers.js";
 import type { AgentOptions, LocalOptions, ModelSelection, SDKAgent } from "./types/agent.js";
@@ -77,15 +78,8 @@ export type StreamObjectEvent<T> =
  *
  * @public
  */
-export class StreamObjectError extends Error {
+export class StreamObjectError extends StructuredOutputError {
   override readonly name = "StreamObjectError";
-  readonly code: "no_tool_call" | "parse_failed";
-  override readonly cause?: unknown;
-  constructor(code: "no_tool_call" | "parse_failed", message: string, cause?: unknown) {
-    super(message);
-    this.code = code;
-    if (cause !== undefined) this.cause = cause;
-  }
 }
 
 interface StreamObjectDeps {
@@ -190,15 +184,12 @@ export async function* streamObjectImpl<T extends ZodType>(
         if (result.status === "error" && result.error !== undefined) {
           throw new StreamObjectError(
             "no_tool_call",
-            `Agent run failed before the model could reply: ${result.error.message ?? "unknown error"} [${result.error.code ?? "?"}]`,
+            STRUCTURED_OUTPUT_MESSAGES.runFailed(result.error.message, result.error.code),
             result.error,
           );
         }
         if (attempt === maxRetries) {
-          throw new StreamObjectError(
-            "no_tool_call",
-            "The model returned text instead of calling the `output` tool.",
-          );
+          throw new StreamObjectError("no_tool_call", STRUCTURED_OUTPUT_MESSAGES.noToolCall);
         }
         continue;
       }
@@ -219,7 +210,7 @@ export async function* streamObjectImpl<T extends ZodType>(
 
     throw new StreamObjectError(
       "parse_failed",
-      "Schema parse failed after all retries.",
+      STRUCTURED_OUTPUT_MESSAGES.parseFailed,
       lastParseError,
     );
   } finally {

@@ -10,10 +10,11 @@
  * @public
  */
 
+import { TheokitAgentError } from "../../errors.js";
 import type { EvalRun, EvalThresholdFailure, EvalThresholds } from "../../types/eval.js";
 
 /** Thrown by {@link assertEval} when a run misses one or more thresholds. */
-export class EvalThresholdError extends Error {
+export class EvalThresholdError extends TheokitAgentError {
   override readonly name = "EvalThresholdError";
   /** The eval's name (`EvalRun.name`). */
   readonly evalName: string;
@@ -27,8 +28,11 @@ export class EvalThresholdError extends Error {
           Number.isNaN(f.actual) ? "n/a (scorer absent)" : f.actual
         }`,
     );
+    // Not retryable: the scores are already computed; re-running the assertion re-reads the same
+    // numbers. Re-running the EVAL is a different act, and the caller decides that.
     super(
       `Eval "${evalName}" failed ${failures.length} threshold${failures.length === 1 ? "" : "s"}:\n${lines.join("\n")}`,
+      { code: "eval_threshold_failed", isRetryable: false },
     );
     this.evalName = evalName;
     this.failures = failures;

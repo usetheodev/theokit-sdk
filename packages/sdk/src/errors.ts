@@ -703,3 +703,41 @@ export class UnsupportedBudgetOperationError extends TheokitAgentError {
     this.operation = operation;
   }
 }
+
+/**
+ * The failure contract shared by `generateObject` and `streamObject`.
+ *
+ * Both entry points run the same rule — up to `maxRetries` attempts; if the model never called the
+ * output tool, fail as `no_tool_call`, naming the underlying run error when there was one; if the
+ * schema never parsed, fail as `parse_failed` — and both declared their own error class for it, with
+ * byte-identical user-facing strings. A change to the taxonomy or the wording had to be made twice,
+ * or the two APIs would start describing the same failure differently.
+ *
+ * It extends `TheokitAgentError` because every typed error the SDK publishes does, and these two did
+ * not: a consumer catching `TheokitAgentError` — the documented way to catch anything this SDK throws
+ * — silently missed both, and neither carried `isRetryable`.
+ *
+ * It lives HERE rather than beside the two entry points because it is an error class and this is the
+ * error module. The first home was `internal/structured-output-helpers.ts`, and rollup-plugin-dts
+ * could not resolve it from there when bundling the root declaration — a failure `tsc --noEmit`
+ * does not see, because it never runs the declaration rollup.
+ *
+ * `isRetryable` is false. Both codes mean the model did not produce the requested shape; the caller's
+ * own `maxRetries` has already been spent by the time either is thrown, so an outer retry loop would
+ * re-run a sequence that already gave up.
+ *
+ * The two public names stay DISTINCT subclasses rather than aliases of this one. Collapsing them
+ * would make `streamObjectError instanceof GenerateObjectError` true, which is a semantic widening
+ * nobody asked for; the duplication being removed is the contract, not the identity.
+ *
+ * @public
+ */
+export class StructuredOutputError extends TheokitAgentError {
+  override readonly name: string = "StructuredOutputError";
+  override readonly code: "no_tool_call" | "parse_failed";
+
+  constructor(code: "no_tool_call" | "parse_failed", message: string, cause?: unknown) {
+    super(message, { code, isRetryable: false, ...(cause === undefined ? {} : { cause }) });
+    this.code = code;
+  }
+}

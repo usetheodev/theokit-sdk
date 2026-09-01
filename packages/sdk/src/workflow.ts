@@ -25,6 +25,7 @@
 
 import type { ZodType } from "zod";
 import { z } from "zod";
+import { TheokitAgentError } from "./errors.js";
 import { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
 import { sanitizeIdentifier } from "./internal/security/path-guard.js";
 import { createEventStream } from "./internal/workflow/event-stream.js";
@@ -590,19 +591,22 @@ export {
  *
  * @public
  */
-export class WorkflowToolError extends Error {
-  readonly code = "workflow_tool_failed" as const;
+export class WorkflowToolError extends TheokitAgentError {
+  override readonly name = "WorkflowToolError";
+  override readonly code = "workflow_tool_failed" as const;
   constructor(
     readonly toolName: string,
     readonly workflowStatus: string,
     readonly workflowError?: { name: string; message: string },
   ) {
+    // Not retryable at this level: the workflow already ran and reported its own status; whether the
+    // underlying failure is transient is a question for the workflow's retry policy, not the tool wrapper.
     super(
       `workflowAsTool("${toolName}"): workflow ${workflowStatus}${
         workflowError ? `: ${workflowError.message}` : ""
       }`,
+      { code: "workflow_tool_failed", isRetryable: false },
     );
-    this.name = "WorkflowToolError";
   }
 }
 
