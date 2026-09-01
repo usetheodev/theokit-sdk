@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
-import { sanitizeFts5Query } from "../persistence/fts5-sanitize.js";
+import { diag } from "../diagnostics.js";
+import { containsCjk, sanitizeFts5Query } from "../persistence/fts5-sanitize.js";
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
 import { LruEmbeddingCache } from "./embedding-cache.js";
 import { escapeLikePattern } from "./escape-like-pattern.js";
@@ -219,11 +220,25 @@ export class IndexManager implements MemoryIndex {
     let rows: Array<Record<string, unknown>> = [];
     try {
       rows = stmt.all(sanitized, limit);
-    } catch {
-      // T4.8 — CJK fallback: FTS5's default tokenizer chokes on CJK
-      // characters (no word boundaries). Instead of returning empty,
-      // fall back to a LIKE search which handles CJK correctly (slower
+    } catch (err) {
+      // T4.8 — CJK fallback: FTS5's default tokenizer chokes on CJK characters (no word boundaries).
+      // Instead of returning empty, fall back to a LIKE search, which handles CJK correctly (slower
       // but correct). ADR D64 documents the trigram-routing deferral.
+      //
+      // GATED on the condition it was written for, and reported otherwise. The catch used to be
+      // unconditional, so a corrupt database, a missing `chunks_fts` table (which happens when FTS5
+      // is unavailable at open) and a disk error all became a LIKE scan over the whole table
+      // returning plausible hits at a hardcoded 0.5 — degraded relevance with no signal that
+      // anything had failed. The fallback still runs, because returning nothing would be worse; what
+      // changes is that the operator learns the query is not being answered by the index.
+      if (!containsCjk(query)) {
+        diag(
+          `memory FTS query failed for a non-CJK query and fell back to a LIKE scan — relevance is ` +
+            `degraded and the index may be missing or corrupt: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+        );
+      }
       return this.likeSearchFallback(query, limit);
     }
     return rows.map((row) => {

@@ -28,7 +28,8 @@ export type RunEvent =
   | RunTripwireEvent
   | RunCompletionCheckEvent
   | RunMcpServerFailedEvent
-  | RunMcpServerReadyEvent;
+  | RunMcpServerReadyEvent
+  | RunMemoryDegradedEvent;
 
 /**
  * theokit#188 — an MCP server was configured but its tools could not be listed, so NONE of its
@@ -186,6 +187,30 @@ export interface RunCompactionFallbackEvent {
  * Synchronous + best-effort: a throwing sink must never break the run (the emitter
  * try-catches it), so keep it fast (push to a queue, don't await).
  */
+/**
+ * A memory stage failed and the run continued without it.
+ *
+ * The same shape of gap {@link RunMcpServerFailedEvent} closed for MCP, in the module next door.
+ * `initLoopContext` had three bare `catch { <field> = <empty> }` blocks: an init failure meant no
+ * memory tool was registered, a `buildTools` failure meant no provider tools, and a `runActivePass`
+ * failure meant no recalled context in the system prompt. The agent then answered without the memory
+ * it was configured with, and nothing recorded it — not stderr, not this sink, not the span in scope.
+ *
+ * Degrading to a working agent is the right BEHAVIOUR. This event exists because the degradation was
+ * unobservable, so a host UI showed a healthy run.
+ *
+ * Emitted once per failing stage per run.
+ *
+ * @public
+ */
+export interface RunMemoryDegradedEvent {
+  readonly type: "memory_degraded";
+  /** Which stage failed: `init`, `buildTools`, or `activePass`. */
+  readonly stage: string;
+  /** Why it failed, as the provider reported it. */
+  readonly message: string;
+}
+
 export type RunEventSink = (event: RunEvent) => void;
 
 /**

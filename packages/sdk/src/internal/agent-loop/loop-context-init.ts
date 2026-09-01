@@ -95,7 +95,8 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
       memoryProviderHandle = await inputs.memoryProvider.init({
         cwd: process.cwd(),
       });
-    } catch {
+    } catch (cause) {
+      reportMemoryDegraded("init", cause, inputs.runEventSink);
       memoryProviderHandle = undefined;
     }
   }
@@ -127,7 +128,8 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
     let providerTools: ReadonlyArray<CustomTool> = [];
     try {
       providerTools = inputs.memoryProvider.buildTools(memoryProviderHandle, buildAgentRef(inputs));
-    } catch {
+    } catch (cause) {
+      reportMemoryDegraded("buildTools", cause, inputs.runEventSink);
       providerTools = [];
     }
     for (const providerTool of providerTools) {
@@ -179,7 +181,8 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
       ) {
         memorySystemPromptAdditions = passResult.systemPromptAdditions;
       }
-    } catch {
+    } catch (cause) {
+      reportMemoryDegraded("activePass", cause, inputs.runEventSink);
       memorySystemPromptAdditions = undefined;
     }
   }
@@ -200,6 +203,29 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
     ...(memoryProviderHandle !== undefined ? { memoryProviderHandle } : {}),
     ...(memorySystemPromptAdditions !== undefined ? { memorySystemPromptAdditions } : {}),
   };
+}
+
+/**
+ * Reports a memory stage that failed and was degraded away.
+ *
+ * Three `catch { <field> = <empty> }` blocks in {@link initLoopContext} used to turn every
+ * MemoryProvider failure into a silent downgrade: no memory tool registered, no provider tools, no
+ * recalled context in the system prompt. The agent then answered without the memory it was
+ * configured with, and nothing — not stderr, not the typed `RunEventSink`, not the span in scope —
+ * recorded it. `safeListTools` in this same file already handles the structurally identical case
+ * correctly, which is what makes the three a defect rather than a style choice.
+ *
+ * Degrading to a working agent is the RIGHT behaviour. The defect was that the degradation was
+ * unobservable.
+ *
+ * @internal
+ */
+function reportMemoryDegraded(stage: string, cause: unknown, sink?: RunEventSink): void {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  diag(`[theokit-sdk] memory ${stage} failed — continuing without it: ${message}\n`);
+  // The diagnostic above goes to the SDK's stderr, which an embedding UI does not read. The event is
+  // how a host can say "memory is degraded" instead of showing a healthy run.
+  emitRunEvent(sink, { type: "memory_degraded", stage, message });
 }
 
 /**

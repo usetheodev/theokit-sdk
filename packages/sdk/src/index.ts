@@ -372,6 +372,7 @@ export {
   type RunCompletionCheckEvent,
   type RunEvent,
   type RunEventSink,
+  type RunMemoryDegradedEvent,
   type RunPermissionDeniedEvent,
   type RunRateLimitEvent,
   type RunTaskCompletedEvent,
