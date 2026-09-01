@@ -2,6 +2,7 @@ import { createServer, type Server } from "node:http";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
+import { sseFrame } from "../../helpers/anthropic-sse.js";
 import { useTempCwd } from "../../helpers/temp-workspace.js";
 
 // This file creates agents without naming a cwd — `local: {}` and an omitted `local` both fall
@@ -36,7 +37,7 @@ async function startPaaSStub(): Promise<{ server: Server; url: string }> {
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
     const send = (event: string, data: Record<string, unknown>): void => {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      res.write(sseFrame(event, JSON.stringify(data)));
     };
     send("status", { status: "CREATING" });
     send("status", { status: "RUNNING" });

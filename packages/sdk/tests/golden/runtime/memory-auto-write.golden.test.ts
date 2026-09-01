@@ -9,6 +9,7 @@ import {
   extractMemoryFact,
   isMemoryWritePrompt,
 } from "../../../src/internal/runtime/memory/memory-store.js";
+import { sseFrame } from "../../helpers/anthropic-sse.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
@@ -35,7 +36,7 @@ async function startStubAnthropic(): Promise<{
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
     const sse = (event: string, data: string): void => {
-      res.write(`event: ${event}\ndata: ${data}\n\n`);
+      res.write(sseFrame(event, data));
     };
     sse("message_start", "{}");
     sse(

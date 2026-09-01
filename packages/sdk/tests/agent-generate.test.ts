@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { Agent } from "../src/index.js";
+import { messageDelta, sseFrame } from "./helpers/anthropic-sse.js";
 import { useTempCwd } from "./helpers/temp-workspace.js";
 
 // Agent.create defaults its workspace to process.cwd(), which during a test run is the
@@ -21,7 +22,6 @@ type Step = { kind: "tool"; name: string; input: unknown } | { kind: "text"; tex
 
 function startStub(steps: Step[]): Promise<{ server: Server; url: string }> {
   let i = 0;
-  const enc = (e: string, d: string) => `event: ${e}\ndata: ${d}\n\n`;
   const server = createServer((req, res) => {
     if (req.url !== "/v1/messages") {
       res.statusCode = 404;
@@ -32,10 +32,10 @@ function startStub(steps: Step[]): Promise<{ server: Server; url: string }> {
     i += 1;
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
-    res.write(enc("message_start", "{}"));
+    res.write(sseFrame("message_start", "{}"));
     if (step.kind === "tool") {
       res.write(
-        enc(
+        sseFrame(
           "content_block_start",
           JSON.stringify({
             type: "content_block_start",
@@ -45,7 +45,7 @@ function startStub(steps: Step[]): Promise<{ server: Server; url: string }> {
         ),
       );
       res.write(
-        enc(
+        sseFrame(
           "content_block_delta",
           JSON.stringify({
             type: "content_block_delta",
@@ -55,21 +55,12 @@ function startStub(steps: Step[]): Promise<{ server: Server; url: string }> {
         ),
       );
       res.write(
-        enc("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })),
+        sseFrame("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })),
       );
-      res.write(
-        enc(
-          "message_delta",
-          JSON.stringify({
-            type: "message_delta",
-            delta: { stop_reason: "tool_use" },
-            usage: { input_tokens: 10, output_tokens: 5 },
-          }),
-        ),
-      );
+      res.write(messageDelta("tool_use", { input_tokens: 10, output_tokens: 5 }));
     } else {
       res.write(
-        enc(
+        sseFrame(
           "content_block_delta",
           JSON.stringify({
             type: "content_block_delta",
@@ -78,18 +69,9 @@ function startStub(steps: Step[]): Promise<{ server: Server; url: string }> {
           }),
         ),
       );
-      res.write(
-        enc(
-          "message_delta",
-          JSON.stringify({
-            type: "message_delta",
-            delta: { stop_reason: "end_turn" },
-            usage: { input_tokens: 20, output_tokens: 5 },
-          }),
-        ),
-      );
+      res.write(messageDelta("end_turn", { input_tokens: 20, output_tokens: 5 }));
     }
-    res.write(enc("message_stop", "{}"));
+    res.write(sseFrame("message_stop", "{}"));
     res.end();
   });
   return new Promise((resolve) => {

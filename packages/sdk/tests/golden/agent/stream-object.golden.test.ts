@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
 import { Agent, StreamObjectError } from "../../../src/index.js";
+import { messageDelta, sseFrame } from "../../helpers/anthropic-sse.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
@@ -36,10 +37,9 @@ async function startStubAnthropic(script: StubScript): Promise<{ server: Server;
     iter += 1;
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
-    const enc = (event: string, data: string): string => `event: ${event}\ndata: ${data}\n\n`;
-    res.write(enc("message_start", "{}"));
+    res.write(sseFrame("message_start", "{}"));
     res.write(
-      enc(
+      sseFrame(
         "content_block_start",
         JSON.stringify({
           type: "content_block_start",
@@ -49,7 +49,7 @@ async function startStubAnthropic(script: StubScript): Promise<{ server: Server;
       ),
     );
     res.write(
-      enc(
+      sseFrame(
         "content_block_delta",
         JSON.stringify({
           type: "content_block_delta",
@@ -58,18 +58,11 @@ async function startStubAnthropic(script: StubScript): Promise<{ server: Server;
         }),
       ),
     );
-    res.write(enc("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })));
     res.write(
-      enc(
-        "message_delta",
-        JSON.stringify({
-          type: "message_delta",
-          delta: { stop_reason: "tool_use" },
-          usage: { input_tokens: 11, output_tokens: 4 },
-        }),
-      ),
+      sseFrame("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })),
     );
-    res.write(enc("message_stop", "{}"));
+    res.write(messageDelta("tool_use", { input_tokens: 11, output_tokens: 4 }));
+    res.write(sseFrame("message_stop", "{}"));
     res.end();
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
@@ -288,10 +281,9 @@ describe("Agent.streamObject", () => {
       }
       res.statusCode = 200;
       res.setHeader("content-type", "text/event-stream");
-      const enc = (e: string, d: string): string => `event: ${e}\ndata: ${d}\n\n`;
-      res.write(enc("message_start", "{}"));
+      res.write(sseFrame("message_start", "{}"));
       res.write(
-        enc(
+        sseFrame(
           "content_block_start",
           JSON.stringify({
             type: "content_block_start",
@@ -301,7 +293,7 @@ describe("Agent.streamObject", () => {
         ),
       );
       res.write(
-        enc(
+        sseFrame(
           "content_block_delta",
           JSON.stringify({
             type: "content_block_delta",
@@ -310,18 +302,9 @@ describe("Agent.streamObject", () => {
           }),
         ),
       );
-      res.write(enc("content_block_stop", "{}"));
-      res.write(
-        enc(
-          "message_delta",
-          JSON.stringify({
-            type: "message_delta",
-            delta: { stop_reason: "end_turn" },
-            usage: { input_tokens: 5, output_tokens: 7 },
-          }),
-        ),
-      );
-      res.write(enc("message_stop", "{}"));
+      res.write(sseFrame("content_block_stop", "{}"));
+      res.write(messageDelta("end_turn", { input_tokens: 5, output_tokens: 7 }));
+      res.write(sseFrame("message_stop", "{}"));
       res.end();
     });
     await new Promise<void>((r) => noToolServer.listen(0, "127.0.0.1", () => r()));

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 import { Agent } from "../../../src/index.js";
 import type { ConversationStep } from "../../../src/types/conversation.js";
 import type { InteractionUpdate } from "../../../src/types/updates.js";
+import { sseFrame } from "../../helpers/anthropic-sse.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
@@ -82,7 +83,7 @@ async function startStubAnthropic(initial: StubOptions): Promise<{ server: Serve
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
     const sse: SseWriter = (event, data) => {
-      res.write(`event: ${event}\ndata: ${data}\n\n`);
+      res.write(sseFrame(event, data));
     };
     sse("message_start", "{}");
     writeTextDeltas(sse, isFirstTurn ? (initial.textFrames ?? []) : ["all done"]);

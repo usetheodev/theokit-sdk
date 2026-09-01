@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { Agent } from "../../../src/index.js";
+import { sseFrame } from "../../helpers/anthropic-sse.js";
 import { removeTempDirRobust, removeTempDirRobustSync } from "../../helpers/temp-workspace.js";
 
 /**
@@ -47,7 +48,7 @@ async function startStubAnthropic(): Promise<{ server: Server; url: string; capt
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
     const sse = (e: string, d: string): void => {
-      res.write(`event: ${e}\ndata: ${d}\n\n`);
+      res.write(sseFrame(e, d));
     };
     sse("message_start", "{}");
     sse(
@@ -95,7 +96,7 @@ async function startStubPaaS(): Promise<{ server: Server; url: string; captured:
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
     const send = (e: string, d: Record<string, unknown>): void => {
-      res.write(`event: ${e}\ndata: ${JSON.stringify(d)}\n\n`);
+      res.write(sseFrame(e, JSON.stringify(d)));
     };
     send("status", { status: "CREATING" });
     send("assistant", { text: "ok" });

@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { NetworkError } from "../../../src/errors.js";
 import { AnthropicClient } from "../../../src/internal/llm/anthropic.js";
 import type { LlmFinish } from "../../../src/internal/llm/types.js";
+import { messageDelta, textDelta } from "../../helpers/anthropic-sse.js";
 
 function sseResponse(frames: string[]): Response {
   const encoder = new TextEncoder();
@@ -39,11 +40,6 @@ async function runStream(frames: string[]): Promise<LlmFinish> {
   }
 }
 
-const textDelta = (t: string): string =>
-  `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: t } })}\n\n`;
-const messageDelta = (stop: string): string =>
-  `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: stop }, usage: { output_tokens: 3 } })}\n\n`;
-
 describe("M2 #61 — Anthropic truncation detection", () => {
   it("throws stream_truncated when the stream ends without a stop_reason", async () => {
     const frames = [textDelta("partial answer")]; // no message_delta → truncated
@@ -52,7 +48,10 @@ describe("M2 #61 — Anthropic truncation detection", () => {
   });
 
   it("completes normally when a message_delta stop_reason is present", async () => {
-    const finish = await runStream([textDelta("done"), messageDelta("end_turn")]);
+    const finish = await runStream([
+      textDelta("done"),
+      messageDelta("end_turn", { output_tokens: 3 }),
+    ]);
     expect(finish.stopReason).toBe("end_turn");
     expect(finish.text).toBe("done");
   });
