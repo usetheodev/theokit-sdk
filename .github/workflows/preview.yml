@@ -41,54 +41,15 @@ concurrency:
 
 jobs:
   preview:
-    name: Publish a preview of every publishable package
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-        # No `version:` — the action reads `packageManager` from package.json, which is
-        # already the single authority on the pnpm version.
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'pnpm'
-          # Keyed on package.json as well as the lockfile, so a pnpm major bump cannot
-          # restore a store the new pnpm reads as inconsistent. Same reason as release.yml.
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            package.json
-          # NO `registry-url`: it writes an npmrc declaring a credential that does not
-          # exist here. Nothing in this job talks to registry.npmjs.org.
-
-      - run: pnpm install --frozen-lockfile
-
-      # A preview must be installable, so the build has to have run. The full quality gate
-      # deliberately does NOT run here: CI grades this same commit in parallel, and a
-      # preview that took six minutes would stop being reached for. Nothing published here
-      # can reach anyone who did not paste its URL.
-      - run: pnpm run build
-
-      - name: Publish a preview per publishable package
-        run: |
-          set -euo pipefail
-
-          # The list is DERIVED, by a tool that reuses the same `publishablePackages()` the
-          # workspace-protocol guard uses. Globbing `./packages/*` would hand pkg-pr-new the
-          # three private packages too, and that behaviour is undocumented.
-          #
-          # It lives in tools/ rather than inline: JavaScript inside shell inside YAML is
-          # the quoting hazard that produced a real command-substitution bug in release.yml
-          # the same day this was written.
-          mapfile -t dirs < <(node tools/list-publishable-packages.mjs)
-
-          echo "previewing ${#dirs[@]} package(s):"
-          printf '  %s\n' "${dirs[@]}"
-
-          # `pnpm exec`, never `npx`: the tool's own CI guidance is to resolve it from the
-          # lockfile, so a preview cannot silently change tool version between commits.
-          pnpm exec pkg-pr-new publish "${dirs[@]}"
+    # The implementation moved to shared-workflows on 2026-09-01. It was the only copy in an
+    # ecosystem of nine publishable repositories, which is why only this repository's pull requests
+    # carried the pkg.pr.new comment.
+    #
+    # The two inputs keep what was stricter here. `packages-command` reuses this repository's own
+    # `publishablePackages()` — the same enumeration the workspace-protocol guard uses, so
+    # "publishable" cannot mean two things. `publish-command` resolves pkg-pr-new from the lockfile,
+    # which is the tool's own CI guidance and stricter than the shared default's pinned `dlx`.
+    uses: usetheokit/shared-workflows/.github/workflows/preview.yml@v1 # zizmor: ignore[unpinned-uses]
+    with:
+      packages-command: node tools/list-publishable-packages.mjs
+      publish-command: pnpm exec pkg-pr-new publish $DIRS
