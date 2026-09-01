@@ -7,15 +7,17 @@
  * Semantic deltas vs SQLite (documented so callers know what to expect):
  *
  *  - `sync()` is a NO-OP. Lance is a pure vector store — there is no
- *    markdown corpus to crawl. Returns zero counts. Consumers writing
- *    facts use `LanceIndex.addFacts` directly (exposed via the index
- *    object returned to advanced callers).
+ *    markdown corpus to crawl. It returns zero counts with `supported: false`
+ *    so the result is not mistaken for a sync that found nothing. Consumers
+ *    writing facts hold a `LanceIndex` and call `addFacts` on it; the adapter
+ *    does not hand its adaptee out.
  *  - `search()` performs vector-only retrieval. `MemorySearchHit.textScore`
  *    is undefined (no FTS5 layer); `vectorScore === score`.
  *  - `status()` reports `backend: "hybrid"` only when an embedding runtime
  *    is wired (always the case for Lance — embedding is required at open).
- *    `chunksIndexed` reflects total Lance row count; `filesIndexed` is 0
- *    because Lance does not track file provenance per-row.
+ *    Both counts are 0 with `countsExact: false`: the port declares `status()`
+ *    synchronous and Lance's row count is async, so nothing can be measured
+ *    here. The zeros are placeholders and the flag says which.
  *
  * Ships with the lancedb-backend-ship-v1-1 plan (close D12, supersede via
  * D43). v1.4.0 of `@theokit/sdk`.
@@ -88,8 +90,14 @@ export class LanceMemoryAdapter implements MemoryIndex {
     // The Lance API is async and `status()` is not, so no count can be taken here. The zeros are
     // placeholders and `countsExact: false` says so — previously they were indistinguishable from a
     // measured empty index, so a caller testing `chunksIndexed > 0` got a false negative on every
-    // run regardless of how many rows the table held. A consumer needing the real number calls
-    // `unwrap().countFacts()`.
+    // run regardless of how many rows the table held.
+    //
+    // There is deliberately no escape hatch. This class used to carry `unwrap(): LanceIndex`,
+    // documented as being for "the migration tool, benchmark script" — measured 2026-09-01, it had
+    // ZERO callers anywhere in the monorepo, including those two, which hold a `LanceIndex`
+    // directly and never open the adapter. What it did have was this comment pointing at it, which
+    // made the leak read as the supported way to work around the limitation. A caller that needs
+    // the real count needs `LanceIndex`, and the honest way to get one is to open one.
     return {
       backend: "hybrid",
       filesIndexed: 0,
@@ -100,14 +108,6 @@ export class LanceMemoryAdapter implements MemoryIndex {
 
   async close(): Promise<void> {
     await this.inner.close();
-  }
-
-  /**
-   * Escape hatch for advanced callers (migration tool, benchmark script)
-   * that need direct access to addFacts/countFacts/removeFacts.
-   */
-  unwrap(): LanceIndex {
-    return this.inner;
   }
 }
 
