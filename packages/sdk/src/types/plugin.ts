@@ -257,13 +257,33 @@ export interface CommandOptions {
  * warning on stderr rather than an error at registration: the gentler failure, and the easier one to
  * miss.
  */
+/**
+ * Detaches a hook handler attached with {@link PluginContext.on}. Idempotent.
+ *
+ * @public
+ */
+export type PluginHookDisposer = () => void;
+
 export interface PluginContext {
   /** Register a custom tool. Equivalent to passing in `AgentOptions.tools`. */
   registerTool(tool: CustomTool): void;
   /** Register a slash-command-style handler. Consumed by CLI/bot wrappers; NOT used by the agent loop. */
   registerCommand(name: string, handler: CommandHandler, opts?: CommandOptions): void;
-  /** Attach a hook handler. `pre_tool_call` supports veto via `PreToolCallDecision`. */
-  on(hook: HookName, handler: HookHandler): void;
+  /**
+   * Attach a hook handler. `pre_tool_call` supports veto via `PreToolCallDecision`.
+   *
+   * Returns a disposer that detaches THIS handler. Calling it twice is a no-op, and a handler the
+   * SDK refused (a non-function, which is warned and ignored) returns a disposer that does nothing —
+   * so the caller never has to branch on whether the registration took.
+   *
+   * It used to return `void`, which made this a one-way door: a plugin registered through
+   * `initialize()` had no removal path and its handlers ran for the life of the process. The one
+   * documented dynamic case — the ACP permission plugin, re-installed on every prompt — worked only
+   * because `#byName` keys the replacement, so re-registering the WHOLE plugin was the only way to
+   * detach one hook. Two observers in this package already return their own disposer
+   * (`FixtureRunBase.onDidChangeStatus`) or offer an explicit removal (`MessageBus.unregister`).
+   */
+  on(hook: HookName, handler: HookHandler): PluginHookDisposer;
   /** Inject a user/system message into the next agent turn. v1 supports only `on_session_start` context. */
   injectMessage(content: string, role?: "user" | "system"): void;
 }

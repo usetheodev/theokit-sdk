@@ -89,7 +89,11 @@ function pluginOn(hook: string, fn: (...a: unknown[]) => unknown): Plugin {
     name: `p-${hook}`,
     version: "1.0",
     kind: "general",
-    register: (ctx) => ctx.on(hook as never, fn as never),
+    register: (ctx) => {
+      // Braces on purpose: `on` returns a disposer now, and a concise arrow body would make
+      // `register` return it — which the Plugin contract types as void | Promise<void>.
+      ctx.on(hook as never, fn as never);
+    },
   };
 }
 

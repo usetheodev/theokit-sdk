@@ -158,6 +158,7 @@ export {
   type MemoryProviderFactory,
   Plugin,
   type PluginContext,
+  type PluginHookDisposer,
   type PostAssistantReplyContext,
   type PostToolCallContext,
   type PreToolCallContext,

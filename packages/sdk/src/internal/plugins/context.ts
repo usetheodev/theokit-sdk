@@ -1,4 +1,29 @@
 /**
+ * A disposer that detaches ONE registration of `handler` from `hook`.
+ *
+ * Splices by INDEX rather than filtering equal values: the same function may legitimately be attached
+ * twice, and a disposer must detach the one it was given. Idempotent, and the guard matters for a
+ * case a weaker one misses — re-attaching the SAME function after disposing, where a stale disposer
+ * would otherwise find it at index 0 and remove the new registration.
+ */
+function makeHookDisposer(
+  registrations: PluginRegistrations,
+  hook: HookName,
+  handler: HookHandler,
+): PluginHookDisposer {
+  let detached = false;
+  return () => {
+    if (detached) return;
+    detached = true;
+    const current = registrations.hooks.get(hook);
+    if (current === undefined) return;
+    const at = current.indexOf(handler);
+    if (at !== -1) current.splice(at, 1);
+    if (current.length === 0) registrations.hooks.delete(hook);
+  };
+}
+
+/**
  * PluginContext implementation + dev-mode seal (T1.2, ADR D99).
  *
  * `createPluginContext()` returns a fresh `{ ctx, registrations }` pair
@@ -17,6 +42,7 @@ import type {
   HookHandler,
   HookName,
   PluginContext,
+  PluginHookDisposer,
 } from "./types.js";
 
 interface CommandEntry {
@@ -63,11 +89,15 @@ export function createPluginContext(): {
       // downstream when `runPreToolCallHooks` tries to invoke the handler.
       if (typeof handler !== "function") {
         diag(`[theokit-sdk] ignoring non-function handler for hook "${hook}"\n`);
-        return;
+        // A no-op disposer rather than `undefined`: the caller should not have to know whether the
+        // registration was accepted in order to write `const off = ctx.on(...)`.
+        return () => undefined;
       }
       const existing = registrations.hooks.get(hook) ?? [];
       existing.push(handler);
       registrations.hooks.set(hook, existing);
+
+      return makeHookDisposer(registrations, hook, handler);
     },
     injectMessage(content, role = "user") {
       registrations.injected.push({ content, role });

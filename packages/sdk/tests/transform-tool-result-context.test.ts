@@ -110,7 +110,11 @@ function pluginTransform(fn: (results: unknown, ctx: unknown) => unknown): Plugi
     name: "p-transform",
     version: "1.0",
     kind: "general",
-    register: (ctx) => ctx.on("transform_tool_result" as never, fn as never),
+    register: (ctx) => {
+      // Braces on purpose: `on` returns a disposer now, and a concise arrow body would make
+      // `register` return it — which the Plugin contract types as void | Promise<void>.
+      ctx.on("transform_tool_result" as never, fn as never);
+    },
   };
 }
 
