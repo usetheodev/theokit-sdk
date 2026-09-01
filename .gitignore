@@ -142,3 +142,11 @@ BACKLOG-ARCHIVE.md
 .stryker-tmp/
 packages/*/reports/
 reports/
+
+# Scratch tree written by tools/check-doc-api-drift.mjs: ~48 probe files at the
+# repo root, live only while it typechecks them. Both of its exits clean up, so
+# what leaves them behind is the run being interrupted DURING the typecheck —
+# the slow middle. Measured 2026-09-01: they survived, `git add -A` staged all
+# 48, and Biome failed the commit on them. Ignoring the path is what makes an
+# interrupted run merely slow instead of a defect in the next commit.
+.api-drift-probe/
