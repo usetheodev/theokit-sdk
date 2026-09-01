@@ -52,4 +52,9 @@ jobs:
     uses: usetheokit/shared-workflows/.github/workflows/preview.yml@v1 # zizmor: ignore[unpinned-uses]
     with:
       packages-command: node tools/list-publishable-packages.mjs
-      publish-command: pnpm exec pkg-pr-new publish $DIRS
+      # Pinned to the version this repository resolved from its lockfile before the workflow moved
+      # to shared-workflows. `pnpm exec` is no longer used, so the devDependency went with it —
+      # knip reported it unused and was right: a `with:` block is not a reference knip can see, so
+      # keeping the dependency would have meant keeping a lie in the manifest to satisfy a comment.
+      # An exact `dlx` pin does not float either, which is what the lockfile was buying.
+      pkg-pr-new-version: '0.0.88'
