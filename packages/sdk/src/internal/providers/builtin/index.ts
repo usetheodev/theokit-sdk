@@ -7,6 +7,7 @@
  * @internal
  */
 
+import { globalSingleton } from "../../global-singleton.js";
 import { registerCatalogProviders } from "../catalog-loader.js";
 import { registerProvider } from "../registry.js";
 import { ANTHROPIC } from "./anthropic.js";
@@ -32,12 +33,9 @@ import { XAI } from "./xai.js";
 // M45 review M2 — the guard lives on globalThis like the registry itself (M44 B1): a process importing both
 // bundle copies (`@theokit/sdk` + `@theokit/sdk/models`) must not re-register 19 builtins with bogus
 // "overridden by user plugin" WARNs.
-const _registeredState = ((): { done: boolean } => {
-  const g = globalThis as unknown as Record<symbol, { done: boolean }>;
-  const sym = Symbol.for("theokit-sdk.providers.builtins-registered");
-  if (g[sym] === undefined) g[sym] = { done: false };
-  return g[sym];
-})();
+const _registeredState = globalSingleton("theokit-sdk.providers.builtins-registered", () => ({
+  done: false,
+}));
 
 export function registerBuiltins(): void {
   if (_registeredState.done) return;

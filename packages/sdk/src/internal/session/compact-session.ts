@@ -17,6 +17,7 @@
 import { type CompressibleMessage, estimateTokens } from "../../compaction.js";
 import type { SessionStore } from "../../types/session-store.js";
 import { diag } from "../diagnostics.js";
+import { globalSingleton } from "../global-singleton.js";
 import { resolveProviderChain } from "../llm/router.js";
 import {
   detectPrimaryProvider,
@@ -265,12 +266,10 @@ export function shouldAutoCompact(opts: {
 }
 
 /** Anti-cascade bookkeeping: last turn we ATTEMPTED an auto-compact, per agent (globalThis — M44 B1). */
-const autoCompactAttempts = (() => {
-  const g = globalThis as unknown as Record<symbol, Map<string, number>>;
-  const sym = Symbol.for("theokit-sdk.session.auto-compact-attempts");
-  if (g[sym] === undefined) g[sym] = new Map<string, number>();
-  return g[sym];
-})();
+const autoCompactAttempts = globalSingleton(
+  "theokit-sdk.session.auto-compact-attempts",
+  () => new Map<string, number>(),
+);
 
 /**
  * Fire auto-compaction when the threshold is crossed — at most ONE attempt per turn per agent
