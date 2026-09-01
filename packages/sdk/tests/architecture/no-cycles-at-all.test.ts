@@ -32,5 +32,8 @@ describe("Architecture — the dependency graph is acyclic", () => {
             `Break it by extracting the shared types into a leaf module — the precedent is ` +
             `internal/runtime/registry/agent-registry-contract.ts (ADR D431).`,
     ).toEqual([]);
-  });
+    // 90s, matching every sibling in this directory. madge spawns a subprocess that walks 535
+    // files — ~7s alone, and past the 20s global timeout under full-suite load. Measured: this
+    // failed once in a full run and passed in isolation, which is a flaky gate rather than a cycle.
+  }, 90_000);
 });
