@@ -1,7 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignoreExportsUsedInFile": true,
-  "ignore": ["tools/preflight-native-bindings.d.mts"],
   "ignoreDependencies": ["@arethetypeswrong/cli", "publint", "madge", "tsx", "jscpd"],
   "ignoreBinaries": ["turbo"],
   "tags": ["-knipignore"],
@@ -13,7 +12,6 @@
     "packages/sdk": {
       "entry": ["src/agent.ts", "tests/**/*.test.ts", "tests/helpers/**/*.ts", "bin/*.mjs"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignore": ["src/stream-object.ts"],
       "ignoreDependencies": ["jsonrepair"]
     },
     "packages/cli": {

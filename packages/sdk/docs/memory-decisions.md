@@ -219,7 +219,7 @@ index by hand against a non-default directory has to pass it.
 process cwd — put the store in two different places, and picking one silently is how a store ends up
 split across both. `ConfigurationError` with code `invalid_memory_directory`.
 
-**How to check it still holds:** `tests/memory-root.test.ts`, in particular
+**How to check it still holds:** `tests/memory/root.test.ts`, in particular
 `test_the_indexer_scans_the_configured_directory_so_the_fact_is_searchable` and
 `test_the_project_store_gets_no_second_index_pointing_at_files_it_does_not_have` — the two halves
 that were broken.

@@ -126,7 +126,7 @@ for (const r of results) {
   const pct = r.actual === null ? "—" : `${Math.round((r.actual / r.max) * 100)}%`.padStart(4);
   const marker = r.status === "FAIL" ? "❌" : r.status === "WARN_MISSING_DIST" ? "⚠" : "✓";
   console.log(
-    `[bundle-budget] ${marker} ${r.status.padEnd(18)} ${r.name.padEnd(20)} ${r.dist.padEnd(20)} ${actualStr} / ${maxStr} bytes  (${pct})`,
+    `[bundle-budget] ${marker} ${r.status.padEnd(18)} ${r.name.padEnd(20)} ${r.dist.padEnd(20)} ${actualStr} / ${maxStr} bytes gzipped  (${pct})`,
   );
 }
 
