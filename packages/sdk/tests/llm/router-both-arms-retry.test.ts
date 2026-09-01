@@ -53,6 +53,23 @@ describe("M93 — both router arms have retry", () => {
     expect(withoutRetry).toEqual([]);
   });
 
+  it("the FOURTH arm too — a no-auth provider with a placeholder key", () => {
+    // maybeBuildNoAuthTransport was the arm the M93 sweep missed. It fires when the profile is
+    // `authType: "none"` AND the caller passed a non-empty apiKeys entry — an Ollama, LM Studio or
+    // llama.cpp user who supplies a placeholder key — and it returned the RAW transport. Those users
+    // got zero retries on a transient 5xx while every other configuration retried.
+    //
+    // The other three arms wrapped, which is exactly why this one stayed invisible: the invariant
+    // held everywhere anyone looked. Retry is now applied once, at a single seam, so an arm cannot
+    // opt out by omission.
+    const chain = resolveProviderChain({
+      primary: "llamacpp",
+      apiKeys: { llamacpp: ["placeholder"] },
+    } as never);
+    expect(chain.length).toBeGreaterThan(0);
+    expect(hasRetry(chain[0])).toBe(true);
+  });
+
   it("COUNTERPROOF — with no key at all the chain THROWS, and does not silently return empty", () => {
     // Pre-existing behavior, preserved: fail loudly instead of returning an empty chain that would
     // only break on the first turn (`error-handling.md` § 2).

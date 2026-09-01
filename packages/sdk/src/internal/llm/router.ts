@@ -105,7 +105,19 @@ function buildChain(options: ProviderRouterOptions): LlmClient[] {
   return clients;
 }
 
-function buildClient(
+/**
+ * Resolves the transport for `name` — every arm returns it RAW.
+ *
+ * Retry is applied ONCE, by {@link buildClient}, and that split is the point. Three arms wrapped
+ * themselves and a fourth did not: `maybeBuildNoAuthTransport` returned an unwrapped transport, so an
+ * Ollama / LM Studio / llama.cpp user passing a placeholder key got zero retries on a transient 5xx
+ * while every other configuration retried. The sweep that fixed the other three found them one at a
+ * time — its own comment records the third being discovered while testing the second — and a fourth
+ * was always going to be possible while each arm opted in for itself.
+ *
+ * A new return path added here cannot opt out of resilience by omission.
+ */
+function buildTransport(
   name: string,
   routerOptions: ProviderRouterOptions,
   perCallBaseUrl?: string,
@@ -128,19 +140,27 @@ function buildClient(
     // M93 — the THIRD arm. Found while writing the second one's test: the ambient pool also returned
     // the client without the decorator, and leaving it out would create the same asymmetry the milestone removes,
     // only on a less visible path.
-    return new RetryingLlmClient(
-      new PoolAwareLlmClient(
-        ambient,
-        (apiKey) => selectTransport(profile, apiKey, perCallBaseUrl),
-        undefined,
-        resilience,
-      ),
+    return new PoolAwareLlmClient(
+      ambient,
+      (apiKey) => selectTransport(profile, apiKey, perCallBaseUrl),
+      undefined,
+      resilience,
     );
   }
   const poolKeys = filterPoolKeys(routerOptions.apiKeys?.[name]);
   const noAuthOverride = maybeBuildNoAuthTransport(profile, poolKeys, perCallBaseUrl);
   if (noAuthOverride !== undefined) return noAuthOverride;
   return buildPoolOrSingle({ name, profile, poolKeys, routerOptions, perCallBaseUrl });
+}
+
+/** Resolves the transport and applies retry — the one place resilience is attached. */
+function buildClient(
+  name: string,
+  routerOptions: ProviderRouterOptions,
+  perCallBaseUrl?: string,
+): LlmClient | undefined {
+  const transport = buildTransport(name, routerOptions, perCallBaseUrl);
+  return transport === undefined ? undefined : new RetryingLlmClient(transport);
 }
 
 /**
@@ -183,13 +203,11 @@ function buildPoolOrSingle(args: {
     // M93 — the pool ALREADY had retry inside; the outer decorator covers what it propagates (5xx and
     // network, which `classifyAndDecide` tells it to propagate because "the pool does not help"). Additive: rotation
     // behavior does not change.
-    return new RetryingLlmClient(
-      new PoolAwareLlmClient(
-        pool,
-        (apiKey) => selectTransport(profile, apiKey, perCallBaseUrl),
-        undefined,
-        resilience,
-      ),
+    return new PoolAwareLlmClient(
+      pool,
+      (apiKey) => selectTransport(profile, apiKey, perCallBaseUrl),
+      undefined,
+      resilience,
     );
   }
   // 1-entry pool / single-key fast path: prefer explicit apiKeys[name] over env.
@@ -206,7 +224,7 @@ function buildPoolOrSingle(args: {
   // M93 — the ONE-key arm returned the RAW transport, with no retry at all. A pool of 1 key is a
   // pool of size 1: what changes between 1 and 2 keys is whether there is somewhere to rotate to, not
   // whether resilience exists. The typical consumer resolves exactly one credential and always landed here.
-  return new RetryingLlmClient(selectTransport(profile, apiKey, perCallBaseUrl));
+  return selectTransport(profile, apiKey, perCallBaseUrl);
 }
 
 /**
