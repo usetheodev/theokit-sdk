@@ -10,7 +10,7 @@
  * @internal — public via `@theokit/sdk/retry`
  */
 
-import { ConfigurationError, isTransientError } from "../../../errors.js";
+import { ConfigurationError, isTransientError } from "../../errors.js";
 
 /** Options for {@link withRetry}. All fields optional; sensible defaults applied. */
 export interface RetryOptions {

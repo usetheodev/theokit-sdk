@@ -20,11 +20,11 @@ import { TheokitAgentError } from "../errors.js";
 import {
   currentDelegationDepth,
   withDelegationDepth,
-} from "../internal/runtime/concurrency/delegation-depth.js";
+} from "../internal/concurrency/delegation-depth.js";
 import {
   currentInheritedSubAgentCredentials,
   type InheritedCredentials,
-} from "../internal/runtime/concurrency/subagent-credentials.js";
+} from "../internal/concurrency/subagent-credentials.js";
 import { getAgentFacade } from "../internal/runtime/registry/agent-factory-registry.js";
 import type {
   AgentDefinition,

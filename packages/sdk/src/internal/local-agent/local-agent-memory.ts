@@ -10,7 +10,7 @@ import { IndexManager } from "../memory/index-manager.js";
 import type { MemoryIndex } from "../memory/memory-index.js";
 import { type MemoryRoot, resolveMemoryRoot } from "../memory/storage/memory-root.js";
 import { createMemoryGetTool, createMemorySearchTool } from "../memory/tools.js";
-import { CircuitBreaker } from "../runtime/retry/circuit-breaker.js";
+import { CircuitBreaker } from "../retry/circuit-breaker.js";
 import type { TelemetryHandle } from "../telemetry/tracer.js";
 
 /**

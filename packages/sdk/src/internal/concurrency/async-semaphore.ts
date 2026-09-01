@@ -14,7 +14,7 @@
  * @internal
  */
 
-import { ConfigurationError } from "../../../errors.js";
+import { ConfigurationError } from "../../errors.js";
 
 export interface AsyncSemaphore {
   /** Acquire a permit. Returns the release function (call once). */

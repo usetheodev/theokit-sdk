@@ -16,7 +16,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SubAgent } from "../../src/a2a/subagent.js";
-import { withInheritedSubAgentCredentials } from "../../src/internal/runtime/concurrency/subagent-credentials.js";
+import { withInheritedSubAgentCredentials } from "../../src/internal/concurrency/subagent-credentials.js";
 import type { AgentFacadePort } from "../../src/internal/runtime/registry/agent-factory-registry.js";
 import { setAgentFacade } from "../../src/internal/runtime/registry/agent-factory-registry.js";
 import type { CustomTool } from "../../src/types/agent.js";

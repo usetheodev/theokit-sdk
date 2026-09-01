@@ -6,6 +6,11 @@ import { emitRunEvent } from "../../types/run-events.js";
 import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
 import type { MemoryToolSpec } from "../agent-loop/types.js";
 import { LOCAL_RUNTIME_MOCK_KEY } from "../auth/api-key-validator.js";
+import { withToolWhitelist } from "../concurrency/async-local-storage.js";
+import {
+  type InheritedCredentials,
+  withInheritedSubAgentCredentials,
+} from "../concurrency/subagent-credentials.js";
 import { diag } from "../diagnostics.js";
 import { FallbackLlmClient } from "../llm/fallback-client.js";
 import { parseModelId } from "../llm/model-identifier.js";
@@ -13,11 +18,6 @@ import { resolveProviderChain } from "../llm/router.js";
 import { createMcpClient, type McpClient } from "../mcp/client.js";
 import { getProviderProfile, registerBuiltins } from "../providers/index.js";
 import { registerPluginProviderProfiles } from "../providers/register-plugin-providers.js";
-import { withToolWhitelist } from "../runtime/concurrency/async-local-storage.js";
-import {
-  type InheritedCredentials,
-  withInheritedSubAgentCredentials,
-} from "../runtime/concurrency/subagent-credentials.js";
 import { isFixtureApiKey } from "../runtime/fixtures/fixture-mode.js";
 import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-run-base.js";
 import type { FixtureScript } from "../runtime/fixtures/types.js";

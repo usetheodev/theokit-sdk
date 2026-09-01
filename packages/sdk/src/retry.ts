@@ -7,7 +7,7 @@
  * SDK's own error classification.
  */
 
-import { type RetryOptions, withRetry } from "./internal/runtime/retry/with-retry.js";
+import { type RetryOptions, withRetry } from "./internal/retry/with-retry.js";
 
 export type { RetryOptions };
 

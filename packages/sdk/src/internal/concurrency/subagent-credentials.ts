@@ -34,8 +34,8 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { ModelSelection } from "../../../types/agent-prims.js";
-import type { Plugin } from "../../plugins/types.js";
+import type { ModelSelection } from "../../types/agent-prims.js";
+import type { Plugin } from "../plugins/types.js";
 
 /**
  * Credentials a parent agent hands down to its subagent tools so the child inherits the parent's

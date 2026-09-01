@@ -22,7 +22,7 @@ import type {
   WorkflowOptions,
 } from "../../types/workflow.js";
 import { WorkflowParallelError } from "../../types/workflow.js";
-import { createSemaphore } from "../runtime/concurrency/async-semaphore.js";
+import { createSemaphore } from "../concurrency/async-semaphore.js";
 import { errToShape } from "./error-shape.js";
 
 export type DispatchFn = (

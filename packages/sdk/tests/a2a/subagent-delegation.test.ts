@@ -8,7 +8,7 @@ import {
 import {
   type InheritedCredentials,
   withInheritedSubAgentCredentials,
-} from "../../src/internal/runtime/concurrency/subagent-credentials.js";
+} from "../../src/internal/concurrency/subagent-credentials.js";
 import type { AgentFacadePort } from "../../src/internal/runtime/registry/agent-factory-registry.js";
 import { setAgentFacade } from "../../src/internal/runtime/registry/agent-factory-registry.js";
 import type { CustomTool } from "../../src/types/agent.js";

@@ -112,7 +112,7 @@ describe("Retry", () => {
   it("test_withRetry_throws_on_invalid_retries", async () => {
     // B-079 — was a bare `.rejects.toThrow()`. `resolveRetryOptions` throws
     // `ConfigurationError` with `code: "invalid_retry_config"`
-    // (src/internal/runtime/retry/with-retry.ts).
+    // (src/internal/retry/with-retry.ts).
     await expect(Retry.create(async () => "x", { retries: -1 })).rejects.toThrow(
       ConfigurationError,
     );

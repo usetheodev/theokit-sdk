@@ -15,7 +15,7 @@ import {
   checkToolWhitelist,
   currentToolWhitelist,
   withToolWhitelist,
-} from "../../../src/internal/runtime/concurrency/async-local-storage.js";
+} from "../../../src/internal/concurrency/async-local-storage.js";
 
 describe("async-local-storage (T1.1)", () => {
   it("currentToolWhitelist returns undefined outside withToolWhitelist", () => {

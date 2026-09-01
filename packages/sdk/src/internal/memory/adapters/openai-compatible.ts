@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 
 import { AuthenticationError, ConfigurationError, NetworkError } from "../../../errors.js";
+import { mapWithConcurrency } from "../../concurrency/map-with-concurrency.js";
 import { mapOpenAICompatibleError } from "../../error-mappers/openai-compatible.js";
-import { mapWithConcurrency } from "../../runtime/concurrency/map-with-concurrency.js";
 import type {
   CreateAdapterOptions,
   EmbeddingRuntime,

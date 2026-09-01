@@ -10,10 +10,7 @@
  *   - `mapWithConcurrency(items, concurrency, fn, opts?)` — ordered bounded map.
  */
 
-import {
-  type AsyncSemaphore,
-  createSemaphore,
-} from "./internal/runtime/concurrency/async-semaphore.js";
+import { type AsyncSemaphore, createSemaphore } from "./internal/concurrency/async-semaphore.js";
 
 export type { AsyncSemaphore };
 
@@ -24,4 +21,4 @@ export class Semaphore {
     return createSemaphore(permits);
   }
 }
-export { mapWithConcurrency } from "./internal/runtime/concurrency/map-with-concurrency.js";
+export { mapWithConcurrency } from "./internal/concurrency/map-with-concurrency.js";

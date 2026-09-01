@@ -8,7 +8,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { createSemaphore } from "../../../src/internal/runtime/concurrency/async-semaphore.js";
+import { createSemaphore } from "../../../src/internal/concurrency/async-semaphore.js";
 
 describe("AsyncSemaphore properties (T5.1)", () => {
   it("FIFO: waiters resume in acquisition order", async () => {

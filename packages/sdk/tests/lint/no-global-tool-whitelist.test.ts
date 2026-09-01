@@ -12,7 +12,7 @@
  * - `let _toolWhitelist`
  * - `let whitelist:`
  *
- * The canonical store lives in `internal/runtime/concurrency/async-local-storage.ts`
+ * The canonical store lives in `internal/concurrency/async-local-storage.ts`
  * (the `toolWhitelistStore` constant of type `AsyncLocalStorage`).
  *
  * @internal
@@ -68,7 +68,7 @@ describe("no global mutable tool whitelist (T5.2, ADR D111)", () => {
 
   it("async-local-storage.ts exports the canonical AsyncLocalStorage<Set<string>>", async () => {
     const text = await readFile(
-      join(SRC_ROOT, "internal", "runtime", "concurrency", "async-local-storage.ts"),
+      join(SRC_ROOT, "internal", "concurrency", "async-local-storage.ts"),
       "utf8",
     );
     expect(text).toContain("AsyncLocalStorage<Set<string>>");

@@ -25,8 +25,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../src/agent.js";
+import { anySignal } from "../../src/internal/concurrency/abort-utils.js";
 import type { LocalAgent } from "../../src/internal/local-agent/local-agent.js";
-import { anySignal } from "../../src/internal/runtime/concurrency/abort-utils.js";
 import {
   clearAgentRegistry,
   invalidateRegistryHydration,
