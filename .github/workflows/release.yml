@@ -259,8 +259,13 @@ jobs:
           # Moving to action v2 means first migrating the CLI to 3.x across twelve published
           # packages. That is a release-tooling migration with its own blast radius and belongs in
           # its own change, not bundled into a pipeline hardening commit.
-          publish: pnpm release
-          version: pnpm changeset version
+          # Renamed by changesets/action v2. The action refuses the v1 names outright —
+          # "Error: The following inputs have been renamed" — so the release failed at this step
+          # with everything before it green. Measured on the first release after #375 bumped the
+          # action; nothing was published, because the failure is at the action rather than inside
+          # it. A pull request cannot catch this: release.yml only runs on a push to `main`.
+          publish-script: pnpm release
+          version-script: pnpm changeset version
         env:
           # The App's token, so the Version Packages pull request is authored by the App and
           # its required checks actually run. Nothing here authenticates to npm.
