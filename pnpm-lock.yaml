@@ -91,8 +91,8 @@ importers:
   packages/acp:
     devDependencies:
       '@agentclientprotocol/sdk':
-        specifier: ~0.22.1
-        version: 0.22.1(zod@4.5.2)
+        specifier: ~1.4.0
+        version: 1.4.0(zod@4.5.2)
       '@theokit/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -406,8 +406,8 @@ importers:
 
 packages:
 
-  '@agentclientprotocol/sdk@0.22.1':
-    resolution: {integrity: sha512-DfqXtl/8gO9NImq094MTaCXEU2vkhh6v7q/kT+9UjZxUqj8hYaya2OjLVIqn16MzNHcXEpShTR2RIauLSYeDQQ==}
+  '@agentclientprotocol/sdk@1.4.0':
+    resolution: {integrity: sha512-/eufudw+aFY1LKLolT6yFE6UMmYRl7fMJ/DEONSIyR6wI3slHWITBsANRGqXEY8FRzqUxwh7QEaGiZHcJPVThg==}
     peerDependencies:
       zod: ^4.0.0
 
@@ -5532,7 +5532,7 @@ packages:
 
 snapshots:
 
-  '@agentclientprotocol/sdk@0.22.1(zod@4.5.2)':
+  '@agentclientprotocol/sdk@1.4.0(zod@4.5.2)':
     dependencies:
       zod: 4.5.2
 
