@@ -25,7 +25,7 @@
 
 import type { ZodType } from "zod";
 import { z } from "zod";
-import { TheokitAgentError } from "./errors.js";
+import { ConfigurationError, TheokitAgentError } from "./errors.js";
 import { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
 import { sanitizeIdentifier } from "./internal/security/path-guard.js";
 import { createEventStream } from "./internal/workflow/event-stream.js";
@@ -229,7 +229,9 @@ export class WorkflowBuilder<TInput = unknown, TOutput = unknown> {
     const stepId = id ?? `sleep_${this._steps.length}`;
     validateStepId(stepId);
     if (!Number.isFinite(durationMs) || durationMs < 0) {
-      throw new Error(`sleep durationMs must be finite non-negative: ${durationMs}`);
+      throw new ConfigurationError(`sleep durationMs must be finite non-negative: ${durationMs}`, {
+        code: "invalid_workflow_step",
+      });
     }
     const step: SleepStep = { kind: "sleep", id: stepId, durationMs };
     this._steps.push(step);
@@ -265,7 +267,10 @@ export class WorkflowBuilder<TInput = unknown, TOutput = unknown> {
 
   private assertNotCommitted(): void {
     if (this._committed) {
-      throw new Error("Workflow already committed; create a fresh Workflow.create(...) call.");
+      throw new ConfigurationError(
+        "Workflow already committed; create a fresh Workflow.create(...) call.",
+        { code: "workflow_already_committed" },
+      );
     }
   }
 }

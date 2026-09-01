@@ -13,6 +13,7 @@
 
 import { homedir } from "node:os";
 
+import { AuthenticationError } from "../../../errors.js";
 import type { CredentialStoreConfig, OAuthProviderConfig } from "../../auth/auth-types.js";
 import { readStoredOAuth } from "../../auth/credential-store.js";
 import { resolveCredential } from "../../auth/resolve-credential.js";
@@ -63,8 +64,14 @@ function codexFetch(): typeof fetch {
       env,
     });
     if (resolved === undefined) {
-      throw new Error(
+      // AuthenticationError, not a bare Error. `isTransientError` is
+      // `err instanceof TheokitAgentError && err.isRetryable`, so a bare Error here is permanently
+      // non-retryable AND invisible to a consumer branching on `instanceof AuthenticationError` —
+      // which is what a caller does when a login has expired. router.ts:378 already throws typed for
+      // the same missing-OAuth-credential condition.
+      throw new AuthenticationError(
         'openai-chatgpt: no ChatGPT credential found — run the OpenAI device login (e.g. "/login openai") first.',
+        { code: "missing_credential" },
       );
     }
     const accountId = readStoredOAuth(DEFAULT_STORE, env)?.account_id;

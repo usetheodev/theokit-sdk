@@ -17,6 +17,7 @@
  * heuristic is load-bearing. The name and the behaviour here are unchanged.
  */
 import { CHARS_PER_TOKEN, estimateTokens } from "./compaction.js";
+import { ConfigurationError } from "./errors.js";
 import type { Processor, ProcessorControls } from "./types/processors.js";
 
 export { CHARS_PER_TOKEN, estimateTokens };
@@ -82,7 +83,9 @@ export interface TokenLimiterOptions {
  */
 export function createTokenLimiter(opts: TokenLimiterOptions): Processor {
   if (!Number.isInteger(opts.limit) || opts.limit <= 0) {
-    throw new Error("createTokenLimiter: `limit` must be a positive integer.");
+    throw new ConfigurationError("createTokenLimiter: `limit` must be a positive integer.", {
+      code: "invalid_processor_options",
+    });
   }
   const limit = opts.limit;
   const strategy = opts.strategy ?? "truncate";

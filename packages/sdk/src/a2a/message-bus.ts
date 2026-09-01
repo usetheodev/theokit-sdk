@@ -12,6 +12,35 @@ import { diag } from "../internal/diagnostics.js";
 import type { A2AMessage, MessageHandler } from "./types.js";
 
 /**
+ * Thrown by {@link MessageBus.send} and {@link MessageBus.request} when `to` has no registered
+ * handler.
+ *
+ * The sibling below records why a typed error was introduced for the TIMEOUT, quoting
+ * `docs/error-codes.md`: "Branch on `code`, never on the message: messages carry context (an id, a
+ * path, a limit) and change with it, while a code is the contract." This failure had exactly the
+ * shape that reasoning rejects — a bare `Error` whose message embeds the address — in the FIRST
+ * branch of the same two methods whose second branch was fixed.
+ *
+ * @public
+ */
+export class A2APeerNotRegisteredError extends TheokitAgentError {
+  override readonly name = "A2APeerNotRegisteredError";
+  override readonly code = "a2a_peer_not_registered" as const;
+
+  constructor(
+    /** The address with no registered handler. */
+    public readonly to: string,
+  ) {
+    // Not retryable: a peer registers or it does not, and re-sending does not register it. A caller
+    // that expects it to appear should await registration, not retry the send.
+    super(`Agent "${to}" not registered on MessageBus`, {
+      code: "a2a_peer_not_registered",
+      isRetryable: false,
+    });
+  }
+}
+
+/**
  * A peer did not answer a {@link MessageBus.request} within its timeout.
  *
  * Carries `code: "a2a_request_timeout"`, the peer's address and the limit as FIELDS, so a caller
@@ -73,8 +102,8 @@ export interface RequestOptions {
  * Callers supply only `{ type, payload }`; the bus stamps `from`, `to`,
  * `timestamp` and `origin` onto the delivered {@link A2AMessage}.
  *
- * How it fails: `send` and `request` both reject with a plain `Error`
- * (`Agent "<to>" not registered on MessageBus`) when `to` has no handler, and
+ * How it fails: `send` and `request` both reject with {@link A2APeerNotRegisteredError}
+ * (code `a2a_peer_not_registered`, carrying `to`) when `to` has no handler, and
  * `request` additionally rejects on timeout. No typed error class is exported for
  * either, so there is nothing to `instanceof`.
  *
@@ -102,7 +131,7 @@ export class MessageBus {
   async send(from: string, to: string, partial: { type: string; payload: unknown }): Promise<void> {
     const handler = this._handlers.get(to);
     if (!handler) {
-      throw new Error(`Agent "${to}" not registered on MessageBus`);
+      throw new A2APeerNotRegisteredError(to);
     }
     const message: A2AMessage = {
       ...partial,
@@ -135,7 +164,7 @@ export class MessageBus {
   ): Promise<unknown> {
     const handler = this._handlers.get(to);
     if (!handler) {
-      throw new Error(`Agent "${to}" not registered on MessageBus`);
+      throw new A2APeerNotRegisteredError(to);
     }
     const timeoutMs = opts?.timeoutMs ?? 30_000;
     const message: A2AMessage = {
