@@ -13,6 +13,14 @@
  * states: if the mechanism ever needs to change — a different key namespace, a `WeakRef`, a
  * cross-realm fallback — the sites that import it move and the copies do not.
  *
+ * WHAT THIS GATE CANNOT SEE, stated because a gate believed to be complete is worse than a narrow
+ * one. It matches the hand-rolled CAST. It does not and cannot tell which module-level `const cache =
+ * new Map()` ought to be realm-global: most of them are legitimately module-local, and deciding is a
+ * judgement about whether two copies of the package would need to agree. Three that did need it —
+ * `liveAgentRegistry` and session-cache's two maps — were found by reading, not by this. The
+ * session-cache pair even carried a docblock asserting that "an ES module is a singleton", which is
+ * the sentence `internal/global-singleton.ts` exists to refute.
+ *
  * DELIBERATELY NOT COVERED: a settable SLOT is a different pattern and keeps its own symbol.
  * `diagnostics.ts`'s sink and `agent-factory-registry.ts`'s facade are written, replaced and cleared
  * by their owners; `globalSingleton` is create-once-and-return, which cannot express that. Folding
