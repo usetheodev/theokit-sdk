@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 // SE36 — the new uniform namespace API. `Tool.create` replaces `defineTool` (hard break).
-import { Tool } from "../../src/define-tool.js";
+import { Tool } from "../src/define-tool.js";
 
 /**
  * SE36 parity — `Tool.create(spec)` MUST produce a `CustomTool` structurally identical to the

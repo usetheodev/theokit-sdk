@@ -6,7 +6,11 @@ ls:
     .ts: regex:^[a-z][a-z0-9-]*$
     .tsx: regex:^[a-z][a-z0-9-]*$
   packages/*/tests:
-    .ts: regex:^[a-z][a-z0-9-]*$
+    # A leading underscore marks a module that is NOT a test, which this tree already uses for
+    # directories — tests/chaos/_harness, tests/integration/_helpers, tests/internal/agent-loop/_helpers.
+    # Allowed here so the same marker works on a file (tests/lint/_scope-sentinel.ts is a helper the
+    # gates import, not a gate). Everything after the underscore is still kebab-case.
+    .ts: regex:^_?[a-z][a-z0-9-]*$
     # Compound extensions are declared explicitly because ls-lint matches on the
     # LONGEST extension: `foo.test.ts` has extension `.test.ts`, so the `.ts` rule
     # above never sees it. Measured 2026-09-01: 933 of the 951 .ts files under
@@ -22,7 +26,11 @@ ls:
     .integration.test.ts: regex:^[a-z][a-z0-9-]*$
     .adversarial.test.ts: regex:^[a-z][a-z0-9-]*$
   packages/*/tests/**:
-    .ts: regex:^[a-z][a-z0-9-]*$
+    # A leading underscore marks a module that is NOT a test, which this tree already uses for
+    # directories — tests/chaos/_harness, tests/integration/_helpers, tests/internal/agent-loop/_helpers.
+    # Allowed here so the same marker works on a file (tests/lint/_scope-sentinel.ts is a helper the
+    # gates import, not a gate). Everything after the underscore is still kebab-case.
+    .ts: regex:^_?[a-z][a-z0-9-]*$
     # Compound extensions are declared explicitly because ls-lint matches on the
     # LONGEST extension: `foo.test.ts` has extension `.test.ts`, so the `.ts` rule
     # above never sees it. Measured 2026-09-01: 933 of the 951 .ts files under

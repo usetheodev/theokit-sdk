@@ -17,7 +17,7 @@
 import { describe, expect, it } from "vitest";
 
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
-import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../../src/internal/agent-loop/types.js";
 import { derivePromptCacheKey } from "../../../src/internal/llm/prompt-cache-key.js";
 import type {
   LlmClient,

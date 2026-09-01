@@ -16,7 +16,7 @@
  * would widen what the unit under test can reach. Their casts are a deliberate narrowing, not a
  * shortcut.
  */
-import type { AgentLoopInputs } from "../../../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../../../src/internal/agent-loop/types.js";
 import { HooksExecutor } from "../../../../src/internal/runtime/hooks/hooks-executor.js";
 
 /**

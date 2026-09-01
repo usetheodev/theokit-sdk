@@ -12,15 +12,14 @@
  * @internal
  */
 import { AuthCallbackError } from "../../server/auth/errors.js";
-
+import { exchangeCode } from "./oauth-engine.js";
 import type {
   DeviceCodeGrant,
   DeviceDeps,
   DeviceOAuthConfig,
   OAuthTokens,
   OpenAIDeviceConfig,
-} from "./auth-types.js";
-import { exchangeCode } from "./oauth-engine.js";
+} from "./types.js";
 
 // ─── OAuth 2.0 Device Authorization Grant (RFC 8628) — terminal-first / headless login ───
 

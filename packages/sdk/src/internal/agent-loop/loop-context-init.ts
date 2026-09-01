@@ -27,9 +27,9 @@ import type { McpClient, McpTool } from "../mcp/client.js";
 import type { MemoryProviderHandle } from "../runtime/memory/memory-provider.js";
 import { createDoomLoopTracker, type DoomLoopTracker } from "./doom-loop-tracker.js";
 import { createEventLog, type LiveEventLog } from "./live-events.js";
-import type { AgentLoopInputs } from "./loop-types.js";
 import { buildSystemEvent, buildUserEvent } from "./message-builders.js";
 import type { ResolvedTool } from "./tool-dispatch.js";
+import type { AgentLoopInputs } from "./types.js";
 
 /**
  * Mutable state for the agent loop. Extracted to share the shape between
@@ -64,7 +64,7 @@ export interface LoopContext {
   /** Per-run doom-loop detector; `undefined` when disabled via `SendOptions.doomLoop: false`. */
   doomLoop?: DoomLoopTracker;
   usage: UsageAccumulator;
-  error?: import("./loop-types.js").AgentLoopErrorDetail;
+  error?: import("./types.js").AgentLoopErrorDetail;
   nudgeAttempts: number;
   /** M1-4: count of honored `stop`-hook feedback re-prompts, bounded by MAX_STOP_FEEDBACK_ATTEMPTS. */
   stopFeedbackAttempts: number;

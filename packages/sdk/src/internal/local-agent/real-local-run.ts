@@ -4,7 +4,7 @@ import type { SDKMessage } from "../../types/messages.js";
 import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { emitRunEvent } from "../../types/run-events.js";
 import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
-import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import type { MemoryToolSpec } from "../agent-loop/types.js";
 import { LOCAL_RUNTIME_MOCK_KEY } from "../auth/api-key-validator.js";
 import { diag } from "../diagnostics.js";
 import { FallbackLlmClient } from "../llm/fallback-client.js";
@@ -20,7 +20,7 @@ import {
 } from "../runtime/concurrency/subagent-credentials.js";
 import { isFixtureApiKey } from "../runtime/fixtures/fixture-mode.js";
 import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-run-base.js";
-import type { FixtureScript } from "../runtime/fixtures/fixture-types.js";
+import type { FixtureScript } from "../runtime/fixtures/types.js";
 import type { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
 import { registerRun } from "../runtime/registry/run-registry.js";
 import type { SessionMessage } from "../session/index.js";

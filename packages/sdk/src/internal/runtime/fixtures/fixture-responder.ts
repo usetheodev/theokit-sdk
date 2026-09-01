@@ -23,7 +23,7 @@ import {
   useSkillScript,
   webSearchScript,
 } from "./fixture-scripts.js";
-import type { FixtureRequest, FixtureScript } from "./fixture-types.js";
+import type { FixtureRequest, FixtureScript } from "./types.js";
 
 /**
  * Fixture responder entry point. Pattern-matches the user message against a
@@ -33,7 +33,7 @@ import type { FixtureRequest, FixtureScript } from "./fixture-types.js";
  * @internal
  */
 
-export type { FixtureRequest, FixtureScript } from "./fixture-types.js";
+export type { FixtureRequest, FixtureScript } from "./types.js";
 
 type ScriptHandler = (request: FixtureRequest) => FixtureScript;
 

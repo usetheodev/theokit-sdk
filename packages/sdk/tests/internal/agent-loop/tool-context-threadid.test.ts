@@ -6,9 +6,8 @@
  * `createTodolistTool()` shape) mixes one user's state into another's.
  */
 import { describe, expect, it } from "vitest";
-
-import type { AgentLoopInputs, ResolvedTool } from "../../../src/internal/agent-loop/loop-types.js";
 import { executeTool } from "../../../src/internal/agent-loop/tool-executors.js";
+import type { AgentLoopInputs, ResolvedTool } from "../../../src/internal/agent-loop/types.js";
 import type { LlmToolCallPart } from "../../../src/internal/llm/types.js";
 import { useTempCwd } from "../../helpers/temp-workspace.js";
 

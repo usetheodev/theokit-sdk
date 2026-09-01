@@ -8,10 +8,10 @@ import { firstDoomLoopVerdict } from "./doom-loop-tracker.js";
 import { initLoopContext, type LoopContext } from "./loop-context-init.js";
 import { type LlmTurnOutput, streamLlmTurn } from "./loop-llm-stream.js";
 import { recordThinkingOnSilentToolRound, thinkingStep } from "./loop-thinking-steps.js";
-import type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import { buildAssistantEvent, buildAssistantTurn } from "./message-builders.js";
 import { dispatchTools } from "./tool-dispatch.js";
 import { applyToolResultGuard } from "./tool-result-guard.js";
+import type { AgentLoopInputs, AgentLoopOutput } from "./types.js";
 import { accumulateUsage, computeUsageCost } from "./usage-and-cost.js";
 
 /**
@@ -40,7 +40,7 @@ function projectToolContextMessages(messages: readonly LlmMessage[]): ToolContex
  * @internal
  */
 
-export type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
+export type { AgentLoopInputs, AgentLoopOutput } from "./types.js";
 
 /** T2.1 (ADR D93) — maximum number of bailout-nudge user messages to inject. */
 const MAX_NUDGE_ATTEMPTS = 2;

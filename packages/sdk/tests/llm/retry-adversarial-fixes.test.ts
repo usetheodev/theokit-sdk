@@ -12,9 +12,9 @@ import {
   CredentialPoolExhaustedError,
   NetworkError,
   RateLimitError,
-} from "../src/errors.js";
-import { isRetriableError, RetryingLlmClient } from "../src/internal/llm/retrying-client.js";
-import type { LlmClient, LlmEvent, LlmRequest } from "../src/internal/llm/types.js";
+} from "../../src/errors.js";
+import { isRetriableError, RetryingLlmClient } from "../../src/internal/llm/retrying-client.js";
+import type { LlmClient, LlmEvent, LlmRequest } from "../../src/internal/llm/types.js";
 
 /** `ErrorMetadata` requires provider/endpoint/code; only the status matters for these tests. */
 const META = (statusCode: number) => ({

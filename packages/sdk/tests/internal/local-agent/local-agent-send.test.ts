@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { AgentDisposedError } from "../../../src/errors.js";
-import type { MemoryToolSpec } from "../../../src/internal/agent-loop/loop-types.js";
+import type { MemoryToolSpec } from "../../../src/internal/agent-loop/types.js";
 import { setDiagnosticsSink } from "../../../src/internal/diagnostics.js";
 import { LocalAgentMemory } from "../../../src/internal/local-agent/local-agent-memory.js";
 import type { SendLockedInputs } from "../../../src/internal/local-agent/local-agent-send.js";

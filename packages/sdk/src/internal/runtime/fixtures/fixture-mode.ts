@@ -16,9 +16,8 @@
 
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-
-import type { CredentialStoreConfig } from "../../auth/auth-types.js";
 import { readStoredOAuth } from "../../auth/credential-store.js";
+import type { CredentialStoreConfig } from "../../auth/types.js";
 
 const FIXTURE_API_KEY_PREFIX = "theo_test_";
 

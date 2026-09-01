@@ -21,7 +21,7 @@
  */
 
 import type { CustomTool } from "../../../types/agent.js";
-import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
+import type { MemoryToolSpec } from "../../agent-loop/types.js";
 import type { MemoryProvider } from "./memory-provider.js";
 
 /** Env var name — internal, not in public docs yet. */

@@ -5,9 +5,9 @@ import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { HISTOGRAM_NAMES } from "../telemetry/span-names.js";
 import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
 import type { LoopContext } from "./loop-context-init.js";
-import type { AgentLoopInputs } from "./loop-types.js";
 import { buildAssistantEvent, buildThinkingEvent } from "./message-builders.js";
 import type { ResolvedTool } from "./tool-dispatch.js";
+import type { AgentLoopInputs } from "./types.js";
 
 /** @internal */
 export interface LlmTurnOutput {

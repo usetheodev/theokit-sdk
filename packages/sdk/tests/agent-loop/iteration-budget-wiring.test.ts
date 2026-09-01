@@ -32,11 +32,11 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 // Type imported from src (not the dist barrel) so typecheck sees the new
 // optional `nextIteration` member before a rebuild — repo convention
 // (cf. agent-loop/budget-gate.test.ts).
-import type { BudgetTracker } from "../src/internal/budget/tracker/budget-tracker.js";
-import type { LlmClient, LlmEvent, LlmFinish } from "../src/internal/llm/types.js";
-import type { RunResult, SendOptions } from "../src/types/run.js";
-import { driveLoop } from "./helpers/agent-loop-driver.js";
-import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
+import type { BudgetTracker } from "../../src/internal/budget/tracker/budget-tracker.js";
+import type { LlmClient, LlmEvent, LlmFinish } from "../../src/internal/llm/types.js";
+import type { RunResult, SendOptions } from "../../src/types/run.js";
+import { driveLoop } from ".././helpers/agent-loop-driver.js";
+import { removeTempDirRobustSync } from ".././helpers/temp-workspace.js";
 
 const CWD = mkdtempSync(join(tmpdir(), "theokit-m1budget-"));
 afterAll(() => {

@@ -11,7 +11,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { Provider } from "../src/define-provider.js";
-import type { SessionMessage } from "../src/internal/session/session-types.js";
+import type { SessionMessage } from "../src/internal/session/types.js";
 import type { TranscriptMessage } from "../src/types/session-record.js";
 
 describe("M94 — TranscriptMessage", () => {

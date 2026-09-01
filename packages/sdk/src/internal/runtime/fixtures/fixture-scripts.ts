@@ -12,7 +12,7 @@ import {
   toolCallRunning,
   userEvent,
 } from "./fixture-events.js";
-import type { FixtureRequest, FixtureScript } from "./fixture-types.js";
+import type { FixtureRequest, FixtureScript } from "./types.js";
 
 /**
  * Concrete fixture script builders. Each function returns a fully assembled

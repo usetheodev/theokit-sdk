@@ -19,7 +19,7 @@ import type {
   CustomTool,
   ModelSelection,
 } from "../../types/agent.js";
-import type { CustomToolSpec } from "../agent-loop/loop-types.js";
+import type { CustomToolSpec } from "../agent-loop/types.js";
 import type { InheritedCredentials } from "../runtime/concurrency/subagent-credentials.js";
 import { createThinkTool, reasoningActive } from "../runtime/reasoning/native-reasoning.js";
 import { applyPersonalityFilter } from "../tool-registry/personality-filter.js";

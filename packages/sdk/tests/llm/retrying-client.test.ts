@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { AuthenticationError, RateLimitError } from "../src/errors.js";
+import { AuthenticationError, RateLimitError } from "../../src/errors.js";
 import {
   isRetriableError,
   MAX_ATTEMPTS,
   RetryingLlmClient,
-} from "../src/internal/llm/retrying-client.js";
-import type { LlmClient, LlmEvent, LlmFinish } from "../src/internal/llm/types.js";
+} from "../../src/internal/llm/retrying-client.js";
+import type { LlmClient, LlmEvent, LlmFinish } from "../../src/internal/llm/types.js";
 
 /**
  * M93 T1.1 — the single-key path gains the retry only the two-key path had.

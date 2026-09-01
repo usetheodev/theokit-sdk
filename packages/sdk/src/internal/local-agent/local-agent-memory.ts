@@ -1,5 +1,5 @@
 import type { AgentOptions } from "../../types/agent.js";
-import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import type { MemoryToolSpec } from "../agent-loop/types.js";
 import { diag } from "../diagnostics.js";
 import { runActiveMemory } from "../memory/active-memory.js";
 import { ActiveMemoryCache } from "../memory/active-memory-cache.js";

@@ -4,7 +4,7 @@ import type { ToolContextMessage } from "../../types/agent-prims.js";
 import type { ToolResultContentBlock } from "../../types/content-blocks.js";
 import type { LlmToolCallPart } from "../llm/types.js";
 import { runShell, type ShellExecuteOptions } from "../runtime/tools/shell-tool.js";
-import type { AgentLoopInputs, ResolvedTool } from "./loop-types.js";
+import type { AgentLoopInputs, ResolvedTool } from "./types.js";
 
 /** @internal */
 export interface ToolResult {

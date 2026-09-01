@@ -1,4 +1,4 @@
-import type { SessionMessage } from "./session-types.js";
+import type { SessionMessage } from "./types.js";
 
 /**
  * The in-memory session cache — in a LEAF module, on purpose.

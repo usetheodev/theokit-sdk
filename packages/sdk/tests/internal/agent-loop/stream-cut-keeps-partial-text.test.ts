@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import type { LoopContext } from "../../../src/internal/agent-loop/loop-context-init.js";
 import { streamLlmTurn } from "../../../src/internal/agent-loop/loop-llm-stream.js";
-import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../../src/internal/agent-loop/types.js";
 import type {
   LlmClient,
   LlmEvent,

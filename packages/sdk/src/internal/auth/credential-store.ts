@@ -37,11 +37,7 @@ import { AuthenticationError } from "../../errors.js";
  * `.d.ts`, leaving the types it binds unresolvable for any consumer running type-aware lint
  * (usetheodev/theokit-sdk#283 records the same trap on a declaration).
  */
-import type {
-  CredentialStoreConfig,
-  StoredCredential,
-  StoredOAuthCredential,
-} from "./auth-types.js";
+import type { CredentialStoreConfig, StoredCredential, StoredOAuthCredential } from "./types.js";
 
 /** The store directory, honoring an optional `homeEnvVar` override. */
 export function credentialHome(

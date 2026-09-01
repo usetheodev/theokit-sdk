@@ -25,12 +25,12 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { type SubscriptionDescriptor, SubscriptionError } from "../types.js";
-import type { UpgradeContext } from "./adapter-types.js";
 import {
   type DispatchOptions,
   SubscriptionRuntime,
   type WireFrame,
 } from "./subscription-runtime.js";
+import type { UpgradeContext } from "./types.js";
 import { createNodeWsAdapter } from "./ws-adapter-node.js";
 
 /**
@@ -310,7 +310,7 @@ async function handleSseRequest(
 
 function wireWsConnection(
   runtime: SubscriptionRuntime,
-  handle: import("./adapter-types.js").WebSocketHandle,
+  handle: import("./types.js").WebSocketHandle,
 ): void {
   const subs: Map<string, { ac: AbortController; iterable: AsyncIterable<WireFrame> }> = new Map();
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: onMessage callback multiplexes subscribe/abort/resume kinds + per-sub lifecycle — refactor candidate

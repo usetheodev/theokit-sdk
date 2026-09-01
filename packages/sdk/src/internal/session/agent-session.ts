@@ -23,9 +23,9 @@ import {
 
 // `SessionMessage` lives in `./session-types.ts` (leaf types file). Re-exported
 // for back-compat with downstream importers that pulled it from here.
-export type { SessionMessage } from "./session-types.js";
+export type { SessionMessage } from "./types.js";
 
-import type { SessionMessage } from "./session-types.js";
+import type { SessionMessage } from "./types.js";
 
 // M75 — the cache lives in a leaf; see session-cache.ts for the reason (cycle broken by extraction).
 export {

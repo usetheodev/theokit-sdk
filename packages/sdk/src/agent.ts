@@ -326,7 +326,7 @@ export class Agent {
    *
    *   This bullet used to say the opposite ("Disposed agents are NOT auto-deleted...
    *   call `Agent.delete(agentId)` first"). It was measured false in M91:
-   *   `tests/m91-getorcreate-after-dispose.test.ts` builds an agent, disposes it, and
+   *   `tests/agent-getorcreate-after-dispose.test.ts` builds an agent, disposes it, and
    *   gets a different instance back. The claim was about the PERSISTENT registry and
    *   read as being about the live cache — and consumers built around the wrong half.
    *   The agent-builder's M85 interrupt rotates the session id to work around a

@@ -13,6 +13,22 @@ Given that, this file — not a metadata flag nobody reads — is the source of
 truth for which directories cross a real boundary, so a human (or a future
 classifier) has one place to check instead of re-deriving it per audit.
 
+## What a test file is named
+
+**A test filename names a BEHAVIOUR. A milestone or issue id belongs in the file, never in the path.**
+
+Twenty-two artifacts were named after the milestone that produced them — nineteen `m1/m7/m91/m93/m94/m95`
+files, the directory `tests/se36/`, and one `-b115` suffix. Because those prefixes are chronological
+they clustered unrelated subjects together (`m93-router-resilience` and `m93-append-incremental` touch
+different subsystems) and scattered related ones apart (`m91-getorcreate-after-dispose` and
+`m95-init-acquires-and-releases` are both lifecycle concerns). A reader looking for the transcript
+tests had no way to find them by name.
+
+They are renamed, and every one keeps its milestone id in a header comment — which is how the rest of
+this repository already records provenance: 478 SE/D-number references live in `src/` headers and
+none in a path. A milestone id in a filename expires the moment the milestone is forgotten; in a
+header it stays useful.
+
 ## Where a new test file goes
 
 There is a rule now, because for a long time there was not one and the tree recorded the absence:

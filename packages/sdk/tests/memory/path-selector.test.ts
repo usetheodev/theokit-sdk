@@ -8,7 +8,7 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import type { MemoryToolSpec } from "../../src/internal/agent-loop/loop-types.js";
+import type { MemoryToolSpec } from "../../src/internal/agent-loop/types.js";
 import {
   PORT_MEMORY_PATH_ENV_VAR,
   resolveActiveMemorySummaryForSend,

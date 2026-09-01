@@ -32,9 +32,9 @@ import {
 import { resolveSystemPromptForSend } from "../runtime/system-prompt/system-prompt.js";
 import { PathTraversalError, validateArtifactPath } from "../security/path-guard.js";
 import { serializeCloudAgentConfig } from "./cloud-config-serializer.js";
-import type { CloudAgentPayload } from "./cloud-payload-types.js";
 import { createCloudRun } from "./cloud-run.js";
 import { createRealCloudRun } from "./real-cloud-run.js";
+import type { CloudAgentPayload } from "./types.js";
 
 /**
  * Cloud SDKAgent implementation. Holds the cloud configuration and routes

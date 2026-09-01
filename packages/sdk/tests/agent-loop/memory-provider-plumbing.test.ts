@@ -26,7 +26,7 @@
  */
 
 import { describe, expectTypeOf, it } from "vitest";
-import type { AgentLoopInputs } from "../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../src/internal/agent-loop/types.js";
 import type { MemoryProvider } from "../../src/internal/runtime/memory/memory-provider.js";
 
 /**

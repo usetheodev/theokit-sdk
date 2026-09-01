@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { RetryingLlmClient } from "../src/internal/llm/retrying-client.js";
-import { resolveProviderChain } from "../src/internal/llm/router.js";
+import { RetryingLlmClient } from "../../src/internal/llm/retrying-client.js";
+import { resolveProviderChain } from "../../src/internal/llm/router.js";
 
 /*
  * M93 T1.2 — the asymmetry between 1 and 2 keys disappears.

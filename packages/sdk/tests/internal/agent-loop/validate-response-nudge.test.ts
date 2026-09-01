@@ -20,7 +20,7 @@
 import { describe, expect, it } from "vitest";
 
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
-import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../../src/internal/agent-loop/types.js";
 import type { LlmClient, LlmEvent, LlmFinish } from "../../../src/internal/llm/types.js";
 import { makeLoopInputs } from "./_helpers/make-inputs.js";
 

@@ -8,11 +8,11 @@ import { checkToolWhitelist } from "../runtime/concurrency/async-local-storage.j
 import { mapWithConcurrency } from "../runtime/concurrency/map-with-concurrency.js";
 import { HISTOGRAM_NAMES } from "../telemetry/span-names.js";
 import { type RepairableTool, repairToolCall } from "../tool-dispatch/repair-middleware.js";
-import type { AgentLoopInputs, ResolvedTool } from "./loop-types.js";
 import { executeTool, renderToolResult, type ToolResult } from "./tool-executors.js";
 import { raceToolExecution } from "./tool-timeout.js";
+import type { AgentLoopInputs, ResolvedTool } from "./types.js";
 
-export type { ResolvedTool } from "./loop-types.js";
+export type { ResolvedTool } from "./types.js";
 
 /**
  * T2.4 — Parallel tool dispatch with bounded concurrency (DR2 finding #4).

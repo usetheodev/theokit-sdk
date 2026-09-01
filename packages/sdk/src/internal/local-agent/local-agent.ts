@@ -14,7 +14,7 @@ import type {
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { AgentOperation } from "../../types/sdk-agent.js";
 import type { SessionStore } from "../../types/session-store.js";
-import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import type { MemoryToolSpec } from "../agent-loop/types.js";
 import { generateLocalAgentId } from "../ids.js";
 import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import { FsSessionStore } from "../persistence/fs-session-store.js";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AgentLoopInputs } from "../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../src/internal/agent-loop/types.js";
 import { accumulateUsage, computeUsageCost } from "../../src/internal/agent-loop/usage-and-cost.js";
 import { UsageAccumulator } from "../../src/internal/budget/usage-accumulator.js";
 import type { TokenUsage } from "../../src/types/usage.js";

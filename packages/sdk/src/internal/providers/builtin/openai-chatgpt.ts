@@ -14,9 +14,9 @@
 import { homedir } from "node:os";
 
 import { AuthenticationError } from "../../../errors.js";
-import type { CredentialStoreConfig, OAuthProviderConfig } from "../../auth/auth-types.js";
 import { readStoredOAuth } from "../../auth/credential-store.js";
 import { resolveCredential } from "../../auth/resolve-credential.js";
+import type { CredentialStoreConfig, OAuthProviderConfig } from "../../auth/types.js";
 import type { ProviderProfile } from "../types.js";
 
 /**

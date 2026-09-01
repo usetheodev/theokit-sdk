@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
-import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import type { MemoryToolSpec } from "../agent-loop/types.js";
 import { resolveApiKey } from "../env.js";
 import type { PersonalityPreset } from "../personality/types.js";
 import type { PluginManager } from "../plugins/manager.js";
