@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.27.4-next.0
+
+### Patch Changes
+
+- Updated dependencies [01630ec]
+  - @theokit/sdk@4.63.4-next.0
+
 ## 0.27.3
 
 ### Patch Changes
