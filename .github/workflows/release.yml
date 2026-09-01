@@ -272,7 +272,7 @@ jobs:
           # it is what makes the Version Packages pull request run its required checks — so it
           # moves here rather than being dropped. Measured on the release after #512.
           github-token: ${{ steps.app-token.outputs.token }}
-        env:
+          # WHY THIS STEP SETS NO ENVIRONMENT AT ALL:
           # AUTHENTICATION IS OIDC, NOT A TOKEN, as of this change. Each of the
           # twelve packages carries a Trusted Publisher connection on npmjs.com
           # naming this repository and THIS FILE. npm mints a short-lived
