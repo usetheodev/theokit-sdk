@@ -26,7 +26,7 @@ import {
   resolveMemoryProviderForLoop,
   resolveMemoryToolsForLoop,
   shouldUsePortMemoryPath,
-} from "../src/internal/runtime/memory/memory-path-selector.js";
+} from "../src/internal/runtime/memory-glue/memory-path-selector.js";
 import type { AgentOptions } from "../src/types/agent.js";
 
 const STUB_OPTIONS: AgentOptions = {

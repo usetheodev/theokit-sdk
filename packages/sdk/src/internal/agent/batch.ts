@@ -10,18 +10,18 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { ConfigurationError, TheokitAgentError } from "./errors.js";
-import { diag } from "./internal/diagnostics.js";
-import { CredentialPool, newPooledCredential } from "./internal/llm/credential-pool.js";
-import { withCredentialPool } from "./internal/llm/credential-pool-context.js";
-import type { CredentialPoolStrategy } from "./internal/llm/credential-pool-types.js";
-import { createSemaphore } from "./internal/runtime/concurrency/async-semaphore.js";
+import { ConfigurationError, TheokitAgentError } from "../../errors.js";
+import { diag } from "../../internal/diagnostics.js";
+import { CredentialPool, newPooledCredential } from "../../internal/llm/credential-pool.js";
+import { withCredentialPool } from "../../internal/llm/credential-pool-context.js";
+import type { CredentialPoolStrategy } from "../../internal/llm/credential-pool-types.js";
+import { createSemaphore } from "../../internal/runtime/concurrency/async-semaphore.js";
 import {
   submit as taskRegistrySubmit,
   subscribe as taskRegistrySubscribe,
-} from "./internal/task/registry.js";
-import type { AgentOptions, SDKAgent } from "./types/agent.js";
-import type { BatchItem, BatchOptions, BatchProgress, BatchResult } from "./types/batch.js";
+} from "../../internal/task/registry.js";
+import type { AgentOptions, SDKAgent } from "../../types/agent.js";
+import type { BatchItem, BatchOptions, BatchProgress, BatchResult } from "../../types/batch.js";
 
 /** DI contract — keeps batch.ts cycle-free from agent.ts. @internal */
 interface BatchDeps {

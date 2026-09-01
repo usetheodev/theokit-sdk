@@ -35,7 +35,7 @@ import type {
   MemoryProviderHandle,
   MemoryProviderInitOptions,
   RecordSessionSummaryArgs,
-} from "../runtime/memory/memory-provider.js";
+} from "../runtime/memory-glue/memory-provider.js";
 import type { TelemetryHandle } from "../telemetry/tracer.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 

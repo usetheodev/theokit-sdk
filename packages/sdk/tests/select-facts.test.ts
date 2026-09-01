@@ -5,7 +5,7 @@ import {
   CHARS_PER_TOKEN,
   DEFAULT_MAX_TOKENS,
   selectFactsForInjection,
-} from "../src/internal/runtime/memory/select-facts.js";
+} from "../src/internal/runtime/memory-glue/select-facts.js";
 
 const dated = (text: string, modified: string): MemoryFact => ({ text, modified });
 const undated = (text: string): MemoryFact => ({ text });

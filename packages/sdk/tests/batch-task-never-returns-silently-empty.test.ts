@@ -26,8 +26,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../src/agent.js";
-import { batchImpl } from "../src/batch.js";
 import { TheokitAgentError } from "../src/errors.js";
+import { batchImpl } from "../src/internal/agent/batch.js";
 import { __resetTaskRegistryForTests } from "../src/internal/task/registry.js";
 import { useTempCwd } from "./helpers/temp-workspace.js";
 

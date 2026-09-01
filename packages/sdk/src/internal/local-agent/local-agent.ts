@@ -31,10 +31,10 @@ import { runPostRunLifecycle } from "../runtime/lifecycle/post-run-lifecycle.js"
 import {
   resolveMemoryProviderForLoop,
   shouldUsePortMemoryPath,
-} from "../runtime/memory/memory-path-selector.js";
-import type { MemoryFact } from "../runtime/memory/memory-store.js";
+} from "../runtime/memory-glue/memory-path-selector.js";
+import type { MemoryFact } from "../runtime/memory-glue/memory-store.js";
 import { normalizeModel } from "../runtime/model-selection.js";
-import type { PluginMetadata, PluginsManager } from "../runtime/plugins/plugins-manager.js";
+import type { PluginMetadata, PluginsManager } from "../runtime/plugin-loader/plugins-manager.js";
 import { updateRegisteredAgent } from "../runtime/registry/agent-registry.js";
 import type { SkillsHandle, SkillsManager } from "../runtime/skills/skills-manager.js";
 import { loadSubagents } from "../runtime/skills/subagents-loader.js";
@@ -464,7 +464,7 @@ export class LocalAgent implements SDKAgent {
     memoryFacts: ReadonlyArray<MemoryFact>,
     priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
     memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
-    memoryProviderOverride?: import("../runtime/memory/memory-provider.js").MemoryProvider,
+    memoryProviderOverride?: import("../runtime/memory-glue/memory-provider.js").MemoryProvider,
   ): Promise<Run> {
     // SDK 2.0 Phase 1 physical Stage 2b — iter 23 KERNEL FLIP:
     // When `memoryProviderOverride` is supplied (env-flag path), inject

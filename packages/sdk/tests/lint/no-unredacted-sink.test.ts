@@ -165,8 +165,9 @@ const WHITELIST = new Set<string>([
   // agentId and workspaceCwd are non-secret structural labels.
   "agent.ts",
   // Extracted from agent.ts during G8 LoC split — same span.setAttribute
-  // callsites (agentId + workspaceCwd) on pre-wrapped tracer spans.
-  "agent-helpers.ts",
+  // callsites (agentId + workspaceCwd) on pre-wrapped tracer spans. Moved under
+  // internal/ when the public root stopped holding implementation modules.
+  "internal/agent/helpers.ts",
   // G8 subscription server-integration: `fs.writeFile` persists the
   // SubscriptionManifest (declarative registry — version + subscription names
   // + zod-derived input/output schemas). No user payload, no PII, no secrets.

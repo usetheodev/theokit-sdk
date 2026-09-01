@@ -13,7 +13,7 @@
 // public `Agent.create` factory. We construct LocalAgent directly here
 // to keep the test focused on the new field, not on Agent.create wiring.
 import { describe, expect, it } from "vitest";
-import type { MemoryProvider } from "../src/internal/runtime/memory/memory-provider.js";
+import type { MemoryProvider } from "../src/internal/runtime/memory-glue/memory-provider.js";
 import type { AgentOptions } from "../src/types/agent.js";
 
 const STUB_OPTIONS: AgentOptions = {

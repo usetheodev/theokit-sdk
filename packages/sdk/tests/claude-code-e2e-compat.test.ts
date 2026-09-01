@@ -12,7 +12,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_DISCOVERY_SPECS, runDiscovery } from "../src/context/index.js";
 import { readFactsFromMarkdown } from "../src/internal/memory/storage/markdown-store.js";
 import { loadHookConfig } from "../src/internal/runtime/hooks/hooks-source.js";
-import { PluginsManager } from "../src/internal/runtime/plugins/plugins-manager.js";
+import { PluginsManager } from "../src/internal/runtime/plugin-loader/plugins-manager.js";
 import { SkillsManager } from "../src/internal/runtime/skills/skills-manager.js";
 import { loadSubagents } from "../src/internal/runtime/skills/subagents-loader.js";
 

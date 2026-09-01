@@ -10,7 +10,7 @@
  *
  * DIP-correct home (SE46): the port + companion contract types live in the
  * domain `types/` layer; the application-layer module
- * (`internal/runtime/memory/memory-provider.ts`) re-exports them for
+ * (`internal/runtime/memory-glue/memory-provider.ts`) re-exports them for
  * back-compat while the concrete providers live under `internal/`.
  *
  * Layered model (mirrors Budget):

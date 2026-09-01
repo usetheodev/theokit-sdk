@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { PluginsManager } from "../src/internal/runtime/plugins/plugins-manager.js";
+import { PluginsManager } from "../src/internal/runtime/plugin-loader/plugins-manager.js";
 import { SkillsManager } from "../src/internal/runtime/skills/skills-manager.js";
 import { loadSubagents } from "../src/internal/runtime/skills/subagents-loader.js";
 

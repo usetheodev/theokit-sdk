@@ -15,11 +15,11 @@ import {
   resolveMemoryProviderForLoop,
   resolveMemoryToolsForLoop,
   shouldUsePortMemoryPath,
-} from "../runtime/memory/memory-path-selector.js";
-import type { MemoryProvider } from "../runtime/memory/memory-provider.js";
-import type { MemoryFact } from "../runtime/memory/memory-store.js";
-import { readMemoryFacts } from "../runtime/memory/memory-store.js";
-import { selectFactsForInjection } from "../runtime/memory/select-facts.js";
+} from "../runtime/memory-glue/memory-path-selector.js";
+import type { MemoryProvider } from "../runtime/memory-glue/memory-provider.js";
+import type { MemoryFact } from "../runtime/memory-glue/memory-store.js";
+import { readMemoryFacts } from "../runtime/memory-glue/memory-store.js";
+import { selectFactsForInjection } from "../runtime/memory-glue/select-facts.js";
 import { normalizeModel } from "../runtime/model-selection.js";
 import { runInputProcessors } from "../runtime/processors/run-processors.js";
 import { createTripwireRun } from "../runtime/processors/tripwire-run.js";

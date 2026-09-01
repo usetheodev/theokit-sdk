@@ -5,9 +5,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { batchImpl } from "../src/batch.js";
 import { ConfigurationError, type TheokitAgentError } from "../src/errors.js";
+import { batchImpl } from "../src/internal/agent/batch.js";
 import { currentCredentialPool } from "../src/internal/llm/credential-pool-context.js";
 import type { AgentOptions, SDKAgent } from "../src/types/agent.js";
 import type { BatchItem, BatchOptions, BatchResult } from "../src/types/batch.js";

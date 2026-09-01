@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MEMORY_KINDS } from "../../src/internal/memory/types.js";
-import { unstoredRememberWarning } from "../../src/internal/runtime/memory/memory-store.js";
+import { unstoredRememberWarning } from "../../src/internal/runtime/memory-glue/memory-store.js";
 
 /*
  * #462 — a `Remember` phrase one token away from the supported form stored nothing, and said

@@ -24,7 +24,7 @@ function buildUserContent(text: string, images: SDKUserMessage["images"]): LlmCo
 import { emitRunEvent, type RunEventSink } from "../../types/run-events.js";
 import { diag } from "../diagnostics.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
-import type { MemoryProviderHandle } from "../runtime/memory/memory-provider.js";
+import type { MemoryProviderHandle } from "../runtime/memory-glue/memory-provider.js";
 import { createDoomLoopTracker, type DoomLoopTracker } from "./doom-loop-tracker.js";
 import { createEventLog, type LiveEventLog } from "./live-events.js";
 import { buildSystemEvent, buildUserEvent } from "./message-builders.js";

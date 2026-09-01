@@ -24,7 +24,7 @@ import {
   extractMemoryKind,
   isMemoryWritePrompt,
   unstoredRememberWarning,
-} from "../runtime/memory/memory-store.js";
+} from "../runtime/memory-glue/memory-store.js";
 
 /**
  * Drive {@link runUntilImpl} with the registered `Agent.create` so

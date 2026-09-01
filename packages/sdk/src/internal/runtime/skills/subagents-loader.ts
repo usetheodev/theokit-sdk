@@ -8,7 +8,7 @@ import { diag } from "../../diagnostics.js";
 import { projectConfigRoots } from "../../persistence/paths.js";
 import { readWorkspaceDir } from "../config/workspace-dir.js";
 import { type FrontmatterValue, parseSimpleYaml } from "../context/yaml-frontmatter.js";
-import { pluginBundleDirs } from "../plugins/plugin-bundles.js";
+import { pluginBundleDirs } from "../plugin-loader/plugin-bundles.js";
 
 /**
  * Load file-based subagents from `.theokit/agents/*.md` and merge with

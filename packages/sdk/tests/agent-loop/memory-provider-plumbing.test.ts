@@ -27,7 +27,7 @@
 
 import { describe, expectTypeOf, it } from "vitest";
 import type { AgentLoopInputs } from "../../src/internal/agent-loop/types.js";
-import type { MemoryProvider } from "../../src/internal/runtime/memory/memory-provider.js";
+import type { MemoryProvider } from "../../src/internal/runtime/memory-glue/memory-provider.js";
 
 /**
  * CONVERTED 2026-09-01. `threadMemoryProvider` — a copy of the conditional spread at

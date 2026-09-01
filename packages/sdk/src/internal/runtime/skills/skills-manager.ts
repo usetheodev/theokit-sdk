@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { diag } from "../../diagnostics.js";
 import { projectConfigRoots } from "../../persistence/paths.js";
-import { pluginBundleDirs } from "../plugins/plugin-bundles.js";
+import { pluginBundleDirs } from "../plugin-loader/plugin-bundles.js";
 import { discoverSkills, type Skill } from "./discover-skills.js";
 import { stripSkillFrontmatter } from "./skill-frontmatter.js";
 

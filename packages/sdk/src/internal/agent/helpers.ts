@@ -1,29 +1,29 @@
 import { stat } from "node:fs/promises";
 
-import { AuthenticationError, ConfigurationError, UnknownAgentError } from "./errors.js";
-import { validateApiKeyShape } from "./internal/auth/api-key-validator.js";
-import { CloudAgent, validateCloudToolParity } from "./internal/cloud-agent/index.js";
-import { API_KEY_ENV_VAR, resolveApiKey } from "./internal/env.js";
-import { httpRequest } from "./internal/http.js";
-import { isLocalAgentId } from "./internal/ids.js";
-import { LocalAgent } from "./internal/local-agent/index.js";
-import { discoverProviderPlugins } from "./internal/providers/discovery.js";
+import { AuthenticationError, ConfigurationError, UnknownAgentError } from "../../errors.js";
+import { validateApiKeyShape } from "../../internal/auth/api-key-validator.js";
+import { CloudAgent, validateCloudToolParity } from "../../internal/cloud-agent/index.js";
+import { API_KEY_ENV_VAR, resolveApiKey } from "../../internal/env.js";
+import { httpRequest } from "../../internal/http.js";
+import { isLocalAgentId } from "../../internal/ids.js";
+import { LocalAgent } from "../../internal/local-agent/index.js";
+import { discoverProviderPlugins } from "../../internal/providers/discovery.js";
 import {
   getConfiguredBaseUrl,
   isFixtureApiKey,
   presentProviderCredentialEnvVars,
-} from "./internal/runtime/fixtures/fixture-mode.js";
-import { normalizeModel } from "./internal/runtime/model-selection.js";
+} from "../../internal/runtime/fixtures/fixture-mode.js";
+import { normalizeModel } from "../../internal/runtime/model-selection.js";
 import {
   flushRegistrySaves,
   getRegisteredAgent,
   hydrateRegistryFromDisk,
   updateRegisteredAgent,
-} from "./internal/runtime/registry/agent-registry.js";
-import { validateAgentOptions } from "./internal/runtime/validation/validate-agent-options.js";
-import type { OTelSpan } from "./internal/telemetry/tracer.js";
-import { getProviderProfile } from "./providers.js";
-import type { AgentOptions, CustomTool, SDKAgent, SDKAgentInfo } from "./types/agent.js";
+} from "../../internal/runtime/registry/agent-registry.js";
+import { validateAgentOptions } from "../../internal/runtime/validation/validate-agent-options.js";
+import type { OTelSpan } from "../../internal/telemetry/tracer.js";
+import { getProviderProfile } from "../../providers.js";
+import type { AgentOptions, CustomTool, SDKAgent, SDKAgentInfo } from "../../types/agent.js";
 
 // ───── agent creation helpers ─────────────────────────────────────────
 

@@ -22,7 +22,7 @@ import type { SessionSummaryInput } from "../../src/internal/memory/storage/sess
 import type {
   MemoryProvider,
   RecordSessionSummaryArgs,
-} from "../../src/internal/runtime/memory/memory-provider.js";
+} from "../../src/internal/runtime/memory-glue/memory-provider.js";
 import type { MemoryAdapter } from "../../src/types/memory-adapter.js";
 
 function makeStubAdapter(): MemoryAdapter {

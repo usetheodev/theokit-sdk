@@ -230,7 +230,7 @@ export interface AgentLoopInputs {
    * (`sync`, `dispose`). This block used to say "plumbed at the type surface
    * only ... land in T1.5"; T1.5 landed and the note did not move.
    */
-  memoryProvider?: import("../runtime/memory/memory-provider.js").MemoryProvider;
+  memoryProvider?: import("../runtime/memory-glue/memory-provider.js").MemoryProvider;
 }
 
 /**

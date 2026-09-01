@@ -26,9 +26,9 @@ import type { FixtureRequest, FixtureScript } from "./types.js";
 // Memory: detect Remember/recall patterns
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { extractMemoryFact } from "../memory/memory-store.js";
+import { extractMemoryFact } from "../memory-glue/memory-store.js";
 
-export { extractMemoryFact, isMemoryWritePrompt } from "../memory/memory-store.js";
+export { extractMemoryFact, isMemoryWritePrompt } from "../memory-glue/memory-store.js";
 
 export function isMemoryRecallPrompt(message: string, request: FixtureRequest): boolean {
   if (request.memoryFacts.length === 0 && request.sessionMessages.length === 0) return false;

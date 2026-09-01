@@ -29,7 +29,7 @@ import type {
   MemoryProvider,
   MemoryProviderHandle,
   MemoryProviderInitOptions,
-} from "../../src/internal/runtime/memory/memory-provider.js";
+} from "../../src/internal/runtime/memory-glue/memory-provider.js";
 import { stubMemoryAdapter } from "../helpers/memory-stubs.js";
 import { removeTempDirRobust, useTempCwd } from "../helpers/temp-workspace.js";
 

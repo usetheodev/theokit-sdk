@@ -6,7 +6,7 @@ import {
   appendMemoryFact,
   extractMemoryFact,
   extractMemoryKind,
-} from "../../src/internal/runtime/memory/memory-store.js";
+} from "../../src/internal/runtime/memory-glue/memory-store.js";
 
 describe("extractMemoryKind — #401", () => {
   it("test_a_declared_kind_is_read_off_the_remember_prompt", () => {

@@ -23,9 +23,9 @@ import { executeSendLocked } from "../../../src/internal/local-agent/local-agent
 import { withCwdMutex } from "../../../src/internal/persistence/cwd-mutex.js";
 import { PluginManager } from "../../../src/internal/plugins/manager.js";
 import { Plugin } from "../../../src/internal/plugins/types.js";
-import type { MemoryProvider } from "../../../src/internal/runtime/memory/memory-provider.js";
-import { createNoopMemoryProvider } from "../../../src/internal/runtime/memory/memory-provider-noop.js";
-import type { MemoryFact } from "../../../src/internal/runtime/memory/memory-store.js";
+import type { MemoryProvider } from "../../../src/internal/runtime/memory-glue/memory-provider.js";
+import { createNoopMemoryProvider } from "../../../src/internal/runtime/memory-glue/memory-provider-noop.js";
+import type { MemoryFact } from "../../../src/internal/runtime/memory-glue/memory-store.js";
 import { appendSessionMessage, getSessionMessages } from "../../../src/internal/session/index.js";
 import { createTelemetry } from "../../../src/internal/telemetry/tracer.js";
 import type { AgentOptions, ModelSelection } from "../../../src/types/agent.js";

@@ -21,8 +21,8 @@ import {
   persistTurnToTranscript,
 } from "../../session/index.js";
 import type { HooksExecutor } from "../hooks/hooks-executor.js";
-import { shouldUsePortMemoryPath } from "../memory/memory-path-selector.js";
-import type { MemoryProvider } from "../memory/memory-provider.js";
+import { shouldUsePortMemoryPath } from "../memory-glue/memory-path-selector.js";
+import type { MemoryProvider } from "../memory-glue/memory-provider.js";
 import { buildContextBudgetEvent } from "./context-budget-event.js";
 
 /**

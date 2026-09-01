@@ -16,7 +16,7 @@ import type { SessionStore } from "../../types/session-store.js";
 import { diag } from "../diagnostics.js";
 import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import type { FileContextManager } from "../runtime/context/context-manager.js";
-import type { PluginsManager } from "../runtime/plugins/plugins-manager.js";
+import type { PluginsManager } from "../runtime/plugin-loader/plugins-manager.js";
 import { flushRegistrySaves } from "../runtime/registry/agent-registry.js";
 import { liveAgentRegistry } from "../runtime/registry/live-agent-registry.js";
 import type { SkillsManager } from "../runtime/skills/skills-manager.js";

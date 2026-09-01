@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PORT_MEMORY_PATH_ENV_VAR,
   shouldUsePortMemoryPath,
-} from "../src/internal/runtime/memory/memory-path-selector.js";
+} from "../src/internal/runtime/memory-glue/memory-path-selector.js";
 
 describe("post-run-lifecycle sync gating (Stage 2b iter 26)", () => {
   const original = process.env[PORT_MEMORY_PATH_ENV_VAR];
@@ -36,7 +36,7 @@ describe("post-run-lifecycle sync gating (Stage 2b iter 26)", () => {
    * CONVERTED 2026-09-01. This used to be `maybeFireLegacySync`, a local copy that re-implemented
    * the flag read inline — `env === "1" || env === "true"` — with a comment saying it was there "to
    * mirror shouldUsePortMemoryPath". That function is exported from
-   * `internal/runtime/memory/memory-path-selector.ts` and always was, so the copy bought nothing and
+   * `internal/runtime/memory-glue/memory-path-selector.ts` and always was, so the copy bought nothing and
    * could drift: a change to how the flag is parsed (an added value, a trimmed string, a default)
    * would leave these five cases green over a gate that no longer behaved that way.
    *

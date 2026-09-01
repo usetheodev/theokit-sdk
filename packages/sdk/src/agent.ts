@@ -1,5 +1,11 @@
 import { AgentBuilder } from "./agent-builder.js";
 import {
+  AgentRunError,
+  ConfigurationError,
+  coerceToKnownAgentRunErrorCode,
+  UnknownAgentError,
+} from "./errors.js";
+import {
   getRegisteredAgentOrThrow,
   paginateByKey,
   rehydrateExistingAgent,
@@ -8,13 +14,7 @@ import {
   setAgentName,
   setArchivedFlag,
   toAgentInfo,
-} from "./agent-helpers.js";
-import {
-  AgentRunError,
-  ConfigurationError,
-  coerceToKnownAgentRunErrorCode,
-  UnknownAgentError,
-} from "./errors.js";
+} from "./internal/agent/helpers.js";
 import { enabledPluginNames } from "./internal/plugins/enabled-names.js";
 import { discoverProviderPlugins } from "./internal/providers/discovery.js";
 import { setAgentFacade } from "./internal/runtime/registry/agent-factory-registry.js";
@@ -301,7 +301,7 @@ export class Agent {
     prompts: ReadonlyArray<string | import("./types/batch.js").BatchItem>,
     options: import("./types/batch.js").BatchOptions,
   ): Promise<import("./types/batch.js").BatchResult[]> {
-    const { batchImpl } = await import("./batch.js");
+    const { batchImpl } = await import("./internal/agent/batch.js");
     return batchImpl(prompts, options, { create: (opts) => Agent.create(opts) });
   }
 

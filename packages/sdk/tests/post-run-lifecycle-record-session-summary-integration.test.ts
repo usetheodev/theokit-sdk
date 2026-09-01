@@ -26,7 +26,7 @@ import { runPostRunLifecycle } from "../src/internal/runtime/lifecycle/post-run-
 import type {
   MemoryProvider,
   RecordSessionSummaryArgs,
-} from "../src/internal/runtime/memory/memory-provider.js";
+} from "../src/internal/runtime/memory-glue/memory-provider.js";
 import type { AgentOptions } from "../src/types/agent.js";
 import type { Run, RunResult } from "../src/types/run.js";
 import { stubMemoryAdapter } from "./helpers/memory-stubs.js";

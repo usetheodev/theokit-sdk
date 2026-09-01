@@ -33,7 +33,7 @@ import type {
   MemoryProvider,
   MemoryProviderHandle,
   MemoryProviderInitOptions,
-} from "../../src/internal/runtime/memory/memory-provider.js";
+} from "../../src/internal/runtime/memory-glue/memory-provider.js";
 import type { CustomTool, SDKAgent } from "../../src/types/agent.js";
 import { stubMemoryAdapter } from "../helpers/memory-stubs.js";
 import { removeTempDirRobust } from "../helpers/temp-workspace.js";

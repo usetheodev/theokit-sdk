@@ -13,7 +13,7 @@ import { asPluginsSettings, enabledPluginNames } from "../plugins/enabled-names.
 import { ProvidersManagerImpl } from "../runtime/config/providers-manager.js";
 import { FileContextManager } from "../runtime/context/context-manager.js";
 import { normalizeModel } from "../runtime/model-selection.js";
-import { type PluginMetadata, PluginsManager } from "../runtime/plugins/plugins-manager.js";
+import { type PluginMetadata, PluginsManager } from "../runtime/plugin-loader/plugins-manager.js";
 import { registerAgent } from "../runtime/registry/agent-registry.js";
 import { type SkillsHandle, SkillsManager } from "../runtime/skills/skills-manager.js";
 

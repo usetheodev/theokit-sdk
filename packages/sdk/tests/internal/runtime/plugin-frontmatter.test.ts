@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   PluginFrontmatterSchema,
   parsePluginFrontmatter,
-} from "../../../src/internal/runtime/plugins/plugin-frontmatter.js";
+} from "../../../src/internal/runtime/plugin-loader/plugin-frontmatter.js";
 
 describe("PluginFrontmatterSchema", () => {
   it("accepts minimal plugin (all fields optional)", () => {
