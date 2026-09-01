@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.1-next.0
+
+### Patch Changes
+
+- Updated dependencies [01630ec]
+  - @theokit/sdk@4.63.4-next.0
+
 ## 4.0.0
 
 ### Major Changes
