@@ -303,6 +303,22 @@ export function _resetCredentialPoolWarnings(): void {
 }
 
 /**
+ * Test seam for {@link resolveApiKey}. NOT re-exported from any barrel — `_...ForTests` is this
+ * repo's convention for reaching a private function from a test rather than copying it.
+ *
+ * It exists because the ordering this function implements had no test that could fail. The one named
+ * for it set a single env var and asserted the chain had length 1, which proves the fallback is
+ * consulted and would survive the profile's list being reversed. The only other place the choice is
+ * observable is the Authorization header at stream time, and reaching it for a BUILTIN profile means
+ * a real request — measured: the first attempt at that test sent one to openrouter and came back 401.
+ *
+ * @internal
+ */
+export function _resolveApiKeyForTests(envVars: ReadonlyArray<string>): string | undefined {
+  return resolveApiKey(envVars);
+}
+
+/**
  * EC-10: resolve API key from ordered envVars list; first non-empty wins.
  */
 function resolveApiKey(envVars: ReadonlyArray<string>): string | undefined {
