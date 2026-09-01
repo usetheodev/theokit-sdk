@@ -226,7 +226,12 @@ describe("a real Claude Code project, read end to end", () => {
     expect(existsSync(join(ran, ".theokit"))).toBe(true);
     // Only this SDK's own state — nothing here is a Claude Code shape the CLI would try to read.
     expect(readdirSync(join(ran, ".theokit")).sort()).toEqual(["agents", "memory"]);
-  });
+    // 60s for THIS test, not for the suite. It does a full Agent.create + send against the 20s global
+    // budget and timed out once under full-suite load while passing in isolation and while its
+    // siblings in this same file, doing the same work, passed. Raising the global timeout would
+    // weaken 5478 tests to accommodate one; the 20s figure was chosen deliberately against exactly
+    // that, and the reason is written in vitest.config.ts.
+  }, 60_000);
 
   // The other direction, and the one the scope named: a memory this SDK records has to land where
   // the CLI looks, not only be able to read what the CLI wrote.

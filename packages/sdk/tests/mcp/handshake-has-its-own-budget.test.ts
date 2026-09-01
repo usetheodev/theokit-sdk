@@ -120,6 +120,11 @@ describe("MCP handshake budget", () => {
   it("still bounds an ORDINARY request by requestTimeoutMs — the floor is not a global raise", async () => {
     // The counter-proof. A floor that applied to every method would make `requestTimeoutMs` a
     // suggestion, which is a worse defect than the one being fixed.
+    //
+    // The oracle is the ERROR, not the clock. A first version asserted elapsed wall time and failed
+    // under full-suite load for a reason that had nothing to do with the claim — the connect itself
+    // could not fit its own budget on a loaded host. An assertion about "was fast" is the fragile
+    // shape; "was cut at the budget it names" is the durable one, and it is also the actual claim.
     const neverAnswersToolsList = `
       let buf = "";
       process.stdin.on("data", (d) => {
@@ -134,22 +139,23 @@ describe("MCP handshake budget", () => {
         }
       });
     `;
+    // Generous enough that a loaded host still connects; far below the 10s handshake floor, so a
+    // floor leaking onto ordinary methods would be visible in the message below.
     const client = createMcpClient("slow-request", {
       type: "stdio",
       command: process.execPath,
       args: [scriptFile(neverAnswersToolsList)],
-      requestTimeoutMs: 120,
+      requestTimeoutMs: 2_000,
     });
     onTestFinished(async () => {
       await client.close();
     });
 
     await client.initialize();
-    const started = Date.now();
-    await expect(client.listTools()).rejects.toThrow();
-    expect(
-      Date.now() - started,
-      "an ordinary request must still be cut at its own budget, not at the handshake floor",
-    ).toBeLessThan(3_000);
+    await expect(client.listTools()).rejects.toMatchObject({
+      code: "mcp_timeout",
+      // Names 2000, not 10000: the ordinary request was cut at ITS budget.
+      message: expect.stringContaining("2000ms"),
+    });
   }, 30_000);
 });
