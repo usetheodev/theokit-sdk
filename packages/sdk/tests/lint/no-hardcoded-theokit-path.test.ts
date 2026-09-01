@@ -85,9 +85,21 @@ describe("lint: no hardcoded .theokit paths in src/", () => {
       );
     }
 
-    // Soft assertion: don't fail the build, just log. The migration is
-    // tracked separately; this test ensures the count never regresses.
-    expect(offenders.length).toBeLessThanOrEqual(60);
+    // A RATCHET, pinned to the measured count. It used to say "this test ensures the count never
+    // regresses" and assert `<= 60` against a real count of 28 — so it tolerated 32 NEW hardcoded
+    // literals before it could fail. It did not ensure the count never regresses; it ensured it
+    // never tripled, while reading as the former.
+    //
+    // Pinned exactly, so the next literal added fails here. When the migration removes some, LOWER
+    // this number in the same commit — a ratchet that is only ever loosened is a budget.
+    expect(
+      offenders.length,
+      offenders.length > 28
+        ? `${offenders.length} hardcoded \`.theokit\` literals, up from the pinned 28. Use ` +
+            "getTheokitHome() instead of writing the path."
+        : `${offenders.length} literals remain, below the pinned 28 — lower the number in this file ` +
+            "to lock the ground in.",
+    ).toBe(28);
   });
 
   it("the canonical resolver paths.ts is present", async () => {

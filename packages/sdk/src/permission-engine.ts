@@ -89,23 +89,15 @@ export type ArgMatcher = string | RegExp | ((value: unknown) => boolean);
  * `{ tool: "shell", args: { command: /rm\s+-rf/ }, action: "deny" }` blocks the destructive call and
  * leaves `ls` to fall through to a later rule. Every declared matcher must pass.
  *
- * **A missing argument is NOT handled uniformly, and the difference bites in the unsafe direction.**
- * For a string or RegExp matcher, an argument the call did not supply fails the matcher, so the rule
- * does not match and evaluation continues. For a PREDICATE matcher the function is called anyway,
- * with `undefined`:
+ * **A rule that declares an argument the call did not supply does not match**, whatever form the
+ * matcher takes — string, RegExp or predicate. The predicate is not invoked with `undefined`; the
+ * guard runs first, for every matcher form. Evaluation continues to the next rule.
  *
- * ```ts
- * { tool: "shell", args: { command: (v) => v !== "prod" }, action: "allow" }
- * // evaluate("shell", {}) → the predicate gets `undefined`, returns true, the rule MATCHES,
- * // and a call that supplied no arguments at all is authorized.
- *
- * { tool: "shell", args: { command: (v) => v.includes("rm") }, action: "deny" }
- * // evaluate("shell", {}) → TypeError thrown out of the permission gate.
- * ```
- *
- * Until that is fixed (issue #367), guard the parameter in every predicate you write —
- * `(v) => typeof v === "string" && v !== "prod"` — rather than relying on the matcher never being
- * reached.
+ * That was not always true, and the fix is the reason this paragraph is explicit (#367). A predicate
+ * used to be called anyway, so `(v) => v !== "prod"` returned true for a missing argument and an
+ * ALLOW rule authorized a call that supplied nothing, while `(v) => v.includes("rm")` threw a
+ * TypeError out of the permission gate. This docblock told consumers to guard every predicate by
+ * hand for months after `argMatches` stopped needing it — you do not have to.
  *
  * A rule that matches yields an EXPLICIT verdict, and that is what makes it survive a permissive
  * `PermissionMode`: `acceptEdits` auto-approves the unmatched default but still honours an explicit

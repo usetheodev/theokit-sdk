@@ -1,11 +1,11 @@
 /**
  * Budget enforcement (ADRs D383, D386, EC-7/8/9).
  *
- * - `preflightCheck(name, estimatedUsd)` — em `block` mode, throw
+ * - `preflightCheck(name, estimatedUsd)` — in `block` mode, throw
  *   `BudgetExceededError` before the LLM call if any limit would be
  *   exceeded (EC-9 — the caller invokes it inside the mutex section).
- * - `chargeAndCheckThresholds(name, actualUsd)` — apply charge ao
- *   ledger + invokes onThreshold/onExceed callbacks isolated in
+ * - `chargeAndCheckThresholds(name, actualUsd)` — apply the charge to the
+ *   ledger + invoke onThreshold/onExceed callbacks isolated in
  *   try/catch (EC-8).
  *
  * @internal

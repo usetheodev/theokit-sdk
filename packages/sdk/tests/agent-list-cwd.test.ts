@@ -49,13 +49,19 @@
  * ## Why this file is NOT `tests/contract/agent-management.contract.test.ts`
  *
  * The plan names that file, and the acceptance criterion says to run `npx vitest run
- * packages/sdk/tests/contract/agent-management.contract.test.ts` returning 0. **Measured: that command
- * returns 1** — `vitest.config.ts` lists `tests/contract/**` under `exclude`, and the output is
- * literally `No test files found, exiting with code 1`. That directory only runs under
- * `pnpm test:roadmap`. Writing the lock there would produce a gate that never runs at the real
- * checkpoint (`pnpm test`) with an acceptance criterion impossible to satisfy — vacuity of the kind
- * `.claude/rules/anti-forgetting-mechanism.md` § 5.4 says to avoid. Here, the file is collected by
- * the default `include`.
+ * packages/sdk/tests/contract/agent-management.contract.test.ts` returning 0. When this file was
+ * written that command returned 1: `vitest.config.ts` excluded `tests/contract/**` wholesale, so the
+ * output was literally `No test files found, exiting with code 1`, and writing the lock there would
+ * have produced a gate that never runs at the real checkpoint.
+ *
+ * **The MECHANISM changed and the conclusion did not, which is why this paragraph is worth keeping
+ * accurate rather than deleting.** There is no longer a blanket `tests/contract/**` exclusion — it
+ * was replaced by `ROADMAP_ONLY_SUITES`, a named list of three files, so most of that directory now
+ * runs in the default gate. `agent-management.contract.test.ts` is one of the three, so the command
+ * the acceptance criterion names still returns 1, for a narrower reason than the one first recorded.
+ *
+ * This file stays where it is. It is collected by the default `include` either way, and the lock it
+ * carries has to run at `pnpm test` to be worth anything.
  *
  * ## The race this file FOUND (did not predict)
  *
