@@ -15,6 +15,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { expectScopeCovered } from "./_scope-sentinel.js";
 
 const SRC_ROOT = join(__dirname, "..", "..", "src");
 
@@ -50,6 +51,7 @@ async function walk(dir: string, out: string[] = []): Promise<string[]> {
 describe("lint: no hardcoded .theokit paths in src/", () => {
   it("all `.theokit` literals are either in paths.ts or explicitly allowed", async () => {
     const files = await walk(SRC_ROOT);
+    expectScopeCovered(files, "index.ts", SRC_ROOT);
     const offenders: Offender[] = [];
 
     for (const file of files) {

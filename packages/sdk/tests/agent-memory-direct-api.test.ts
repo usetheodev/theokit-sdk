@@ -12,6 +12,13 @@ import { Agent } from "../src/agent.js";
 import { ConfigurationError } from "../src/errors.js";
 import { Plugin } from "../src/internal/plugins/types.js";
 import { mkMemoryId } from "../src/memory-adapter-helpers.js";
+import { useTempCwd } from "./helpers/temp-workspace.js";
+
+// This file creates agents without naming a cwd — `local: {}` and an omitted `local` both fall
+// back to process.cwd(), which during a test run is the package itself, so the sessions landed
+// in packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
+
 import type {
   MemoryAdapter,
   MemoryAdapterCapabilities,

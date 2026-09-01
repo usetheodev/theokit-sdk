@@ -18,7 +18,13 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { Agent, Tool } from "../../src/index.js";
+import { useTempCwd } from "../helpers/temp-workspace.js";
 import { OLLAMA_HOST, probeOllamaModel, serverModelName } from "./ollama-probe.js";
+
+// This file passed `cwd: process.cwd()`, which during a test run is the package itself, so
+// every agent it created persisted a real session into packages/sdk/.theokit/. The helper
+// makes process.cwd() report a throwaway directory for this file only.
+useTempCwd();
 
 const TEST_MODEL = process.env.OLLAMA_TEST_TOOL_MODEL ?? "ollama/qwen2.5-coder:7b";
 
@@ -36,7 +42,7 @@ if (!available) {
 
 describe.skipIf(!available)("ollama tool calling integration (D182)", () => {
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Tool + Agent.create + stream drain + EC-F skip-loud is one cohesive integration scenario
-  it("agent.send invokes a registered customTool", async () => {
+  it("agent.send invokes a registered customTool", async (ctx) => {
     let toolInvocations = 0;
     const getCurrentTime = Tool.create({
       name: "get_current_time",
@@ -73,11 +79,11 @@ describe.skipIf(!available)("ollama tool calling integration (D182)", () => {
     await run.wait();
 
     if (toolInvocations === 0) {
-      // EC-F: model refused tool call. Document as capability gap.
-      process.stderr.write(
-        `[ollama-tool-call] Model ${TEST_MODEL} did not invoke the tool; skipping assertion ` +
-          `(model capability gap, not SDK bug).\n`,
-      );
+      // EC-F: the model declined the tool call — a capability gap, not an SDK bug. That judgement is
+      // right and `return` was the wrong way to say it: a bare return leaves the two assertions below
+      // unrun and reports PASS, so a model that cannot do this looks identical to one that did.
+      // B-126 settled the mechanism for exactly this (sqlite-open.test.ts, lance-index.golden.test.ts).
+      ctx.skip(`model ${TEST_MODEL} declined the tool call (capability gap, not an SDK bug)`);
       return;
     }
     expect(toolInvocations).toBeGreaterThan(0);

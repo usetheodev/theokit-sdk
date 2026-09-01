@@ -7,6 +7,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Agent } from "../../src/agent.js";
 import { createTelemetry } from "../../src/internal/telemetry/tracer.js";
+import { useTempCwd } from "../helpers/temp-workspace.js";
+
+// Agent.create defaults its workspace to process.cwd(), which during a test run is the
+// package itself — this file created agents without saying where, and the state landed in
+// packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
+
 import {
   findSpanEventually,
   findSpanOrThrow,

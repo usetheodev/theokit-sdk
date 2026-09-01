@@ -11,7 +11,7 @@
  * We don't drive the full agent-loop here (would need stubbed LLM +
  * filesystem). Instead, exercises the SELECTOR CALL CHAIN inside
  * `LocalAgent` via the helpers, mirroring exactly the iter 22
- * `memory-path-selector.test.ts` invariants but composed.
+ * `memory/path-selector.test.ts` invariants but composed.
  *
  * The end-to-end behavior (port path actually receiving the adapter)
  * is covered by the per-method wiring tests in agent-loop-memory-

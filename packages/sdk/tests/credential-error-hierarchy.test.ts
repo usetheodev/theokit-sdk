@@ -33,7 +33,7 @@ import { AuthenticationError, isTransientError, TheokitAgentError } from "../src
 import { CredentialError } from "../src/internal/auth/credential-store.js";
 
 describe("M78 T1.1 — CredentialError in the typed hierarchy", () => {
-  it("test_CredentialError_e_um_TheokitAgentError", () => {
+  it("test_CredentialError_is_a_TheokitAgentError", () => {
     // Two levels up: CredentialError -> AuthenticationError -> TheokitAgentError.
     const err = new CredentialError("missing key");
     expect(err).toBeInstanceOf(TheokitAgentError);
@@ -59,10 +59,10 @@ describe("M78 T1.1 — CredentialError in the typed hierarchy", () => {
   it("test_a_generic_catch_tells_framework_from_app_with_ONE_instanceof", () => {
     // The milestone's DoD 5, proven where it originates. Before, a `catch` received a bare `Error` from the
     // store and a bare `Error` from the app, with no way to tell them apart short of comparing `name` strings.
-    const doFramework: unknown = new CredentialError("do store");
-    const doApp: unknown = new Error("do app");
+    const fromTheFramework: unknown = new CredentialError("from the store");
+    const fromTheApp: unknown = new Error("from the app");
 
-    expect(doFramework instanceof TheokitAgentError).toBe(true);
-    expect(doApp instanceof TheokitAgentError).toBe(false);
+    expect(fromTheFramework instanceof TheokitAgentError).toBe(true);
+    expect(fromTheApp instanceof TheokitAgentError).toBe(false);
   });
 });

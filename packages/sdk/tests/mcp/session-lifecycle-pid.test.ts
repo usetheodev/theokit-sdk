@@ -1,7 +1,7 @@
 /**
  * theokit#155 (RED-first) — `mcpLifecycle: 'session'` must survive the TURN, as a PROCESS.
  *
- * The pre-existing `mcp-lifecycle-wiring.test.ts` counted client OBJECTS and concluded the server
+ * The pre-existing `mcp/lifecycle-wiring.test.ts` counted client OBJECTS and concluded the server
  * had not respawned. Object identity is not process identity: the pool did hand back the same
  * object, while the previous turn had already SIGTERM'd its child and the next `initialize()`
  * spawned a fresh one. The knob was reachable, documented, tested — and bought 0 ms.

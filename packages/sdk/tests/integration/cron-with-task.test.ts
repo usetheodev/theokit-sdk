@@ -15,6 +15,12 @@ import { isAgentRun } from "../../src/internal/cron/run-job.js";
 import * as scheduler from "../../src/internal/cron/scheduler.js";
 import { __resetTaskRegistryForTests } from "../../src/internal/task/registry.js";
 import { Task } from "../../src/task.js";
+import { useTempCwd } from "../helpers/temp-workspace.js";
+
+// This file passed `cwd: process.cwd()`, which during a test run is the package itself, so
+// every agent it created persisted a real session into packages/sdk/.theokit/. The helper
+// makes process.cwd() report a throwaway directory for this file only.
+useTempCwd();
 
 const FIXTURE_KEY = "theo_test_cron_task";
 

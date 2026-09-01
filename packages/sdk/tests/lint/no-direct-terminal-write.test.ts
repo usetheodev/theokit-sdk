@@ -19,6 +19,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { expectScopeCovered } from "./_scope-sentinel.js";
 
 const SRC_ROOT = join(__dirname, "..", "..", "src");
 
@@ -68,7 +69,9 @@ async function walk(dir: string, out: string[] = []): Promise<string[]> {
 
 async function findOffenders(): Promise<Offender[]> {
   const offenders: Offender[] = [];
-  for (const file of await walk(SRC_ROOT)) {
+  const scanned = await walk(SRC_ROOT);
+  expectScopeCovered(scanned, "index.ts", SRC_ROOT);
+  for (const file of scanned) {
     const rel = relative(SRC_ROOT, file);
     if (ALLOWLIST.has(rel)) continue;
     const lines = (await readFile(file, "utf8")).split("\n");

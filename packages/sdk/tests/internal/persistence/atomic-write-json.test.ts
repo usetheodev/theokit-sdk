@@ -30,7 +30,7 @@ function fileMode(target: string): number {
  * (`vitest.config.ts`: `singleFork: true`), so leaking a `umask` from here would contaminate every test
  * creating a file afterwards. The `finally` is what prevents that.
  */
-async function sobUmask(mask: number, fn: () => Promise<void>): Promise<void> {
+async function withUmask(mask: number, fn: () => Promise<void>): Promise<void> {
   const previous = process.umask(mask);
   try {
     await fn();
@@ -154,7 +154,7 @@ describe("M107 T1.1 — atomicWriteJson honours mode and exclusive", () => {
     ]);
 
     for (const [mask, expected] of measuredBefore) {
-      await sobUmask(mask, async () => {
+      await withUmask(mask, async () => {
         const noBag = join(dir, `sem-bag-${mask.toString(8)}.json`);
         const emptyBag = join(dir, `bag-empty-${mask.toString(8)}.json`);
 
@@ -176,7 +176,7 @@ describe("M107 T1.1 — atomicWriteJson honours mode and exclusive", () => {
     // file comes out `0o400` (measured) and the caller's request is lost SILENTLY.
     const path = join(dir, "explicitly-requested.json");
 
-    await sobUmask(0o200, async () => {
+    await withUmask(0o200, async () => {
       // Act
       await atomicWriteJson(path, { a: 1 }, { mode: 0o600 });
 
@@ -189,7 +189,7 @@ describe("M107 T1.1 — atomicWriteJson honours mode and exclusive", () => {
     // Arrange — the primitive imposes no policy: it changes the DEFAULT, not the caller's freedom.
     const path = join(dir, "permissive.json");
 
-    await sobUmask(0o002, async () => {
+    await withUmask(0o002, async () => {
       // Act
       await atomicWriteJson(path, { a: 1 }, { mode: 0o644 });
 

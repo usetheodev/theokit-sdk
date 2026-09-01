@@ -2,7 +2,7 @@
  * B-022 / B-099 — `tests/load/_harness/socket-monitor.ts` unit coverage.
  *
  * This file is placed OUTSIDE `tests/load/` deliberately: the actual load
- * test (`tests/load/1000-concurrent-sse.test.ts`) is owned by another
+ * test (`tests/load/concurrent-sse-1000.test.ts`) is owned by another
  * batch and off-limits for this slice, but the harness it imports is not,
  * and had no unit coverage of its own — every prior "test" of it was an
  * indirect side-effect of running the 1000-connection load scenario.

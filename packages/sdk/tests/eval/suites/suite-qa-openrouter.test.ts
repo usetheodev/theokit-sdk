@@ -7,10 +7,28 @@
  * The key is read from the environment and never persisted.
  */
 
-import { describe, expect, it } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 
 import { assertEval, Eval, Scorers } from "../../../src/eval.js";
+import { removeTempDirRobustSync } from "../../helpers/temp-workspace.js";
 import { resolveRealLlmEnv } from "../../integration/real-llm/_helpers/real-llm-env.js";
+
+/**
+ * A temp cwd, not `process.cwd()`.
+ *
+ * `process.cwd()` during a vitest run is `packages/sdk` itself, so every agent created here
+ * persisted a real session under the repository. Nothing in this suite reads from the repo, so the
+ * process cwd was incidental — and it cost 540 MB of `.theokit/` residue across the checkout before
+ * anyone measured it. `.gitignore` hides that directory, which is why it never showed up in a diff
+ * or in CI. The gate that now catches a recurrence is `vitest.global-setup.ts`.
+ */
+const EVAL_CWD = mkdtempSync(join(tmpdir(), "theokit-eval-suite-"));
+afterAll(() => {
+  removeTempDirRobustSync(EVAL_CWD);
+});
 
 const live = resolveRealLlmEnv("openrouter");
 
@@ -27,7 +45,7 @@ describe.skipIf(live.shouldSkip)("eval suite: QA over OpenRouter (gated)", () =>
       agent: {
         apiKey: live.apiKey,
         model: { id: live.model },
-        local: { cwd: process.cwd(), sandboxOptions: { enabled: false } as const },
+        local: { cwd: EVAL_CWD, sandboxOptions: { enabled: false } as const },
       },
       concurrency: 2,
       // Smooth single-model non-determinism: each row runs twice, gate on the mean.

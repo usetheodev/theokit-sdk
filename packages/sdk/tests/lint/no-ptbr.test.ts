@@ -102,6 +102,24 @@ const FILE_ALLOWLIST = new Set<string>([
  * deliberately excluded.
  */
 const PT_LEXICON = new Set([
+  // Four words that only ever reached this gate through IDENTIFIERS, never through prose. The gate
+  // already splits camelCase (see `splitIdentifier`), so `ehAbort` tokenizes to ["eh","Abort"] and
+  // `sobUmask` to ["sob","Umask"] — what was missing was the lexicon entry, not the machinery. Each
+  // was measured against the whole tree before being added, because a false positive here is what
+  // gets a gate disabled:
+  //   nome  — no English word; `gnome` and `nomenclature` survive as single tokens, not as "nome"
+  //   como  — no English word
+  //
+  // `eh` (from `ehAbort`) was tried and REVERTED, and the reason is worth keeping: a two-letter
+  // token matches letter runs inside base64 and hex blobs. It fired on
+  // `packages/sdk-tools/tests/view-image.test.ts:28`, a base64 PNG whose bytes happen to spell
+  // "…hKmMIQ…". No lexicon entry shorter than three letters can survive that, so the identifier was
+  // renamed instead and this gate does not claim to catch the next one.
+  //   sob   — IS an English verb, and the riskiest of the four; zero occurrences outside the
+  //           Portuguese ones, so it is added with that cost stated rather than hidden
+  "nome",
+  "como",
+  "sob",
   "nao",
   "sao",
   "estao",

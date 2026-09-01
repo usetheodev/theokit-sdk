@@ -37,8 +37,22 @@ import { loadSubagents } from "../src/internal/runtime/skills/subagents-loader.j
 describe("a real Claude Code project, read end to end", () => {
   let cwd: string;
   let claudeHome: string;
+  /**
+   * The public barrel, loaded ONCE for the whole file.
+   *
+   * It used to be `await import("../src/index.js")` inside each of the three agent tests, and the
+   * cost of transforming the barrel's module graph therefore landed entirely on whichever test ran
+   * first — against the same 20s budget as its own work, while its two siblings, doing the same
+   * work, got a warm cache. Under full-suite load that first test timed out at 20029ms; measured
+   * twice, and a run in between where it passed is what made it look like flakiness rather than an
+   * asymmetry. The import is dynamic and not static because `beforeAll` sets CLAUDE_CONFIG_DIR and
+   * the barrel must not be evaluated before it.
+   *
+   * This does not widen any budget. It stops one test paying for three.
+   */
+  let Agent: typeof import("../src/index.js")["Agent"];
 
-  beforeAll(() => {
+  beforeAll(async () => {
     cwd = mkdtempSync(join(tmpdir(), "cc-e2e-"));
     claudeHome = mkdtempSync(join(tmpdir(), "cc-e2e-home-"));
     process.env.CLAUDE_CONFIG_DIR = claudeHome;
@@ -145,6 +159,7 @@ describe("a real Claude Code project, read end to end", () => {
     })) as { id: string; content: string }[];
     expect(found.map((f) => f.id)).toContain("CLAUDE.md");
     expect(found.some((f) => f.id.startsWith("claude-rules"))).toBe(true);
+    ({ Agent } = await import("../src/index.js"));
   });
 
   it("test_the_hooks_declared_in_the_cli_settings_file_load", async () => {
@@ -200,7 +215,6 @@ describe("a real Claude Code project, read end to end", () => {
   // directory. Asserting only the first half would let "creates nothing, ever" pass unchallenged.
   it("test_running_an_agent_creates_theokit_and_only_sdk_state_in_it", async () => {
     const ran = mkdtempSync(join(tmpdir(), "cc-e2e-ran-"));
-    const { Agent } = await import("../src/index.js");
     const agent = await Agent.create({
       model: { id: "anthropic/claude-sonnet-4-6" },
       apiKey: "theo_test_e2e",
@@ -223,7 +237,6 @@ describe("a real Claude Code project, read end to end", () => {
   // question.
   it("test_a_memory_this_agent_records_lands_where_the_cli_reads", async () => {
     const cliMemory = join(claudeHome, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"), "memory");
-    const { Agent } = await import("../src/index.js");
     const agent = await Agent.create({
       model: { id: "anthropic/claude-sonnet-4-6" },
       apiKey: "theo_test_e2e",
@@ -240,7 +253,6 @@ describe("a real Claude Code project, read end to end", () => {
 
   it("test_without_a_configured_directory_nothing_moves", async () => {
     const plain = mkdtempSync(join(tmpdir(), "cc-e2e-plain-"));
-    const { Agent } = await import("../src/index.js");
     const agent = await Agent.create({
       model: { id: "anthropic/claude-sonnet-4-6" },
       apiKey: "theo_test_e2e",

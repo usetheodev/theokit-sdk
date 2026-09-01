@@ -5,6 +5,12 @@ import { z } from "zod";
 
 import { Agent } from "../src/agent.js";
 import { Tool } from "../src/define-tool.js";
+import { useTempCwd } from "./helpers/temp-workspace.js";
+
+// Agent.create defaults its workspace to process.cwd(), which during a test run is the
+// package itself — this file created agents without saying where, and the sessions landed in
+// packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 /**
  * SE17 (gap closure) — the model-facing vs app-facing tool-output SPLIT must be

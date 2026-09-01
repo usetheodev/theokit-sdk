@@ -1,11 +1,12 @@
+import { mkdtempSync } from "node:fs";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import type { IncomingMessage } from "node:http";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { Agent } from "../../../src/index.js";
-import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
+import { removeTempDirRobust, removeTempDirRobustSync } from "../../helpers/temp-workspace.js";
 
 /**
  * Behaviour gate for `AgentOptions.systemPrompt` and
@@ -104,10 +105,25 @@ async function startStubPaaS(): Promise<{ server: Server; url: string; captured:
   return { server, url: await listen(server), captured };
 }
 
+/**
+ * A temp cwd, not `process.cwd()`.
+ *
+ * Two of the cases below pass `memory: { enabled: true }`, and with the process cwd that wrote five
+ * real session files into `packages/sdk/.theokit/memory/sessions/` on every run. Nothing here reads
+ * from the repository — the agent talks to a local http server started in this file — so the
+ * process cwd bought nothing and cost residue that `.gitignore` kept out of every diff and every CI
+ * log. Measured before the fix: 540 MB across the checkout. `vitest.global-setup.ts` now fails the
+ * run if it comes back.
+ */
+const LOCAL_CWD = mkdtempSync(join(tmpdir(), "theokit-systemprompt-"));
+afterAll(() => {
+  removeTempDirRobustSync(LOCAL_CWD);
+});
+
 const localBase = {
   apiKey: "user-real-systemprompt",
   model: { id: "claude-sonnet-4-6" },
-  local: { cwd: process.cwd() },
+  local: { cwd: LOCAL_CWD },
 } as const;
 
 describe("systemPrompt routing", () => {

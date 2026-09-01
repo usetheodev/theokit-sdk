@@ -27,6 +27,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { expectScopeCovered } from "./_scope-sentinel.js";
 
 const TESTS_ROOT = join(__dirname, "..");
 
@@ -74,6 +75,7 @@ async function scanFile(file: string): Promise<Offender[]> {
 describe("no live process.chdir() under tests/ (B-093)", () => {
   it("packages/sdk/tests/ has no live process.chdir() call", async () => {
     const files = await walk(TESTS_ROOT);
+    expectScopeCovered(files, "lint/no-process-chdir.test.ts", TESTS_ROOT);
     const offenders: Offender[] = [];
     for (const file of files) {
       offenders.push(...(await scanFile(file)));

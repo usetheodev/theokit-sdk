@@ -12,7 +12,10 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PORT_MEMORY_PATH_ENV_VAR } from "../src/internal/runtime/memory/memory-path-selector.js";
+import {
+  PORT_MEMORY_PATH_ENV_VAR,
+  shouldUsePortMemoryPath,
+} from "../src/internal/runtime/memory/memory-path-selector.js";
 
 describe("post-run-lifecycle sync gating (Stage 2b iter 26)", () => {
   const original = process.env[PORT_MEMORY_PATH_ENV_VAR];
@@ -26,18 +29,22 @@ describe("post-run-lifecycle sync gating (Stage 2b iter 26)", () => {
   });
 
   /**
-   * Mirror of the gating logic in post-run-lifecycle.ts:
-   *   if (!shouldUsePortMemoryPath()) {
-   *     void memoryGlue.syncIfReady();
-   *   }
-   * Replicated here as a pure function so we can test it deterministically
-   * without the full runtime + agent fixture.
+   * The gate, as post-run-lifecycle.ts spells it:
+   *
+   *     if (!shouldUsePortMemoryPath()) { void memoryGlue.syncIfReady(); }
+   *
+   * CONVERTED 2026-09-01. This used to be `maybeFireLegacySync`, a local copy that re-implemented
+   * the flag read inline — `env === "1" || env === "true"` — with a comment saying it was there "to
+   * mirror shouldUsePortMemoryPath". That function is exported from
+   * `internal/runtime/memory/memory-path-selector.ts` and always was, so the copy bought nothing and
+   * could drift: a change to how the flag is parsed (an added value, a trimmed string, a default)
+   * would leave these five cases green over a gate that no longer behaved that way.
+   *
+   * The condition is inlined rather than wrapped, because wrapping it in a helper here would be the
+   * mirror again in one fewer line.
    */
   function maybeFireLegacySync(syncIfReady: () => void): void {
-    // Direct env read to mirror shouldUsePortMemoryPath
-    const env = process.env[PORT_MEMORY_PATH_ENV_VAR];
-    const portPathActive = env === "1" || env === "true";
-    if (!portPathActive) {
+    if (!shouldUsePortMemoryPath()) {
       syncIfReady();
     }
   }

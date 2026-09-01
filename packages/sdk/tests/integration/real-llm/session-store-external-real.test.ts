@@ -18,8 +18,13 @@ import {
 } from "../../../src/internal/runtime/registry/agent-registry.js";
 import { clearAllSessions } from "../../../src/internal/session/agent-session.js";
 import type { SessionStore } from "../../../src/types/session-store.js";
-import { removeTempDirRobustSync } from "../../helpers/temp-workspace.js";
+import { removeTempDirRobustSync, useTempCwd } from "../../helpers/temp-workspace.js";
 import { resolveRealLlmEnv } from "./_helpers/real-llm-env.js";
+
+// This file creates agents without naming a cwd — `local: {}` and an omitted `local` both fall
+// back to process.cwd(), which during a test run is the package itself, so the sessions landed
+// in packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 class MapSessionStore implements SessionStore {
   readonly byAgent = new Map<string, SessionRecord[]>();

@@ -4,6 +4,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { ToolResultContentBlock } from "../src/index.js";
 import { Agent, ConfigurationError, ToolError } from "../src/index.js";
 import { applyToolResultGuard } from "../src/internal/agent-loop/tool-result-guard.js";
+import { useTempCwd } from "./helpers/temp-workspace.js";
+
+// Agent.create defaults its workspace to process.cwd(), which during a test run is the
+// package itself — this file created agents without saying where, and the sessions landed in
+// packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
+
 import {
   toBlockToolResultContent,
   toStringToolResultContent,

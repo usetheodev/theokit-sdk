@@ -13,6 +13,31 @@ Given that, this file — not a metadata flag nobody reads — is the source of
 truth for which directories cross a real boundary, so a human (or a future
 classifier) has one place to check instead of re-deriving it per audit.
 
+## Where a new test file goes
+
+There is a rule now, because for a long time there was not one and the tree recorded the absence:
+251 loose `*.test.ts` files sat at `tests/` beside 34 topic directories, and **52 of them contradicted
+that taxonomy by their own name** — 15 `tests/memory-*.test.ts` while `tests/memory/` held 2,
+12 `tests/agent-loop-*` while `tests/agent-loop/` held 4, and so on for mcp, server, workflow, llm,
+errors, security, sandbox and internal. A contributor who opened the obvious directory found a
+minority of the relevant tests and had no way to learn the rest lived one level up. Those 52 were
+moved into the sibling directory their name already named.
+
+The rule, in one line: **a test named after a directory belongs in it.**
+
+| The test exercises… | It lives at | Why |
+|---|---|---|
+| a published `exports` subpath of `package.json`, as a consumer meets it | `tests/<name>.test.ts` (root) | the root mirrors the public surface, so the contract tests sit where the contract does |
+| a subsystem that has a directory (`memory`, `mcp`, `agent-loop`, `server`, `workflow`, `llm`, `errors`, `sandbox`, `security`, `internal`, …) | `tests/<subsystem>/<rest>.test.ts` | one place to look, and `vitest run tests/<subsystem>` is a usable command |
+| a repo-wide invariant, not a subsystem (lint rules, architecture checks) | `tests/lint/`, `tests/architecture/` | they assert about the repository, not about a module |
+
+The root placement is **legitimate and deliberate** for the first row — this is not a directory that
+wants to be empty. What it must not hold is a file whose name announces a directory that exists.
+
+Naming: once a file is inside `tests/<subsystem>/`, the prefix is redundant and is dropped —
+`tests/memory-fact-kind.test.ts` became `tests/memory/fact-kind.test.ts`, not
+`tests/memory/memory-fact-kind.test.ts`.
+
 ## Directories that cross a real I/O boundary (integration-tier)
 
 These run fast enough to sit in the same gate as unit tests, but they are not
@@ -34,8 +59,8 @@ real I/O is an integration test regardless of how quickly it runs.
 (`command: "node"` / `mcp` / `pty`), because they were checked individually and
 do not cross the boundary for real:
 
-- `tests/mcp-pool.test.ts`, `tests/mcp-lifecycle-wiring.test.ts`,
-  `tests/mcp-run-ownership.test.ts` — pass an identical-looking config to a fake
+- `tests/mcp/pool.test.ts`, `tests/mcp/lifecycle-wiring.test.ts`,
+  `tests/mcp/run-ownership.test.ts` — pass an identical-looking config to a fake
   factory; never spawn.
 - `tests/golden/agent/cloud-payload-serializer.golden.test.ts`,
   `tests/golden/agent/cloud-tool-parity.golden.test.ts` — only serialize such

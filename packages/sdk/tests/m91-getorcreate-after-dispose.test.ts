@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { Agent } from "../src/agent.js";
+import { useTempCwd } from "./helpers/temp-workspace.js";
+
+// This file passed `cwd: process.cwd()`, which during a test run is the package itself, so
+// every agent it created persisted a real session into packages/sdk/.theokit/. The helper
+// makes process.cwd() report a throwaway directory for this file only.
+useTempCwd();
 
 /**
  * M91 — the `getOrCreate` docstring claimed the opposite of the real behaviour.

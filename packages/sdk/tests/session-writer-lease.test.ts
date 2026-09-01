@@ -40,7 +40,7 @@ import {
 const dir = mkdtempSync(join(tmpdir(), "m81-lease-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-const session = (nome: string): string => join(dir, `${nome}.jsonl`);
+const session = (name: string): string => join(dir, `${name}.jsonl`);
 
 describe("M81 T1.2 — session writer lease", () => {
   it("test_the_first_writer_gets_the_lease", async () => {

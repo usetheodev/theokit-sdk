@@ -4,6 +4,12 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { spawnAndCollect } from "../../src/internal/runtime/lifecycle/spawn-collect.js";
 import { pollUntil } from "../helpers/poll-until.js";
+import { useTempCwd } from "../helpers/temp-workspace.js";
+
+// This file passed `cwd: process.cwd()`, which during a test run is the package itself, so
+// every agent it created persisted a real session into packages/sdk/.theokit/. The helper
+// makes process.cwd() report a throwaway directory for this file only.
+useTempCwd();
 
 /**
  * `spawnAndCollect` is the shared spawn wrapper behind the hooks executor and

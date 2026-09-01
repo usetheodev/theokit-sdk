@@ -4,6 +4,12 @@ import { Agent } from "../src/agent.js";
 import { UnsupportedRunOperationError } from "../src/errors.js";
 import type { SDKMessage } from "../src/types/messages.js";
 import type { StreamToCompletionResult } from "../src/types/run.js";
+import { useTempCwd } from "./helpers/temp-workspace.js";
+
+// This file creates agents without naming a cwd — `local: {}` and an omitted `local` both fall
+// back to process.cwd(), which during a test run is the package itself, so the sessions landed
+// in packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 /**
  * V3-4 (plan v34-stream-to-completion) — wiring of the streaming continuation

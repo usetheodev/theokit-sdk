@@ -31,6 +31,12 @@ import { describe, expect, it } from "vitest";
 
 import { AuthenticationError } from "../src/errors.js";
 import { Agent } from "../src/index.js";
+import { useTempCwd } from "./helpers/temp-workspace.js";
+
+// This file passed `cwd: process.cwd()`, which during a test run is the package itself, so
+// every agent it created persisted a real session into packages/sdk/.theokit/. The helper
+// makes process.cwd() report a throwaway directory for this file only.
+useTempCwd();
 
 const create = (apiKey: string, modelId: string) =>
   Agent.create({ apiKey, model: { id: modelId }, local: { cwd: process.cwd() } });

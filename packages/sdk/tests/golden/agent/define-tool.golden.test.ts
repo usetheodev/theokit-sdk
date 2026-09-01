@@ -2,6 +2,12 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
 
 import { Tool } from "../../../src/index.js";
+import { useTempCwd } from "../../helpers/temp-workspace.js";
+
+// This file creates agents without naming a cwd — `local: {}` and an omitted `local` both fall
+// back to process.cwd(), which during a test run is the package itself, so the sessions landed
+// in packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 /**
  * Golden tests for {@link Tool} — Phase 3 of the agent construction DX

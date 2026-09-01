@@ -3,6 +3,12 @@ import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Agent } from "../src/index.js";
+import { useTempCwd } from "./helpers/temp-workspace.js";
+
+// Agent.create defaults its workspace to process.cwd(), which during a test run is the
+// package itself — this file created agents without saying where, and the sessions landed in
+// packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 /**
  * SE18 — `SendOptions.activeTools` restricts, per send, which of the agent's

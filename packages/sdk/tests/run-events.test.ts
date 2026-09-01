@@ -4,6 +4,12 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { PermissionEngine, PermissionPlugin } from "../src/index.js";
 import { emitRunEvent, type RunEvent } from "../src/types/run-events.js";
+import { useTempCwd } from "./helpers/temp-workspace.js";
+
+// Agent.create defaults its workspace to process.cwd(), which during a test run is the
+// package itself — this file created agents without saying where, and the sessions landed in
+// packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 /**
  * SE2 — typed runtime event stream. The pure `emitRunEvent` is fail-safe; the

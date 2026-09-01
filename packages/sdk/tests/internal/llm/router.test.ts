@@ -107,9 +107,18 @@ describe("router (T4.3)", () => {
       fallbackModels: ["anthropic.claude-3-haiku-20240307-v1:0"],
     });
     process.env.AWS_ACCESS_KEY_ID = "fake";
+    // Was `/transport plugin/`, which pinned a message telling the user to install
+    // `@theokit-transport-{apiMode}` — a package with nothing to plug into, since no
+    // `registerTransport` exists anywhere in this package. Asserting the CODE and the failing mode
+    // survives a rewording of the advice; asserting the advice pinned the wrong advice in place.
     expect(() => resolveProviderChain({ primary: "bedrock-needs-transport" })).toThrow(
-      /transport plugin/,
+      /no transport for/,
     );
+    try {
+      resolveProviderChain({ primary: "bedrock-needs-transport" });
+    } catch (err) {
+      expect((err as { code?: string }).code).toBe("transport_unavailable");
+    }
   });
 
   it("EC-10: envVars first match wins (only OPENAI_API_KEY set)", () => {

@@ -18,6 +18,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { expectScopeCovered } from "./_scope-sentinel.js";
 
 const SRC_ROOT = join(__dirname, "..", "..", "src");
 
@@ -127,6 +128,7 @@ describe("lint: no unguarded path input in src/ (T4.1, ADR D85)", () => {
 
   it("scans src/ for unguarded path joins (gate)", async () => {
     const files = await walkTs(SRC_ROOT);
+    expectScopeCovered(files, "index.ts", SRC_ROOT);
     const offenders: Offender[] = [];
     for (const file of files) {
       const rel = relative(SRC_ROOT, file).replace(/\\/g, "/");
