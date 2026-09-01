@@ -1,5 +1,5 @@
 // T4.1 / D438 — import primitives from leaf to break the run<->agent cycle (#5).
-import type { CustomTool, ModelSelection } from "./agent-prims.js";
+import type { CustomTool, ModelSelection, PermissionMode } from "./agent-prims.js";
 import type { ConversationStep, ConversationTurn } from "./conversation.js";
 import type { McpServerConfig } from "./mcp.js";
 import type { SDKMessage } from "./messages.js";
@@ -379,7 +379,7 @@ export interface SendOptions {
    * ask rules), `bypass` / `bypassPermissions` (allow all except an explicit deny).
    * Absent ⇒ the plugin's own construction-time mode applies. Local runtime.
    */
-  permissionMode?: import("../permission-engine.js").PermissionMode;
+  permissionMode?: PermissionMode;
   onStep?: (args: { step: ConversationStep }) => void | Promise<void>;
   onDelta?: (args: { update: InteractionUpdate }) => void | Promise<void>;
   /**

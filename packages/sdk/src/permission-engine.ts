@@ -29,7 +29,9 @@ export type PermissionAction = "allow" | "deny" | "ask";
  *   `allow` EXCEPT an explicit `deny` rule. Never asks. a peer project
  *   `dangerously-skip-permissions` / Codex `Never` / Anthropic `bypassPermissions`.
  */
-export type PermissionMode = "default" | "plan" | "acceptEdits" | "bypass" | "bypassPermissions";
+import type { PermissionMode } from "./types/agent-prims.js";
+
+export type { PermissionMode };
 
 /**
  * SE1 — apply a {@link PermissionMode} to a rule-engine verdict. Pure.

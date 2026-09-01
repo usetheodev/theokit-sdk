@@ -141,6 +141,8 @@ export function mapHttpStatusToError(status: number, body: unknown): TheokitAgen
     cause: body,
   };
 
+  // The envelope is a Theokit-API contract and outranks the status: the server has
+  // told us WHICH condition this is, and the status is only its HTTP shadow.
   if (envelope.code === "integration_not_connected") {
     return new IntegrationNotConnectedError(message, {
       provider: envelope.provider ?? "unknown",
@@ -149,11 +151,36 @@ export function mapHttpStatusToError(status: number, body: unknown): TheokitAgen
       cause: body,
     });
   }
+  return statusToError(status, message, errorOptions);
+}
+
+/**
+ * The status ladder, split out from the envelope handling above.
+ *
+ * Two responsibilities lived in one function and it crossed the cognitive-complexity
+ * ceiling the moment the 408 arm was added. They are genuinely different questions —
+ * "did the server name the condition?" and "what does this status mean?" — and only
+ * the second one grows as statuses are added.
+ */
+function statusToError(
+  status: number,
+  message: string,
+  errorOptions: { code?: string; protoErrorCode?: string; cause: unknown },
+): TheokitAgentError {
   if (status === 401 || status === 403) {
     return new AuthenticationError(message, errorOptions);
   }
   if (status === 429) {
     return new RateLimitError(message, errorOptions);
+  }
+  if (status === 408) {
+    // 408 Request Timeout is TRANSIENT, not a caller mistake: the request did not arrive in time
+    // and the same request may succeed on retry. Without this arm 408 fell through to the generic
+    // 4xx branch below and came back as a non-retryable ConfigurationError, while all four provider
+    // mappers — openai-compatible.ts:59, anthropic.ts:67, bedrock.ts:71, vertex.ts:54 — already map
+    // it to a retryable NetworkError with a `timeout` code. This ladder is the fifth copy of that
+    // knowledge and it was the copy that drifted.
+    return new NetworkError(message, { ...errorOptions, code: errorOptions.code ?? "timeout" });
   }
   if (status >= 400 && status < 500) {
     return new ConfigurationError(message, errorOptions);

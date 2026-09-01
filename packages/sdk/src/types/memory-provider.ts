@@ -74,7 +74,7 @@ export interface RecordSessionSummaryArgs {
    * rather than optional. An implementation that recomputed it from `cwd` would write the summary
    * into a different directory than the one the rest of the subsystem uses (#463).
    */
-  readonly memoryRoot: import("../internal/memory/storage/memory-root.js").MemoryRoot;
+  readonly memoryRoot: MemoryRoot;
   /** Run id used as the filename key. */
   readonly runId: string;
   /** Agent identity for scope (foldering). */
@@ -172,3 +172,21 @@ export interface MemoryProvider {
   /** Release the handle (close index, flush caches). Idempotent + non-throwing. */
   dispose(handle: MemoryProviderHandle): Promise<void> | void;
 }
+
+/**
+ * A directory that has been RESOLVED as a memory root, distinguished from a bare `cwd`.
+ *
+ * Structural rather than a `unique symbol` brand: a `unique symbol` is identity-based and the d.ts
+ * bundler inlines the declaration into each package that re-exports it, so `@theokit/sdk-memory`
+ * ended up with a `MemoryRoot` its own compiler considered incompatible with the SDK's, on values
+ * that were the same string. A structural tag refuses a bare `string` exactly as well and survives
+ * the package boundary, which is where this type has to work.
+ *
+ * G7 / DIP — defined HERE, in the domain types layer, rather than in
+ * `internal/memory/storage/memory-root.ts`. It was defined in the adapter and reached for from this
+ * file, which made the port depend on the adapter for a field of its own argument type; the runtime
+ * helpers (`resolveMemoryRoot`, `asMemoryRoot`) stay in the adapter and import it from here.
+ *
+ * @public
+ */
+export type MemoryRoot = string & { readonly __memoryRoot: "resolved" };

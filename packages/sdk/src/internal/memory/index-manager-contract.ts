@@ -51,6 +51,18 @@ export interface IndexStatus {
   filesIndexed: number;
   chunksIndexed: number;
   lastSyncMs?: number;
+  /**
+   * Whether `filesIndexed` / `chunksIndexed` were MEASURED, or are placeholders.
+   *
+   * `IndexManager` counts rows with `SELECT COUNT(*)` and reports `true`. `LanceMemoryAdapter`
+   * reports `false`: its backing store is async and `status()` is not, so it hardcoded zeros while
+   * claiming `backend: "hybrid"` — and a caller deciding "is the index populated?" from
+   * `chunksIndexed > 0` got a false negative on every run, however many rows the table held.
+   *
+   * The zeros stay zero. Inventing a count would trade one false claim for another; what this flag
+   * fixes is a caller reading a placeholder as a measurement.
+   */
+  countsExact: boolean;
 }
 
 export interface SearchOptions {

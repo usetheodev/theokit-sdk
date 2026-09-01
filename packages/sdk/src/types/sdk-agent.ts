@@ -88,6 +88,27 @@ export interface SDKArtifact {
 }
 
 /**
+ * An operation a consumer may ask an {@link SDKAgent} about via `supports()`.
+ *
+ * Deliberately the members whose availability DIFFERS between runtimes, plus the core ones a caller
+ * may want to assert positively. A union rather than `string` so a typo is a compile error instead
+ * of a silent `false`.
+ *
+ * @public
+ */
+export type AgentOperation =
+  | "send"
+  | "generate"
+  | "listArtifacts"
+  | "downloadArtifact"
+  | "runUntil"
+  | "fork"
+  | "runToCompletion"
+  | "streamToCompletion"
+  | "usePersonality"
+  | "invalidateCache";
+
+/**
  * Handle returned by `Agent.create()` and `Agent.resume()`.
  *
  * @public
@@ -144,6 +165,34 @@ export interface SDKAgent {
    */
   [Symbol.asyncDispose](): Promise<void>;
   /** Cloud-only. Local returns an empty array. */
+  /**
+   * Which operations this agent's runtime actually performs.
+   *
+   * `SDKAgent` is one handle over two runtimes that do not offer the same operations, and the type
+   * does not model the difference: `downloadArtifact` is a REQUIRED member that rejects for every
+   * input on a local agent, and five optional members are present-but-throwing on a cloud one, so
+   * `typeof agent.fork === "function"` is true and calling it throws. Neither requiredness nor
+   * optionality expresses "exists here, not there".
+   *
+   * Ask before calling. Mirrors `Run.supports(op)` / `Run.unsupportedReason(op)`, which solved the
+   * same problem one layer down over the `RunOperation` union.
+   *
+   * This is a MITIGATION. The structural fix is to split this interface into a common core plus
+   * `LocalCapableAgent` / `CloudCapableAgent`, so the compiler refuses the call instead of the
+   * runtime and a consumer narrows once instead of asking per call. That is breaking on a published
+   * surface and is deliberately not done here.
+   *
+   * @public
+   */
+  supports(operation: AgentOperation): boolean;
+  /**
+   * Human-readable reason `supports(operation)` returned `false`, or `undefined` when it returned
+   * `true`. The message names the runtime, so an operator reading a log knows which half of the
+   * union they are holding.
+   *
+   * @public
+   */
+  unsupportedReason(operation: AgentOperation): string | undefined;
   listArtifacts(): Promise<SDKArtifact[]>;
   /** Cloud-only. Local throws `UnsupportedRunOperationError`. */
   downloadArtifact(path: string): Promise<Buffer>;

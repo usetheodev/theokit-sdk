@@ -11,6 +11,7 @@
 
 import type { ZodType } from "zod";
 
+import { TheokitAgentError } from "../errors.js";
 import type { SDKAgent } from "./agent.js";
 import type { MessageOrigin } from "./run.js";
 
@@ -448,10 +449,13 @@ export interface WorkflowResumeOptions<TI = unknown> {
  * discovered mid-run. Workflows nested with `workflowStep()` are exempt: the child runs in its own
  * executor with its own id-space, so its ids cannot collide with the parent's.
  */
-export class WorkflowDuplicateStepIdError extends Error {
+export class WorkflowDuplicateStepIdError extends TheokitAgentError {
   override readonly name = "WorkflowDuplicateStepIdError";
   constructor(public readonly stepId: string) {
-    super(`Duplicate step id "${stepId}" in workflow.`);
+    super(`Duplicate step id "${stepId}" in workflow.`, {
+      code: "workflow_duplicate_step_id",
+      isRetryable: false,
+    });
   }
 }
 
@@ -459,13 +463,16 @@ export class WorkflowDuplicateStepIdError extends Error {
  * SE27 — the whole-workflow `inputSchema` rejected `run(input)` (before step 1).
  * `detail` is a pre-formatted issues summary (a string, NOT Zod's `ZodIssue[]`).
  */
-export class WorkflowInputError extends Error {
+export class WorkflowInputError extends TheokitAgentError {
   override readonly name = "WorkflowInputError";
   constructor(
     public readonly workflowName: string,
     public readonly detail: string,
   ) {
-    super(`Workflow "${workflowName}" input failed schema validation: ${detail}`);
+    super(`Workflow "${workflowName}" input failed schema validation: ${detail}`, {
+      code: "workflow_input_invalid",
+      isRetryable: false,
+    });
   }
 }
 
@@ -473,13 +480,16 @@ export class WorkflowInputError extends Error {
  * SE27 — the whole-workflow `outputSchema` rejected the final output (on `completed`).
  * `detail` is a pre-formatted issues summary (a string, NOT Zod's `ZodIssue[]`).
  */
-export class WorkflowOutputError extends Error {
+export class WorkflowOutputError extends TheokitAgentError {
   override readonly name = "WorkflowOutputError";
   constructor(
     public readonly workflowName: string,
     public readonly detail: string,
   ) {
-    super(`Workflow "${workflowName}" output failed schema validation: ${detail}`);
+    super(`Workflow "${workflowName}" output failed schema validation: ${detail}`, {
+      code: "workflow_output_invalid",
+      isRetryable: false,
+    });
   }
 }
 
@@ -487,13 +497,16 @@ export class WorkflowOutputError extends Error {
  * SE29 — `WorkflowOptions.stateSchema` rejected an `initialState` or a
  * `setState(next)` call. `detail` is a pre-formatted issues summary.
  */
-export class WorkflowStateError extends Error {
+export class WorkflowStateError extends TheokitAgentError {
   override readonly name = "WorkflowStateError";
   constructor(
     public readonly workflowName: string,
     public readonly detail: string,
   ) {
-    super(`Workflow "${workflowName}" state failed schema validation: ${detail}`);
+    super(`Workflow "${workflowName}" state failed schema validation: ${detail}`, {
+      code: "workflow_state_invalid",
+      isRetryable: false,
+    });
   }
 }
 
@@ -503,7 +516,7 @@ export class WorkflowStateError extends Error {
  * child would be skipped) — restructure with a top-level suspend. A nested
  * `failed`/`cancelled` fails the parent step with the child's error attached.
  */
-export class WorkflowNestedError extends Error {
+export class WorkflowNestedError extends TheokitAgentError {
   override readonly name = "WorkflowNestedError";
   constructor(
     public readonly stepId: string,
@@ -521,9 +534,13 @@ export class WorkflowNestedError extends Error {
       // debuggers surface the nested cause chain — the original Error instance is
       // lost at the WorkflowRun serialization boundary, so this is the best
       // achievable without changing the run protocol.
-      childError
-        ? { cause: Object.assign(new Error(childError.message), { name: childError.name }) }
-        : undefined,
+      {
+        code: "workflow_nested_failed",
+        isRetryable: false,
+        ...(childError
+          ? { cause: Object.assign(new Error(childError.message), { name: childError.name }) }
+          : {}),
+      },
     );
   }
 }
@@ -539,13 +556,16 @@ export class WorkflowNestedError extends Error {
  * run id that is still executing. The registry is an in-process map: a crash releases every lock, and
  * it says nothing about runs in other processes.
  */
-export class WorkflowAlreadyRunningError extends Error {
+export class WorkflowAlreadyRunningError extends TheokitAgentError {
   override readonly name = "WorkflowAlreadyRunningError";
   constructor(
     public readonly workflowName: string,
     public readonly runId: string,
   ) {
-    super(`Workflow "${workflowName}" run "${runId}" already in-flight.`);
+    super(`Workflow "${workflowName}" run "${runId}" already in-flight.`, {
+      code: "workflow_already_running",
+      isRetryable: true,
+    });
   }
 }
 
@@ -557,10 +577,13 @@ export class WorkflowAlreadyRunningError extends Error {
  * that has since exited; or the snapshot may already have been consumed, since resume deletes it
  * before re-entering the executor and a second resume of the same run id lands here.
  */
-export class WorkflowSnapshotNotFoundError extends Error {
+export class WorkflowSnapshotNotFoundError extends TheokitAgentError {
   override readonly name = "WorkflowSnapshotNotFoundError";
   constructor(public readonly runId: string) {
-    super(`No snapshot found for runId "${runId}". Configure persistence to enable resume.`);
+    super(`No snapshot found for runId "${runId}". Configure persistence to enable resume.`, {
+      code: "workflow_snapshot_not_found",
+      isRetryable: false,
+    });
   }
 }
 
@@ -573,18 +596,21 @@ export class WorkflowSnapshotNotFoundError extends Error {
  * step runs at most `maxIterations` times; raising the ceiling is a `maxIterations` on the step, and
  * there is no global default to change.
  */
-export class WorkflowMaxIterationsExceededError extends Error {
+export class WorkflowMaxIterationsExceededError extends TheokitAgentError {
   override readonly name = "WorkflowMaxIterationsExceededError";
   constructor(
     public readonly stepId: string,
     public readonly maxIterations: number,
   ) {
-    super(`Step "${stepId}" exceeded max iterations (${maxIterations}).`);
+    super(`Step "${stepId}" exceeded max iterations (${maxIterations}).`, {
+      code: "workflow_max_iterations_exceeded",
+      isRetryable: false,
+    });
   }
 }
 
 /** EC-4 absorbed — JSON.stringify failed on snapshot payload. */
-export class WorkflowNotSerializableError extends Error {
+export class WorkflowNotSerializableError extends TheokitAgentError {
   override readonly name = "WorkflowNotSerializableError";
   constructor(
     public readonly stepId: string,
@@ -593,12 +619,13 @@ export class WorkflowNotSerializableError extends Error {
     super(
       `Workflow snapshot at step "${stepId}" failed to serialize as JSON: ${underlying.message}. ` +
         `Persisted snapshots support only JSON-serializable values (no BigInt, no circular refs, no class instances with cycles).`,
+      { code: "workflow_not_serializable", isRetryable: false },
     );
   }
 }
 
 /** EC-8 absorbed — `currentStepId` from snapshot not found in resumed workflow. */
-export class WorkflowResumeStepNotFoundError extends Error {
+export class WorkflowResumeStepNotFoundError extends TheokitAgentError {
   override readonly name = "WorkflowResumeStepNotFoundError";
   constructor(
     public readonly stepId: string,
@@ -607,11 +634,25 @@ export class WorkflowResumeStepNotFoundError extends Error {
     super(
       `Cannot resume: step "${stepId}" not found in workflow "${workflowName}". ` +
         `The Workflow definition diverged from the snapshot.`,
+      { code: "workflow_resume_step_not_found", isRetryable: false },
     );
   }
 }
 
-/** Aggregate failure from parallel branches. */
+/**
+ * Aggregate failure from parallel branches.
+ *
+ * THE ONE PUBLIC WORKFLOW ERROR STILL OUTSIDE THE SDK HIERARCHY, deliberately. Its ten siblings were
+ * reparented onto `TheokitAgentError` so `isTransientError` — and therefore `Retry.create`'s default
+ * predicate — can see them at all. This one cannot follow without ceasing to be an `AggregateError`,
+ * and `instanceof AggregateError` plus the standard `errors` array is the whole reason a caller
+ * catches it: they want the branch failures, not a single message.
+ *
+ * The cost is stated rather than hidden: `isTransientError(err)` is `false` for this class, so a
+ * parallel step whose branches failed transiently is not retried by the SDK's own helper. Inspect
+ * `err.errors` and decide per branch — which is what an aggregate asks of a caller anyway, since
+ * "should this be retried" has no single answer when the branches failed for different reasons.
+ */
 export class WorkflowParallelError extends AggregateError {
   override readonly name = "WorkflowParallelError";
   constructor(
@@ -623,12 +664,13 @@ export class WorkflowParallelError extends AggregateError {
 }
 
 /** D238 — saga engine not yet implemented. */
-export class WorkflowCompensateNotImplementedError extends Error {
+export class WorkflowCompensateNotImplementedError extends TheokitAgentError {
   override readonly name = "WorkflowCompensateNotImplementedError";
   constructor(public readonly stepId: string) {
     super(
       `Step "${stepId}" defines compensate, but saga engine is deferred to v1.2. ` +
         `Remove compensate or implement rollback manually.`,
+      { code: "workflow_compensate_not_implemented", isRetryable: false },
     );
   }
 }

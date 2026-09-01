@@ -12,6 +12,7 @@ import type {
   SDKArtifact,
 } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
+import type { AgentOperation } from "../../types/sdk-agent.js";
 import type { SessionStore } from "../../types/session-store.js";
 import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
 import { generateLocalAgentId } from "../ids.js";
@@ -83,6 +84,29 @@ import { registerRunAsTask } from "./local-agent-task-wrap.js";
  * @internal
  */
 export class LocalAgent implements SDKAgent {
+  /**
+   * Operations this runtime does not perform. See {@link SDKAgent.supports} for why asking beats
+   * catching: the members below are present on the type — `downloadArtifact` is REQUIRED — and
+   * answering them by throwing is what leaves a caller unable to branch without a try/catch.
+   *
+   * Artifacts are a cloud concept: `downloadArtifact` rejects unconditionally here, and
+   * `listArtifacts` returns `[]` for every state, so its empty array cannot be read as "this run
+   * produced none".
+   */
+  private static readonly UNSUPPORTED_OPS: ReadonlySet<AgentOperation> = new Set([
+    "downloadArtifact",
+    "listArtifacts",
+  ]);
+
+  supports(operation: AgentOperation): boolean {
+    return !LocalAgent.UNSUPPORTED_OPS.has(operation);
+  }
+
+  unsupportedReason(operation: AgentOperation): string | undefined {
+    return this.supports(operation)
+      ? undefined
+      : `Operation "${operation}" is not available on a local agent.`;
+  }
   readonly agentId: string;
   model: ModelSelection | undefined;
   context?: FileContextManager;

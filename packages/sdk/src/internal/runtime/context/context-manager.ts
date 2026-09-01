@@ -11,6 +11,7 @@ import type {
   SDKContextManager,
 } from "../../../types/context.js";
 import { loadMarkdownEntities } from "../../persistence/markdown-config-loader.js";
+import { insideRoot } from "../../security/path-containment.js";
 import { warnOnce } from "../hooks/hooks-source.js";
 import {
   type AggregatorSource,
@@ -20,7 +21,6 @@ import {
 import { runDiscovery } from "./context-discovery-runner.js";
 import { ContextSourceFrontmatterSchema } from "./context-frontmatter.js";
 import { DEFAULT_MAX_BYTES_PER_FILE } from "./context-loaders.js";
-import { insideRoot } from "./path-containment.js";
 
 /**
  * File-based context manager. Reads `.theokit/context.json` from the

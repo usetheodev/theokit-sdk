@@ -48,7 +48,15 @@ const DEFAULT_SUBPATH = [".theokit", "memory"] as const;
  * that were the same string. A structural tag refuses a bare `string` exactly as well and survives
  * the package boundary, which is where this type has to work.
  */
-export type MemoryRoot = string & { readonly __memoryRoot: "resolved" };
+// G7 / DIP — the branded type now lives in the domain layer it belongs to
+// (`types/memory-provider.ts`), and this adapter imports it rather than owning it. It used to be
+// defined here and reached for by `types/memory-provider.ts`, so the PORT depended on the ADAPTER
+// for a field of its own argument type — while that file's docblock called itself "the DIP-correct
+// home ... the port + companion contract types live in the domain types/ layer". Re-exported so
+// every existing `import { MemoryRoot } from ".../memory-root.js"` keeps resolving.
+import type { MemoryRoot } from "../../../types/memory-provider.js";
+
+export type { MemoryRoot };
 
 /**
  * Treat a directory as a memory root without resolving one.

@@ -21,7 +21,7 @@
 // Import `CustomTool` from the leaf `agent-prims.ts` where it is DEFINED (not via
 // the `agent.ts` re-export) so this module does not close a type-only import
 // cycle `agent → plugin → agent`.
-import type { CustomTool } from "./agent-prims.js";
+import type { CustomTool, PermissionMode } from "./agent-prims.js";
 import type { MemoryAdapter } from "./memory-adapter.js";
 import type { ProviderProfile } from "./provider-profile.js";
 
@@ -85,7 +85,7 @@ export interface PreToolCallContext {
    * gate per-run rather than at construction time. Absent ⇒ the plugin's own
    * default applies. Ignored by non-permission plugins.
    */
-  permissionMode?: import("../permission-engine.js").PermissionMode;
+  permissionMode?: PermissionMode;
 }
 
 /**

@@ -412,6 +412,8 @@ export class Agent {
    */
   static async getRun(runId: string, options: GetRunOptions = {}): Promise<Run> {
     if (options.runtime === "cloud") {
+      // stale-claim-ok: a runtime throw, not a doc claim — whoever ships the PaaS must delete this
+      // branch to make cloud work at all, so it cannot outlive its own truth the way a comment can.
       throw new ConfigurationError(
         "Cloud runtime is pre-release. Theo PaaS endpoints are not wired yet — getRun({ runtime: 'cloud' }) will be enabled when the PaaS ships.",
         { code: "cloud_runtime_pre_release" },

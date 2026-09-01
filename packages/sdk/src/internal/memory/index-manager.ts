@@ -13,6 +13,7 @@ import {
   sha256,
   truncateSnippet,
 } from "./index-manager-helpers.js";
+import type { SyncResult } from "./memory-index.js";
 import { type MemoryIndex, parseSearchOptions } from "./memory-index.js";
 import { loadSqliteVecExtension } from "./sqlite-vec-loader.js";
 import { chunkMarkdown } from "./storage/chunk-markdown.js";
@@ -125,12 +126,11 @@ export class IndexManager implements MemoryIndex {
   }
 
   /** Walk the memory corpus + (re)index changed files. */
-  async sync(): Promise<{
-    filesScanned: number;
-    filesUpdated: number;
-    chunksWritten: number;
-    chunksEmbedded: number;
-  }> {
+  // Declares `Promise<SyncResult>` rather than repeating the shape inline. The inline version was a
+  // structural copy of the interface it implements, so widening `SyncResult` with `supported` left
+  // this method silently no longer assignable to `MemoryIndex` — the compiler caught it, which is
+  // the argument for naming the type instead of restating it.
+  async sync(): Promise<SyncResult> {
     const files = await collectMarkdownFiles(this.memoryRoot);
     let filesUpdated = 0;
     let chunksWritten = 0;
@@ -161,7 +161,15 @@ export class IndexManager implements MemoryIndex {
       chunksEmbedded = await embedMissingChunks({ db: this.db, runtime: this.embedding });
     }
     this.lastSyncMs = Date.now();
-    return { filesScanned: files.length, filesUpdated, chunksWritten, chunksEmbedded };
+    // `supported: true` — this implementer genuinely walks the corpus, so its counts are a
+    // measurement rather than a placeholder. See SyncResult.supported.
+    return {
+      filesScanned: files.length,
+      filesUpdated,
+      chunksWritten,
+      chunksEmbedded,
+      supported: true,
+    };
   }
 
   async search(query: string, options: SearchOptions = {}): Promise<MemorySearchHit[]> {
@@ -183,6 +191,8 @@ export class IndexManager implements MemoryIndex {
       backend: this.vectorReady ? "hybrid" : "fts-only",
       filesIndexed: Number(files.n ?? 0),
       chunksIndexed: Number(chunks.n ?? 0),
+      // Counted with SELECT COUNT(*) just above — these are measurements, not placeholders.
+      countsExact: true,
     };
     if (this.lastSyncMs !== undefined) status.lastSyncMs = this.lastSyncMs;
     return status;

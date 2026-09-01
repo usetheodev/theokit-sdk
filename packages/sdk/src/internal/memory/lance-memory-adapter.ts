@@ -38,23 +38,32 @@ import { type MemoryIndex, parseSearchOptions, type SyncResult } from "./memory-
  */
 const DEFAULT_NAMESPACE = "default";
 
-/** Empty sync result — Lance has no corpus to walk. */
-const EMPTY_SYNC_RESULT: SyncResult = Object.freeze({
+/**
+ * Lance has no corpus to walk, and the result now SAYS so.
+ *
+ * The counts stay zero — inventing numbers would trade one false claim for another. What changed is
+ * `supported: false`: an all-zeros result was previously indistinguishable from a real sync that
+ * found nothing to reindex, and the comment above this constant used to present that as the goal
+ * ("so callers' existing logging does not break"). A caller can now tell "nothing to do" from
+ * "this backend does not do this".
+ */
+const UNSUPPORTED_SYNC_RESULT: SyncResult = Object.freeze({
   filesScanned: 0,
   filesUpdated: 0,
   chunksWritten: 0,
   chunksEmbedded: 0,
+  supported: false,
 });
 
 export class LanceMemoryAdapter implements MemoryIndex {
   constructor(private readonly inner: LanceIndex) {}
 
   /**
-   * No-op for Lance — see file header. Returns zero counts so callers'
-   * existing logging (`filesScanned: X`) does not break.
+   * Not applicable to Lance — see file header. Returns zero counts with `supported: false` so a
+   * caller can distinguish this from a real sync that found nothing.
    */
   async sync(): Promise<SyncResult> {
-    return EMPTY_SYNC_RESULT;
+    return UNSUPPORTED_SYNC_RESULT;
   }
 
   // jscpd:ignore-start — search signature + early-out is idiomatic
@@ -76,13 +85,16 @@ export class LanceMemoryAdapter implements MemoryIndex {
   }
 
   status(): IndexStatus {
-    // chunksIndexed via a synchronous best-effort — Lance API is async so
-    // we surface zero here and document that consumers needing exact counts
-    // should call `inner.countFacts()` directly.
+    // The Lance API is async and `status()` is not, so no count can be taken here. The zeros are
+    // placeholders and `countsExact: false` says so — previously they were indistinguishable from a
+    // measured empty index, so a caller testing `chunksIndexed > 0` got a false negative on every
+    // run regardless of how many rows the table held. A consumer needing the real number calls
+    // `unwrap().countFacts()`.
     return {
       backend: "hybrid",
       filesIndexed: 0,
       chunksIndexed: 0,
+      countsExact: false,
     };
   }
 

@@ -16,7 +16,7 @@ export type {
   ToolContextMessage,
 } from "./agent-prims.js";
 
-import type { CustomTool, ModelSelection } from "./agent-prims.js";
+import type { CustomTool, ModelSelection, PermissionMode } from "./agent-prims.js";
 // Code `Plugin` objects (the array form of `AgentOptions.plugins`) are the
 // public discriminated union. SE45/SE46 — sourced from the sibling `./plugin.ts`
 // contract module so no `types/*.ts` file reaches into `internal/`.
@@ -33,6 +33,7 @@ import type {
 } from "./sdk-agent.js";
 
 export type {
+  AgentOperation,
   SDKAgentPlugins,
   SDKAgentSkillDetail,
   SDKAgentSkills,
@@ -489,7 +490,7 @@ export interface AgentOptions {
    * `SendOptions.permissionMode` overrides it. Absent ⇒ the plugin's own
    * construction-time mode applies. Local runtime.
    */
-  permissionMode?: import("../permission-engine.js").PermissionMode;
+  permissionMode?: PermissionMode;
   /**
    * Skills configuration. Either a static {@link SkillsSettings} object or —
    * SE22 — a {@link SkillsResolver} evaluated per `send()` to pick skills from
@@ -691,12 +692,18 @@ export interface AgentOptions {
    * inversion). When provided, the agent loop calls `tracker.track(...)`
    * after each LLM completion and `tracker.check()` before each iteration.
    *
-   * **Status (Phase 2 incremental):** the option is wired to the type
-   * surface only. Agent-loop runtime wiring is additive and lands in a
-   * subsequent iteration — for now, the kernel still uses the legacy
-   * `UsageAccumulator` + `IterationBudget` from `internal/budget/`.
-   * Consumers passing a custom tracker today get the type guarantee but
-   * NOT runtime enforcement.
+   * **Runtime enforcement is live.** Verified against the call graph on
+   * 2026-09-01: `internal/agent-loop/loop.ts:78-81` reads the tracker and
+   * gates the iteration through `evaluateBudgetGate`, `:110` calls
+   * `nextIteration()`, and `:390`/`:397` call `track(...)` per completion;
+   * the option reaches the loop from `AgentOptions` at
+   * `internal/local-agent/real-local-run.ts:342`.
+   *
+   * This paragraph previously said the opposite — "wired to the type surface
+   * only ... NOT runtime enforcement" — and it was wrong in the expensive stale-claim-ok: verbatim quote of the corrected text
+   * direction: a consumer reading the published `.d.ts` was told the SDK would
+   * not enforce their cost ceiling, so the rational response was to build a
+   * second control outside it, or to stop trusting the option.
    *
    * Default impls available today via `@theokit/sdk`:
    *   - `createCounterBudgetTracker({ maxTokens, maxIterations })`
@@ -716,12 +723,17 @@ export interface AgentOptions {
    * pre-LLM to inject recalled facts, and `provider.dispose(...)` on
    * Agent shutdown.
    *
-   * **Status (Phase 1 incremental):** the option is wired to the type
-   * surface only. Agent-loop runtime wiring is additive and lands in
-   * subsequent iterations (T1.4 plumbing, T1.5 runtime hooks). For now,
-   * the kernel still uses the legacy `Memory` class + `internal/memory/*`
-   * runtime files. Consumers passing a custom provider today get the type
-   * guarantee but NOT runtime enforcement.
+   * **Runtime enforcement is live.** Verified against the call graph on
+   * 2026-09-01: `internal/agent-loop/loop-context-init.ts:95` calls
+   * `provider.init(...)`, `:129` surfaces `provider.buildTools(...)` to the
+   * model, `:166` runs `provider.runActivePass(...)`, and
+   * `internal/agent-loop/loop.ts:176`/`:204` call `sync` and `dispose`.
+   *
+   * This paragraph previously said the opposite — "wired to the type surface
+   * only ... NOT runtime enforcement". A stale "not implemented yet" note on a stale-claim-ok: verbatim quote of the corrected text
+   * `@public` symbol is worse than no note: it is believed, it survives the
+   * work it describes, and nothing in this repo compares such a claim against
+   * the call graph.
    *
    * Default impls available today via `@theokit/sdk`:
    *   - `createNoopMemoryProvider()` — degenerate fallback / worked example

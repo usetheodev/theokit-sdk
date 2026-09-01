@@ -346,7 +346,7 @@ function selectTransport(
    * (`ConstructorParameters<typeof OpenAIClient>[0]` vs Anthropic's) — that is why a
    * the first attempt with a non-generic helper, declared before the `if`s, did not compile.
    */
-  const comTransform = <
+  const withTransform = <
     O extends { fetch?: typeof fetch; extraHeaders?: Record<string, string> },
     C,
   >(
@@ -422,7 +422,7 @@ function selectTransport(
     // M41 — feed the provider transform: `fetch` (refresh-aware transport) + `headers` merged over the
     // profile's static `extraHeaders`. OpenAIClient now honors `extraHeaders` (was ignored) — additive-safe:
     // no builtin sets it on chat_completions.
-    return comTransform(opts, (o) => new OpenAIClient(o));
+    return withTransform(opts, (o) => new OpenAIClient(o));
   }
   if (profile.apiMode === "anthropic_messages") {
     // Vertex sub-dispatch (D301): when profile.name === "vertex", route to
@@ -442,7 +442,7 @@ function selectTransport(
     opts.baseUrl = baseUrl ?? process.env.ANTHROPIC_API_BASE_URL ?? profile.baseUrl;
     // M45 — feed the provider transform + static extraHeaders (mirror of the M41 chat_completions wiring),
     // so anthropic_messages providers can carry headers (anthropic-beta) and refresh-aware fetches (M46).
-    return comTransform(opts, (o) => new AnthropicClient(o));
+    return withTransform(opts, (o) => new AnthropicClient(o));
   }
   if (profile.apiMode === "bedrock_anthropic") {
     // D301: dedicated Bedrock InvokeModel client. apiKey from env when set;
@@ -481,10 +481,19 @@ function selectTransport(
       providerName: profile.name,
     });
   }
+  // The message used to say: "Install a third-party transport plugin
+  // (@theokit-transport-${apiMode})". There is no plugin mechanism to install into —
+  // `registerTransport` and `transportRegistry` have zero hits in this package, and the only other
+  // occurrence of the string `theokit-transport` was a docblock describing this line. A reader would
+  // have searched for the package, then for the plugin API, before concluding the SDK was wrong
+  // rather than their configuration. Transports are a closed set; the message now says so and names
+  // the whole set, which is a smaller promise and the true one.
   throw new ConfigurationError(
-    `Provider "${profile.name}" requires apiMode "${profile.apiMode}" but no transport is registered. ` +
-      `Install a third-party transport plugin (@theokit-transport-${profile.apiMode}) ` +
-      `or use a provider with apiMode "chat_completions" or "anthropic_messages".`,
+    `Provider "${profile.name}" declares apiMode "${profile.apiMode}", which this SDK has no ` +
+      `transport for. Transports are built in and cannot be extended by a plugin; the supported ` +
+      `modes are "chat_completions", "anthropic_messages", "bedrock_anthropic" and ` +
+      `"responses_api". Change the provider's apiMode to one of those, or open an issue if the ` +
+      `provider genuinely speaks a fifth protocol.`,
     { code: "transport_unavailable" },
   );
 }

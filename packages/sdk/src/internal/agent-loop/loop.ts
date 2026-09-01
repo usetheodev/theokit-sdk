@@ -502,7 +502,7 @@ export async function continueOrTerminate(
 
 /**
  * Doom-loop guard, inspected after each turn's tools dispatch (kept in lockstep with the pure
- * `firstDoomLoopVerdict` — see agent-loop-doom-loop-wiring.test.ts). A `hard` verdict emits the stop
+ * `firstDoomLoopVerdict` — see agent-loop/doom-loop-wiring.test.ts). A `hard` verdict emits the stop
  * message as the final assistant text, flags `ctx.stoppedByDoomLoop`, and stops the run (a controlled
  * `done`). A `soft` verdict injects a one-time guidance nudge (once per streak, by the `==softThreshold`
  * semantics) and continues. No tracker (`doomLoop: false`) ⇒ never fires. @internal

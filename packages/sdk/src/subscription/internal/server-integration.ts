@@ -12,6 +12,11 @@
  * server wiring lands in a sibling theokit task (cross-repo follow-up
  * documented in EC-7 of the plan).
  *
+ * Claim written 2026-06-04 (f8df6284) and NOT re-verified since: whether the sibling task has
+ * landed is a fact about another repository, and nobody checked it from here. Re-read EC-7 before
+ * trusting this paragraph — a cross-repo "lands soon" is the shape most likely to outlive its own
+ * truth, because the person who lands it is not the person reading this.
+ *
  * @internal
  */
 

@@ -1,4 +1,5 @@
 /**
+import type { ErrorCode } from "../../errors.js";
  * Helpers shared between provider HTTP error mappers (ADR D67).
  *
  * Extracted to dedupe identical logic in `anthropic.ts` and
@@ -93,4 +94,58 @@ export function buildErrorMetadata(args: {
 export function parseRequestId(headers: Headers | undefined): string | undefined {
   if (headers === undefined) return undefined;
   return headers.get("x-request-id") ?? headers.get("request-id") ?? undefined;
+}
+
+/**
+ * The HTTP status ladder — ONE definition, shared by every provider mapper.
+ *
+ * This is RFC 9110 semantics, not a vendor contract: a 429 means the same thing
+ * whether Anthropic, OpenAI, Bedrock or Vertex sent it. It lived in four copies
+ * until 2026-09-01 and the copies had already drifted in two measurable ways,
+ * which is what moved it here beside the other dialect-agnostic helpers ADR D67
+ * extracted:
+ *
+ *  1. **402 reached one mapper of four.** T3.7 added `quota_exceeded` and wired
+ *     it into `openai-compatible.ts` only. A Bedrock, Vertex or Anthropic
+ *     endpoint answering 402 fell through every arm and came back `unknown` —
+ *     the canonical bucket existed and three of four mappers could not reach it.
+ *  2. **The 5xx arm had two different upper bounds.** `anthropic` and
+ *     `openai-compatible` guarded `>= 500 && < 600`; `bedrock` and `vertex`
+ *     guarded `>= 500` with no ceiling, so a malformed or proxy-injected 6xx was
+ *     `server_error` in two mappers and `unknown` in the other two.
+ *
+ * Neither was a vendor difference. Both were copy-drift, and that is the DRY
+ * test in its textbook form: one piece of knowledge, four places to change it.
+ *
+ * The ladder is deliberately the FALLBACK, never the whole classifier. Each
+ * mapper keeps its own body-dialect rules — Anthropic's `context_too_long`,
+ * Bedrock's AWS `__type` strings, Vertex's `google.rpc` status enum — because
+ * those ARE per-vendor contracts. The shape is
+ * `classifyVendorBody(body) ?? httpStatusToErrorCode(status)`.
+ *
+ * 404 is deliberately NOT mapped here. Three mappers treat it as `unknown` and
+ * Bedrock treats it as `invalid_request` via its own `__type` rules; folding it
+ * in would silently change three mappers to close a divergence nobody measured.
+ *
+ * @internal
+ */
+export type HttpStatusErrorCode = Extract<
+  ErrorCode,
+  | "auth_failed"
+  | "quota_exceeded"
+  | "timeout"
+  | "rate_limit"
+  | "invalid_request"
+  | "server_error"
+  | "unknown"
+>;
+
+export function httpStatusToErrorCode(status: number): HttpStatusErrorCode {
+  if (status === 401 || status === 403) return "auth_failed";
+  if (status === 402) return "quota_exceeded";
+  if (status === 408) return "timeout";
+  if (status === 429) return "rate_limit";
+  if (status === 400) return "invalid_request";
+  if (status >= 500 && status < 600) return "server_error";
+  return "unknown";
 }

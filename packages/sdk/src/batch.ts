@@ -16,7 +16,10 @@ import { CredentialPool, newPooledCredential } from "./internal/llm/credential-p
 import { withCredentialPool } from "./internal/llm/credential-pool-context.js";
 import type { CredentialPoolStrategy } from "./internal/llm/credential-pool-types.js";
 import { createSemaphore } from "./internal/runtime/concurrency/async-semaphore.js";
-import { get as taskRegistryGet, submit as taskRegistrySubmit } from "./internal/task/registry.js";
+import {
+  submit as taskRegistrySubmit,
+  subscribe as taskRegistrySubscribe,
+} from "./internal/task/registry.js";
 import type { AgentOptions, SDKAgent } from "./types/agent.js";
 import type { BatchItem, BatchOptions, BatchProgress, BatchResult } from "./types/batch.js";
 
@@ -104,6 +107,33 @@ export async function batchImpl(
   return withPool();
 }
 
+/**
+ * Raises the typed error for a terminal failure event, and returns for anything else.
+ *
+ * Split out of {@link wrapBatchAsTask} so the wait loop reads as "finished -> results, terminal
+ * failure -> throw" rather than as three inlined branches; the failure vocabulary is one concern and
+ * lives in one place.
+ */
+function throwIfTerminalFailure(
+  id: string,
+  event: { type: string } & Record<string, unknown>,
+): void {
+  if (event.type === "errored") {
+    const error = event.error as { message: string; code?: string };
+    throw new TheokitAgentError(`Batch task ${id} failed: ${error.message}`, {
+      code: "batch_task_failed",
+      protoErrorCode: error.code,
+    });
+  }
+  if (event.type === "cancelled") {
+    const reason = event.reason as string | undefined;
+    throw new TheokitAgentError(
+      `Batch task ${id} was cancelled${reason === undefined ? "" : `: ${reason}`}`,
+      { code: "batch_task_cancelled" },
+    );
+  }
+}
+
 async function wrapBatchAsTask(
   total: number,
   taskOpt: true | { id?: string; meta?: Record<string, unknown> },
@@ -129,13 +159,32 @@ async function wrapBatchAsTask(
     meta,
     allowReservedPrefix: true,
   });
-  // submit returns immediately with a queued handle. Wait for terminal.
-  for (let i = 0; i < 5000; i++) {
-    const h = await taskRegistryGet(id);
-    if (h?.state === "finished" || h?.state === "error" || h?.state === "cancelled") break;
-    await new Promise((r) => setTimeout(r, 5));
+  // `submit` returns immediately with a queued handle, so this waits for the task's own terminal
+  // EVENT rather than polling its state.
+  //
+  // What this replaced, and why the replacement is not just tidier: the wait was
+  // `for (let i = 0; i < 5000; i++) { ...get(id)...; await sleep(5) }` followed by an unconditional
+  // `return results`, and `results` is assigned only inside the `work` callback above. So THREE
+  // distinct failures produced one indistinguishable value — the work threw, the task was
+  // cancelled, or the budget elapsed — and each returned `[]` on a RESOLVED promise, which a caller
+  // cannot tell apart from `Agent.batch([])`. The registry had already recorded the failure as
+  // `{ code, message }` on the terminal event; the loop read only `handle.state` and dropped it.
+  //
+  // The budget was not a safety net either. 5000 iterations of a 5 ms sleep is ~25 s, and a batch
+  // legitimately longer than that would trip it and return `[]` — the bound generated the bug it
+  // appeared to guard against. A task's own lifecycle is the honest bound, and `subscribe` drains
+  // the buffered events first (`subscribe.ts:23`), so a task that finished before this line runs
+  // still delivers its terminal event rather than hanging.
+  for await (const event of taskRegistrySubscribe(id)) {
+    if (event.type === "finished") return results;
+    throwIfTerminalFailure(id, event);
   }
-  return results;
+  // The registry's contract says the stream ends only after a terminal event, so this is
+  // unreachable. It throws rather than returning `results` because returning here would restore the
+  // exact silent-empty-array path this function was rewritten to remove.
+  throw new TheokitAgentError(`Batch task ${id} ended without a terminal event`, {
+    code: "batch_task_no_terminal_event",
+  });
 }
 
 async function runBatch(

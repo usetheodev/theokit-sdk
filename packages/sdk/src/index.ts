@@ -106,8 +106,8 @@ export type { ToolResultGuardOptions } from "./internal/agent-loop/tool-result-g
 // BudgetTracker interface (SDK 2.0 Phase 2 / T2.1 foundation — ADR D1).
 // Kernel-facing contract for budget/usage tracking. Default impl lives in
 // internal/budget/ today; will move to @theokit/sdk-budget in Phase 2.
-// Consumers can supply a custom impl via `Agent.create({ budgetTracker })`
-// (wiring lands in subsequent iteration).
+// Consumers can supply a custom impl via `Agent.create({ budgetTracker })`;
+// the loop gates and tracks against it (internal/agent-loop/loop.ts:78, :110, :390).
 export type {
   BudgetCheck,
   BudgetTotal,
@@ -182,8 +182,9 @@ export type {
 // MemoryProvider port (SDK 2.0 Phase 1 / T1.1 foundation — Hexagonal
 // Architecture). Kernel-facing contract for the memory subsystem.
 // Default no-op impl ships with sdk; rich impl will ship in
-// @theokit/sdk-memory. Consumers opt-in via Agent.create({ memoryProvider })
-// (wiring lands in subsequent iteration). Mirrors BudgetTracker pattern.
+// @theokit/sdk-memory. Consumers opt-in via Agent.create({ memoryProvider });
+// the loop drives its full lifecycle (internal/agent-loop/loop-context-init.ts:95,
+// :129, :166 and loop.ts:176, :204). Mirrors BudgetTracker pattern.
 export type {
   ActiveMemoryPassArgs,
   ActiveMemoryPassResult,
@@ -329,6 +330,7 @@ export {
 // theokit#123 — the shape `Agent.describe()` returns, so a reflection endpoint can name it.
 export type {
   AgentDescription,
+  AgentOperation,
   AgentSubagentDescription,
   AgentToolDescription,
   CustomTool,

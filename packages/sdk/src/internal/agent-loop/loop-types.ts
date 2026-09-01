@@ -207,30 +207,28 @@ export interface AgentLoopInputs {
   telemetry?: import("../telemetry/tracer.js").TelemetryHandle;
   /**
    * Pluggable budget tracker (SDK 2.0 Phase 2 / T2.1 — ADR D1 interface
-   * inversion). When provided, the loop will call `track()` after each
-   * LLM completion AND `check()` before each iteration. When undefined,
-   * the legacy internal `IterationBudget` + `UsageAccumulator` remain
-   * the sole authority.
+   * inversion). When provided, the loop calls `track()` after each LLM
+   * completion AND gates each iteration through `evaluateBudgetGate`. When
+   * undefined, the legacy internal `IterationBudget` + `UsageAccumulator`
+   * remain the sole authority.
    *
-   * **Status (incremental Phase 2):** plumbed at the type surface only.
-   * Runtime `track()` / `check()` calls land in a follow-up iteration.
-   * Plumbing the option through now lets `Agent.create({ budgetTracker })`
-   * thread the value down to the loop without further type changes when
-   * the runtime hooks land.
+   * The calls are in this same slice: `loop.ts:78-81` (gate), `:110`
+   * (`nextIteration()`), `:390`/`:397` (`track(...)`). This block used to say
+   * "plumbed at the type surface only ... land in a follow-up iteration", stale-claim-ok: verbatim quote of the corrected text
+   * which stopped being true when those calls landed and was never revisited.
    */
   budgetTracker?: import("../budget/tracker/budget-tracker.js").BudgetTracker;
   /**
    * Pluggable memory provider (SDK 2.0 Phase 1 / T1.4 — Hexagonal
-   * Architecture interface inversion). When provided, the loop will
-   * eventually call `init()` / `buildTools()` / `runActivePass()` /
-   * `dispose()` at the appropriate kernel hooks. When undefined, the
-   * legacy `Memory` class + `internal/memory/*` runtime files remain
-   * the sole authority.
+   * Architecture interface inversion). When provided, the loop calls
+   * `init()` / `buildTools()` / `runActivePass()` / `sync()` / `dispose()` at
+   * the kernel hooks. When undefined, the legacy `Memory` class +
+   * `internal/memory/*` runtime files remain the sole authority.
    *
-   * **Status (incremental Phase 1):** plumbed at the type surface only.
-   * Runtime lifecycle calls land in T1.5. Plumbing the option through
-   * now lets `Agent.create({ memoryProvider })` thread the value down
-   * to the loop without further type changes when the hooks land.
+   * The calls are in this same slice: `loop-context-init.ts:95` (`init`),
+   * `:129` (`buildTools`), `:166` (`runActivePass`), and `loop.ts:176`/`:204`
+   * (`sync`, `dispose`). This block used to say "plumbed at the type surface
+   * only ... land in T1.5"; T1.5 landed and the note did not move.
    */
   memoryProvider?: import("../runtime/memory/memory-provider.js").MemoryProvider;
 }
