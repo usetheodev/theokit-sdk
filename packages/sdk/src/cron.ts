@@ -17,11 +17,7 @@ import {
   unscheduleJob,
 } from "./internal/cron/scheduler.js";
 import { deleteJob, getJob, jobCount, listJobs, upsertJob } from "./internal/cron/store.js";
-import {
-  estimateNextRunAt,
-  validateCronExpression,
-  validateTimezone,
-} from "./internal/cron/validate.js";
+import { nextRunAt, validateCronExpression, validateTimezone } from "./internal/cron/validate.js";
 import { resolveApiKey } from "./internal/env.js";
 import { generateCronId } from "./internal/ids.js";
 import type { AgentOptions, ListResult } from "./types/agent.js";
@@ -181,6 +177,11 @@ async function createCronJob(options: CronCreateOptions): Promise<CronJob> {
 
   const runtime = detectRuntime(options);
   const now = Date.now();
+  // Computed, not estimated. The predecessor returned now+1h for every expression, so a @yearly job
+  // reported that it would run within the hour until the scheduler corrected it — and forever if the
+  // scheduler never picked it up. Spread conditionally below: `nextRunAt` is optional, and "no next
+  // run" is a real answer for a one-shot date in the past.
+  const nextFireAt = nextRunAt(options.cron, timezone);
   const job: CronJob = {
     id: generateCronId(),
     cron: options.cron,
@@ -189,7 +190,7 @@ async function createCronJob(options: CronCreateOptions): Promise<CronJob> {
     status: options.enabled === false ? "paused" : "scheduled",
     runtime,
     createdAt: now,
-    nextRunAt: estimateNextRunAt(options.cron, timezone),
+    ...(nextFireAt === undefined ? {} : { nextRunAt: nextFireAt }),
     ...(options.name !== undefined ? { name: options.name } : {}),
     ...(options.message !== undefined ? { message: options.message } : {}),
     ...(options.agent !== undefined ? { agent: options.agent } : {}),
