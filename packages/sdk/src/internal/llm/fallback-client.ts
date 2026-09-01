@@ -1,4 +1,5 @@
 import { NetworkError } from "../../errors.js";
+import { abortError } from "./abort-error.js";
 import { relayStream, tryFirstEvent } from "./stream-relay.js";
 import type { LlmClient, LlmEvent, LlmFinish, LlmRequest } from "./types.js";
 
@@ -44,9 +45,4 @@ export class FallbackLlmClient implements LlmClient {
       code: "fallback_empty_chain",
     });
   }
-}
-
-function abortError(signal: AbortSignal): Error {
-  if (signal.reason instanceof Error) return signal.reason;
-  return new Error(signal.reason !== undefined ? String(signal.reason) : "aborted");
 }

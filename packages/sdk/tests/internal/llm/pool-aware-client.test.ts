@@ -315,9 +315,15 @@ describe("PoolAwareLlmClient (T3.1)", () => {
     );
   });
 
-  it("test_an_abort_with_a_non_Error_reason_falls_back_to_a_generic_AbortError", async () => {
-    // B-136 — the branch the test above flagged and did not drive. `abortError()` echoes
-    // `signal.reason` when it is an `Error` and otherwise raises `new Error("AbortError")`.
+  it("test_an_abort_with_a_non_Error_reason_still_carries_the_callers_reason", async () => {
+    // B-136 — the branch the test above flagged and did not drive.
+    //
+    // It used to assert `new Error("AbortError")`, because this client carried its own copy of
+    // `abortError()` that threw away a non-`Error` reason. The copy is gone and the client now uses
+    // the shared `abort-error.ts`, which stringifies the reason instead: `error-handling.md` § 2 says
+    // a cancellation carries the canceller's reason, and replacing it with generic text erases the
+    // cause. The extraction's own docblock had already declared this the "more informative of the
+    // two" and named this file as one that should stop having a copy.
     //
     // Reaching it needs a non-`Error` reason, and that is a real caller shape rather than a
     // contrivance: `AbortController.abort()` accepts ANY value. Measured on Node 22 — a bare
@@ -348,10 +354,10 @@ describe("PoolAwareLlmClient (T3.1)", () => {
       (e: unknown) => e,
     );
 
-    // The distinguishing assertion: the caller's string is NOT echoed, and the RateLimitError did
-    // not propagate instead — either would mean this branch was not the one taken.
+    // The distinguishing assertion: the caller's string IS carried through, and the RateLimitError
+    // did not propagate instead — the latter would mean this branch was not the one taken.
     expect(err).toBeInstanceOf(Error);
-    expect((err as Error).message).toBe("AbortError");
+    expect((err as Error).message).toBe("cancelled by the host application");
     expect(err).not.toBeInstanceOf(RateLimitError);
   });
 

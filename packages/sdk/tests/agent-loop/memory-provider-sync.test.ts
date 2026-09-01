@@ -14,7 +14,6 @@ import { join } from "node:path";
 import type {
   ActiveMemoryPassArgs,
   ActiveMemoryPassResult,
-  MemoryAdapter,
   MemoryProvider,
   MemoryProviderHandle,
   MemoryProviderInitOptions,
@@ -22,6 +21,7 @@ import type {
 } from "@theokit/sdk";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { driveLoop } from "../helpers/agent-loop-driver.js";
+import { stubMemoryAdapter } from "../helpers/memory-stubs.js";
 import { removeTempDirRobustSync } from "../helpers/temp-workspace.js";
 
 const CWD = mkdtempSync(join(tmpdir(), "theokit-provsync-"));
@@ -29,28 +29,10 @@ afterAll(() => {
   removeTempDirRobustSync(CWD);
 });
 
-function makeStubAdapter(): MemoryAdapter {
-  return {
-    id: "spy",
-    capabilities: {
-      history: false,
-      sessions: false,
-      tenancy: false,
-      reasoning: false,
-      toolSchemas: false,
-      prefetch: false,
-    },
-    isAvailable: () => true,
-    write: async () => "spy:noop" as never,
-    recall: async () => [],
-    delete: async () => undefined,
-  };
-}
-
 function buildProviderWithSync(opts?: { syncThrows?: boolean }) {
   const initSpy = vi.fn(
     async (_o: MemoryProviderInitOptions): Promise<MemoryProviderHandle> => ({
-      adapter: makeStubAdapter(),
+      adapter: stubMemoryAdapter(),
     }),
   );
   const buildToolsSpy = vi.fn((_h: MemoryProviderHandle, _a: SDKAgent) => []);

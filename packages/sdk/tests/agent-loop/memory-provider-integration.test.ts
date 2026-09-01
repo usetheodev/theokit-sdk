@@ -35,7 +35,7 @@ import type {
   MemoryProviderInitOptions,
 } from "../../src/internal/runtime/memory/memory-provider.js";
 import type { CustomTool, SDKAgent } from "../../src/types/agent.js";
-import type { MemoryAdapter } from "../../src/types/memory-adapter.js";
+import { stubMemoryAdapter } from "../helpers/memory-stubs.js";
 import { removeTempDirRobust } from "../helpers/temp-workspace.js";
 
 /** Stub LLM that records every request and returns a deterministic final turn. */
@@ -56,23 +56,6 @@ function buildRecordingStubClient(): { client: LlmClient; requests: LlmRequest[]
 }
 
 /** MemoryAdapter that satisfies the public contract. */
-function makeStubAdapter(): MemoryAdapter {
-  return {
-    id: "spy",
-    capabilities: {
-      history: false,
-      sessions: false,
-      tenancy: false,
-      reasoning: false,
-      toolSchemas: false,
-      prefetch: false,
-    },
-    isAvailable: () => true,
-    write: async () => "spy:noop" as never,
-    recall: async () => [],
-    delete: async () => undefined,
-  };
-}
 
 describe("MemoryProvider full integration with runAgentLoop (iter 24)", () => {
   let cwd: string | undefined;
@@ -101,7 +84,7 @@ describe("MemoryProvider full integration with runAgentLoop (iter 24)", () => {
     const provider: MemoryProvider = {
       async init(_o: MemoryProviderInitOptions): Promise<MemoryProviderHandle> {
         calls.push("init");
-        return { adapter: makeStubAdapter() };
+        return { adapter: stubMemoryAdapter() };
       },
       buildTools(_h: MemoryProviderHandle, _a: SDKAgent) {
         calls.push("buildTools");
@@ -173,7 +156,7 @@ describe("MemoryProvider full integration with runAgentLoop (iter 24)", () => {
 
     const provider: MemoryProvider = {
       async init() {
-        return { adapter: makeStubAdapter() };
+        return { adapter: stubMemoryAdapter() };
       },
       buildTools: () => [],
       async runActivePass() {
@@ -246,7 +229,7 @@ describe("MemoryProvider full integration with runAgentLoop (iter 24)", () => {
 
     const provider: MemoryProvider = {
       async init() {
-        return { adapter: makeStubAdapter() };
+        return { adapter: stubMemoryAdapter() };
       },
       buildTools: () => {
         throw new Error("buildTools blew");

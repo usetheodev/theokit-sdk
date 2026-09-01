@@ -15,7 +15,7 @@ import {
   type TheokitAgentError,
   UnknownAgentError,
 } from "../../errors.js";
-import { buildErrorMetadata, httpStatusToErrorCode } from "./shared.js";
+import { buildErrorMetadata, httpStatusToErrorCode, parseErrorBody } from "./shared.js";
 
 interface VertexErrorBody {
   error?: {
@@ -123,21 +123,9 @@ const VERTEX_ERROR_BUILDERS: Record<
 };
 
 export function mapVertexError(args: MapVertexErrorArgs): TheokitAgentError {
-  const parsed = parseBody(args.body);
+  const parsed = parseErrorBody<VertexErrorBody>(args.body);
   const errStatus = parsed.error?.status ?? "";
   const message = parsed.error?.message ?? "Vertex request failed";
   const code = classifyVertexError(args, errStatus);
   return VERTEX_ERROR_BUILDERS[code](args, message);
-}
-
-function parseBody(body: unknown): VertexErrorBody {
-  if (body !== null && typeof body === "object") return body as VertexErrorBody;
-  if (typeof body === "string") {
-    try {
-      return JSON.parse(body) as VertexErrorBody;
-    } catch {
-      return {};
-    }
-  }
-  return {};
 }

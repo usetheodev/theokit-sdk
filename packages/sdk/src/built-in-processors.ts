@@ -8,19 +8,18 @@
  * @public
  */
 
-import type { Processor, ProcessorControls } from "./types/processors.js";
-
-/** Rough char→token ratio for the estimate below (no tokenizer dependency). */
-const CHARS_PER_TOKEN = 4;
-
 /**
  * Approximate token count from string length. This is an ESTIMATE
  * (≈ UTF-16-code-units / 4, NOT Unicode code points, NOT an exact per-model
  * tokenizer count) — good enough for a coarse cap, and dependency-free.
+ *
+ * Re-exported rather than reimplemented: the ratio lives in `compaction.ts`, which is where the
+ * heuristic is load-bearing. The name and the behaviour here are unchanged.
  */
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / CHARS_PER_TOKEN);
-}
+import { CHARS_PER_TOKEN, estimateTokens } from "./compaction.js";
+import type { Processor, ProcessorControls } from "./types/processors.js";
+
+export { CHARS_PER_TOKEN, estimateTokens };
 
 /** Options for {@link createUnicodeNormalizer}. @public */
 export interface UnicodeNormalizerOptions {

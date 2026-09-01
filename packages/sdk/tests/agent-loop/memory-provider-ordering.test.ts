@@ -23,7 +23,6 @@ import { join } from "node:path";
 import type {
   ActiveMemoryPassArgs,
   ActiveMemoryPassResult,
-  MemoryAdapter,
   MemoryProvider,
   MemoryProviderHandle,
   MemoryProviderInitOptions,
@@ -31,30 +30,13 @@ import type {
 } from "@theokit/sdk";
 import { afterAll, describe, expect, it } from "vitest";
 import { driveLoop } from "../helpers/agent-loop-driver.js";
+import { stubMemoryAdapter } from "../helpers/memory-stubs.js";
 import { removeTempDirRobustSync } from "../helpers/temp-workspace.js";
 
 const CWD = mkdtempSync(join(tmpdir(), "theokit-ordering-"));
 afterAll(() => {
   removeTempDirRobustSync(CWD);
 });
-
-function makeStubAdapter(): MemoryAdapter {
-  return {
-    id: "spy",
-    capabilities: {
-      history: false,
-      sessions: false,
-      tenancy: false,
-      reasoning: false,
-      toolSchemas: false,
-      prefetch: false,
-    },
-    isAvailable: () => true,
-    write: async () => "spy:noop" as never,
-    recall: async () => [],
-    delete: async () => undefined,
-  };
-}
 
 /**
  * CONVERTED 2026-09-01. `simulateAgentLoopMemoryLifecycle` — a 90-line re-implementation of the
@@ -106,7 +88,7 @@ async function lifecycleOrder(provider: MemoryProvider): Promise<string[]> {
 function buildRealProvider(): MemoryProvider {
   return {
     async init(_o: MemoryProviderInitOptions): Promise<MemoryProviderHandle> {
-      return { adapter: makeStubAdapter() };
+      return { adapter: stubMemoryAdapter() };
     },
     buildTools: (_h: MemoryProviderHandle, _a: SDKAgent) => [],
     async runActivePass(

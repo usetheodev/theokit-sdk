@@ -24,7 +24,6 @@ import type {
   ActiveMemoryPassArgs,
   ActiveMemoryPassResult,
   CustomTool,
-  MemoryAdapter,
   MemoryProvider,
   MemoryProviderHandle,
   MemoryProviderInitOptions,
@@ -33,6 +32,7 @@ import type {
 import { afterAll, describe, expect, it, vi } from "vitest";
 
 import { driveLoop } from "../helpers/agent-loop-driver.js";
+import { stubMemoryAdapter } from "../helpers/memory-stubs.js";
 import { removeTempDirRobustSync } from "../helpers/temp-workspace.js";
 
 const CWD = mkdtempSync(join(tmpdir(), "theokit-buildtools-"));
@@ -49,31 +49,13 @@ async function toolNamesSeenByModel(provider?: MemoryProvider): Promise<string[]
   return (requests[0]?.tools ?? []).map((t) => t.name);
 }
 
-function makeStubAdapter(): MemoryAdapter {
-  return {
-    id: "spy",
-    capabilities: {
-      history: false,
-      sessions: false,
-      tenancy: false,
-      reasoning: false,
-      toolSchemas: false,
-      prefetch: false,
-    },
-    isAvailable: () => true,
-    write: async () => "spy:noop" as never,
-    recall: async () => [],
-    delete: async () => undefined,
-  };
-}
-
 function buildSpyProvider(opts?: {
   buildToolsThrows?: boolean;
   providerTools?: ReadonlyArray<CustomTool>;
 }) {
   const initSpy = vi.fn(
     async (_o: MemoryProviderInitOptions): Promise<MemoryProviderHandle> => ({
-      adapter: makeStubAdapter(),
+      adapter: stubMemoryAdapter(),
     }),
   );
   const buildToolsSpy = vi.fn(

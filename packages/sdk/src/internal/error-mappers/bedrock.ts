@@ -16,7 +16,7 @@ import {
   type TheokitAgentError,
   UnknownAgentError,
 } from "../../errors.js";
-import { buildErrorMetadata, httpStatusToErrorCode } from "./shared.js";
+import { buildErrorMetadata, httpStatusToErrorCode, parseErrorBody } from "./shared.js";
 
 interface BedrockErrorBody {
   __type?: string;
@@ -84,7 +84,7 @@ function buildBedrockMetadata(args: MapBedrockErrorArgs, code: BedrockCode) {
 }
 
 export function mapBedrockError(args: MapBedrockErrorArgs): TheokitAgentError {
-  const parsed = parseBody(args.body);
+  const parsed = parseErrorBody<BedrockErrorBody>(args.body);
   const awsType = parsed.__type ?? "";
   const message = parsed.message ?? parsed.Message ?? "Bedrock request failed";
   const code = classifyBedrockError(args, awsType, message);
@@ -110,16 +110,4 @@ export function mapBedrockError(args: MapBedrockErrorArgs): TheokitAgentError {
     default:
       return new UnknownAgentError(`Bedrock unknown: ${message}`, { metadata });
   }
-}
-
-function parseBody(body: unknown): BedrockErrorBody {
-  if (body !== null && typeof body === "object") return body as BedrockErrorBody;
-  if (typeof body === "string") {
-    try {
-      return JSON.parse(body) as BedrockErrorBody;
-    } catch {
-      return {};
-    }
-  }
-  return {};
 }

@@ -30,7 +30,7 @@ import type {
   MemoryProviderHandle,
   MemoryProviderInitOptions,
 } from "../../src/internal/runtime/memory/memory-provider.js";
-import type { MemoryAdapter } from "../../src/types/memory-adapter.js";
+import { stubMemoryAdapter } from "../helpers/memory-stubs.js";
 import { removeTempDirRobust, useTempCwd } from "../helpers/temp-workspace.js";
 
 // This file passed `cwd: process.cwd()`, which during a test run is the package itself, so
@@ -39,28 +39,11 @@ import { removeTempDirRobust, useTempCwd } from "../helpers/temp-workspace.js";
 useTempCwd();
 
 /** A MemoryAdapter satisfying the public contract; the handle's payload, nothing more. */
-function stubAdapter(): MemoryAdapter {
-  return {
-    id: "spy",
-    capabilities: {
-      history: false,
-      sessions: false,
-      tenancy: false,
-      reasoning: false,
-      toolSchemas: false,
-      prefetch: false,
-    },
-    isAvailable: () => true,
-    write: async () => "spy:noop" as never,
-    recall: async () => [],
-    delete: async () => undefined,
-  };
-}
 
 function spyProvider(opts?: { initThrows?: boolean; disposeThrows?: boolean }) {
   const init = vi.fn(async (_o: MemoryProviderInitOptions): Promise<MemoryProviderHandle> => {
     if (opts?.initThrows === true) throw new Error("init blew");
-    return { adapter: stubAdapter() };
+    return { adapter: stubMemoryAdapter() };
   });
   const dispose = vi.fn((_h: MemoryProviderHandle): void => {
     if (opts?.disposeThrows === true) throw new Error("dispose blew");

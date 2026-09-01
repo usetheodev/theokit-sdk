@@ -19,8 +19,9 @@
  */
 
 import { runAgentLoop } from "../../src/internal/agent-loop/loop.js";
-import type { LlmClient, LlmEvent, LlmFinish, LlmRequest } from "../../src/internal/llm/types.js";
+import type { LlmClient, LlmRequest } from "../../src/internal/llm/types.js";
 import { HooksExecutor } from "../../src/internal/runtime/hooks/hooks-executor.js";
+import { makeTextLlm } from "./llm-stubs.js";
 
 /** The ten-line `LlmClient` the "needs a deep mock" premise said did not exist. */
 export function buildRecordingStubClient(text = "ok"): {
@@ -28,17 +29,9 @@ export function buildRecordingStubClient(text = "ok"): {
   requests: LlmRequest[];
 } {
   const requests: LlmRequest[] = [];
-  const client: LlmClient = {
-    name: "stub",
-    async *stream(
-      request: LlmRequest,
-      _signal: AbortSignal,
-    ): AsyncGenerator<LlmEvent, LlmFinish, void> {
-      requests.push(request);
-      yield { type: "text_delta", text };
-      return { stopReason: "end_turn", text, toolCalls: [] };
-    },
-  };
+  // Built on the one factory rather than declaring a second minimal client: `llm-stubs.ts` owns what
+  // an LlmClient and an LlmFinish envelope are, and this adds only the recording seam.
+  const client = makeTextLlm(text, { onRequest: (request) => requests.push(request) });
   return { client, requests };
 }
 

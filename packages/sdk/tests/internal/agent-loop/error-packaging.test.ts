@@ -20,6 +20,11 @@ import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
 import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
 import type { LlmClient, LlmEvent, LlmFinish } from "../../../src/internal/llm/types.js";
 import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
+import { makeTextLlm } from "../../helpers/llm-stubs.js";
+
+/** The envelope these two files assert on: the stub reports token counts. */
+const makeTextLlmWithTokens = (content: string) =>
+  makeTextLlm(content, { inputTokens: 0, outputTokens: content.length });
 
 function makeThrowingLlm(err: Error): LlmClient {
   return {
@@ -27,22 +32,6 @@ function makeThrowingLlm(err: Error): LlmClient {
     // biome-ignore lint/correctness/useYield: intentional non-yielding generator mock — throws before any chunk is emitted to exercise the error-packaging path
     async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
       throw err;
-    },
-  };
-}
-
-function makeMockLlm(content: string): LlmClient {
-  return {
-    name: "mock",
-    async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
-      yield { type: "text_delta", text: content };
-      return {
-        stopReason: "end_turn",
-        text: content,
-        toolCalls: [],
-        inputTokens: 0,
-        outputTokens: content.length,
-      };
     },
   };
 }
@@ -175,7 +164,7 @@ describe("agent-loop error packaging (Finding B)", () => {
 
   // Sanity: happy path STILL works (no regression)
   it("sanity: successful LLM call → finalStatus=finished, no error field", async () => {
-    const llm = makeMockLlm("Hello world");
+    const llm = makeTextLlmWithTokens("Hello world");
     const output = await runAgentLoop(makeInputs(llm));
     expect(output.finalStatus).toBe("finished");
     expect(output.result).toBe("Hello world");

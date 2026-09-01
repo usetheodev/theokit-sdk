@@ -28,26 +28,8 @@ import type {
   RecordSessionSummaryArgs,
 } from "../src/internal/runtime/memory/memory-provider.js";
 import type { AgentOptions } from "../src/types/agent.js";
-import type { MemoryAdapter } from "../src/types/memory-adapter.js";
 import type { Run, RunResult } from "../src/types/run.js";
-
-function makeStubAdapter(): MemoryAdapter {
-  return {
-    id: "spy",
-    capabilities: {
-      history: false,
-      sessions: false,
-      tenancy: false,
-      reasoning: false,
-      toolSchemas: false,
-      prefetch: false,
-    },
-    isAvailable: () => true,
-    write: async () => "spy:noop" as never,
-    recall: async () => [],
-    delete: async () => undefined,
-  };
-}
+import { stubMemoryAdapter } from "./helpers/memory-stubs.js";
 
 /** Build a stub `Run` that wait()s to the given RunResult. */
 function buildStubRun(result: RunResult): Run {
@@ -96,7 +78,7 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
   it("test_port_path_fires_when_provider_implements_recordSessionSummary", async () => {
     const recordSpy = vi.fn(async (_args: RecordSessionSummaryArgs) => {});
     const provider: MemoryProvider = {
-      init: async () => ({ adapter: makeStubAdapter() }),
+      init: async () => ({ adapter: stubMemoryAdapter() }),
       buildTools: () => [],
       runActivePass: async () => ({ facts: [] }),
       recordSessionSummary: recordSpy,
@@ -137,7 +119,7 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
       throw new Error("provider blew");
     });
     const provider: MemoryProvider = {
-      init: async () => ({ adapter: makeStubAdapter() }),
+      init: async () => ({ adapter: stubMemoryAdapter() }),
       buildTools: () => [],
       runActivePass: async () => ({ facts: [] }),
       recordSessionSummary: recordSpy,
@@ -189,7 +171,7 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
 
   it("test_legacy_path_fires_when_provider_omits_recordSessionSummary", async () => {
     const provider: MemoryProvider = {
-      init: async () => ({ adapter: makeStubAdapter() }),
+      init: async () => ({ adapter: stubMemoryAdapter() }),
       buildTools: () => [],
       runActivePass: async () => ({ facts: [] }),
       // recordSessionSummary intentionally omitted
@@ -217,7 +199,7 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
   it("test_recordSessionSummary_not_called_on_error_finalStatus", async () => {
     const recordSpy = vi.fn();
     const provider: MemoryProvider = {
-      init: async () => ({ adapter: makeStubAdapter() }),
+      init: async () => ({ adapter: stubMemoryAdapter() }),
       buildTools: () => [],
       runActivePass: async () => ({ facts: [] }),
       recordSessionSummary: recordSpy,

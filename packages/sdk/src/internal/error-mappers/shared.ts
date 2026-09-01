@@ -149,3 +149,26 @@ export function httpStatusToErrorCode(status: number): HttpStatusErrorCode {
   if (status >= 500 && status < 600) return "server_error";
   return "unknown";
 }
+
+/**
+ * Reads an error body that may arrive already parsed, as a JSON string, or as neither.
+ *
+ * This is TRANSPORT knowledge, not vendor knowledge: it describes how `fetch` surfaces a body, which
+ * is the same whichever provider sent it. It lived twice, character-for-character, in bedrock.ts and
+ * vertex.ts — identical once the return type name was substituted. They had not drifted, so the cost
+ * was only latent: a fix to one would have missed the other silently.
+ *
+ * Unparseable input yields `{}` rather than throwing, because a mapper's job is to classify a
+ * failure that already happened; failing to read the body is not a second failure to report.
+ */
+export function parseErrorBody<T>(body: unknown): T {
+  if (body !== null && typeof body === "object") return body as T;
+  if (typeof body === "string") {
+    try {
+      return JSON.parse(body) as T;
+    } catch {
+      return {} as T;
+    }
+  }
+  return {} as T;
+}

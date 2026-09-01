@@ -22,6 +22,7 @@ import {
 } from "../../errors.js";
 import { diag } from "../diagnostics.js";
 import { CircuitBreaker } from "../resilience/circuit-breaker.js";
+import { abortError } from "./abort-error.js";
 import type { CredentialPool } from "./credential-pool.js";
 import { computeBackoffMs, sleepWithAbort } from "./retry.js";
 import { relayStream, tryFirstEvent } from "./stream-relay.js";
@@ -262,9 +263,4 @@ function inferStatusCode(error: RateLimitError | AuthenticationError | NetworkEr
   if (error instanceof AuthenticationError) return 401;
   if (error instanceof RateLimitError) return 429;
   return 0;
-}
-
-function abortError(signal: AbortSignal): Error {
-  if (signal.reason instanceof Error) return signal.reason;
-  return new Error("AbortError");
 }
