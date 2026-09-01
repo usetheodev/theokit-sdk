@@ -24,7 +24,7 @@
 import { z } from "zod";
 import type { InlineSkill } from "./create-skill.js";
 import { ConfigurationError } from "./errors.js";
-import { toJsonSchema } from "./internal/zod/to-json-schema.js";
+import { toJsonSchema } from "./internal/zod-to-json-schema.js";
 import type { CustomTool } from "./types/agent.js";
 
 const SkillReadInputSchema = z.object({

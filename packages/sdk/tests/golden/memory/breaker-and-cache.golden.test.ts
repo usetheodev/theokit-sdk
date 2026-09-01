@@ -8,7 +8,7 @@ import { ActiveMemoryCache } from "../../../src/internal/memory/active-memory-ca
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
 import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
-import { CircuitBreaker } from "../../../src/internal/resilience/circuit-breaker.js";
+import { CircuitBreaker } from "../../../src/internal/runtime/retry/circuit-breaker.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**

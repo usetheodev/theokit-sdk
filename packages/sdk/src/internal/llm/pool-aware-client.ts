@@ -21,7 +21,7 @@ import {
   RateLimitError,
 } from "../../errors.js";
 import { diag } from "../diagnostics.js";
-import { CircuitBreaker } from "../resilience/circuit-breaker.js";
+import { CircuitBreaker } from "../runtime/retry/circuit-breaker.js";
 import { abortError } from "./abort-error.js";
 import type { CredentialPool } from "./credential-pool.js";
 import { computeBackoffMs, sleepWithAbort } from "./retry.js";

@@ -14,8 +14,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ConfigurationError } from "../../../src/errors.js";
-import { listLocalModelsViaOpenAiCompat } from "../../../src/internal/catalog/local-models.js";
+import { ConfigurationError } from "../../src/errors.js";
+import { listLocalModelsViaOpenAiCompat } from "../../src/internal/catalog/local-models.js";
 
 const realFetch = global.fetch;
 

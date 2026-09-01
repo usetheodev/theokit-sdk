@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   type DispatchableTool,
   dispatchToolWithRepair,
-} from "../../src/internal/tool-dispatch/dispatch.js";
+} from "../src/internal/tool-dispatch/dispatch.js";
 
 function makeRegistry(...tools: Array<[string, DispatchableTool]>): Map<string, DispatchableTool> {
   return new Map(tools);

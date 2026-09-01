@@ -13,7 +13,7 @@ import {
   _redactAttrsForTests,
   _redactAttrValueForTests,
   createTelemetry,
-} from "../../../src/internal/telemetry/tracer.js";
+} from "../../src/internal/telemetry/tracer.js";
 
 describe("telemetry tracer T1.2 — redactAttrValue", () => {
   it("masks string values containing sk- secrets", () => {

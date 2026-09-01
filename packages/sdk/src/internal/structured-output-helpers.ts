@@ -3,7 +3,7 @@ import type { z as ZodNamespace, ZodType } from "zod";
 import { ConfigurationError } from "../errors.js";
 import type { AgentOptions, CustomTool, LocalOptions, ModelSelection } from "../types/agent.js";
 import type { ProviderRoutingSettings } from "../types/providers.js";
-import { toJsonSchema } from "./zod/to-json-schema.js";
+import { toJsonSchema } from "./zod-to-json-schema.js";
 
 /**
  * Shared helpers for `Agent.generateObject` (ADR D33) and

@@ -9,10 +9,10 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createRealCloudRun } from "../../../src/internal/cloud-agent/real-cloud-run.js";
-import type { CloudAgentPayload } from "../../../src/internal/cloud-agent/types.js";
-import type { AgentOptions } from "../../../src/types/agent.js";
-import type { RunStatus } from "../../../src/types/run.js";
+import { createRealCloudRun } from "../../src/internal/cloud-agent/real-cloud-run.js";
+import type { CloudAgentPayload } from "../../src/internal/cloud-agent/types.js";
+import type { AgentOptions } from "../../src/types/agent.js";
+import type { RunStatus } from "../../src/types/run.js";
 
 const BASE = "https://cloud.example.invalid";
 const MODEL = { id: "anthropic/claude-opus-4" };

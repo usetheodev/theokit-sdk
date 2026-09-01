@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  HitlMiddleware,
-  HitlTimeoutError,
-} from "../../src/internal/runtime/tools/hitl-middleware.js";
+import { HitlMiddleware, HitlTimeoutError } from "../src/internal/runtime/tools/hitl-middleware.js";
 
 describe("HitlMiddleware", () => {
   it("allows unlisted tools without calling approve", async () => {

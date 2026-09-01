@@ -5,7 +5,7 @@
 // conversion uses Zod v4's native `z.toJSONSchema()` via the internal shim.
 import type { z as ZodNamespace, ZodType } from "zod";
 
-import { toJsonSchema } from "./internal/zod/to-json-schema.js";
+import { toJsonSchema } from "./internal/zod-to-json-schema.js";
 import { sanitizeToolInput } from "./sanitize/sanitize-tool-input.js";
 import type { SanitizeOptions } from "./sanitize/types.js";
 import type { CustomTool } from "./types/agent.js";

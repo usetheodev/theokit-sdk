@@ -12,7 +12,7 @@
  * Parse-failure handling stays uniform: the normalized JSON Schema drives the same synthetic-tool
  * validation + M14 `errorStrategy` regardless of the source library.
  */
-import { toJsonSchema } from "./internal/zod/to-json-schema.js";
+import { toJsonSchema } from "./internal/zod-to-json-schema.js";
 
 /** The internal JSON-Schema shape the synthetic `output` tool consumes. */
 export type NormalizedJsonSchema = Record<string, unknown>;

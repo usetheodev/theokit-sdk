@@ -13,7 +13,7 @@ import type {
   LlmFinish,
   LlmRequest,
 } from "../../../src/internal/llm/types.js";
-import { CircuitBreaker } from "../../../src/internal/resilience/circuit-breaker.js";
+import { CircuitBreaker } from "../../../src/internal/runtime/retry/circuit-breaker.js";
 
 function poolOf(tokens: string[]): CredentialPool {
   return new CredentialPool(

@@ -11,8 +11,8 @@
  *   - a detector self-test — plants a known offender in a temp tree and asserts the scanner finds
  *     exactly it. Strictly stronger, because it proves the DETECTOR works and not merely that files
  *     were read. `no-ptbr.test.ts` has one.
- *   - a structural coverage assertion of its own — `toBeGreaterThan` over the scanned set, or a
- *     `toContain` naming a file the scope must reach.
+ *   - a structural coverage assertion of its own — `toBeGreaterThan` over the scanned set's `length`
+ *     or `size`, or a `toContain` naming a file the scope must reach.
  *
  * The count form is the WEAKEST of the three and is accepted rather than endorsed. A hand-picked
  * floor drifts: a sibling gate in this directory asserts `toBeLessThanOrEqual(60)` over a real count
@@ -54,7 +54,7 @@ const STRONGER_GUARD: ReadonlyMap<string, string> = new Map([
 const GUARD_FORMS: readonly RegExp[] = [
   /expectScopeCovered\s*\(/,
   /expect\([^)]*\)[\s\S]{0,120}?\.toContain\(/,
-  /expect\([^)]*\.length[\s\S]{0,120}?\.toBeGreaterThan(?:OrEqual)?\(/,
+  /expect\([^)]*\.(?:length|size)[\s\S]{0,120}?\.toBeGreaterThan(?:OrEqual)?\(/,
 ];
 
 const gates = readdirSync(LINT_DIR).filter((f) => f.endsWith(".test.ts"));

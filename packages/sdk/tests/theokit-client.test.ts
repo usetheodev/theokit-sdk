@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TheoKitClient } from "../../src/client/theokit-client.js";
+import { TheoKitClient } from "../src/client/theokit-client.js";
 
 const origFetch = globalThis.fetch;
 
@@ -82,7 +82,7 @@ describe("TheoKitClient", () => {
   it("has zero node: imports (browser-safe)", async () => {
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
-    const clientSrc = readFileSync(join(__dirname, "../../src/client/theokit-client.ts"), "utf-8");
+    const clientSrc = readFileSync(join(__dirname, "../src/client/theokit-client.ts"), "utf-8");
     expect(clientSrc).not.toMatch(/from\s+["']node:/);
   });
 });

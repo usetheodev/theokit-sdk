@@ -6,7 +6,7 @@ import {
   isNativeReasoning,
   REASONING_PREAMBLE,
   reasoningActive,
-} from "../src/internal/runtime/reasoning/native-reasoning.js";
+} from "../src/internal/runtime/system-prompt/native-reasoning.js";
 import { SystemPromptPipeline } from "../src/internal/runtime/system-prompt/pipeline.js";
 import { ReasoningPromptProvider } from "../src/internal/runtime/system-prompt/sources/reasoning-provider.js";
 import type { SystemPromptAssemblyContext } from "../src/internal/runtime/system-prompt/types.js";

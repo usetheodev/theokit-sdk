@@ -29,7 +29,7 @@ import { ConfigurationError, TheokitAgentError } from "./errors.js";
 import { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
 import { sanitizeIdentifier } from "./internal/security/path-guard.js";
 import { createEventStream } from "./internal/workflow/event-stream.js";
-import { toJsonSchema } from "./internal/zod/to-json-schema.js";
+import { toJsonSchema } from "./internal/zod-to-json-schema.js";
 import type { CustomTool, SDKAgent } from "./types/agent.js";
 import type { MessageOrigin } from "./types/run.js";
 import type {

@@ -1,8 +1,8 @@
 import type { AgentOptions, ModelSelection, SystemPromptContext } from "../../../types/agent.js";
 import type { FileContextManager } from "../context/context-manager.js";
 import type { MemoryFact } from "../memory/memory-store.js";
-import { reasoningActive } from "../reasoning/native-reasoning.js";
 import { SkillsManager } from "../skills/skills-manager.js";
+import { reasoningActive } from "./native-reasoning.js";
 import type { SystemPromptPipeline } from "./pipeline.js";
 import type { SystemPromptAssemblyContext } from "./types.js";
 

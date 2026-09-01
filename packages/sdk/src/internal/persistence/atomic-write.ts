@@ -188,17 +188,27 @@ export async function replaceFileAtomic(
   // tmp's permission bits, so the final file is also 0o600.
   const handle = await open(tmp, options?.exclusive === true ? "wx" : "w", options?.mode ?? 0o600);
   try {
-    await handle.writeFile(content, "utf8");
-    await handle.sync();
-    // Conditional by measurement, not by taste — see this function's docblock.
-    if (options?.mode !== undefined) await handle.chmod(options.mode);
-  } finally {
-    await handle.close();
-  }
-  try {
+    try {
+      await handle.writeFile(content, "utf8");
+      await handle.sync();
+      // Conditional by measurement, not by taste — see this function's docblock.
+      if (options?.mode !== undefined) await handle.chmod(options.mode);
+    } finally {
+      await handle.close();
+    }
     await rename(tmp, filePath);
   } catch (cause) {
-    // Cleanup tmp on rename failure so we don't leak stale .tmp files.
+    // EVERY failure after the open removes the temp, not only a rename failure.
+    //
+    // Cleanup used to sit on the rename alone, so a write error, a full disk or an fsync failure
+    // closed the handle in a `finally` and propagated with the temp still on disk. That is not the
+    // unfixable case — a process killed mid-write cannot clean up after itself — it is the ordinary
+    // error path, and it leaked by construction.
+    //
+    // Found by this package's own suite pollution gate, which reported a stray
+    // `.theokit/agents/registry.json.<pid>.<hex>.tmp` on two separate full runs and not on the ones
+    // between. `sweepStaleAtomicTemps` reaps what a crash leaves; this stops the failures that are
+    // reachable from inside the process from contributing.
     await unlink(tmp).catch(() => undefined);
     throw cause;
   }

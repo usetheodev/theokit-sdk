@@ -1,5 +1,5 @@
 import { diag } from "../diagnostics.js";
-import type { CircuitBreaker } from "../resilience/circuit-breaker.js";
+import type { CircuitBreaker } from "../runtime/retry/circuit-breaker.js";
 import { HISTOGRAM_NAMES, SPAN_NAMES } from "../telemetry/span-names.js";
 import { NOOP_SPAN, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
 import type { ActiveMemoryCache, TenantContext } from "./active-memory-cache.js";
