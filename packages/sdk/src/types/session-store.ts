@@ -64,4 +64,36 @@ export interface SessionStore {
    * which MUST throw on failure (a resume cannot proceed on a silent partial history).
    */
   appendRecords(agentId: string, records: readonly SessionRecord[]): Promise<void>;
+
+  /**
+   * Claim the single-writer lease for `agentId`, if this store has one. OPTIONAL.
+   *
+   * The SDK calls it when an agent starts and skips it when absent, so a two-method store keeps
+   * working unchanged — declaring it here does not require it, which is the whole reason it is
+   * optional. What declaring it DOES is make the capability discoverable: the SDK probed for this
+   * method through an `as unknown` cast against an interface that never mentioned it, so a
+   * third-party store author — the serverless / multi-pod case this port exists to serve — read a
+   * two-method interface, implemented two methods, and never learned the hook was there.
+   *
+   * CONTRACT, and the half that matters: a rejection whose `name` is `"SessionBusyError"` PROPAGATES
+   * to the caller, because another process holding the session is a decision the caller has to make
+   * (`exec` forks to a new id). Any other rejection is treated as "no lease available here" —
+   * logged, and the turn proceeds without single-writer protection, since the write is best-effort
+   * by contract anyway.
+   */
+  acquire?(agentId: string): Promise<void>;
+
+  /**
+   * Release the lease `acquire` claimed, if this store has one. OPTIONAL.
+   *
+   * Called on agent disposal. A rejection is not handled specially.
+   */
+  release?(agentId: string): Promise<void>;
+
+  /**
+   * Release store-level resources — a connection pool, a file handle. OPTIONAL.
+   *
+   * Called once, on agent disposal, after {@link SessionStore.release}.
+   */
+  dispose?(): Promise<void>;
 }
