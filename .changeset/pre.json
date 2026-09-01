@@ -18,5 +18,7 @@
     "@theokit/sdk-pty": "0.3.5",
     "@theokit/sdk-tools": "0.27.3"
   },
-  "changesets": []
+  "changesets": [
+    "plugin-vocabulary-readme"
+  ]
 }
