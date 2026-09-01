@@ -266,10 +266,13 @@ jobs:
           # it. A pull request cannot catch this: release.yml only runs on a push to `main`.
           publish-script: pnpm release
           version-script: pnpm changeset version
-        env:
-          # The App's token, so the Version Packages pull request is authored by the App and
-          # its required checks actually run. Nothing here authenticates to npm.
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          # v2 takes the token as an INPUT, and refuses to run when GITHUB_TOKEN is also set in
+          # the environment and differs: "The GITHUB_TOKEN environment variable is set and does
+          # not match the github-token input." The App's token is still the one that matters —
+          # it is what makes the Version Packages pull request run its required checks — so it
+          # moves here rather than being dropped. Measured on the release after #512.
+          github-token: ${{ steps.app-token.outputs.token }}
+          # WHY THIS STEP SETS NO ENVIRONMENT AT ALL:
           # AUTHENTICATION IS OIDC, NOT A TOKEN, as of this change. Each of the
           # twelve packages carries a Trusted Publisher connection on npmjs.com
           # naming this repository and THIS FILE. npm mints a short-lived
