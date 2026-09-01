@@ -54,7 +54,24 @@ permissions:
   contents: read
 
 jobs:
+  # The last line, for the path that reached a release without passing through a pull request.
+  # If the declared channel and `.changeset/pre.json` disagree, this release would publish under
+  # the wrong dist-tag — most expensively, a stable version onto `latest` after an accidental
+  # `changeset pre exit`, with the publish reporting success.
+  release-channel:
+    name: release channel
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: usetheokit/shared-workflows/actions/release-channel@v1 # zizmor: ignore[unpinned-uses]
+
   release:
+    needs: release-channel
     name: Release via Changesets (Harness)
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -291,109 +308,30 @@ jobs:
       #
       # The quality gate above runs on this path too. A snapshot is a real publish under a
       # real package name, so "nothing publishes untested" is not a claim the tag suspends.
+      # ── The snapshot path ──────────────────────────────────────────────────
+      #
+      # A fix here becomes verifiable by a consumer only once it is ON THE REGISTRY:
+      # theokit-examples installs every example from npm at a pinned version, on purpose, because
+      # an example that resolves through a workspace tests the repository it lives in rather than
+      # the experience of the person who typed `npm install`. That promise made every fix wait for
+      # the next release cut. A snapshot keeps the promise and drops the wait.
+      #
+      # The implementation moved to shared-workflows on 2026-09-01 and is no longer inline. It was
+      # the only copy in the ecosystem, and it had stopped working the day prerelease mode was
+      # switched on here: `changeset version --snapshot` refuses outright in pre mode, in a path
+      # nobody runs on a schedule, so nothing reported it. Copying it into six more repositories
+      # would have copied that with it — which is the argument shared-workflows exists to make.
+      #
+      # `release:snapshot` is passed rather than the default publish command so this path keeps
+      # going through `prepublish:guards`. A guard added to the release path and missing from this
+      # one is a failure this repository has already paid for more than once.
       - name: Publish a snapshot (never on `latest`)
         if: github.event_name == 'workflow_dispatch' && inputs.snapshot != ''
-        env:
-          # Through the environment, never interpolated into the script body. A `${{ }}` inside
-          # a `run:` is a script-injection sink — zizmor's template-injection rule — and this
-          # value is supplied by whoever dispatches the workflow.
-          SNAPSHOT_TAG: ${{ inputs.snapshot }}
-        run: |
-          set -euo pipefail
+        uses: usetheokit/shared-workflows/actions/snapshot@v1 # zizmor: ignore[unpinned-uses]
+        with:
+          tag: ${{ inputs.snapshot }}
+          publish-command: pnpm run release:snapshot
 
-          # Two refusals, before the build rather than after it. npm rejects a dist-tag that
-          # parses as a semver version, and `latest` is the single tag this whole path exists
-          # to stay off — reaching it by typo would publish a snapshot to every consumer on a
-          # caret range.
-          if [ "$SNAPSHOT_TAG" = "latest" ]; then
-            echo "::error::refusing to publish a snapshot on 'latest' — that is the tag this path exists to avoid"
-            exit 1
-          fi
-          if ! printf '%s' "$SNAPSHOT_TAG" | grep -qE '^[A-Za-z][A-Za-z0-9._-]*$'; then
-            echo "::error::dist-tag '$SNAPSHOT_TAG' is unusable: start with a letter, then letters, digits, dot, dash or underscore only"
-            exit 1
-          fi
-
-          # A snapshot version is DERIVED FROM the pending changesets. With none pending,
-          # `changeset version --snapshot` rewrites nothing, and the publish that followed would
-          # re-publish the versions already on the registry under a new tag — which is not what
-          # anyone dispatching this asked for. Absence of changesets is a reason to stop, not a
-          # reason to guess.
-          pending=$(find .changeset -maxdepth 1 -name '*.md' ! -name 'README.md' | wc -l)
-          if [ "$pending" -eq 0 ]; then
-            echo "::error::no pending changesets — a snapshot version is derived from them, so there is nothing to publish"
-            exit 1
-          fi
-          echo "publishing a snapshot from $pending pending changeset(s) under dist-tag '$SNAPSHOT_TAG'"
-
-          # THE REF IS PART OF THE MEASUREMENT, so it gets recorded rather than assumed.
-          # A dispatch runs against whatever ref was selected, and a snapshot version is
-          # derived from the pending changesets ON THAT TREE. Dispatched from a branch that
-          # sits behind the published state, it faithfully packages that older tree — and
-          # whoever installs the tag has no way to tell, because the version string says
-          # nothing about where it came from.
-          #
-          # The ref is NOT restricted to `main`: snapshotting a fix before it reaches `main`
-          # is the entire reason this path exists, and forcing `main` would leave it able to
-          # publish only what no longer needs publishing. So the ref is made visible instead,
-          # in the log and in the run summary, next to the versions it produced.
-          echo "ref=${GITHUB_REF} sha=${GITHUB_SHA}"
-
-          # A SHA recorded next to a dirty tree promises a reproducibility it does not have:
-          # it describes the commit, and what got published was the commit plus whatever else
-          # sat in the working tree. Checked BEFORE the version bump, because
-          # `changeset version --snapshot` rewrites every package.json and would make this
-          # report dirty by its own doing from there on.
-          #
-          # A GitHub checkout is clean by construction, so in the normal case this costs a
-          # subshell and says nothing. It fires when some future step starts patching the tree
-          # ahead of the publish — the case where the recorded SHA quietly stops being true.
-          dirty=$(git status --porcelain)
-          if [ -n "$dirty" ]; then
-            echo "::error::working tree is not clean, so ${GITHUB_SHA} would not describe what gets published:"
-            printf '%s\n' "$dirty"
-            exit 1
-          fi
-
-          pnpm changeset version --snapshot "$SNAPSHOT_TAG"
-
-          {
-            echo "### Snapshot published under \`${SNAPSHOT_TAG}\`"
-            echo
-            echo "| what | value |"
-            echo "|---|---|"
-            echo "| ref | \`${GITHUB_REF}\` |"
-            echo "| commit | \`${GITHUB_SHA}\` |"
-            echo "| tree at that commit | clean, verified before the version bump |"
-            echo "| changesets consumed | ${pending} |"
-            echo
-            echo "| package | version |"
-            echo "|---|---|"
-            # Single-quoted program, path through argv: backticks inside a double-quoted
-            # shell string are command substitution, not markdown.
-            for m in packages/*/package.json; do
-              node -e 'const j = require(process.argv[1]); if (!j.private) console.log("| " + j.name + " | " + j.version + " |");' "$PWD/$m"
-            done
-            echo
-            echo "Install with \`npm i <package>@${SNAPSHOT_TAG}\`, or pin the exact version above."
-            echo "This is **not** on \`latest\` and is never garbage-collected — an npm version is immutable."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          # `release:snapshot` and `release` share their guard chain through
-          # `prepublish:guards` in package.json. They are deliberately not two copies: a guard
-          # added to one path and not the other is the failure this repository has paid for
-          # more than once.
-          pnpm run release:snapshot
-
-      # B-114 — an exit code is not evidence a ref transferred. git contacts the remote BEFORE
-      # `pre-push` runs, the hook can take minutes, and the idle connection is dropped before the
-      # transfer: git then dies of SIGPIPE (141) silently, with output ending in a green gate line.
-      # A missing release tag is not noticed that day; it is noticed weeks later by whoever is
-      # bisecting. Runs only when something was actually published.
-      #
-      # It checks the OUTCOME — the ref is on the remote — rather than the mechanism, so it keeps
-      # working whichever way the push happened, including after the eventual move to action v2,
-      # which pushes through the GitHub API and does not have this SIGPIPE path at all.
       - name: verify release refs reached the remote
         if: steps.changesets.outputs.published == 'true'
         run: node tools/verify-release-refs.mjs
