@@ -292,7 +292,17 @@ export function detectBwrapMemoized(probes: BwrapProbes = realProbes): BwrapDete
   return memo;
 }
 
-/** TEST seam — clears the memo. Production never calls it (see m71-cost-per-turn#ADR-1). */
+/**
+ * Clears the `detectBwrapMemoized` memo.
+ *
+ * Kept PUBLIC, unlike the two warn-latch resets that moved to the `__…ForTests` convention, because
+ * this one has a use outside a test that the others do not: a long-lived host that probed before
+ * `bwrap` was installed is memoized on the wrong answer forever, and this is the only way to make it
+ * re-probe. It is the companion to `detectBwrapMemoized` and is documented as such rather than as a
+ * seam. Production inside this package never calls it (see m71-cost-per-turn#ADR-1).
+ *
+ * @public
+ */
 export function resetBwrapMemo(): void {
   memo = undefined;
 }

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
@@ -294,5 +294,3 @@ export function isLanceAvailable(): boolean {
 export function lanceStoragePath(root: MemoryRoot): string {
   return join(root, "lance");
 }
-
-void existsSync; // imported but only used conditionally via mkdirSync

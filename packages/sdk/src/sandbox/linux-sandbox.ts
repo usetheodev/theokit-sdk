@@ -245,8 +245,19 @@ export function restrictedSeccompPath(): string | undefined {
 
 let warnedUnavailable = false;
 
-/** Test seam: reset the WARN-once latch. */
-export function resetSandboxWarnLatch(): void {
+/**
+ * Test seam: reset the WARN-once latch.
+ *
+ * Named for what it is. It was `resetSandboxWarnLatch`, plain camelCase, re-exported from the public
+ * `@theokit/sdk/sandbox` barrel — indistinguishable from ordinary API, while 22 sibling test seams in
+ * this package carry an unmistakable `__…ForTests` marker and stay out of their barrels.
+ *
+ * Deliberately NOT tagged internal-visibility: the barrel still re-exports it under the old name as a
+ * deprecated alias until the next major, so the symbol has to survive `stripInternal` into the
+ * emitted declarations. Tagging it removed it from the `.d.ts` and the declaration rollup failed —
+ * `tsc --noEmit` never sees that.
+ */
+export function __resetSandboxWarnLatchForTests(): void {
   warnedUnavailable = false;
 }
 
@@ -338,8 +349,13 @@ export function createSandboxBackend(opts: CreateSandboxBackendOptions): Sandbox
  */
 let interactiveWarned = false;
 
-/** Reset for tests — the latch is module state and tests need isolation. */
-export function resetInteractiveWarnLatch(): void {
+/**
+ * Reset for tests — the latch is module state and tests need isolation.
+ *
+ * See `__resetSandboxWarnLatchForTests` for why the name changed, and for why neither carries an
+ * internal-visibility tag while the deprecated public alias exists.
+ */
+export function __resetInteractiveWarnLatchForTests(): void {
   interactiveWarned = false;
 }
 

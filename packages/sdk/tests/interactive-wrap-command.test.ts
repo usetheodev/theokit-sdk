@@ -22,11 +22,10 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  type BwrapDetection,
-  interactiveWrapCommand,
-  resetInteractiveWarnLatch,
-} from "../src/sandbox/index.js";
+import { type BwrapDetection, interactiveWrapCommand } from "../src/sandbox/index.js";
+// By explicit module path, not through the barrel: these are test seams and the package keeps them
+// out of its public surface (see the note at the foot of src/sandbox/index.ts).
+import { __resetInteractiveWarnLatchForTests } from "../src/sandbox/linux-sandbox.js";
 
 const detectOk = (): BwrapDetection => ({ ok: true, bin: "/usr/bin/bwrap" });
 const detectFailure = (): BwrapDetection => ({ ok: false, reason: "bwrap not found in PATH" });
@@ -44,7 +43,7 @@ describe("M75 T3.2 — interactiveWrapCommand", () => {
   });
 
   it("test_danger_full_access_returns_null_and_does_NOT_warn", () => {
-    resetInteractiveWarnLatch();
+    __resetInteractiveWarnLatchForTests();
     const warnings: string[] = [];
     const wrap = interactiveWrapCommand({
       mode: "danger-full-access",
@@ -57,7 +56,7 @@ describe("M75 T3.2 — interactiveWrapCommand", () => {
   });
 
   it("test_absent_bwrap_returns_null_and_warns_ONCE", () => {
-    resetInteractiveWarnLatch();
+    __resetInteractiveWarnLatchForTests();
     const warnings: string[] = [];
     const wrap = interactiveWrapCommand({
       mode: "workspace-write",
