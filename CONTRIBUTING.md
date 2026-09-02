@@ -74,6 +74,29 @@ nothing a reader doesn't already have, and the churn isn't worth it. Write new t
 blank line between each part; comment markers are optional and add little once the blank line does
 the separating.
 
+## Test names
+
+Name a test after the behaviour, in prose, inside the `it()` that already says "it":
+
+```ts
+it("rejects a transfer when the balance is insufficient", () => { … });
+```
+
+Not `it("test_transfer_fails_when_balance_insufficient")`. Both forms describe behaviour, so this is
+a consistency rule rather than a quality one — but the redundant `test_` prefix inside a function
+named `it` reads as *"it test the fork destination is born 0600"*, and the split is large enough to
+be worth closing: measured 2026-09-02, **1323 of 5249 test names (25%) carry the prefix once the seven defect-id names are excluded, across 190
+of 807 files**, and some files mix both forms within one `describe`.
+
+Same treatment as the AAA section above: **the convention is declared, the rewrite is not demanded.**
+Existing names stay. `tests/lint/test-names-are-prose.test.ts` pins the count so the minority form
+cannot grow, and asks to be re-pinned downward whenever a file is renamed for other reasons — the
+ratchet `tools/check-duplication.mjs` and the complexity budget already use here.
+
+One case earns the prefix and is exempt where it appears: a name whose first token is a defect id
+from the issue that produced the test (`test_B1_…`, `test_M2_…`). That id is the traceability the
+prose form has nowhere to put, and losing it costs more than the consistency gains.
+
 ## What a wait must be
 
 A test that waits — for a state, a frame, a file — must wait on a signal **the intermediate state

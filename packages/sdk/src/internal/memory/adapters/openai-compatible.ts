@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import { AuthenticationError, ConfigurationError, NetworkError } from "../../../errors.js";
 import { mapWithConcurrency } from "../../concurrency/map-with-concurrency.js";
 import { mapOpenAICompatibleError } from "../../error-mappers/openai-compatible.js";
+import { parseRetryAfter } from "../../error-mappers/shared.js";
+import { computeBackoffMs } from "../../llm/retry.js";
 import type {
   CreateAdapterOptions,
   EmbeddingRuntime,
@@ -22,6 +24,16 @@ import { globalEmbeddingCache } from "../embedding-cache.js";
 
 const MAX_BATCH = 100;
 const MAX_RETRIES = 2;
+/**
+ * Deliberately tighter than the transport's 500ms/32s.
+ *
+ * An embedding retry sits inside a memory write on the agent's critical path and cannot be
+ * cancelled (see `sleep` below), so the worst case has to be small enough to wait out: 2 retries
+ * capped at 4s is at most ~8s. The transport can afford 32s because a streaming turn is already
+ * long-running and IS abortable.
+ */
+const EMBED_BACKOFF_BASE_MS = 250;
+const EMBED_BACKOFF_CAP_MS = 4_000;
 
 /**
  * What one provider adapter tells {@link createOpenAiCompatibleRuntime} about
@@ -322,25 +334,42 @@ async function embedBatch(opts: BatchOptions): Promise<number[][]> {
     if (isRetryable(response.status) && attempt < MAX_RETRIES) {
       attempt += 1;
       opts.stats.retries += 1;
-      await sleep(linearBackoffMs(attempt));
+      const retryAfterSec = parseRetryAfter(response.headers);
+      await sleep(
+        computeBackoffMs({
+          attempt,
+          baseMs: EMBED_BACKOFF_BASE_MS,
+          capMs: EMBED_BACKOFF_CAP_MS,
+          ...(retryAfterSec !== undefined ? { retryAfterMs: retryAfterSec * 1000 } : {}),
+        }),
+      );
       continue;
     }
-    // Read body (best-effort) so the mapper has access to provider error code.
-    const text = await response.text().catch(() => "");
-    let body: unknown = text;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      // not JSON — keep as string
-    }
-    throw mapOpenAICompatibleError({
-      providerId: opts.providerId,
-      status: response.status,
-      body,
-      headers: response.headers,
-      endpoint: opts.embeddingsPath,
-    });
+    throw await mappedEmbedError(opts, response);
   }
+}
+
+/**
+ * The terminal failure: read the body best-effort so the mapper sees the provider's error code, then
+ * map it. Its own function because folding it back into the retry loop puts `embedBatch` at
+ * cognitive complexity 11 against the repo max of 10 — and the sibling budget for those suppressions
+ * is ratcheting DOWN, so adding one here to keep this loop whole would undo that.
+ */
+async function mappedEmbedError(opts: BatchOptions, response: Response): Promise<unknown> {
+  const text = await response.text().catch(() => "");
+  let body: unknown = text;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    // not JSON — keep as string
+  }
+  return mapOpenAICompatibleError({
+    providerId: opts.providerId,
+    status: response.status,
+    body,
+    headers: response.headers,
+    endpoint: opts.embeddingsPath,
+  });
 }
 
 async function postEmbedRequest(opts: BatchOptions, url: string): Promise<Response> {
@@ -388,10 +417,15 @@ function hashKey(model: string, text: string): string {
   return createHash("sha256").update(`${model} ${text}`).digest("hex");
 }
 
-function linearBackoffMs(attempt: number): number {
-  return 50 * attempt;
-}
-
+/**
+ * Not `sleepWithAbort`, and the reason is the parsimony ladder rather than an oversight.
+ *
+ * `EmbeddingRuntime.embed(texts)` takes no signal, and NONE of its seven callers — lance-index,
+ * index-manager, vec-index, the two dreaming phases, scorers — holds one to pass. Adding the
+ * parameter would add a seam nobody supplies, so cancellation is bounded instead of plumbed: at most
+ * MAX_RETRIES sleeps of at most EMBED_BACKOFF_CAP_MS each. Give `embed()` a signal on the day a
+ * caller has one, and this becomes `sleepWithAbort` in the same edit.
+ */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
