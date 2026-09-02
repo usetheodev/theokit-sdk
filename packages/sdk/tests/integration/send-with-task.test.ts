@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Agent } from "../../src/agent.js";
 import { __resetTaskRegistryForTests } from "../../src/internal/task/registry.js";
 import { Task } from "../../src/task.js";
+import { pollUntil } from "../helpers/poll-until.js";
 import { useTempCwd } from "../helpers/temp-workspace.js";
 
 // This file passed `cwd: process.cwd()`, which during a test run is the package itself, so
@@ -53,7 +54,15 @@ describe("Agent.send({ task: true }) — D363 opt-in", () => {
     try {
       const run = await agent.send("hello world", { task: true });
       await run.wait();
-      await new Promise((r) => setTimeout(r, 50));
+      // Waits for the registry to HOLD the task, not for 50ms. The three sleeps in this file were
+      // one guess repeated; the registration is observable, so the test observes it.
+      await pollUntil(
+        async () => (await Task.list({ kind: "run" })).some((t) => t.state === "finished"),
+        {
+          message: async () =>
+            `no finished run task; states were ${JSON.stringify((await Task.list({ kind: "run" })).map((t) => t.state))}`,
+        },
+      );
       const tasks = await Task.list({ kind: "run" });
       expect(tasks.length).toBe(1);
       const task = tasks[0];
@@ -74,7 +83,11 @@ describe("Agent.send({ task: true }) — D363 opt-in", () => {
     try {
       const run = await agent.send("hi", { task: { id: "my-send-task" } });
       await run.wait();
-      await new Promise((r) => setTimeout(r, 50));
+      // Waits for the named task to reach its terminal state, not for 50ms.
+      await pollUntil(async () => (await Task.get("my-send-task"))?.state === "finished", {
+        message: async () =>
+          `task my-send-task never finished; state was ${String((await Task.get("my-send-task"))?.state)}`,
+      });
       const handle = await Task.get("my-send-task");
       expect(handle?.kind).toBe("run");
       expect(handle?.state).toBe("finished");
@@ -94,7 +107,15 @@ describe("Agent.send({ task: true }) — D363 opt-in", () => {
         task: { meta: { customerId: "cust-1" } },
       });
       await run.wait();
-      await new Promise((r) => setTimeout(r, 50));
+      // Waits for the registry to HOLD the task, not for 50ms. The three sleeps in this file were
+      // one guess repeated; the registration is observable, so the test observes it.
+      await pollUntil(
+        async () => (await Task.list({ kind: "run" })).some((t) => t.state === "finished"),
+        {
+          message: async () =>
+            `no finished run task; states were ${JSON.stringify((await Task.list({ kind: "run" })).map((t) => t.state))}`,
+        },
+      );
       const tasks = await Task.list({ kind: "run" });
       const meta = tasks[0]?.meta as { customerId?: string; agentId?: string };
       expect(meta?.customerId).toBe("cust-1");
