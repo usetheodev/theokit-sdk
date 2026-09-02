@@ -52,13 +52,12 @@ describe("AgentOptions.memoryProvider reaches the loop", () => {
   // threaded into the loop, left 15 tests across this file, the lifecycle file and the integration
   // file entirely GREEN.
   //
-  // A replacement driving `Agent.create({ memoryProvider }) → send()` was written and did NOT reach
-  // that line: `send` resolves the provider at `local-agent-send.ts:177` via
-  // `resolveMemoryProviderForLoop`, a different site from the spread in `buildLoopInputs`
-  // (`real-local-run.ts:205-352`, live, called at :107). Which entry point exercises the spread was
-  // not established here, so no test is claimed for it. Registered as its own finding rather than
-  // shipped as a passing test that proves something else — a green test aimed at the wrong line is
-  // how the mirror got here.
+  // CLOSED. The entry point is `createRealLocalRun` (real-local-run.ts:107), and both sites are
+  // covered in `memory-provider-reaches-the-loop.test.ts` — one test each, because they are
+  // independent and a fix to one leaves the other unguarded. Each was verified by MUTATION rather
+  // than by passing: replacing the spread's condition with `false` kills only the Run-driven case,
+  // and deleting the consumer-supplied branch of `resolveMemoryProviderForLoop` kills only the
+  // send-driven one.
 
   it("test_provider_field_is_optional_on_inputs_type", () => {
     expectTypeOf<AgentLoopInputs["memoryProvider"]>().toEqualTypeOf<MemoryProvider | undefined>();
