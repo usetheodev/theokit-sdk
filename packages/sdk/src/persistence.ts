@@ -49,6 +49,13 @@ export {
 // the path helpers a consumer reuses to locate a session file under
 // `<baseDir>/projects/<encoded-cwd>/<sessionId>.jsonl`. Supersedes the SE39
 // read-only `ClaudeCodeTranscriptWriter` (removed in v4.0).
+//
+// Publishing a path helper looks like a storage detail escaping the `SessionStore`
+// port, and an audit read it that way. It is not: the port speaks the native
+// record shape by design and never claimed to hide the layout — see
+// `types/session-store.ts`, which says so in the same words. These helpers
+// describe where the DEFAULT `FsSessionStore` writes; a consumer supplying
+// `local.sessionStore` is not bound by them.
 export {
   encodeProjectDir,
   transcriptPath,

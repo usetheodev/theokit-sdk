@@ -16,6 +16,9 @@
  *     source-move requires for sdk-memory's rich impl.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import {
   atomicWriteJson,
   atomicWriteText,
@@ -82,5 +85,34 @@ describe("@theokit/sdk/internal/persistence sub-path (Stage 3 prep — iter 32)"
 
   it("test_sqlite_helpers_exported", () => {
     expect(typeof casUpdate).toBe("function");
+  });
+});
+
+describe("the published transcript helpers and the SessionStore port point at each other", () => {
+  const read = (rel: string): string =>
+    readFileSync(join(__dirname, "..", "..", "src", rel), "utf8");
+
+  /**
+   * An audit read `transcriptPath` being a published export as the storage
+   * detail escaping the `SessionStore` port — a Repository that does not hide
+   * what it abstracts. The port never claimed to: it speaks the native
+   * `SessionRecord` by design, and the layout helpers are published so a
+   * consumer can find a transcript file.
+   *
+   * Both facts are true and only dangerous apart, so each file states the
+   * relationship and this pins the pair together. It checks that the
+   * cross-reference EXISTS, not that either prose is correct — an inversion a
+   * script cannot judge, and saying so is the point.
+   */
+  it("persistence.ts explains why the path helpers are not a leak", () => {
+    const persistence = read("persistence.ts");
+    expect(persistence).toContain("types/session-store.ts");
+    expect(persistence).toContain("local.sessionStore");
+  });
+
+  it("the port says it does not hide the layout, and where the layout is published", () => {
+    const port = read("types/session-store.ts");
+    expect(port).toContain("DOES NOT HIDE THE STORAGE");
+    expect(port).toContain("@theokit/sdk/persistence");
   });
 });

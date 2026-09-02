@@ -17,6 +17,19 @@
  * `local.sessionStore` yields byte-identical current behavior (back-compat, zero
  * consumer change). Injected via `local.sessionStore` for external stores.
  *
+ * THIS SEAM DOES NOT HIDE THE STORAGE, AND IS NOT MEANT TO. A Repository
+ * abstracts a persistence model away; this one is defined in terms of the
+ * native one — the port speaks {@link SessionRecord}, "the exact SessionRecord
+ * the SDK writes", and the on-disk layout's path helpers (`encodeProjectDir`,
+ * `transcriptPath`, `transcriptRoot`) are published on purpose at
+ * `@theokit/sdk/persistence` so a consumer can locate a transcript file.
+ *
+ * That is the whole design and the reason the seam is two methods rather than
+ * ten: the format is the contract, and a store implements read/append over it.
+ * A consumer supplying `local.sessionStore` is NOT bound by those paths — they
+ * describe where the DEFAULT `FsSessionStore` puts files, not where an external
+ * store must.
+ *
  * Consistency contract: `appendRecords` is append-only and ordering-preserving.
  * The FS default serializes appends per agent with a cross-process file lock;
  * external implementations own (and MUST document) their own concurrency
