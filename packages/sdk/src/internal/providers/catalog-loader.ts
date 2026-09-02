@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { diag } from "../diagnostics.js";
 import { globalSingleton } from "../global-singleton.js";
-import { type CatalogModel, catalogModelSchema } from "./catalog-schema.js";
+import { type CatalogModel, catalogEntrySchema, catalogModelSchema } from "./catalog-schema.js";
 import { getProviderProfile, registerProvider } from "./registry.js";
 import type { ApiMode, AuthType, ProviderProfile } from "./types.js";
 
@@ -168,20 +168,9 @@ interface LoadOptions {
 }
 
 function validateEntry(raw: Record<string, unknown>): CatalogEntry | null {
-  if (
-    typeof raw.id !== "string" ||
-    typeof raw.displayName !== "string" ||
-    typeof raw.apiMode !== "string" ||
-    typeof raw.authType !== "string" ||
-    typeof raw.baseUrl !== "string" ||
-    !Array.isArray(raw.envVars) ||
-    !Array.isArray(raw.fallbackModels) ||
-    raw.capabilities == null ||
-    typeof raw.capabilities !== "object"
-  ) {
-    return null;
-  }
-  return raw as unknown as CatalogEntry;
+  const parsed = catalogEntrySchema.safeParse(raw);
+  // The WARN-and-skip behaviour at the call site is unchanged; only what counts as valid is.
+  return parsed.success ? (parsed.data as CatalogEntry) : null;
 }
 
 export function loadProviderCatalog(opts?: LoadOptions): Record<string, CatalogEntry> {
