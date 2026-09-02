@@ -28,7 +28,22 @@ function parseArgs(argv) {
     else if (a === "--cwd") args.cwd = argv[++i] ?? args.cwd;
     else if (a === "--dry-run") args.dryRun = true;
     else if (a === "--keep-sqlite") args.keepSqlite = true;
-    else if (a === "--batch-size") args.batchSize = Number(argv[++i] ?? 100);
+    else if (a === "--batch-size") {
+      // Validated at the boundary, which is here — `rules/error-handling.md` § 2. Unvalidated, a
+      // `0` spun the migration forever writing a log line per iteration, and an `abc` became NaN,
+      // migrated nothing, and reported "Validation FAILED. SQLite preserved." — blaming the
+      // migration for a typo in a flag. `migrateSqliteToLance` re-asserts this for programmatic
+      // callers; the message here names the flag AND the value, which the library cannot.
+      const raw = argv[++i];
+      const parsed = Number(raw);
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        process.stderr.write(
+          `theokit-migrate-memory: --batch-size must be a whole number of at least 1; received ${JSON.stringify(raw)}.\n`,
+        );
+        process.exit(2);
+      }
+      args.batchSize = parsed;
+    }
   }
   return args;
 }

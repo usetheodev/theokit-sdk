@@ -109,8 +109,39 @@ function nfcEqual(a: string, b: string): boolean {
  *
  * @internal
  */
+/**
+ * Refuse a `batchSize` the loop below cannot make progress with, before anything is migrated.
+ *
+ * The loop is `for (let i = 0; i < facts.length; i += batchSize)`, so the three ways this goes wrong
+ * are all silent and all different:
+ *
+ *  - 0 or negative: `i` never advances past the guard. The migration SPINS FOREVER, calling
+ *    `addFacts([])` and writing a "Migrated x/y" line every iteration — a hang with unbounded output,
+ *    which is the worst shape a failure can take because it looks like work.
+ *  - NaN (`Number("abc")`): `i += NaN` makes the guard false on the first check, zero facts move, and
+ *    the caller is told "Validation FAILED. SQLite preserved." A typo in an argument is reported as a
+ *    migration failure.
+ *  - a fraction: `slice` truncates and the loop still terminates, but the batch boundaries stop
+ *    matching the number the caller asked for.
+ *
+ * Validated HERE rather than only in the CLI that motivated the finding, because the CLI is a wrapper
+ * over this function and a programmatic caller reaches it with no wrapper at all.
+ *
+ * @internal
+ */
+function assertUsableBatchSize(batchSize: number | undefined): void {
+  if (batchSize === undefined) return;
+  if (!Number.isInteger(batchSize) || batchSize < 1) {
+    throw new ConfigurationError(
+      `migrateSqliteToLance: batchSize must be a whole number of at least 1; received ${String(batchSize)}.`,
+      { code: "invalid_batch_size" },
+    );
+  }
+}
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: migration is a single transaction (read → write → validate → commit-or-rollback); splitting harms atomicity reasoning.
 export async function migrateSqliteToLance(opts: MigrateOptions): Promise<MigrateResult> {
+  assertUsableBatchSize(opts.batchSize);
   const cwd = opts.cwd;
   // One resolution, reused by every path this migration touches (#463).
   const memoryRoot = resolveMemoryRoot(cwd, { directory: opts.directory });
