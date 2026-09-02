@@ -72,6 +72,23 @@ export interface ResolvedTool {
  */
 
 export interface AgentLoopInputs {
+  /**
+   * Consecutive tool-error streak that terminates the run. Default 3.
+   *
+   * Declared here because it is real and load-bearing, and until now appeared nowhere in the
+   * codebase except as an inline cast at its single read site — so this interface was SMALLER than
+   * the effective contract. A consumer could not discover the knob from the type, and a typo in the
+   * name compiled and silently took the default.
+   */
+  maxConsecutiveToolErrors?: number;
+  /**
+   * Upper bound on tool-dispatch concurrency. Default 4.
+   *
+   * Same story as `maxConsecutiveToolErrors`, with one extra consequence: `tool-dispatch.ts`
+   * documented "overrides via `AgentLoopInputs.maxConcurrentTools`" for a field this interface did
+   * not have, so that comment was false until this line existed.
+   */
+  maxConcurrentTools?: number;
   agentId: string;
   runId: string;
   model: ModelSelection;

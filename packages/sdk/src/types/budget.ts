@@ -13,6 +13,17 @@
  * `process` (shared global) only; `agent` and `call` reserved for
  * v0.2 multi-tenant scenarios.
  */
+/**
+ * Accounting scope for a budget.
+ *
+ * ONLY `"process"` is implemented, and `Budget.create` now REFUSES the other two with
+ * `unimplemented_budget_scope`. It used to accept them: nothing outside the registry read `scope`, so
+ * a caller asking for per-agent accounting silently got process-wide accounting — a cost control
+ * reporting the wrong number, which is worse than the missing feature.
+ *
+ * The union is not narrowed to `"process"` here because that is a breaking change to a published
+ * type and belongs to a major. Widening it back when the scopes are built is non-breaking.
+ */
 export type BudgetScope = "agent" | "call" | "process";
 
 /**

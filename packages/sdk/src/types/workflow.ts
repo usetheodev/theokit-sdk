@@ -52,7 +52,16 @@ export interface FnStep {
   readonly inputSchema?: ZodType;
   readonly outputSchema?: ZodType;
   readonly retry?: RetryPolicy;
-  /** D238 — slot reserved; runtime throws if engine not yet implemented. */
+  /**
+   * @deprecated NOT IMPLEMENTED. Setting this does not enable saga rollback — it arms
+   * `WorkflowCompensateNotImplementedError`, so the step FAILS at run time and the message tells you
+   * to remove it. A field whose only effect is to make the step fail is worse than an absent field,
+   * because the type invites it and the cost is discovered in production.
+   *
+   * Kept rather than removed because `FnStep` is published and dropping a member is a major-version
+   * decision. The deprecation is the part that reaches a caller at the point of use: an editor
+   * strikes it through, which the D238 comment that stood here ("slot reserved") did not.
+   */
   readonly compensate?: (input: unknown, output: unknown, error: Error) => Promise<void> | void;
 }
 

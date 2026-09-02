@@ -42,7 +42,7 @@ export async function dispatchTools(
   // M3 #64 — the run's agent.send span, so each tool.call span nests under it.
   parentSpan?: ToolSpan,
 ): Promise<LlmContentPart[]> {
-  const maxConcurrent = (inputs as { maxConcurrentTools?: number }).maxConcurrentTools ?? 4;
+  const maxConcurrent = inputs.maxConcurrentTools ?? 4;
   // M0-2: consolidated onto the shared ordered bounded pool (was a private
   // `boundedParallel` clone — see plan m0-foundation-expose-primitives).
   return mapWithConcurrency(toolCalls, maxConcurrent, (call) =>
