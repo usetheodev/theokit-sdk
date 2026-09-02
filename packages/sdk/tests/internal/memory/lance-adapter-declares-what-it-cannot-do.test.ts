@@ -56,3 +56,53 @@ describe("LanceMemoryAdapter declares the operations it cannot perform", () => {
     expect(status.backend).toBe("hybrid");
   });
 });
+
+/**
+ * The file header claimed `search()` was vector-only — `textScore` undefined,
+ * `vectorScore === score` — and had claimed it for as long as T4.5 (client-side
+ * term overlap) had shipped. A second docblock ninety lines below described the
+ * hybrid scoring correctly, so the two halves of one file disagreed and the
+ * header is the half a caller reads.
+ *
+ * The header is prose and prose drifts. What stops it drifting again is this:
+ * the scoring is now asserted, so a future edit that makes search() vector-only
+ * fails here rather than making a comment true by accident.
+ */
+describe("LanceMemoryAdapter.search is hybrid, as the header now says", () => {
+  const hit = {
+    id: "f1",
+    text: "typescript and functional programming",
+    source: "memory" as const,
+    score: 0.5,
+  };
+  const scoringInner = {
+    async search() {
+      return [hit];
+    },
+    async close() {},
+  } as unknown as LanceIndex;
+
+  it("adds a lexical term-overlap score to the vector distance", async () => {
+    const [result] = await new LanceMemoryAdapter(scoringInner).search("typescript programming");
+
+    expect(result?.vectorScore, "the vector distance passes through unchanged").toBe(0.5);
+    expect(
+      result?.textScore,
+      "both query terms appear in the text, so overlap is 1 — not undefined, which is what " +
+        "the header claimed",
+    ).toBe(1);
+    // 0.7 * 0.5 + 0.3 * 1
+    expect(result?.score).toBeCloseTo(0.65, 10);
+    expect(result?.score, "score === vectorScore is exactly the retired claim").not.toBe(
+      result?.vectorScore,
+    );
+  });
+
+  it("scores a query whose terms are absent at the vector distance alone", async () => {
+    const [result] = await new LanceMemoryAdapter(scoringInner).search("kubernetes helm");
+
+    expect(result?.textScore).toBe(0);
+    // 0.7 * 0.5 + 0.3 * 0 — lexically absent, so below the overlapping query above.
+    expect(result?.score).toBeCloseTo(0.35, 10);
+  });
+});

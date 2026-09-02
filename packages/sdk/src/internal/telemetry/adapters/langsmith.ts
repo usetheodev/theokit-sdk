@@ -7,13 +7,16 @@ import { safeRequire, type TelemetryAdapter, type TelemetryWiring } from "../saf
  * @internal
  */
 
-interface LangSmithModule {
-  Client: new (
-    opts?: Record<string, unknown>,
-  ) => {
-    createRun: (params: Record<string, unknown>) => Promise<void>;
-  };
-}
+/**
+ * What this adapter needs from the vendor module: nothing at all.
+ *
+ * It used to declare a `Client` with `createRun`, neither of which was ever
+ * constructed or called — a type describing an integration that does not exist.
+ * LangSmith instruments itself from `LANGCHAIN_TRACING_V2`; loading the module
+ * so its auto-hooks fire is the whole job, and `safeRequire` answers the only
+ * question asked here — is the package present.
+ */
+type LangSmithModule = Record<string, never>;
 
 let registeredHere = false;
 

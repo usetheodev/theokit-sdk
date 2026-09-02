@@ -11,8 +11,13 @@
  *    so the result is not mistaken for a sync that found nothing. Consumers
  *    writing facts hold a `LanceIndex` and call `addFacts` on it; the adapter
  *    does not hand its adaptee out.
- *  - `search()` performs vector-only retrieval. `MemorySearchHit.textScore`
- *    is undefined (no FTS5 layer); `vectorScore === score`.
+ *  - `search()` is HYBRID, not vector-only. Lance supplies the vector distance
+ *    and `translateLanceHit` adds a client-side term-overlap ratio (T4.5), so
+ *    `textScore` is a real number in 0..1 and `score` is `0.7 * vectorScore +
+ *    0.3 * textScore` — never `=== vectorScore`. This block said the opposite
+ *    for as long as T4.5 has been shipped, while the docblock 90 lines below
+ *    described the change correctly, so the two halves of one file disagreed
+ *    and the header is the half a caller reads.
  *  - `status()` reports `backend: "hybrid"` only when an embedding runtime
  *    is wired (always the case for Lance — embedding is required at open).
  *    Both counts are 0 with `countsExact: false`: the port declares `status()`

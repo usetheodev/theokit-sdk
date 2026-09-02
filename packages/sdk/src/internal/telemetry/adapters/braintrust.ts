@@ -7,10 +7,17 @@ import { safeRequire, type TelemetryAdapter, type TelemetryWiring } from "../saf
  * @internal
  */
 
-interface BraintrustModule {
-  init: (opts?: Record<string, unknown>) => void;
-  wrapTraced: <T>(fn: () => T) => T;
-}
+/**
+ * What this adapter needs from the vendor module: nothing at all.
+ *
+ * It used to declare `init` and `wrapTraced`, neither of which was ever called
+ * — a type describing an integration that does not exist, which is how a reader
+ * concluded the SDK drives Braintrust. It does not: Braintrust instruments
+ * itself from `BRAINTRUST_API_KEY`, and loading the module is the whole job.
+ * The empty shape is the honest one, and `safeRequire` still answers the only
+ * question asked here — is the package present.
+ */
+type BraintrustModule = Record<string, never>;
 
 let registeredHere = false;
 
