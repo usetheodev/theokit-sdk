@@ -241,7 +241,19 @@ describe("a real Claude Code project, read end to end", () => {
 
     expect(existsSync(join(ran, ".theokit"))).toBe(true);
     // Only this SDK's own state — nothing here is a Claude Code shape the CLI would try to read.
-    expect(readdirSync(join(ran, ".theokit")).sort()).toEqual(["agents", "memory"]);
+    //
+    // `memory/` USED TO BE IN THIS LIST, and its disappearance is a real behaviour change from the
+    // 2026-09-02 kernel flip rather than a weakened assertion. The legacy path called
+    // `memoryGlue.ensureTools()` inside `executeSendLocked` — BEFORE the fixture-vs-real fork — so
+    // the SQLite index was created on any send at all, including this one, which uses a
+    // `theo_test_*` key and is answered by the fixture responder without the agent loop ever
+    // running. The port path initialises memory through `provider.init()` inside the loop, so a run
+    // that never reaches the loop no longer leaves an empty index behind.
+    //
+    // Where it matters the behaviour is unchanged, and that is asserted elsewhere rather than
+    // assumed: `golden/memory/sessions-corpus.golden.test.ts` drives a REAL loop and still finds the
+    // summary indexed and searchable after `run.wait()`.
+    expect(readdirSync(join(ran, ".theokit")).sort()).toEqual(["agents"]);
     // 60s for THIS test, not for the suite. It does a full Agent.create + send against the 20s global
     // budget and timed out once under full-suite load while passing in isolation and while its
     // siblings in this same file, doing the same work, passed. Raising the global timeout would

@@ -10,12 +10,6 @@ import {
   type CompletionCheckDeps,
   wrapRunWithCompletionCheck,
 } from "../runtime/lifecycle/wrap-completion-check-run.js";
-import {
-  resolveActiveMemorySummaryForSend,
-  resolveMemoryProviderForLoop,
-  resolveMemoryToolsForLoop,
-  shouldUsePortMemoryPath,
-} from "../runtime/memory-glue/memory-path-selector.js";
 import type { MemoryProvider } from "../runtime/memory-glue/memory-provider.js";
 import type { MemoryFact } from "../runtime/memory-glue/memory-store.js";
 import { readMemoryFacts } from "../runtime/memory-glue/memory-store.js";
@@ -28,7 +22,6 @@ import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { appendSessionMessage, getSessionMessages } from "../session/index.js";
 import type { TelemetryHandle } from "../telemetry/tracer.js";
 import { consumePending } from "./local-agent-invalidate.js";
-import type { LocalAgentMemory } from "./local-agent-memory.js";
 import { applyPreUserSendHook, wrapRunWithPostReplyHook } from "./local-agent-memory-hooks.js";
 import { persistMemoryFactIfWritePrompt } from "./local-agent-runtime-extensions.js";
 
@@ -47,7 +40,6 @@ export interface SendLockedInputs {
   applyModelOverride: (model: ModelSelection | undefined) => void;
   options: AgentOptions;
   pluginManagerCode: PluginManager;
-  memoryGlue: LocalAgentMemory;
   defaultMemoryProviderForLoop: ReturnType<
     typeof import("./local-agent-memory-provider.js").createLocalAgentMemoryProvider
   >;
@@ -188,18 +180,17 @@ export async function executeSendLocked(
   // questions and only the writer heard the second answer (#463).
   await persistMemoryFactIfWritePrompt(inputs.workspaceCwd, inputs.options.memory, userText);
   const memoryFacts = await readMemoryForSend(inputs.workspaceCwd, inputs.options.memory, userText);
-  const portPathActive = shouldUsePortMemoryPath();
-  const legacyTools = portPathActive ? undefined : await inputs.memoryGlue.ensureTools();
-  const legacySummary = portPathActive
-    ? undefined
-    : await inputs.memoryGlue.runActiveMemoryIfEnabled(userText, priorMessages, inputs.telemetry);
-  const memoryTools = resolveMemoryToolsForLoop(legacyTools, portPathActive);
-  const activeMemorySummary = resolveActiveMemorySummaryForSend(legacySummary, portPathActive);
-  const effectiveMemoryProvider = resolveMemoryProviderForLoop(
-    inputs.options.memoryProvider,
-    inputs.defaultMemoryProviderForLoop,
-    portPathActive,
-  );
+  // The MemoryProvider port is the ONLY memory path now (kernel flip, 2026-09-02). Both of this
+  // send's memory jobs happen inside the agent loop: the tool catalog comes from
+  // `provider.buildTools()` and the recall summary from `provider.runActivePass()`, so nothing is
+  // resolved here and the two `undefined`s below say so rather than hiding it.
+  //
+  // A consumer-supplied provider always wins; otherwise the auto-installed adapter over
+  // `LocalAgentMemory` runs, which is what the legacy branch used to do inline.
+  const memoryTools = undefined;
+  const activeMemorySummary = undefined;
+  const effectiveMemoryProvider =
+    inputs.options.memoryProvider ?? inputs.defaultMemoryProviderForLoop;
   const baseSystemPrompt = await inputs.resolveSystemPromptForSend(userText, options, memoryFacts);
   const assembledSystemPrompt = await inputs.assembleSystemPromptForSend({
     userText,

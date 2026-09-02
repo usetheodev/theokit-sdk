@@ -17,7 +17,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { AgentDisposedError } from "../../../src/errors.js";
 import type { MemoryToolSpec } from "../../../src/internal/agent-loop/types.js";
 import { setDiagnosticsSink } from "../../../src/internal/diagnostics.js";
-import { LocalAgentMemory } from "../../../src/internal/local-agent/local-agent-memory.js";
 import type { SendLockedInputs } from "../../../src/internal/local-agent/local-agent-send.js";
 import { executeSendLocked } from "../../../src/internal/local-agent/local-agent-send.js";
 import { withCwdMutex } from "../../../src/internal/persistence/cwd-mutex.js";
@@ -141,7 +140,6 @@ function build(overrides: Partial<SendLockedInputs> = {}): {
     },
     options: agentOptions,
     pluginManagerCode: new PluginManager(),
-    memoryGlue: new LocalAgentMemory(agentOptions, overrides.workspaceCwd ?? workspace, agentId),
     defaultMemoryProviderForLoop: createNoopMemoryProvider(),
     workspaceCwd: workspace,
     telemetry: createTelemetry(undefined),
@@ -765,32 +763,37 @@ describe("executeSendLocked — plugin memory hooks", () => {
   });
 });
 
-describe("executeSendLocked — legacy vs port memory path", () => {
-  it("uses the legacy glue by default: tools from ensureTools, no provider for the loop", async () => {
-    const { inputs, rec } = build();
-
-    await executeSendLocked(inputs, "hello", {});
-
-    expect(rec.dispatch[0]?.memoryProvider).toBeUndefined();
-  });
-
-  it("routes through the port provider when THEOKIT_PORT_MEMORY_PATH is on", async () => {
-    // The flag flips WHICH memory implementation the loop talks to. Both paths
-    // return a working loop, so only the wrong provider distinguishes them — and
-    // that surfaces far from here, as memory that silently stops recalling.
-    vi.stubEnv("THEOKIT_PORT_MEMORY_PATH", "1");
+/**
+ * Which memory implementation the loop talks to.
+ *
+ * These used to describe a fork — "legacy glue by default, port provider under
+ * `THEOKIT_PORT_MEMORY_PATH=1`". The kernel flip (2026-09-02) removed the fork and the env var with
+ * it, so what is left to protect is the PRECEDENCE, and it still matters for the same reason: both
+ * arrangements return a working loop, so only the wrong provider distinguishes them — and that
+ * surfaces far from here, as memory that silently stops recalling.
+ *
+ * The third case moved here from `agent-loop/memory-provider-reaches-the-loop.test.ts`, which
+ * asserted it against `resolveMemoryProviderForLoop` — a function that no longer exists. Observing
+ * what `dispatchRun` receives is the stronger oracle anyway: it reads production, not a helper.
+ */
+describe("executeSendLocked — which MemoryProvider reaches the loop", () => {
+  it("uses the auto-installed adapter when the consumer supplied none", async () => {
     const { inputs, rec } = build();
 
     await executeSendLocked(inputs, "hello", {});
 
     expect(rec.dispatch[0]?.memoryProvider).toBe(inputs.defaultMemoryProviderForLoop);
-    // Legacy tools and the legacy active-pass summary are suppressed on this path;
-    // the provider surfaces both from inside the loop instead.
-    expect(rec.dispatch[0]?.memoryTools).toBeUndefined();
-    vi.unstubAllEnvs();
   });
 
-  it("honours a consumer-supplied memoryProvider even with the port flag off", async () => {
+  it("surfaces no memoryTools on the loop inputs — the provider builds them inside", async () => {
+    const { inputs, rec } = build();
+
+    await executeSendLocked(inputs, "hello", {});
+
+    expect(rec.dispatch[0]?.memoryTools).toBeUndefined();
+  });
+
+  it("lets a consumer-supplied memoryProvider outrank the adapter", async () => {
     const supplied = createNoopMemoryProvider();
     const { inputs, rec } = build();
     inputs.options.memoryProvider = supplied;

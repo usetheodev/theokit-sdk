@@ -1,6 +1,7 @@
 import { diag } from "../diagnostics.js";
 import { derivePromptCacheKey } from "../llm/prompt-cache-key.js";
 import type { LlmClient, LlmThinkingPart, LlmTool, LlmToolCallPart } from "../llm/types.js";
+import { escapeBlockBody } from "../runtime/system-prompt/escape.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { HISTOGRAM_NAMES } from "../telemetry/span-names.js";
 import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
@@ -34,8 +35,23 @@ export interface LlmTurnOutput {
 }
 
 /**
- * Concat MemoryProvider's `systemPromptAdditions` to the inbound
- * `inputs.systemPrompt`.
+ * Fold a `MemoryProvider`'s `systemPromptAdditions` into the inbound `inputs.systemPrompt`, as the
+ * same `<active-memory>` block the assembly pipeline produces.
+ *
+ * IT USED TO CONCATENATE THE RAW STRING, and that was a regression waiting for the day the port path
+ * became the default. Recalled memory is UNTRUSTED content — it is whatever went into the index —
+ * and `ActiveMemoryPromptProvider` runs it through {@link escapeBlockBody} for that reason (ADR D9,
+ * prompt-injection defence): without the escape, a recalled fact containing `</active-memory>`
+ * closes the block and everything after it reads as system instruction.
+ *
+ * Measured 2026-09-02 by running the memory suites with `THEOKIT_PORT_MEMORY_PATH=1`: the port path
+ * dropped the delimiters AND the escape, and the golden test asserting the block caught the first
+ * half. The second half nothing would have caught.
+ *
+ * PREPENDED, not appended, because the legacy provider declares `priority = 5` — ahead of Context,
+ * Skills and Memory — so the recall summary sits at the top of the prompt. The value the loop
+ * receives is the fully assembled prompt, so prepending is what reproduces that position.
+ *
  * @internal
  */
 export function resolveSystemPromptWithMemoryAdditions(
@@ -43,8 +59,9 @@ export function resolveSystemPromptWithMemoryAdditions(
   additions: string | undefined,
 ): string | undefined {
   if (additions === undefined || additions.length === 0) return systemPrompt;
-  if (systemPrompt === undefined || systemPrompt.length === 0) return additions;
-  return `${systemPrompt}\n\n${additions}`;
+  const block = `<active-memory>\n${escapeBlockBody(additions)}\n</active-memory>`;
+  if (systemPrompt === undefined || systemPrompt.length === 0) return block;
+  return `${block}\n\n${systemPrompt}`;
 }
 
 function toLlmTool(tool: ResolvedTool): LlmTool {

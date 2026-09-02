@@ -36,10 +36,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LocalAgentMemory } from "../src/internal/local-agent/local-agent-memory.js";
 import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
 import { runPostRunLifecycle } from "../src/internal/runtime/lifecycle/post-run-lifecycle.js";
-import type { AgentOptions } from "../src/types/agent.js";
 import type { ConversationTurn } from "../src/types/conversation.js";
 import type { Run, RunResult } from "../src/types/run.js";
 import type { SessionRecord, SessionStore } from "../src/types/session-store.js";
@@ -94,8 +92,6 @@ const EIGHT_TOOL_CALLS_IN: readonly ConversationTurn[] = [
   },
 ] as readonly ConversationTurn[];
 
-const STUB_OPTIONS = { agentId: "m93", model: { id: "stub-model" } } as AgentOptions;
-
 describe("M93 — the error path persists the partial transcript", () => {
   let cwd: string;
 
@@ -117,7 +113,6 @@ describe("M93 — the error path persists the partial transcript", () => {
       sessionStore: store,
       model: "claude-sonnet-4-5",
       hooksExecutor: new HooksExecutor(cwd),
-      memoryGlue: new LocalAgentMemory(STUB_OPTIONS, cwd, "m93-persists"),
     });
 
     // Before M93 this was 0 — `flushSessionWrites` drained an empty set because the only
@@ -142,7 +137,6 @@ describe("M93 — the error path persists the partial transcript", () => {
       sessionStore: store,
       model: "claude-sonnet-4-5",
       hooksExecutor: new HooksExecutor(cwd),
-      memoryGlue: new LocalAgentMemory(STUB_OPTIONS, cwd, "m93-partial"),
     });
 
     const asText = JSON.stringify(store.written);
@@ -173,7 +167,6 @@ describe("M93 — the error path persists the partial transcript", () => {
         sessionStore: store,
         model: "claude-sonnet-4-5",
         hooksExecutor: new HooksExecutor(cwd),
-        memoryGlue: new LocalAgentMemory(STUB_OPTIONS, cwd, "m93-degraded"),
       }),
     ).resolves.toBeUndefined();
 
@@ -216,7 +209,6 @@ describe("M93 — the error path persists the partial transcript", () => {
           sessionStore: brokenStore,
           model: "claude-sonnet-4-5",
           hooksExecutor: new HooksExecutor(cwd),
-          memoryGlue: new LocalAgentMemory(STUB_OPTIONS, cwd, "m93-writefail"),
         }),
       ).resolves.toBeUndefined();
 
@@ -257,7 +249,6 @@ describe("M93 — the error path persists the partial transcript", () => {
       sessionStore: observingStore,
       model: "claude-sonnet-4-5",
       hooksExecutor: new HooksExecutor(cwd),
-      memoryGlue: new LocalAgentMemory(STUB_OPTIONS, cwd, "m93-flush"),
     });
     settled.push("lifecycle-returned");
 
@@ -291,7 +282,6 @@ describe("M93 — the error path persists the partial transcript", () => {
       sessionStore: store,
       model: "claude-sonnet-4-5",
       hooksExecutor: hooks,
-      memoryGlue: new LocalAgentMemory(STUB_OPTIONS, cwd, "m93-success"),
     });
 
     const asText = JSON.stringify(store.written);

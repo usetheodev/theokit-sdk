@@ -27,10 +27,6 @@ import type { ProvidersManagerImpl } from "../runtime/config/providers-manager.j
 import type { FileContextManager } from "../runtime/context/context-manager.js";
 import { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
 import { runPostRunLifecycle } from "../runtime/lifecycle/post-run-lifecycle.js";
-import {
-  resolveMemoryProviderForLoop,
-  shouldUsePortMemoryPath,
-} from "../runtime/memory-glue/memory-path-selector.js";
 import type { MemoryFact } from "../runtime/memory-glue/memory-store.js";
 import { normalizeModel } from "../runtime/model-selection.js";
 import type { PluginMetadata, PluginsManager } from "../runtime/plugin-loader/plugins-manager.js";
@@ -58,7 +54,6 @@ import {
   releaseLeaseIfPossible,
   reloadLocalAgent,
 } from "./local-agent-lifecycle.js";
-import { LocalAgentMemory } from "./local-agent-memory.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
 import { createLocalAgentMemoryProvider } from "./local-agent-memory-provider.js";
 import {
@@ -137,14 +132,14 @@ export class LocalAgent implements SDKAgent {
   readonly pluginsManager: PluginsManager | undefined;
   private readonly hooksExecutor: HooksExecutor;
   private readonly systemPromptPipeline: SystemPromptPipeline = SystemPromptPipeline.default();
-  private readonly memoryGlue: LocalAgentMemory;
   /**
-   * SDK 2.0 Phase 1 physical Stage 2b — iter 19+: pre-built adapter
-   * wrapping `memoryGlue` as a MemoryProvider impl. Constructed eagerly
-   * so future iters can flip `inputs.memoryProvider` to default to
-   * THIS adapter when consumer didn't supply one. NOT YET used by
-   * `send()` — the kernel flip lands in Stage 2b proper after equivalence
-   * regression coverage.
+   * The agent's memory, behind the `MemoryProvider` port — the only memory path since the kernel
+   * flip (2026-09-02). A consumer-supplied `options.memoryProvider` takes precedence; this is what
+   * runs otherwise.
+   *
+   * It used to be built ALONGSIDE a `LocalAgentMemory` this class held directly, "so future iters
+   * can flip", while `send()` used the direct one. The adapter constructs its own `LocalAgentMemory`
+   * inside `init()`, so that arrangement kept two of them per agent and the second was never read.
    *
    * Accessible to tests via `_defaultMemoryProviderForLoop()` helper.
    * @internal
@@ -190,12 +185,6 @@ export class LocalAgent implements SDKAgent {
     if (sub.plugins !== undefined) this.plugins = sub.plugins;
 
     this.hooksExecutor = new HooksExecutor(this.workspaceCwd);
-    this.memoryGlue = new LocalAgentMemory(options, this.workspaceCwd, this.agentId);
-    // SDK 2.0 Phase 1 physical Stage 2b — iter 19+: build the adapter
-    // alongside the legacy glue. Same underlying rich impl; the adapter
-    // exposes it through the MemoryProvider port. NOT YET wired into
-    // send() — agent-loop still consumes `memoryGlue` directly via
-    // `inputs.memoryTools` + `activeMemorySummary` concat path.
     this.defaultMemoryProviderForLoop = createLocalAgentMemoryProvider({
       agentOptions: options,
       workspaceCwd: this.workspaceCwd,
@@ -345,17 +334,6 @@ export class LocalAgent implements SDKAgent {
     if (options.task !== undefined) registerRunAsTask(run, this.agentId, options.task, userText);
     resolve(run);
     try {
-      // SDK 2.0 Phase 1 physical Stage 3 prep — iter 28: thread the
-      // resolved memoryProvider into post-run-lifecycle so the
-      // recordSessionSummary port method can be invoked (when defined).
-      // Consumer-supplied `options.memoryProvider` always wins; otherwise
-      // when port path is active, the auto-installed adapter takes over.
-      // When neither: undefined → legacy writeSessionSummary path runs.
-      const postRunProvider = resolveMemoryProviderForLoop(
-        this.options.memoryProvider,
-        this.defaultMemoryProviderForLoop,
-        shouldUsePortMemoryPath(),
-      );
       await runPostRunLifecycle({
         run,
         userText,
@@ -368,10 +346,13 @@ export class LocalAgent implements SDKAgent {
         ...(this.options.apiKey !== undefined ? { apiKey: this.options.apiKey } : {}),
         ...(options.onRunEvent !== undefined ? { onRunEvent: options.onRunEvent } : {}),
         hooksExecutor: this.hooksExecutor,
-        memoryGlue: this.memoryGlue,
         // usetheokit/theokit-sdk#382 — the transcript write reads this and nothing else.
         memory: this.options.memory,
-        ...(postRunProvider !== undefined ? { memoryProvider: postRunProvider } : {}),
+        // A consumer-supplied provider wins; otherwise the auto-installed adapter over
+        // `LocalAgentMemory`. Since the kernel flip there is no third case, so this is passed
+        // unconditionally — the `!== undefined` spread that used to guard it could not be false,
+        // and `recordSessionSummary` is now always reached through the port.
+        memoryProvider: this.options.memoryProvider ?? this.defaultMemoryProviderForLoop,
       });
     } finally {
       sendSpan.end();
@@ -391,7 +372,6 @@ export class LocalAgent implements SDKAgent {
         applyModelOverride: (m) => this.applyModelOverride(m),
         options: this.options,
         pluginManagerCode: this.pluginManagerCode,
-        memoryGlue: this.memoryGlue,
         defaultMemoryProviderForLoop: this.defaultMemoryProviderForLoop,
         workspaceCwd: this.workspaceCwd,
         telemetry: this._telemetry,

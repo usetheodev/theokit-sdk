@@ -13,14 +13,16 @@
  *
  *   - Run-driven — `createRealLocalRun` → `buildLoopInputs` (real-local-run.ts:205-352), the
  *     conditional spread. Observable: what `runAgentLoop` receives as `inputs.memoryProvider`.
- *   - send-driven — `local-agent-send.ts:177` → `resolveMemoryProviderForLoop`. Observable: what that
- *     function returns.
+ *   - send-driven — `local-agent-send.ts` → what `dispatchRun` receives. That half MOVED to
+ *     `internal/local-agent/local-agent-send.test.ts` when the kernel flip deleted
+ *     `resolveMemoryProviderForLoop`, the function it used to assert against; observing the
+ *     dispatch is the stronger oracle in any case.
  *
- * Both are verified by MUTATION, not by passing: each case was re-run with its site broken.
+ * The Run-driven cases are verified by MUTATION, not by passing: each was re-run with its site
+ * broken.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resolveMemoryProviderForLoop } from "../../src/internal/runtime/memory-glue/memory-path-selector.js";
 import type { MemoryProvider } from "../../src/internal/runtime/memory-glue/memory-provider.js";
 
 const loopInputs: Array<Record<string, unknown>> = [];
@@ -84,23 +86,5 @@ describe("a consumer-supplied MemoryProvider reaches the agent loop", () => {
 
     expect(loopInputs).toHaveLength(1);
     expect(loopInputs[0]).not.toHaveProperty("memoryProvider");
-  });
-
-  it("send-driven: the consumer's provider outranks the default adapter", () => {
-    const consumer = stubProvider("consumer");
-    const fallback = stubProvider("default");
-
-    expect(resolveMemoryProviderForLoop(consumer, fallback, true)).toBe(consumer);
-    expect(
-      resolveMemoryProviderForLoop(consumer, fallback, false),
-      "the port-path flag must not be able to discard what the consumer supplied",
-    ).toBe(consumer);
-  });
-
-  it("send-driven: without one, the default adapter is used only on the port path", () => {
-    const fallback = stubProvider("default");
-
-    expect(resolveMemoryProviderForLoop(undefined, fallback, true)).toBe(fallback);
-    expect(resolveMemoryProviderForLoop(undefined, fallback, false)).toBeUndefined();
   });
 });

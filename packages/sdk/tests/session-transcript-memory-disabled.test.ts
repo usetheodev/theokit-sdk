@@ -26,7 +26,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { Agent } from "../src/agent.js";
-import { LocalAgentMemory } from "../src/internal/local-agent/local-agent-memory.js";
 import { FsSessionStore } from "../src/internal/persistence/fs-session-store.js";
 import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
 import {
@@ -37,7 +36,7 @@ import type {
   MemoryProvider,
   RecordSessionSummaryArgs,
 } from "../src/internal/runtime/memory-glue/memory-provider.js";
-import type { AgentOptions, MemorySettings } from "../src/types/agent.js";
+import type { MemorySettings } from "../src/types/agent.js";
 import type { Run, RunResult } from "../src/types/run.js";
 import { stubMemoryAdapter } from "./helpers/memory-stubs.js";
 import { removeTempDirRobust } from "./helpers/temp-workspace.js";
@@ -192,7 +191,6 @@ describe("session transcript honours `memory.enabled`", () => {
   it("test_the_legacy_writer_is_skipped_at_the_lifecycle_when_memory_is_disabled", async () => {
     const hooks = new HooksExecutor(cwd);
     await hooks.initialize(false);
-    const options = { memory: { enabled: false } } as AgentOptions;
 
     await runPostRunLifecycle({
       run: buildStubRun(FINISHED_RESULT),
@@ -202,7 +200,6 @@ describe("session transcript honours `memory.enabled`", () => {
       sessionStore: new FsSessionStore({ baseDir: sessionDir, cwd }),
       model: "stub-model",
       hooksExecutor: hooks,
-      memoryGlue: new LocalAgentMemory(options, cwd, "transcript-agent"),
       memory: { enabled: false },
     });
 
@@ -222,7 +219,6 @@ describe("session transcript honours `memory.enabled`", () => {
     };
     const hooks = new HooksExecutor(cwd);
     await hooks.initialize(false);
-    const options = { memory: { enabled: false } } as AgentOptions;
 
     await runPostRunLifecycle({
       run: buildStubRun(FINISHED_RESULT),
@@ -232,7 +228,6 @@ describe("session transcript honours `memory.enabled`", () => {
       sessionStore: new FsSessionStore({ baseDir: sessionDir, cwd }),
       model: "stub-model",
       hooksExecutor: hooks,
-      memoryGlue: new LocalAgentMemory(options, cwd, "transcript-agent"),
       memoryProvider: provider,
       memory: { enabled: false },
     });
@@ -260,7 +255,6 @@ describe("session transcript honours `memory.enabled`", () => {
       sessionStore: new FsSessionStore({ baseDir: sessionDir, cwd }),
       model: "stub-model",
       hooksExecutor: hooks,
-      memoryGlue: new LocalAgentMemory({} as AgentOptions, cwd, "transcript-agent"),
       memoryProvider: provider,
     });
 

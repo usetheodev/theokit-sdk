@@ -19,7 +19,6 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LocalAgentMemory } from "../src/internal/local-agent/local-agent-memory.js";
 import { FsSessionStore } from "../src/internal/persistence/fs-session-store.js";
 import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
 import { runPostRunLifecycle } from "../src/internal/runtime/lifecycle/post-run-lifecycle.js";
@@ -27,7 +26,6 @@ import type {
   MemoryProvider,
   RecordSessionSummaryArgs,
 } from "../src/internal/runtime/memory-glue/memory-provider.js";
-import type { AgentOptions } from "../src/types/agent.js";
 import type { Run, RunResult } from "../src/types/run.js";
 import { stubMemoryAdapter } from "./helpers/memory-stubs.js";
 
@@ -53,11 +51,6 @@ function buildStubRun(result: RunResult): Run {
     },
   } as unknown as Run;
 }
-
-const STUB_OPTIONS: AgentOptions = {
-  agentId: "test-agent",
-  model: { id: "stub-model" },
-} as AgentOptions;
 
 const FINISHED_RESULT: RunResult = {
   id: "run-1",
@@ -87,8 +80,6 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
 
     const hooks = new HooksExecutor(cwd);
     await hooks.initialize(false);
-    const memoryGlue = new LocalAgentMemory(STUB_OPTIONS, cwd, "test-agent");
-
     await runPostRunLifecycle({
       run: buildStubRun(FINISHED_RESULT),
       userText: "user question",
@@ -97,7 +88,6 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
       sessionStore: new FsSessionStore({ baseDir: cwd, cwd }),
       model: "stub-model",
       hooksExecutor: hooks,
-      memoryGlue,
       memoryProvider: provider,
     });
 
@@ -128,8 +118,6 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
 
     const hooks = new HooksExecutor(cwd);
     await hooks.initialize(false);
-    const memoryGlue = new LocalAgentMemory(STUB_OPTIONS, cwd, "test-agent");
-
     // post-run-lifecycle swallows the throw + emits stderr; never propagates.
     await expect(
       runPostRunLifecycle({
@@ -140,7 +128,6 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
         sessionStore: new FsSessionStore({ baseDir: cwd, cwd }),
         model: "stub-model",
         hooksExecutor: hooks,
-        memoryGlue,
         memoryProvider: provider,
       }),
     ).resolves.toBeUndefined();
@@ -150,8 +137,6 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
   it("test_legacy_path_fires_when_no_provider_supplied", async () => {
     const hooks = new HooksExecutor(cwd);
     await hooks.initialize(false);
-    const memoryGlue = new LocalAgentMemory(STUB_OPTIONS, cwd, "test-agent");
-
     // No port impl available → legacy writeSessionSummary writes to disk.
     // We don't assert filesystem contents here (heavy); just that the
     // function completes without throwing.
@@ -164,7 +149,6 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
         sessionStore: new FsSessionStore({ baseDir: cwd, cwd }),
         model: "stub-model",
         hooksExecutor: hooks,
-        memoryGlue,
       }),
     ).resolves.toBeUndefined();
   });
@@ -179,8 +163,6 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
     };
     const hooks = new HooksExecutor(cwd);
     await hooks.initialize(false);
-    const memoryGlue = new LocalAgentMemory(STUB_OPTIONS, cwd, "test-agent");
-
     await expect(
       runPostRunLifecycle({
         run: buildStubRun(FINISHED_RESULT),
@@ -190,7 +172,6 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
         sessionStore: new FsSessionStore({ baseDir: cwd, cwd }),
         model: "stub-model",
         hooksExecutor: hooks,
-        memoryGlue,
         memoryProvider: provider,
       }),
     ).resolves.toBeUndefined();
@@ -207,8 +188,6 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
     };
     const hooks = new HooksExecutor(cwd);
     await hooks.initialize(false);
-    const memoryGlue = new LocalAgentMemory(STUB_OPTIONS, cwd, "test-agent");
-
     await runPostRunLifecycle({
       run: buildStubRun({ id: "run-err", status: "error" }),
       userText: "u",
@@ -217,7 +196,6 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
       sessionStore: new FsSessionStore({ baseDir: cwd, cwd }),
       model: "stub-model",
       hooksExecutor: hooks,
-      memoryGlue,
       memoryProvider: provider,
     });
     // Session summary only fires on finished runs (ADR D20 + EC-9).

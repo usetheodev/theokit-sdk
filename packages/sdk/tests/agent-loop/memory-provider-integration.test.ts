@@ -189,8 +189,12 @@ describe("MemoryProvider full integration with runAgentLoop (iter 24)", () => {
     const firstRequest = requests[0];
     expect(firstRequest).toBeDefined();
     if (firstRequest === undefined) return;
-    // With no inbound system, the additions become the system verbatim.
-    expect(firstRequest.system).toBe("Recalled: user is on free tier.");
+    // With no inbound system, the additions become the system — wrapped as the `<active-memory>`
+    // block, the same shape the assembly pipeline produces (ADR D9: recalled content is escaped
+    // before it reaches the model).
+    expect(firstRequest.system).toBe(
+      "<active-memory>\nRecalled: user is on free tier.\n</active-memory>",
+    );
   });
 
   it("test_no_provider_unchanged_baseline_no_memory_calls", async () => {

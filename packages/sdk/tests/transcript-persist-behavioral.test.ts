@@ -40,7 +40,6 @@ function runFailingWithPartial(partial: unknown[]): Run {
 
 const inert = {
   hooksExecutor: { run: async () => undefined } as never,
-  memoryGlue: { onTurn: async () => undefined } as never,
 };
 
 describe("M93/M1 — the error path genuinely persists", () => {
