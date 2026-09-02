@@ -37,6 +37,7 @@ import {
   LiveTranscriptError,
   readJsonlTail,
 } from "../src/internal/persistence/transcript-ops.js";
+import { withUmask } from "./helpers/with-umask.js";
 
 const dir = mkdtempSync(join(tmpdir(), "m81-transcript-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -221,16 +222,6 @@ describe("M107 T1.2 — the fork destination is born private", () => {
 
   /** Permission bits, without the node type. */
   const mode = (p: string): number => statSync(p).mode & 0o777;
-
-  /** Runs `fn` under a `umask` and restores the previous one — `umask` is PROCESS state. */
-  function withUmask<T>(mask: number, fn: () => T): T {
-    const previous = process.umask(mask);
-    try {
-      return fn();
-    } finally {
-      process.umask(previous);
-    }
-  }
 
   function source(name: string): string {
     const p = join(dirMode, name);

@@ -17,26 +17,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { atomicWriteJson } from "../../../src/internal/persistence/atomic-write.js";
+import { withUmask } from "../../helpers/with-umask.js";
 
 /** Permission bits of `path`, without the node type. */
 function fileMode(target: string): number {
   return statSync(target).mode & 0o777;
-}
-
-/**
- * Runs `fn` under a specific `umask` and restores the previous one — always, even on failure.
- *
- * `umask` is PROCESS state. This package's suite runs in a single fork
- * (`vitest.config.ts`: `singleFork: true`), so leaking a `umask` from here would contaminate every test
- * creating a file afterwards. The `finally` is what prevents that.
- */
-async function withUmask(mask: number, fn: () => Promise<void>): Promise<void> {
-  const previous = process.umask(mask);
-  try {
-    await fn();
-  } finally {
-    process.umask(previous);
-  }
 }
 
 describe("atomicWriteJson", () => {

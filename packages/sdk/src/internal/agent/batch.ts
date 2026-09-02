@@ -293,22 +293,51 @@ async function runOne(
   }
 }
 
+/** Every key `BatchOptions` adds on top of `AgentOptions`, derived rather than listed twice. */
+type BatchOnlyKey = Exclude<keyof BatchOptions, keyof AgentOptions>;
+
+/**
+ * The batch-only keys, as values — `buildAgentOptions` has to strip them at runtime and a type
+ * cannot do that.
+ *
+ * Both halves of this declaration are load-bearing, in opposite directions:
+ *
+ *  - `satisfies readonly BatchOnlyKey[]` rejects a key here that is NOT batch-only, so a rename in
+ *    the interface breaks this list instead of silently stripping a field that should be forwarded.
+ *  - `NoUnlistedBatchOnlyKey` below rejects a batch-only key MISSING from here, which is the
+ *    direction that actually bites: adding a seventh option to `BatchOptions` and forgetting this
+ *    function forwards it into `AgentOptions`, where TypeScript's excess-property check does not
+ *    fire on a spread and `validateAgentOptions` either rejects it or carries it into every agent
+ *    the batch creates.
+ *
+ * The keys are NOT derived into the interface as a mapped type, which would collapse both
+ * representations into one: each of the six carries several paragraphs of public API documentation,
+ * and a mapped type cannot hold them.
+ */
+const BATCH_ONLY_KEYS = [
+  "concurrency",
+  "filter",
+  "onResult",
+  "onProgress",
+  "signal",
+  "task",
+] as const satisfies readonly BatchOnlyKey[];
+
+/** Compile-time only: resolves to `never` unless every batch-only key is listed above. */
+type NoUnlistedBatchOnlyKey =
+  Exclude<BatchOnlyKey, (typeof BATCH_ONLY_KEYS)[number]> extends never
+    ? true
+    : [
+        "batch-only key missing from BATCH_ONLY_KEYS",
+        Exclude<BatchOnlyKey, (typeof BATCH_ONLY_KEYS)[number]>,
+      ];
+
+const _batchKeysAreExhaustive: NoUnlistedBatchOnlyKey = true;
+void _batchKeysAreExhaustive;
+
 function buildAgentOptions(item: BatchItem, options: BatchOptions): AgentOptions {
-  const {
-    concurrency: _c,
-    filter: _f,
-    onResult: _or,
-    onProgress: _op,
-    signal: _s,
-    task: _t,
-    ...rest
-  } = options;
-  void _c;
-  void _f;
-  void _or;
-  void _op;
-  void _s;
-  void _t;
+  const rest: Record<string, unknown> = { ...options };
+  for (const key of BATCH_ONLY_KEYS) delete rest[key];
   const agentOpts = rest as AgentOptions;
   if (item.systemPrompt !== undefined) {
     return { ...agentOpts, systemPrompt: item.systemPrompt };
