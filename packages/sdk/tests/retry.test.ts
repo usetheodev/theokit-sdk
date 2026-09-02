@@ -133,3 +133,46 @@ describe("Retry", () => {
     ).rejects.toMatchObject({ code: "invalid_retry_config" });
   });
 });
+
+describe("Retry.run — the honest spelling of Retry.create", () => {
+  /**
+   * `Retry` is a static namespace under a uniformity mandate that spells every public entry point
+   * `X.create(...)`, and this is the one place that produced a false name: `withRetry` RUNS `fn` and
+   * resolves to its result, so `create` named a construction that never happens.
+   *
+   * Fixed by adding the honest name rather than by unwinding the mandate — twelve classes follow it
+   * and consistency across a published API is worth more than the indirection. `create` stays as a
+   * deprecated alias because removing a published member is a major-version decision.
+   */
+  it("runs the function and resolves to its result", async () => {
+    let calls = 0;
+    await expect(
+      Retry.run(async () => {
+        calls += 1;
+        return "result";
+      }),
+    ).resolves.toBe("result");
+    expect(calls, "it RUNS — the thing `create` did not name").toBe(1);
+  });
+
+  it("retries a transient failure, like the alias it replaces", async () => {
+    let attempts = 0;
+    const out = await Retry.run(
+      async () => {
+        attempts += 1;
+        if (attempts < 3)
+          throw new RateLimitError("429", { metadata: { statusCode: 429 } as never });
+        return "eventually";
+      },
+      { retries: 5, initialDelayMs: 1 },
+    );
+    expect(out).toBe("eventually");
+    expect(attempts).toBe(3);
+  });
+
+  it("create is the same call, so nothing breaks before the next major", async () => {
+    const viaAlias = await Retry.create(async () => 42);
+    const viaRun = await Retry.run(async () => 42);
+    expect(viaAlias).toBe(viaRun);
+  });
+});
