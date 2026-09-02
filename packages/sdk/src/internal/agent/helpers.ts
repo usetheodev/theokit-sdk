@@ -323,15 +323,25 @@ async function validateRehydratedAgent(
   if (entry.runtime !== "local") return;
   const candidate = entry.options.local?.cwd ?? entry.cwd;
   if (typeof candidate !== "string") return;
+  // The `try` wraps ONLY the stat, because the stat is the only thing here that can fail for a
+  // reason outside this function's control. The not-a-directory case used to `throw new Error`
+  // inside this block and be caught by its own catch four lines down — an exception used as a goto
+  // (`rules/error-handling.md` § 2), with two consequences: a real stat failure (EACCES, a slow
+  // mount) and "the path is a file" became indistinguishable in the `cause` chain, and both were
+  // reported as "missing or inaccessible" even when the path was present and merely a file.
+  let info: Awaited<ReturnType<typeof stat>>;
   try {
-    const info = await stat(candidate);
-    if (!info.isDirectory()) {
-      throw new Error(`Workspace path is not a directory: ${candidate}`);
-    }
+    info = await stat(candidate);
   } catch (cause) {
     throw new UnknownAgentError(
       `Agent "${agentId}" cannot be rehydrated — workspace cwd "${candidate}" is missing or inaccessible.`,
       { code: "agent_rehydration_failed", cause },
+    );
+  }
+  if (!info.isDirectory()) {
+    throw new UnknownAgentError(
+      `Agent "${agentId}" cannot be rehydrated — workspace cwd "${candidate}" exists but is not a directory.`,
+      { code: "agent_rehydration_failed" },
     );
   }
 }

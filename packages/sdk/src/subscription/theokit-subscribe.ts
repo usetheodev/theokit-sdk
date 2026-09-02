@@ -248,9 +248,12 @@ async function* openWs<T>(
       const frame = incoming.shift() as WireFrame;
       if (frame.type === "end") return;
       if (frame.type === "error") {
+        // The server's own code wins. `ws_server_error` is the fallback for a frame that carries
+        // none — it used to be the code for EVERY server-side failure, so a caller could not tell an
+        // invalid input from a disconnect without reading English out of the message.
         throw new SubscriptionError(
           `WS server emitted error: ${frame.error?.message ?? "(unknown)"}`,
-          { code: "ws_server_error" },
+          { code: frame.error?.code ?? "ws_server_error" },
         );
       }
       const value = frame.data as T;

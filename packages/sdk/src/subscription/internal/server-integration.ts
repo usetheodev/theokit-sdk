@@ -27,6 +27,7 @@ import { pathToFileURL } from "node:url";
 import { type SubscriptionDescriptor, SubscriptionError } from "../types.js";
 import {
   type DispatchOptions,
+  errorFrame,
   SubscriptionRuntime,
   type WireFrame,
 } from "./subscription-runtime.js";
@@ -340,20 +341,18 @@ function wireWsConnection(
       try {
         dispatched = runtime.dispatch(dispatchOpts);
       } catch (cause) {
-        handle.send(
-          JSON.stringify({
-            type: "error",
-            error: { message: (cause as Error).message },
-          } satisfies WireFrame),
-        );
+        handle.send(JSON.stringify(errorFrame(cause)));
         return;
       }
       if (dispatched.transport !== "ws") {
         handle.send(
-          JSON.stringify({
-            type: "error",
-            error: { message: "non-WS dispatch result for WS request" },
-          } satisfies WireFrame),
+          JSON.stringify(
+            errorFrame(
+              new SubscriptionError("non-WS dispatch result for WS request", {
+                code: "ws_transport_mismatch",
+              }),
+            ),
+          ),
         );
         return;
       }

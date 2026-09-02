@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { ConfigurationError } from "../../src/errors.js";
 import { normalizeSchema } from "../../src/schema-normalizer.js";
 
 /**
@@ -38,5 +39,32 @@ describe("M23 — normalizeSchema", () => {
 
   it("unsupported input → clear error listing the supported providers", async () => {
     await expect(normalizeSchema(42)).rejects.toThrow(/unsupported schema/i);
+  });
+
+  /**
+   * `normalizeSchema` is public — re-exported from the root barrel — and both of its failures used to
+   * be bare `Error`. A consumer could branch on nothing but the sentence, in a package whose whole
+   * error design is "decide retryability at construction and give the caller a code".
+   *
+   * Asserting the message is not enough and was what let the bare throws survive: a message regex
+   * passes for `Error`, for `TypeError`, for anything. These assert the TYPE and the CODE.
+   */
+  it("the missing-peer failure is typed and coded, not a bare Error", async () => {
+    const valibotLike = { kind: "schema", type: "object", entries: {} };
+    await expect(normalizeSchema(valibotLike)).rejects.toMatchObject({
+      name: "ConfigurationError",
+      code: "valibot_converter_missing",
+      isRetryable: false,
+    });
+    await expect(normalizeSchema(valibotLike)).rejects.toBeInstanceOf(ConfigurationError);
+  });
+
+  it("the unsupported-schema failure is typed and coded, not a bare Error", async () => {
+    await expect(normalizeSchema(42)).rejects.toMatchObject({
+      name: "ConfigurationError",
+      code: "unsupported_schema",
+      isRetryable: false,
+    });
+    await expect(normalizeSchema(42)).rejects.toBeInstanceOf(ConfigurationError);
   });
 });

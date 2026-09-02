@@ -40,7 +40,12 @@ describe("the Claude Code interop memory root", () => {
     process.env.CLAUDE_CONFIG_DIR = mkdtempSync(join(tmpdir(), "cchome-"));
   });
   afterEach(() => {
-    process.env.CLAUDE_CONFIG_DIR = undefined;
+    // `process.env.X = undefined` does NOT clear the variable — Node coerces the assignment, and the
+    // variable is left holding the seven-character string "undefined". The resolver this file
+    // exercises reads `process.env.CLAUDE_CONFIG_DIR?.trim()`, which a non-empty string passes, so
+    // the leftover would have been treated as a relative directory literally named `undefined`.
+    // `delete` is what the other 148 sites in tests/ use; this was the only assignment form.
+    delete process.env.CLAUDE_CONFIG_DIR;
   });
 
   it("test_a_subdirectory_resolves_to_the_repository_root", () => {

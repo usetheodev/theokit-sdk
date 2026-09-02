@@ -12,6 +12,7 @@
  * Parse-failure handling stays uniform: the normalized JSON Schema drives the same synthetic-tool
  * validation + M14 `errorStrategy` regardless of the source library.
  */
+import { ConfigurationError } from "./errors.js";
 import { toJsonSchema } from "./internal/zod-to-json-schema.js";
 
 /** The internal JSON-Schema shape the synthetic `output` tool consumes. */
@@ -49,6 +50,43 @@ function isValibotSchema(s: unknown): boolean {
 }
 
 /**
+ * Whether a failed dynamic import means "the optional peer is not installed".
+ *
+ * The structural fact first: Node reports a missing module as `err.code`, and `compaction.ts`'s
+ * `isContextOverflowError` already states the rule for this repo — read the code, "never a brittle
+ * message regex". The regex survives ONLY as a fallback, because a bundler may rewrite the error and
+ * drop the code; on its own it also depended on English-locale wording that neither Node nor any
+ * bundler guarantees.
+ */
+function isMissingModuleError(err: unknown): boolean {
+  if ((err as NodeJS.ErrnoException | undefined)?.code === "ERR_MODULE_NOT_FOUND") return true;
+  return (
+    err instanceof Error && /Cannot find|Cannot resolve|ERR_MODULE_NOT_FOUND/.test(err.message)
+  );
+}
+
+/**
+ * Valibot needs its own converter, which is an optional peer. The specifier is NON-literal so TS
+ * does not try to statically resolve an uninstalled package at build time.
+ */
+async function normalizeValibotSchema(schema: unknown): Promise<NormalizedJsonSchema> {
+  const specifier = "@valibot/to-json-schema";
+  try {
+    const mod = (await import(specifier)) as {
+      toJsonSchema: (s: unknown) => NormalizedJsonSchema;
+    };
+    return mod.toJsonSchema(schema);
+  } catch (err) {
+    if (!isMissingModuleError(err)) throw err;
+    throw new ConfigurationError(
+      "normalizeSchema: a Valibot schema requires the optional '@valibot/to-json-schema' package. " +
+        "Install it, or use a Zod schema (the default recommendation).",
+      { code: "valibot_converter_missing" },
+    );
+  }
+}
+
+/**
  * Normalize any supported schema to the internal JSON Schema. Async because the Valibot path
  * dynamically imports its optional converter. Throws a clear, typed-message error for an unsupported
  * schema or a missing Valibot peer (error-handling.md).
@@ -57,27 +95,7 @@ export async function normalizeSchema(schema: unknown): Promise<NormalizedJsonSc
   // JSON Schema — passthrough (already the target shape).
   if (isJsonSchemaObject(schema)) return schema;
 
-  // Valibot — needs its own converter (optional peer). Import via a NON-literal specifier so TS does
-  // not try to statically resolve the (uninstalled) optional peer at build time.
-  if (isValibotSchema(schema)) {
-    const specifier = "@valibot/to-json-schema";
-    try {
-      const mod = (await import(specifier)) as {
-        toJsonSchema: (s: unknown) => NormalizedJsonSchema;
-      };
-      return mod.toJsonSchema(schema);
-    } catch (err) {
-      const missing =
-        err instanceof Error && /Cannot find|Cannot resolve|ERR_MODULE_NOT_FOUND/.test(err.message);
-      if (missing) {
-        throw new Error(
-          "normalizeSchema: a Valibot schema requires the optional '@valibot/to-json-schema' package. " +
-            "Install it, or use a Zod schema (the default recommendation).",
-        );
-      }
-      throw err;
-    }
-  }
+  if (isValibotSchema(schema)) return await normalizeValibotSchema(schema);
 
   // Zod — the default path.
   if (isZodSchema(schema)) {
@@ -87,8 +105,11 @@ export async function normalizeSchema(schema: unknown): Promise<NormalizedJsonSc
   // ArkType (or any lib exposing `.toJsonSchema()`).
   if (hasToJsonSchemaMethod(schema)) return schema.toJsonSchema();
 
-  throw new Error(
+  // Typed, with a stable code: `normalizeSchema` is public (re-exported from the root barrel), and a
+  // bare `Error` gives a caller nothing to branch on but the sentence.
+  throw new ConfigurationError(
     "normalizeSchema: unsupported schema. Supported: Zod (default), JSON Schema, ArkType (.toJsonSchema()), " +
       "Valibot (with @valibot/to-json-schema).",
+    { code: "unsupported_schema" },
   );
 }
