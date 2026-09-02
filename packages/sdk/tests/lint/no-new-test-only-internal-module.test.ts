@@ -59,7 +59,7 @@ function importedFrom(files: readonly string[]): Set<string> {
 const KNOWN_TEST_ONLY = new Set([
   "internal/judge/types.ts",
   "internal/judge/verify-side-effect.ts",
-  "internal/persistence/credential-pool-store.ts",
+  "internal/llm/credential-pool-store.ts",
   "internal/persistence/pagination.ts",
   "internal/personality/resolver.ts",
   "internal/runtime/compression/compression-attempt.ts",

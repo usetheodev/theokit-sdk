@@ -18,11 +18,12 @@ import type {
 } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { AgentOperation } from "../../types/sdk-agent.js";
+import { getConfiguredBaseUrl } from "../base-url.js";
 import { resolveApiKey } from "../env.js";
 import { generateCloudAgentId } from "../ids.js";
 import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import { DEFAULT_AGENTIC_MODEL_ID } from "../runtime/config/default-model.js";
-import { getConfiguredBaseUrl, isFixtureApiKey } from "../runtime/fixtures/fixture-mode.js";
+import { isFixtureApiKey } from "../runtime/fixtures/fixture-mode.js";
 import { normalizeModel } from "../runtime/model-selection.js";
 import {
   flushRegistrySaves,

@@ -7,7 +7,7 @@ import {
   type TheokitAgentError,
   UnknownAgentError,
 } from "../errors.js";
-import { getConfiguredBaseUrl } from "./runtime/fixtures/fixture-mode.js";
+import { getConfiguredBaseUrl } from "./base-url.js";
 
 /**
  * Default base URL used when neither `THEOKIT_API_BASE_URL` nor an explicit

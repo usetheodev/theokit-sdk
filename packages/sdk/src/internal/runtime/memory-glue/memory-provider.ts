@@ -13,6 +13,7 @@ export type {
   ActiveMemoryPassArgs,
   ActiveMemoryPassResult,
   MemoryProvider,
+  MemoryProviderAgentRef,
   MemoryProviderHandle,
   MemoryProviderInitOptions,
   RecordSessionSummaryArgs,

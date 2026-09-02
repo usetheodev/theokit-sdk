@@ -27,16 +27,26 @@
  * because read-during-write at worst yields stale data; the next save
  * heals (EC-G is documented in this file's header).
  *
+ * WHY IT LIVES IN internal/llm/ AND NOT internal/persistence/. One concept — the credential pool —
+ * had no single home: `credential-pool.ts`, `credential-pool-types.ts` and `credential-pool-context.ts`
+ * were here, and only the store was under persistence/. The store then had to import the concept's
+ * types back across the folder boundary, which was the RETURN EDGE of the only folder-level mutual
+ * dependency in this slice. The cycle was the symptom; the split home was the disease.
+ *
+ * It still consumes persistence primitives — `withFileLock`, `readVersionedJson`, `getTheokitHome` —
+ * and that direction (llm -> persistence) is the correct one: a concept depends on the storage
+ * mechanism, never the reverse.
+ *
  * @internal
  */
 
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { diag } from "../diagnostics.js";
-import type { CredentialPoolSnapshot } from "../llm/credential-pool-types.js";
-import { withFileLock } from "./file-lock.js";
-import { getTheokitHome } from "./paths.js";
-import { readVersionedJson, writeVersionedJson } from "./schema-version.js";
+import { withFileLock } from "../persistence/file-lock.js";
+import { getTheokitHome } from "../persistence/paths.js";
+import { readVersionedJson, writeVersionedJson } from "../persistence/schema-version.js";
+import type { CredentialPoolSnapshot } from "./credential-pool-types.js";
 
 const SCHEMA_VERSION = 1;
 

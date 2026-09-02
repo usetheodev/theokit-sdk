@@ -9,12 +9,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CredentialPool, newPooledCredential } from "../../../src/internal/llm/credential-pool.js";
-import type { CredentialPoolSnapshot } from "../../../src/internal/llm/credential-pool-types.js";
 import {
   DebouncedPoolSaver,
   loadCredentialPoolStore,
   saveCredentialPoolStore,
-} from "../../../src/internal/persistence/credential-pool-store.js";
+} from "../../../src/internal/llm/credential-pool-store.js";
+import type { CredentialPoolSnapshot } from "../../../src/internal/llm/credential-pool-types.js";
 
 describe("credential-pool persistence (T2.1)", () => {
   let cwd: string;

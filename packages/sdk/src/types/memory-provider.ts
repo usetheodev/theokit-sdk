@@ -25,9 +25,27 @@
  * @public — surface-level interface; impls are internal-but-replaceable.
  */
 
-import type { CustomTool } from "./agent-prims.js";
+import type { CustomTool, ModelSelection } from "./agent-prims.js";
 import type { MemoryAdapter, MemoryFact } from "./memory-adapter.js";
-import type { SDKAgent } from "./sdk-agent.js";
+
+/**
+ * The agent identity a `MemoryProvider` is given — the whole of it.
+ *
+ * `buildTools` used to declare `agent: SDKAgent`, a 33-member interface, and the agent loop satisfied
+ * it with `{ agentId, model } as SDKAgent`. The cast is what made it compile, and it suppressed
+ * exactly the check that mattered: an implementation reaching for any of the other 31 members —
+ * `send()`, `fork()`, `dispose()` — gets `undefined is not a function` at runtime with no
+ * compile-time signal.
+ *
+ * Two fields is what the port actually offers, so two fields is what it declares. `SDKAgent`
+ * structurally satisfies this, so a caller holding a real agent still passes it, and TypeScript's
+ * bivariant method parameters mean an existing implementation typed `agent: SDKAgent` still compiles.
+ * What changes is that the fabricated ref no longer needs a cast to exist.
+ */
+export interface MemoryProviderAgentRef {
+  readonly agentId: string;
+  readonly model: ModelSelection | undefined;
+}
 
 /** Result of `MemoryProvider.runActivePass(...)` — what the kernel injects into the LLM call. */
 export interface ActiveMemoryPassResult {
@@ -128,7 +146,10 @@ export interface MemoryProvider {
   /** Construct or fetch the per-agent handle. Lazy + idempotent. */
   init(opts: MemoryProviderInitOptions): Promise<MemoryProviderHandle>;
   /** Build the LLM-facing tool catalog (memory_search, memory_get, …). */
-  buildTools(handle: MemoryProviderHandle, agent: SDKAgent): ReadonlyArray<CustomTool>;
+  buildTools(
+    handle: MemoryProviderHandle,
+    agent: MemoryProviderAgentRef,
+  ): ReadonlyArray<CustomTool>;
   /** Run the active-memory pre-LLM pass — recall + compress + format. */
   runActivePass(
     handle: MemoryProviderHandle,

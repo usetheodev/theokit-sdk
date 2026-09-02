@@ -1,4 +1,5 @@
-import type { CustomTool, SDKAgent } from "../../types/agent.js";
+import type { CustomTool } from "../../types/agent.js";
+import type { MemoryProviderAgentRef } from "../../types/memory-provider.js";
 import type { SDKUserMessage } from "../../types/run.js";
 import { UsageAccumulator } from "../budget/usage-accumulator.js";
 import type { LlmContentPart, LlmMessage } from "../llm/types.js";
@@ -81,11 +82,8 @@ export interface LoopContext {
  * Build the minimal `SDKAgent` view for MemoryProvider hooks.
  * @internal
  */
-export function buildAgentRef(inputs: AgentLoopInputs): SDKAgent {
-  return {
-    agentId: inputs.agentId,
-    model: inputs.model,
-  } as SDKAgent;
+export function buildAgentRef(inputs: AgentLoopInputs): MemoryProviderAgentRef {
+  return { agentId: inputs.agentId, model: inputs.model };
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: pre-existing complexity from sdk-2-0 Phase 1 memory wiring (T1.5.1-T1.5.3). Refactor deferred to Phase 5 cleanup.

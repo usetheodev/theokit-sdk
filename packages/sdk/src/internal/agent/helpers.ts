@@ -8,11 +8,7 @@ import { httpRequest } from "../../internal/http.js";
 import { isLocalAgentId } from "../../internal/ids.js";
 import { LocalAgent } from "../../internal/local-agent/index.js";
 import { discoverProviderPlugins } from "../../internal/providers/discovery.js";
-import {
-  getConfiguredBaseUrl,
-  isFixtureApiKey,
-  presentProviderCredentialEnvVars,
-} from "../../internal/runtime/fixtures/fixture-mode.js";
+import { isFixtureApiKey } from "../../internal/runtime/fixtures/fixture-mode.js";
 import { normalizeModel } from "../../internal/runtime/model-selection.js";
 import {
   flushRegistrySaves,
@@ -24,6 +20,8 @@ import { validateAgentOptions } from "../../internal/runtime/validation/validate
 import type { OTelSpan } from "../../internal/telemetry/tracer.js";
 import { getProviderProfile } from "../../providers.js";
 import type { AgentOptions, CustomTool, SDKAgent, SDKAgentInfo } from "../../types/agent.js";
+import { presentProviderCredentialEnvVars } from "../auth/credential-availability.js";
+import { getConfiguredBaseUrl } from "../base-url.js";
 
 // ───── agent creation helpers ─────────────────────────────────────────
 
