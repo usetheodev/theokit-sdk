@@ -1,9 +1,10 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { readFactsFromMarkdown } from "../src/internal/memory/storage/markdown-store.js";
 import { claudeProjectMemoryDir } from "../src/internal/memory/storage/memory-root.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /*
  * Memories written by the Claude Code CLI.
@@ -33,7 +34,13 @@ describe("memories written by the Claude Code CLI", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "cc-mem-cwd-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
     claudeHome = mkdtempSync(join(tmpdir(), "cc-mem-home-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(claudeHome);
+    });
     process.env.CLAUDE_CONFIG_DIR = claudeHome;
   });
 

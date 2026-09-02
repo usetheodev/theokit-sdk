@@ -1,8 +1,9 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { loadSubagents } from "../src/internal/runtime/skills/subagents-loader.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /*
  * Compatibility with agents authored for the Claude Code CLI.
@@ -32,6 +33,9 @@ describe("agents written for the Claude Code CLI", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "cc-agent-compat-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
   });
 
   it("test_an_agent_carrying_the_cli_colour_field_loads", async () => {

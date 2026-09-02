@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { appendFact } from "../../src/internal/memory/storage/markdown-store.js";
 import {
@@ -10,6 +10,7 @@ import {
   MEMORY_INDEX_MAX_BYTES,
   MEMORY_INDEX_MAX_LINES,
 } from "../../src/internal/memory/storage/memory-root.js";
+import { removeTempDirRobustSync } from "../helpers/temp-workspace.js";
 
 /*
  * The `MEMORY.md` budget (#463 follow-up).
@@ -69,12 +70,18 @@ describe("the write path", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "mib-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
   });
 
   it("test_a_fact_is_still_recorded_when_the_index_is_over_budget", async () => {
     // Never throw: the fact write and the index rewrite are one atomic operation, so refusing the
     // second would lose the first.
     const dir = mkdtempSync(join(tmpdir(), "mib-store-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(dir);
+    });
     const config = { enabled: true, directory: dir } as const;
     for (let i = 0; i < 3; i += 1) await appendFact(cwd, config, { text: `FACT-${i}` });
     expect(readFileSync(join(dir, "MEMORY.md"), "utf8")).toContain("fact-2.md");
@@ -84,6 +91,9 @@ describe("the write path", () => {
   // has to actually reach stderr, or the diagnostic exists and nobody ever sees it.
   it("test_writing_into_the_cli_store_over_budget_reports_it", async () => {
     const claudeHome = mkdtempSync(join(tmpdir(), "mib-home-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(claudeHome);
+    });
     const previous = process.env.CLAUDE_CONFIG_DIR;
     process.env.CLAUDE_CONFIG_DIR = claudeHome;
     const spy = vi.spyOn(process.stderr, "write").mockReturnValue(true);

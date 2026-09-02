@@ -1,10 +1,11 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { Agent } from "../../src/index.js";
 import { setDiagnosticsSink } from "../../src/internal/diagnostics.js";
 import { projectMemoryDir } from "../../src/internal/memory/storage/memory-root.js";
+import { removeTempDirRobustSync } from "../helpers/temp-workspace.js";
 
 /*
  * #474 — a refused `memory.directory` is silent on the READ path.
@@ -29,6 +30,9 @@ describe("a memory.directory the resolver refuses", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "refused-dir-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
     written = [];
     setDiagnosticsSink(undefined);
     realWrite = process.stderr.write.bind(process.stderr);

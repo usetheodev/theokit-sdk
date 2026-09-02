@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 
 import { defaultIndexPath } from "../../src/internal/memory/index-db.js";
 import { collectMarkdownFiles } from "../../src/internal/memory/index-manager-helpers.js";
@@ -16,6 +16,7 @@ import {
   projectMemoryDir,
   resolveMemoryRoot,
 } from "../../src/internal/memory/storage/memory-root.js";
+import { removeTempDirRobustSync } from "../helpers/temp-workspace.js";
 
 /*
  * One resolver, one root (theokit-sdk#463).
@@ -91,7 +92,13 @@ describe("a fact written into a configured memory directory", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "mr-cwd-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
     dir = mkdtempSync(join(tmpdir(), "mr-dir-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(dir);
+    });
     config = { enabled: true, directory: dir };
   });
 
@@ -156,6 +163,9 @@ describe("the default path, which must keep working", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "mr-def-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
   });
 
   it("test_without_a_configured_directory_a_fact_lands_in_the_project_store", async () => {
@@ -170,6 +180,9 @@ describe("the default path, which must keep working", () => {
 
   it("test_appendFactToMarkdown_still_takes_an_explicit_target_directory", async () => {
     const target = mkdtempSync(join(tmpdir(), "mr-tgt-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(target);
+    });
     await appendFactToMarkdown(cwd, { text: "EXPLICIT-FACT" }, target);
     expect(existsSync(join(target, "explicit-fact.md"))).toBe(true);
   });

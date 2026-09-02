@@ -56,13 +56,13 @@ describe("M75 T2.2 — wrapCommandForSandbox", () => {
   });
 
   it("test_seccomp_only_goes_in_when_there_is_a_path", () => {
-    const sem = wrapCommandForSandbox("workspace-write", { cwd: "/w", env: {} }, "true");
+    const withoutSeccomp = wrapCommandForSandbox("workspace-write", { cwd: "/w", env: {} }, "true");
     const com = wrapCommandForSandbox(
       "workspace-write",
       { cwd: "/w", env: {}, seccompPath: "/tmp/f.bpf" },
       "true",
     );
-    expect(sem).not.toContain("--seccomp");
+    expect(withoutSeccomp).not.toContain("--seccomp");
     // The program comes in via an fd 3 redirect — that is how bwrap reads it.
     expect(com).toContain("--seccomp");
     expect(com).toContain("3< ");

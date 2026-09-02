@@ -8,13 +8,14 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
 import { DEFAULT_DISCOVERY_SPECS, runDiscovery } from "../src/context/index.js";
 import { readFactsFromMarkdown } from "../src/internal/memory/storage/markdown-store.js";
 import { loadHookConfig } from "../src/internal/runtime/hooks/hooks-source.js";
 import { PluginsManager } from "../src/internal/runtime/plugin-loader/plugins-manager.js";
 import { SkillsManager } from "../src/internal/runtime/skills/skills-manager.js";
 import { loadSubagents } from "../src/internal/runtime/skills/subagents-loader.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /*
  * End-to-end: a project laid out for the Claude Code CLI, read by this SDK.
@@ -127,6 +128,15 @@ describe("a real Claude Code project, read end to end", () => {
     );
   });
 
+  // `afterAll`, not `onTestFinished`: these two directories are created in `beforeAll`, and
+  // `onTestFinished` may only be called from inside a test — it throws "Hook onTestFinished() can
+  // only be called inside a test" and skips the whole file. Found by running, after a sweep that
+  // added the registration uniformly to sixteen files and got the hook wrong in exactly this one.
+  afterAll(() => {
+    removeTempDirRobustSync(cwd);
+    removeTempDirRobustSync(claudeHome);
+  });
+
   it("test_the_agents_the_cli_project_declares_all_load", async () => {
     const loaded = await loadSubagents(cwd, true, undefined);
     // Four declarations plus the bundle's; the README contributes nothing and stops nothing.
@@ -197,6 +207,9 @@ describe("a real Claude Code project, read end to end", () => {
    */
   it("test_reading_a_cli_project_creates_nothing_in_it", async () => {
     const readOnly = mkdtempSync(join(tmpdir(), "cc-e2e-read-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(readOnly);
+    });
     mkdirSync(join(readOnly, ".claude", "agents"), { recursive: true });
     writeFileSync(
       join(readOnly, ".claude", "agents", "solo.md"),
@@ -215,6 +228,9 @@ describe("a real Claude Code project, read end to end", () => {
   // directory. Asserting only the first half would let "creates nothing, ever" pass unchallenged.
   it("test_running_an_agent_creates_theokit_and_only_sdk_state_in_it", async () => {
     const ran = mkdtempSync(join(tmpdir(), "cc-e2e-ran-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(ran);
+    });
     const agent = await Agent.create({
       model: { id: "anthropic/claude-sonnet-4-6" },
       apiKey: "theo_test_e2e",
@@ -258,6 +274,9 @@ describe("a real Claude Code project, read end to end", () => {
 
   it("test_without_a_configured_directory_nothing_moves", async () => {
     const plain = mkdtempSync(join(tmpdir(), "cc-e2e-plain-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(plain);
+    });
     const agent = await Agent.create({
       model: { id: "anthropic/claude-sonnet-4-6" },
       apiKey: "theo_test_e2e",

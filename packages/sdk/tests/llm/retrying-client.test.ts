@@ -72,7 +72,7 @@ describe("M93 — RetryingLlmClient", () => {
     expect(isRetriableError(billing)).toBe(false);
   });
 
-  it("429 E transitorio", () => {
+  it("429 (rate limit) IS transient — the counterpart to the 402 case above", () => {
     expect(isRetriableError(rate429())).toBe(true);
   });
 

@@ -1,12 +1,13 @@
 import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import {
   appendMemoryFact,
   extractMemoryFact,
   extractMemoryKind,
 } from "../../src/internal/runtime/memory-glue/memory-store.js";
+import { removeTempDirRobustSync } from "../helpers/temp-workspace.js";
 
 describe("extractMemoryKind — #401", () => {
   it("test_a_declared_kind_is_read_off_the_remember_prompt", () => {
@@ -42,6 +43,9 @@ describe("extractMemoryKind — #401", () => {
 describe("appendMemoryFact — #401", () => {
   it("test_a_declared_kind_survives_to_disk_instead_of_being_dropped_at_the_write", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "memory-kind-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
     await appendMemoryFact(cwd, { enabled: true }, { text: "prefer tabs", kind: "feedback" });
 
     const dir = join(cwd, ".theokit", "memory");
@@ -52,6 +56,9 @@ describe("appendMemoryFact — #401", () => {
 
   it("test_a_fact_with_no_kind_is_still_written_untyped", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "memory-kind-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
     await appendMemoryFact(cwd, { enabled: true }, { text: "prefer tabs" });
     const dir = join(cwd, ".theokit", "memory");
     const file = readdirSync(dir).find((f) => f !== "MEMORY.md");

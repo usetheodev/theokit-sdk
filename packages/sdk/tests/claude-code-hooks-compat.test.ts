@@ -1,8 +1,9 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { loadHookConfig } from "../src/internal/runtime/hooks/hooks-source.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /*
  * Hook configuration under `.claude`.
@@ -37,6 +38,9 @@ describe("hooks declared under .claude", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "cc-hooks-compat-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
   });
 
   it("test_a_hooks_file_under_dot_claude_is_loaded", async () => {

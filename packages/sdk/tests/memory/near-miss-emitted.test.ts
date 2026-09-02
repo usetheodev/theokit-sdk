@@ -1,10 +1,11 @@
 import { mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { setDiagnosticsSink } from "../../src/internal/diagnostics.js";
 import { persistMemoryFactIfWritePrompt } from "../../src/internal/local-agent/local-agent-runtime-extensions.js";
 import { projectMemoryDir } from "../../src/internal/memory/storage/memory-root.js";
+import { removeTempDirRobustSync } from "../helpers/temp-workspace.js";
 
 /*
  * #462, the emitting half — the pure `unstoredRememberWarning` is covered next door.
@@ -24,6 +25,9 @@ describe("a Remember phrase that stores nothing", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "near-miss-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
     emitted = [];
     setDiagnosticsSink((m) => emitted.push(m));
   });

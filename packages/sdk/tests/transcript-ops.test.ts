@@ -195,8 +195,8 @@ describe("M81 T1.1 — transcript operations", () => {
  *
  * ## Why there is NO mode reassertion here, unlike `atomicWriteJson`
  *
- * Under `umask 0o200` the destination comes out `0o400` instead of `0o600` — the `umask` cleared the owner's
- * owner. That is accepted on purpose: the invariant this item buys is *"neither group nor other"*, and
+ * Under `umask 0o200` the destination comes out `0o400` instead of `0o600` — the `umask` cleared the
+ * owner's WRITE bit. That is accepted on purpose: the invariant this item buys is *"neither group nor other"*, and
  * `0o400` satisfies it **with room to spare**. Reasserting with `fchmod` would hand back a bit the operator asked
  * to remove them, i.e. the SDK would be loosening the `umask` — the wrong direction in a security
  * fix. In `atomicWriteJson` the reassertion exists because there the mode is an EXPLICIT request

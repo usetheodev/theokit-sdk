@@ -1,8 +1,9 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { SkillsManager } from "../src/internal/runtime/skills/skills-manager.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /*
  * Skills authored for the Claude Code CLI.
@@ -24,6 +25,9 @@ describe("skills declared under .claude", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "cc-skill-compat-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
   });
 
   it("test_a_skill_under_dot_claude_is_discovered", async () => {

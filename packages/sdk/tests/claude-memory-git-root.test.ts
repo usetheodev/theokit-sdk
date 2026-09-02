@@ -1,12 +1,13 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import {
   claudeProjectMemoryDir,
   memoryReadRoots,
 } from "../src/internal/memory/storage/memory-root.js";
 import { encodeProjectDir } from "../src/internal/persistence/session-transcript.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /*
  * #479 — the interop read looked in a directory the CLI never writes to.
@@ -34,6 +35,9 @@ describe("the Claude Code interop memory root", () => {
 
   beforeEach(() => {
     repo = mkdtempSync(join(tmpdir(), "gitroot-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(repo);
+    });
     mkdirSync(join(repo, ".git"), { recursive: true });
     nested = join(repo, "packages", "deep");
     mkdirSync(nested, { recursive: true });
@@ -66,6 +70,9 @@ describe("the Claude Code interop memory root", () => {
    */
   it("test_outside_a_repository_the_cwd_is_still_the_key", () => {
     const loose = mkdtempSync(join(tmpdir(), "norepo-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(loose);
+    });
     const home = process.env.CLAUDE_CONFIG_DIR as string;
     expect(claudeProjectMemoryDir(loose)).toBe(
       join(home, "projects", encodeProjectDir(loose), "memory"),
@@ -76,6 +83,9 @@ describe("the Claude Code interop memory root", () => {
   // and must resolve, or the read silently misses again in exactly the layout that motivated this.
   it("test_a_dot_git_file_counts_as_a_repository", () => {
     const wt = mkdtempSync(join(tmpdir(), "worktree-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(wt);
+    });
     writeFileSync(join(wt, ".git"), "gitdir: /somewhere/.git/worktrees/wt\n");
     const inner = join(wt, "pkg");
     mkdirSync(inner, { recursive: true });

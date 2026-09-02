@@ -1,10 +1,11 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { PluginsManager } from "../src/internal/runtime/plugin-loader/plugins-manager.js";
 import { SkillsManager } from "../src/internal/runtime/skills/skills-manager.js";
 import { loadSubagents } from "../src/internal/runtime/skills/subagents-loader.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /*
  * Plugins written for the Claude Code CLI.
@@ -34,6 +35,9 @@ describe("plugins written for the Claude Code CLI", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "cc-plugin-compat-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
   });
 
   it("test_a_manifest_in_the_cli_location_is_read", async () => {
