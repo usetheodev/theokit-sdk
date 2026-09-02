@@ -98,17 +98,35 @@ function withheldBuiltinsInput(agentOptions: AgentOptions): {
  *
  * Note the two halves are independent: an agent with no custom tools at all can still withhold a
  * builtin, so the "no tools" early return carries the withhold list out with it.
+ *
+ * ONE options record rather than eight positional parameters. Five of the eight were optional or
+ * nullable in adjacent slots — `ReadonlyArray<string> | undefined`, `string`, `string | undefined`,
+ * `Record | undefined`, `ModelSelection | undefined` — compatible enough that transposing two of
+ * them compiled. The single call site was already destructuring the same `CreateRealLocalRunOptions`
+ * value field by field, so the parameter list was re-deriving a record the caller held.
  */
-export function buildRunToolCatalogInput(
-  agentOptions: AgentOptions,
-  sendOptions: { tools?: CustomTool[] } | undefined,
-  pluginManager: import("../plugins/manager.js").PluginManager | undefined,
-  personalityToolWhitelist: ReadonlyArray<string> | undefined,
-  agentId: string,
-  personalityName: string | undefined,
-  subagents: Record<string, AgentDefinition> | undefined,
-  effectiveModel: ModelSelection | undefined,
-): {
+export interface RunToolCatalogInputs {
+  readonly agentOptions: AgentOptions;
+  readonly sendOptions: { tools?: CustomTool[] } | undefined;
+  readonly pluginManager: import("../plugins/manager.js").PluginManager | undefined;
+  readonly personalityToolWhitelist: ReadonlyArray<string> | undefined;
+  readonly agentId: string;
+  readonly personalityName: string | undefined;
+  readonly subagents: Record<string, AgentDefinition> | undefined;
+  /** The per-send override applied, NOT `agentOptions.model` — they differ on an override. */
+  readonly effectiveModel: ModelSelection | undefined;
+}
+
+export function buildRunToolCatalogInput({
+  agentOptions,
+  sendOptions,
+  pluginManager,
+  personalityToolWhitelist,
+  agentId,
+  personalityName,
+  subagents,
+  effectiveModel,
+}: RunToolCatalogInputs): {
   customTools?: ReadonlyArray<CustomToolSpec>;
   withheldBuiltinTools?: ReadonlyArray<BuiltinToolName>;
 } {

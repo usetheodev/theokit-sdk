@@ -45,7 +45,11 @@ const TAG = "biome-ignore lint/complexity/noExcessiveCognitiveComplexity";
  * mechanism, and it is why the file that carries the weakest argument in this package was filed on
  * its substance rather than on the presence of the tag.
  */
-const MAX_TOTAL = 66;
+// Re-pinned to 65 from 66 when `refreshModelCatalog` was split into the four steps its own
+// suppression named — kill-switch, TTL gate, fetch, persist+patch — each keeping the fallback it
+// owns. Note it did NOT move MAX_DEFERRING: that suppression argued its own case, it just argued
+// for a function that no longer needs one.
+const MAX_TOTAL = 65;
 // Re-pinned from 24 the first time the budget was set: four suppressions in the provider catalog
 // traded "see the reason just above" for an argument about their own function. That is the movement
 // this number exists to record — a cap that never moves is a cap nobody is working against.

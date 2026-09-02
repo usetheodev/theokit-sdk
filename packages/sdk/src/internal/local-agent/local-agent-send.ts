@@ -60,24 +60,45 @@ export interface SendLockedInputs {
     options: SendOptions,
     memoryFacts: ReadonlyArray<MemoryFact>,
   ) => Promise<string | undefined>;
-  assembleSystemPromptForSend: (
-    userText: string,
-    baseSystemPrompt: string | undefined,
-    memoryFacts: ReadonlyArray<MemoryFact>,
-    activeMemorySummary: string | undefined,
-    contextPaths: readonly string[] | undefined,
-  ) => Promise<string | undefined>;
-  // jscpd:ignore-start — type contract mirrors LocalAgent.dispatchRun signature (not knowledge duplication)
-  dispatchRun: (
-    message: string | SDKUserMessage,
-    options: SendOptions,
-    systemPrompt: string | undefined,
-    memoryFacts: ReadonlyArray<MemoryFact>,
-    priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
-    memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
-    memoryProviderOverride?: MemoryProvider,
-  ) => Promise<Run>;
-  // jscpd:ignore-end
+  assembleSystemPromptForSend: (request: SendAssemblyRequest) => Promise<string | undefined>;
+  dispatchRun: (args: DispatchRunArgs) => Promise<Run>;
+}
+
+/**
+ * What one send needs assembled into a system prompt. The port took the same five values
+ * positionally, so the binding in `LocalAgent` read `(ut, bp, mf, ams, cp) => …` — five
+ * abbreviations relaying into a six-argument helper call.
+ */
+export interface SendAssemblyRequest {
+  readonly userText: string;
+  readonly baseSystemPrompt: string | undefined;
+  readonly memoryFacts: ReadonlyArray<MemoryFact>;
+  readonly activeMemorySummary: string | undefined;
+  readonly contextPaths: readonly string[] | undefined;
+}
+
+/**
+ * The arguments of one dispatch, as a record.
+ *
+ * They were seven positional parameters declared TWICE — here and on `LocalAgent.dispatchRun` — kept
+ * in step by hand behind a `jscpd:ignore` pair, and relayed by
+ * `(msg, o, sp, mf, pm, mt, mp) => this.dispatchRun(msg, o, sp, mf, pm, mt, mp)`. The abbreviations
+ * were not carelessness: the arrow is one line because of the 400-LoC file budget, and a one-line
+ * arrow has no room for real names. `pm` there is `priorMessages` while `pm` in a sibling lambda two
+ * declarations up is `pluginManager`.
+ *
+ * One named type: the relay becomes `(args) => this.dispatchRun(args)`, which fits on one line
+ * without abbreviating anything, and the duplicate declaration — with the suppression that hid it —
+ * is gone.
+ */
+export interface DispatchRunArgs {
+  readonly message: string | SDKUserMessage;
+  readonly options: SendOptions;
+  readonly systemPrompt: string | undefined;
+  readonly memoryFacts: ReadonlyArray<MemoryFact>;
+  readonly priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>;
+  readonly memoryTools: ReadonlyArray<MemoryToolSpec> | undefined;
+  readonly memoryProviderOverride?: MemoryProvider | undefined;
 }
 
 /**
@@ -180,26 +201,26 @@ export async function executeSendLocked(
     portPathActive,
   );
   const baseSystemPrompt = await inputs.resolveSystemPromptForSend(userText, options, memoryFacts);
-  const assembledSystemPrompt = await inputs.assembleSystemPromptForSend(
+  const assembledSystemPrompt = await inputs.assembleSystemPromptForSend({
     userText,
     baseSystemPrompt,
     memoryFacts,
     activeMemorySummary,
-    options.contextPaths,
-  );
+    contextPaths: options.contextPaths,
+  });
   const composedOptions: SendOptions = {
     ...options,
     signal: anySignal([options.signal, inputs.lifecycleAbortController.signal]),
   };
-  const run = await inputs.dispatchRun(
-    adaptedMessage,
-    composedOptions,
-    assembledSystemPrompt,
+  const run = await inputs.dispatchRun({
+    message: adaptedMessage,
+    options: composedOptions,
+    systemPrompt: assembledSystemPrompt,
     memoryFacts,
     priorMessages,
     memoryTools,
-    effectiveMemoryProvider,
-  );
+    memoryProviderOverride: effectiveMemoryProvider,
+  });
   // SE24 — output processors wrap INNER (they redact/block the model text) so the
   // post_assistant_reply memory hook observes the FINAL (processed) reply.
   const outputProcessors = inputs.options.outputProcessors;

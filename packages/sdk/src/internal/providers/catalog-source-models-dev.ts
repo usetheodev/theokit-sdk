@@ -233,46 +233,48 @@ export function loadCacheIntoIndex(url: string = DEFAULT_URL): number {
 }
 
 /**
- * Explicitly refresh the model catalog from models.dev (the ONLY network trigger in the subsystem).
- * Fail-closed: any failure keeps serving the current index (cache or vendored). Kill-switch:
- * `THEOKIT_DISABLE_MODELS_FETCH`.
+ * The kill switch, read from the environment.
+ *
+ * Truthy-only by design (M44 L11): a presence check would treat `THEOKIT_DISABLE_MODELS_FETCH=0`
+ * and `=false` as "disabled", which is the opposite of what anyone writing them means.
  */
-// PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
-// sweeping these files (a nested root under refactor/). It is not new code and was not touched
-// by M75; refactoring SDK internals without review would trade a visible problem for a diff
-// risky. Tracked in usetheodev/theokit-sdk#151.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the refresh sequence — kill-switch, URL resolve, TTL cache, fetch, patch, persist — where each step's failure has a DIFFERENT fallback (skip, use stale, keep vendored). Splitting it separates a step from the fallback it owns; see the SRP finding on this function for the split that would be honest.
-export async function refreshModelCatalog(
-  opts: RefreshModelCatalogOptions = {},
-): Promise<RefreshModelCatalogResult> {
-  // M44 M4 fix — self-initialize provider registration so the `@theokit/sdk/models` subpath works standalone
-  // (without the consumer having built an Agent first).
-  registerBuiltins();
-  // M44 L11 fix — presence-based would treat "0"/"false"/"" as disabled; only truthy values disable.
+function fetchDisabledByEnv(): boolean {
   const kill = process.env.THEOKIT_DISABLE_MODELS_FETCH;
-  if (kill !== undefined && kill !== "" && kill !== "0" && kill.toLowerCase() !== "false") {
-    return { source: "skipped", models: 0 };
-  }
-  const url = opts.url ?? process.env.THEOKIT_MODELS_URL ?? DEFAULT_URL;
-  const path = cachePathFor(url);
-  const now = opts.deps?.now ?? (() => Date.now());
+  return kill !== undefined && kill !== "" && kill !== "0" && kill.toLowerCase() !== "false";
+}
 
-  // TTL gate: a fresh cache serves without network (mtime freshness).
-  if (opts.force !== true) {
-    try {
-      const age = now() - statSync(path).mtimeMs;
-      if (age < TTL_MS) {
-        return { source: "cache", models: loadCacheIntoIndex(url) };
-      }
-    } catch {
-      // no cache — proceed to fetch
-    }
-  }
-
-  const fetchImpl = opts.deps?.fetch ?? fetch;
-  let body: string;
+/**
+ * The TTL gate: a cache file younger than {@link TTL_MS} serves without touching the network.
+ *
+ * Returns `undefined` when there is no usable cache — including when `statSync` throws, which is
+ * how "no cache file" arrives. That is the ONE failure this step owns, and its fallback is simply
+ * to let the caller proceed to the fetch.
+ */
+function servedFromFreshCache(
+  url: string,
+  path: string,
+  now: () => number,
+): RefreshModelCatalogResult | undefined {
   try {
-    const res = await Retry.create(
+    if (now() - statSync(path).mtimeMs >= TTL_MS) return undefined;
+  } catch {
+    return undefined; // no cache — proceed to fetch
+  }
+  return { source: "cache", models: loadCacheIntoIndex(url) };
+}
+
+/**
+ * Fetch the catalog, bound its size, and prove it parses before anyone persists it.
+ *
+ * Returns `undefined` after logging when ANY of that fails — timeout, non-2xx, oversize, unparseable
+ * body. The fallback this step owns is "serve what we already have", and the caller applies it.
+ * Splitting the step from its fallback was the objection recorded in the suppression this replaces;
+ * the fallback is not separated, it is named — `undefined` means "this step could not produce a
+ * body", and there is exactly one thing to do about that.
+ */
+async function fetchCatalogBody(url: string, fetchImpl: typeof fetch): Promise<string | undefined> {
+  try {
+    const res = await Retry.run(
       async () => {
         const r = await fetchImpl(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -286,7 +288,7 @@ export async function refreshModelCatalog(
     if (Number.isFinite(declaredLength) && declaredLength > MAX_CATALOG_BYTES) {
       throw new Error(`catalog too large: ${declaredLength} bytes declared`);
     }
-    body = await res.text();
+    const body = await res.text();
     // Checked again after reading: `content-length` is the server's claim, and a server that
     // omits it or lies about it is exactly the one worth bounding. Both checks are cheap and
     // neither alone is sufficient.
@@ -294,14 +296,24 @@ export async function refreshModelCatalog(
       throw new Error(`catalog too large: ${body.length} bytes received`);
     }
     JSON.parse(body); // validate before persisting — never cache garbage
+    return body;
   } catch (err) {
     diag(
       `[theokit-sdk] WARN: models-dev refresh failed (${(err as Error).message}) — serving existing data\n`,
     );
-    // fail-closed: serve whatever we already have (stale cache if present, else vendored)
-    return { source: "cache", models: loadCacheIntoIndex(url) };
+    return undefined;
   }
+}
 
+/**
+ * Persist the fetched body and patch it into the index.
+ *
+ * Two independent failures with two different consequences, which is why they are two try blocks
+ * and not one: a cache write that fails costs the NEXT process a fetch and nothing more, so the run
+ * continues; a patch that fails means this body never reached the index, so the index is whatever it
+ * was and the result says `cache`.
+ */
+function persistAndPatch(path: string, body: string): RefreshModelCatalogResult {
   try {
     writeCacheAtomic(path, body);
   } catch (err) {
@@ -315,6 +327,46 @@ export async function refreshModelCatalog(
     );
     return { source: "cache", models: 0 };
   }
+}
+
+/**
+ * Explicitly refresh the model catalog from models.dev (the ONLY network trigger in the subsystem).
+ * Fail-closed: any failure keeps serving the current index (cache or vendored). Kill-switch:
+ * `THEOKIT_DISABLE_MODELS_FETCH`.
+ *
+ * The sequence carried a cognitive-complexity suppression whose reason said splitting it would
+ * "separate a step from the fallback it owns". The four helpers above each KEEP their fallback: the
+ * TTL gate owns "no cache", the fetch owns every network and validation failure, the persist owns
+ * the write and the patch. What is left here is the order they run in, which is what this function
+ * was always for.
+ *
+ * Still true, and NOT fixed by the split: three of the paths return `{ source: "cache" }`, so a
+ * caller cannot tell a timeout from an unparseable body from a patch failure. Distinguishing them
+ * means adding a field to the PUBLIC `RefreshModelCatalogResult`, which is a release decision rather
+ * than a refactor. The `diag` line already names the cause for an operator.
+ */
+export async function refreshModelCatalog(
+  opts: RefreshModelCatalogOptions = {},
+): Promise<RefreshModelCatalogResult> {
+  // M44 M4 fix — self-initialize provider registration so the `@theokit/sdk/models` subpath works
+  // standalone (without the consumer having built an Agent first).
+  registerBuiltins();
+  if (fetchDisabledByEnv()) return { source: "skipped", models: 0 };
+
+  const url = opts.url ?? process.env.THEOKIT_MODELS_URL ?? DEFAULT_URL;
+  const path = cachePathFor(url);
+  const now = opts.deps?.now ?? (() => Date.now());
+
+  if (opts.force !== true) {
+    const cached = servedFromFreshCache(url, path, now);
+    if (cached !== undefined) return cached;
+  }
+
+  const body = await fetchCatalogBody(url, opts.deps?.fetch ?? fetch);
+  // fail-closed: serve whatever we already have (stale cache if present, else vendored)
+  if (body === undefined) return { source: "cache", models: loadCacheIntoIndex(url) };
+
+  return persistAndPatch(path, body);
 }
 
 /** The enriched per-model view (public via `@theokit/sdk/models`): index lookup by (possibly prefixed) id. */

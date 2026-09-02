@@ -14,7 +14,6 @@ import type {
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { AgentOperation } from "../../types/sdk-agent.js";
 import type { SessionStore } from "../../types/session-store.js";
-import type { MemoryToolSpec } from "../agent-loop/types.js";
 import { generateLocalAgentId } from "../ids.js";
 import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import { FsSessionStore } from "../persistence/fs-session-store.js";
@@ -74,7 +73,7 @@ import {
   localAgentRunUntil,
   localAgentStreamToCompletion,
 } from "./local-agent-runtime-extensions.js";
-import { executeSendLocked } from "./local-agent-send.js";
+import { type DispatchRunArgs, executeSendLocked } from "./local-agent-send.js";
 import { registerRunAsTask } from "./local-agent-task-wrap.js";
 
 /**
@@ -400,9 +399,9 @@ export class LocalAgent implements SDKAgent {
         runPreHook: (ut) => this.runPreHook(ut),
         // biome-ignore format: G8 budget — callbacks wire to private methods.
         resolveSystemPromptForSend: (ut, o, mf) => this.resolveSystemPrompt(ut, o, mf),
-        assembleSystemPromptForSend: (ut, bp, mf, ams, cp) =>
-          assembleSystemPromptForSendHelper(this.assemblyInputs(), ut, bp, mf, ams, cp),
-        dispatchRun: (msg, o, sp, mf, pm, mt, mp) => this.dispatchRun(msg, o, sp, mf, pm, mt, mp),
+        assembleSystemPromptForSend: (request) =>
+          assembleSystemPromptForSendHelper({ ...request, inputs: this.assemblyInputs() }),
+        dispatchRun: (args) => this.dispatchRun(args),
       },
       message,
       options,
@@ -455,15 +454,15 @@ export class LocalAgent implements SDKAgent {
     }
   }
 
-  private dispatchRun(
-    message: string | SDKUserMessage,
-    options: SendOptions,
-    systemPrompt: string | undefined,
-    memoryFacts: ReadonlyArray<MemoryFact>,
-    priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
-    memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
-    memoryProviderOverride?: import("../runtime/memory-glue/memory-provider.js").MemoryProvider,
-  ): Promise<Run> {
+  private dispatchRun({
+    message,
+    options,
+    systemPrompt,
+    memoryFacts,
+    priorMessages,
+    memoryTools,
+    memoryProviderOverride,
+  }: DispatchRunArgs): Promise<Run> {
     // SDK 2.0 Phase 1 physical Stage 2b — iter 23 KERNEL FLIP:
     // When `memoryProviderOverride` is supplied (env-flag path), inject
     // it via a shallow-cloned `agentOptions` so agent-loop's iter 18

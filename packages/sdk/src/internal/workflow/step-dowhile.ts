@@ -5,24 +5,17 @@
  * @internal
  */
 
-import type {
-  DowhileStep,
-  StepContext,
-  StepResult,
-  WorkflowOptions,
-} from "../../types/workflow.js";
+import type { DowhileStep, StepResult } from "../../types/workflow.js";
 import { WorkflowMaxIterationsExceededError } from "../../workflow-errors.js";
 import { errToShape } from "./error-shape.js";
-import type { DispatchFn } from "./step-parallel.js";
+import type { StepExecution } from "./step-execution.js";
 
 export async function runDowhileStep(
   step: DowhileStep,
   input: unknown,
-  ctx: StepContext,
-  options: WorkflowOptions,
-  prevStepResults: ReadonlyArray<StepResult>,
-  dispatch: DispatchFn,
+  exec: StepExecution,
 ): Promise<StepResult> {
+  const { dispatch } = exec;
   const startedAt = Date.now();
   const maxIter = step.maxIterations ?? 100;
   let acc = input;
@@ -38,7 +31,7 @@ export async function runDowhileStep(
         error: errToShape(new WorkflowMaxIterationsExceededError(step.id, maxIter)),
       };
     }
-    const r = await dispatch(step.step, acc, ctx, options, prevStepResults);
+    const r = await dispatch(step.step, acc, exec);
     if (r.status === "failed") {
       return {
         stepId: step.id,

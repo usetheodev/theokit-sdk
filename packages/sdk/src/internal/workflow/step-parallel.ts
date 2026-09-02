@@ -14,33 +14,18 @@
  * @internal
  */
 
-import type {
-  ParallelStep,
-  Step,
-  StepContext,
-  StepResult,
-  WorkflowOptions,
-} from "../../types/workflow.js";
+import type { ParallelStep, Step, StepResult } from "../../types/workflow.js";
 import { WorkflowParallelError } from "../../workflow-errors.js";
 import { createSemaphore } from "../concurrency/async-semaphore.js";
 import { errToShape } from "./error-shape.js";
-
-export type DispatchFn = (
-  step: Step,
-  input: unknown,
-  ctx: StepContext,
-  options: WorkflowOptions,
-  prevStepResults: ReadonlyArray<StepResult>,
-) => Promise<StepResult>;
+import type { StepExecution } from "./step-execution.js";
 
 export async function runParallelStep(
   step: ParallelStep,
   input: unknown,
-  ctx: StepContext,
-  options: WorkflowOptions,
-  _prevStepResults: ReadonlyArray<StepResult>,
-  dispatch: DispatchFn,
+  exec: StepExecution,
 ): Promise<StepResult> {
+  const { ctx } = exec;
   const startedAt = Date.now();
   const policy = step.errorPolicy ?? "fail-fast";
   const branchCount = step.branches.length;
@@ -70,12 +55,12 @@ export async function runParallelStep(
   const semBranchPromises = step.branches.map(async (branch, branchIdx) => {
     const release = await sem.acquire();
     try {
+      // Each branch runs under a signal of its own (the run's, merged with this step's) and
+      // starts from an empty result history — the branches are siblings, not a sequence.
       return await runBranch(
         branch,
         input,
-        { ...ctx, signal: branchSignal },
-        options,
-        dispatch,
+        { ...exec, ctx: { ...ctx, signal: branchSignal }, prevStepResults: [] },
         branchIdx,
       );
     } finally {
@@ -133,14 +118,13 @@ export async function runParallelStep(
 async function runBranch(
   branch: ReadonlyArray<Step>,
   input: unknown,
-  ctx: StepContext,
-  options: WorkflowOptions,
-  dispatch: DispatchFn,
+  exec: StepExecution,
   branchIdx: number,
 ): Promise<unknown> {
+  const { dispatch } = exec;
   let acc: unknown = input;
   for (const inner of branch) {
-    const r = await dispatch(inner, acc, ctx, options, []);
+    const r = await dispatch(inner, acc, exec);
     if (r.status === "failed") {
       throw new Error(
         `parallel branch ${branchIdx} step "${inner.id}" failed: ${r.error?.message ?? "unknown"}`,

@@ -16,8 +16,13 @@
  * would widen what the unit under test can reach. Their casts are a deliberate narrowing, not a
  * shortcut.
  */
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { onTestFinished } from "vitest";
 import type { AgentLoopInputs } from "../../../../src/internal/agent-loop/types.js";
 import { HooksExecutor } from "../../../../src/internal/runtime/hooks/hooks-executor.js";
+import { removeTempDirRobust } from "../../../helpers/temp-workspace.js";
 
 /**
  * @param overrides - Merged over the defaults. `llm` has no default and must be supplied by any
@@ -35,4 +40,26 @@ export function makeLoopInputs(overrides: Partial<AgentLoopInputs> = {}): AgentL
     shellSandbox: false,
     ...overrides,
   } as AgentLoopInputs;
+}
+
+/**
+ * A disposable cwd with an initialized {@link HooksExecutor} pointing at it.
+ *
+ * The pair appeared verbatim in every test in this directory that runs the real loop: `mkdtemp`,
+ * an `onTestFinished` that removes it robustly, `new HooksExecutor(cwd)`, `await initialize(false)`.
+ * Four statements of ceremony before the first line about the behaviour under test.
+ *
+ * MUST be called from inside a test — `onTestFinished` is only legal there. A `beforeAll` fixture
+ * needs its own `afterAll`; that mistake cost eleven silently skipped tests once already.
+ */
+export async function makeLoopWorkspace(
+  prefix: string,
+): Promise<{ cwd: string; hooks: HooksExecutor }> {
+  const cwd = await mkdtemp(join(tmpdir(), prefix));
+  onTestFinished(async () => {
+    await removeTempDirRobust(cwd);
+  });
+  const hooks = new HooksExecutor(cwd);
+  await hooks.initialize(false);
+  return { cwd, hooks };
 }

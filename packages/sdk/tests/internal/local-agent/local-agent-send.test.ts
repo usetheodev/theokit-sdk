@@ -152,29 +152,13 @@ function build(overrides: Partial<SendLockedInputs> = {}): {
       return Promise.resolve();
     },
     resolveSystemPromptForSend: () => Promise.resolve("BASE"),
-    assembleSystemPromptForSend: (userText, base) => {
-      rec.assembled.push({ base, userText });
-      return Promise.resolve(`ASSEMBLED:${base ?? ""}`);
+    assembleSystemPromptForSend: ({ userText, baseSystemPrompt }) => {
+      rec.assembled.push({ base: baseSystemPrompt, userText });
+      return Promise.resolve(`ASSEMBLED:${baseSystemPrompt ?? ""}`);
     },
-    dispatchRun: (
-      message,
-      options,
-      systemPrompt,
-      memoryFacts,
-      priorMessages,
-      memoryTools,
-      memoryProvider,
-    ) => {
+    dispatchRun: (args) => {
       rec.order.push("dispatchRun");
-      rec.dispatch.push({
-        message,
-        options,
-        systemPrompt,
-        memoryFacts,
-        priorMessages,
-        memoryTools,
-        memoryProvider,
-      });
+      rec.dispatch.push({ ...args, memoryProvider: args.memoryProviderOverride });
       return Promise.resolve(makeStubRun(`run-${agentId}`, "MODEL TEXT"));
     },
     ...overrides,

@@ -69,6 +69,26 @@ type ToolSpan = ReturnType<NonNullable<AgentLoopInputs["telemetry"]>["startSpan"
  *  6. `runToolWithLifecycle`      — exec + onToolStart/End/Error hooks.
  *  7. `finalizeSpanAndPostHook`   — span end + postToolUse + return shape.
  */
+/**
+ * What every step of one tool call already needed.
+ *
+ * The seven-step decomposition below is what a previous audit's PV#2 produced by splitting a
+ * 158-line `dispatchSingleCall`, and it is the right shape. Its cost was the parameter list: each
+ * step re-declared the same four values — the loop inputs, the post-repair call, its id and the
+ * event sink — so two steps sat at six parameters and every step's signature grew with the state
+ * rather than with its own job.
+ *
+ * `call` is the WORKING call, after the D86-D88 repair middleware rewrote it. `callId` is minted
+ * once per dispatch and identifies the call across the span, the events and both hooks.
+ */
+interface DispatchContext {
+  readonly inputs: AgentLoopInputs;
+  readonly call: LlmToolCallPart;
+  readonly callId: string;
+  readonly events: SDKMessage[];
+  readonly parentSpan?: ToolSpan | undefined;
+}
+
 async function dispatchSingleCall(
   inputs: AgentLoopInputs,
   tools: ResolvedTool[],
@@ -77,16 +97,22 @@ async function dispatchSingleCall(
   parentSpan?: ToolSpan,
 ): Promise<LlmContentPart> {
   const { call: workingCall, repairs } = applyRepairAndExtractCall(tools, call);
-  const callId = generateCallId();
+  const dc: DispatchContext = {
+    inputs,
+    call: workingCall,
+    callId: generateCallId(),
+    events,
+    parentSpan,
+  };
 
-  const forkVeto = vetoFromForkWhitelist(inputs, workingCall, callId, events);
+  const forkVeto = vetoFromForkWhitelist(dc);
   if (forkVeto !== undefined) return forkVeto;
 
   const resolved = tools.find((tool) => tool.name === workingCall.name);
-  const toolSpan = startToolCallSpan(inputs, workingCall, resolved, callId, repairs, parentSpan);
-  events.push(buildToolUseRunning(inputs, callId, workingCall));
+  const toolSpan = startToolCallSpan(dc, resolved, repairs);
+  events.push(buildToolUseRunning(dc));
 
-  const pluginVeto = await vetoFromPluginPreHook(inputs, workingCall, callId, events);
+  const pluginVeto = await vetoFromPluginPreHook(dc);
   if (pluginVeto !== undefined) {
     // T2.5 — end the span on veto so we don't leak open OTel spans.
     // Pre-T2.5 the span started at step 3 but veto returns at step 4/5
@@ -97,7 +123,7 @@ async function dispatchSingleCall(
     return pluginVeto;
   }
 
-  const fileVeto = await vetoFromFileHookPreDecision(inputs, workingCall, callId, events);
+  const fileVeto = await vetoFromFileHookPreDecision(dc);
   if (fileVeto !== undefined) {
     toolSpan?.setAttribute("tool.vetoed", true);
     toolSpan?.setAttribute("tool.veto_source", "file_hook");
@@ -109,9 +135,9 @@ async function dispatchSingleCall(
   emitRunEvent(inputs.runEventSink, {
     type: "tool_progress",
     toolName: workingCall.name,
-    toolCallId: callId,
+    toolCallId: dc.callId,
   });
-  const result = await runToolWithLifecycle(inputs, resolved, workingCall, callId);
+  const result = await runToolWithLifecycle(dc, resolved);
   // #65 — post_tool_call hook (previously dead) fires after each tool completes.
   await inputs.pluginManager?.runPostToolCallHooks({
     name: workingCall.name,
@@ -120,7 +146,7 @@ async function dispatchSingleCall(
     agentId: inputs.agentId,
     runId: inputs.runId,
   });
-  return finalizeSpanAndPostHook(inputs, workingCall, callId, result, events, toolSpan);
+  return finalizeSpanAndPostHook(dc, result, toolSpan);
 }
 
 interface RepairedCallShape {
@@ -154,12 +180,8 @@ function applyRepairAndExtractCall(
  * a fork's allowedTools set is the strictest contract. Returns the
  * early-return content part when blocked; `undefined` to continue.
  */
-function vetoFromForkWhitelist(
-  inputs: AgentLoopInputs,
-  call: LlmToolCallPart,
-  callId: string,
-  events: SDKMessage[],
-): LlmContentPart | undefined {
+function vetoFromForkWhitelist(dc: DispatchContext): LlmContentPart | undefined {
+  const { inputs, call, callId, events } = dc;
   const whitelistDecision = checkToolWhitelist(call.name);
   if (whitelistDecision.allowed) return undefined;
   // SE2 — fork-whitelist denial is also an observable permission_denied.
@@ -170,9 +192,9 @@ function vetoFromForkWhitelist(
     source: "fork_whitelist",
     message: whitelistDecision.reason ?? "tool not available in fork",
   });
-  events.push(buildToolUseRunning(inputs, callId, call));
+  events.push(buildToolUseRunning(dc));
   events.push(
-    buildToolUseCompleted(inputs, callId, call, {
+    buildToolUseCompleted(dc, {
       stdout: "",
       stderr: whitelistDecision.reason ?? "tool not available in fork",
       exitCode: 126,
@@ -190,13 +212,11 @@ function vetoFromForkWhitelist(
  * handle (or `undefined` when telemetry is disabled) for later finalization.
  */
 function startToolCallSpan(
-  inputs: AgentLoopInputs,
-  call: LlmToolCallPart,
+  dc: DispatchContext,
   resolved: ResolvedTool | undefined,
-  callId: string,
   repairs: ReadonlyArray<string>,
-  parentSpan?: ToolSpan,
 ): ToolSpan {
+  const { inputs, call, callId, parentSpan } = dc;
   // M3 #64 — nest tool.call under the run's agent.send span (not a flat sibling).
   const toolSpan = inputs.telemetry?.startChildSpan(parentSpan, "tool.call", {
     "tool.name": call.name,
@@ -216,12 +236,8 @@ function startToolCallSpan(
  * Step 4 — D101 plugin `pre_tool_call` veto. Plugins are author-supplied
  * (code-level safety) and fire BEFORE file hooks (operator policy).
  */
-async function vetoFromPluginPreHook(
-  inputs: AgentLoopInputs,
-  call: LlmToolCallPart,
-  callId: string,
-  events: SDKMessage[],
-): Promise<LlmContentPart | undefined> {
+async function vetoFromPluginPreHook(dc: DispatchContext): Promise<LlmContentPart | undefined> {
+  const { inputs, call, callId, events } = dc;
   const pluginVeto = await inputs.pluginManager?.runPreToolCallHooks({
     name: call.name,
     args: call.input,
@@ -241,7 +257,7 @@ async function vetoFromPluginPreHook(
     message: pluginVeto.message,
   });
   events.push(
-    buildToolUseCompleted(inputs, callId, call, {
+    buildToolUseCompleted(dc, {
       stdout: "",
       stderr: pluginVeto.message,
       exitCode: 126,
@@ -261,11 +277,9 @@ async function vetoFromPluginPreHook(
  * harsh for a policy denial.
  */
 async function vetoFromFileHookPreDecision(
-  inputs: AgentLoopInputs,
-  call: LlmToolCallPart,
-  callId: string,
-  events: SDKMessage[],
+  dc: DispatchContext,
 ): Promise<LlmContentPart | undefined> {
+  const { inputs, call, callId, events } = dc;
   const preDecision = await inputs.hooks.run({
     event: "preToolUse",
     tool: call.name,
@@ -283,7 +297,7 @@ async function vetoFromFileHookPreDecision(
     message: preDecision.reason ?? "blocked by hook",
   });
   events.push(
-    buildToolUseCompleted(inputs, callId, call, {
+    buildToolUseCompleted(dc, {
       stdout: "",
       stderr: preDecision.reason ?? "blocked by hook",
       exitCode: 126,
@@ -302,11 +316,10 @@ async function vetoFromFileHookPreDecision(
  * The `error` field passed to `onToolError` is ALWAYS an `Error` instance.
  */
 async function runToolWithLifecycle(
-  inputs: AgentLoopInputs,
+  dc: DispatchContext,
   resolved: ResolvedTool | undefined,
-  call: LlmToolCallPart,
-  callId: string,
 ): Promise<ToolResult> {
+  const { inputs, call, callId } = dc;
   const startAt = Date.now();
   await safeEmitToolHook(inputs.onToolStart, {
     toolName: call.name,
@@ -388,19 +401,17 @@ async function runToolWithLifecycle(
  * `tool_result` content part returned to the agent loop.
  */
 function finalizeSpanAndPostHook(
-  inputs: AgentLoopInputs,
-  call: LlmToolCallPart,
-  callId: string,
+  dc: DispatchContext,
   result: ToolResult,
-  events: SDKMessage[],
   toolSpan: ReturnType<NonNullable<AgentLoopInputs["telemetry"]>["startSpan"]> | undefined,
 ): LlmContentPart {
+  const { inputs, call, events } = dc;
   toolSpan?.setAttribute("exitCode", result.exitCode ?? 0);
   if (toolSpan !== undefined && inputs.telemetry?.includeContent === true) {
     toolSpan.addEvent("result", { stdout: result.stdout.slice(0, 1000) });
   }
   toolSpan?.end();
-  events.push(buildToolUseCompleted(inputs, callId, call, result));
+  events.push(buildToolUseCompleted(dc, result));
   // T2.8 — postToolUse is fire-and-forget (runs AFTER the tool result
   // is captured, so a veto is meaningless). But errors must NOT be
   // silently swallowed — at minimum log WARN so operators know a hook
@@ -479,11 +490,7 @@ async function safeEmitToolHook<E>(
   }
 }
 
-function buildToolUseRunning(
-  inputs: AgentLoopInputs,
-  callId: string,
-  call: LlmToolCallPart,
-): SDKToolUseMessage {
+function buildToolUseRunning({ inputs, callId, call }: DispatchContext): SDKToolUseMessage {
   return {
     type: "tool_call",
     agent_id: inputs.agentId,
@@ -510,9 +517,7 @@ function buildRepairRegistry(tools: ResolvedTool[]): ReadonlyMap<string, Repaira
 }
 
 function buildToolUseCompleted(
-  inputs: AgentLoopInputs,
-  callId: string,
-  call: LlmToolCallPart,
+  { inputs, callId, call }: DispatchContext,
   result: ToolResult,
 ): SDKToolUseMessage {
   return {

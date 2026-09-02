@@ -8,24 +8,17 @@
  * @internal
  */
 
-import type {
-  ForeachStep,
-  StepContext,
-  StepResult,
-  WorkflowOptions,
-} from "../../types/workflow.js";
+import type { ForeachStep, StepResult } from "../../types/workflow.js";
 import { createSemaphore } from "../concurrency/async-semaphore.js";
 import { errToShape } from "./error-shape.js";
-import type { DispatchFn } from "./step-parallel.js";
+import type { StepExecution } from "./step-execution.js";
 
 export async function runForeachStep(
   step: ForeachStep,
   _input: unknown,
-  ctx: StepContext,
-  options: WorkflowOptions,
-  prevStepResults: ReadonlyArray<StepResult>,
-  dispatch: DispatchFn,
+  exec: StepExecution,
 ): Promise<StepResult> {
+  const { prevStepResults, dispatch } = exec;
   const startedAt = Date.now();
 
   // EC-7: top-level step lookup only.
@@ -83,7 +76,7 @@ export async function runForeachStep(
     items.map(async (item, idx) => {
       const release = await sem.acquire();
       try {
-        const r = await dispatch(step.step, item, ctx, options, prevStepResults);
+        const r = await dispatch(step.step, item, exec);
         if (r.status === "failed") {
           failures.push(new Error(`foreach item ${idx} failed: ${r.error?.message ?? "unknown"}`));
         } else {

@@ -288,16 +288,16 @@ function buildLoopInputs(
     ...(options.memoryTools !== undefined && options.memoryTools.length > 0
       ? { memoryTools: options.memoryTools }
       : {}),
-    ...buildRunToolCatalogInput(
-      options.agentOptions,
-      options.sendOptions,
-      options.pluginManager,
-      options.personalityToolWhitelist,
-      options.agentId,
-      options.personalityName,
-      options.subagents,
-      options.model,
-    ),
+    ...buildRunToolCatalogInput({
+      agentOptions: options.agentOptions,
+      sendOptions: options.sendOptions,
+      pluginManager: options.pluginManager,
+      personalityToolWhitelist: options.personalityToolWhitelist,
+      agentId: options.agentId,
+      personalityName: options.personalityName,
+      subagents: options.subagents,
+      effectiveModel: options.model,
+    }),
     ...(options.pluginManager !== undefined ? { pluginManager: options.pluginManager } : {}),
     // D318 — forward SendOptions.signal to the agent loop so streamLlmTurn
     // can attach it to the LLM `fetch({ signal })` call.
