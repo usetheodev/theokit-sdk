@@ -28,7 +28,21 @@ export interface RunUntilDeps {
   judge: (ctx: JudgeContext, opts?: JudgeOptions) => Promise<JudgeResult>;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the goal-loop interleaves turn-start, send, judge, continuation, abort-check, and failure-bail — extracting helpers harms the linear narrative.
+/** The reason both in-loop abort checks report; the pre-loop one distinguishes itself. */
+const ABORTED_MID_RUN = "aborted via AbortSignal";
+
+/**
+ * The pause event, built in one place. Three sites emitted the same four-line literal with only the
+ * reason varying — the same duplicated-knowledge shape as `finish` below, at the event boundary
+ * instead of the result boundary.
+ */
+const pausedBy = (reason: string): GoalEvent => ({
+  type: "status_change",
+  status: "paused",
+  reason,
+});
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the goal-loop interleaves turn-start, send, judge, continuation, abort-check and failure-bail — extracting the CONTROL FLOW into helpers harms that linear narrative, and this defends only that. What it never covered were the nine hand-built result literals and the three pause events, which moved to `finish` and `pausedBy` above: neither removes a branch. Measured 2026-09-01: 43 -> 31 cognitive, 150 -> 117 lines.
 export async function* runUntilImpl(
   agent: SDKAgent,
   goal: string,
@@ -67,11 +81,7 @@ export async function* runUntilImpl(
 
   // EC-C: signal already aborted BEFORE first event → emit only [paused].
   if (isAborted()) {
-    yield {
-      type: "status_change",
-      status: "paused",
-      reason: "aborted via AbortSignal before first turn",
-    };
+    yield pausedBy("aborted via AbortSignal before first turn");
     // `turn` is 0 and `lastResponse` is "" at this point, so this is the literal it replaces.
     return finish("paused");
   }
@@ -80,7 +90,7 @@ export async function* runUntilImpl(
 
   while (turn < maxTurns) {
     if (isAborted()) {
-      yield { type: "status_change", status: "paused", reason: "aborted via AbortSignal" };
+      yield pausedBy(ABORTED_MID_RUN);
       return finish("paused");
     }
 
@@ -108,7 +118,7 @@ export async function* runUntilImpl(
     if (typeof turnTokens === "number") tokensUsed += turnTokens;
     // Re-check aborted right after the turn lands: a cancelled turn must NOT spend a judge call.
     if (isAborted()) {
-      yield { type: "status_change", status: "paused", reason: "aborted via AbortSignal" };
+      yield pausedBy(ABORTED_MID_RUN);
       return finish("paused");
     }
     yield { type: "agent_response", turn, content: lastResponse };

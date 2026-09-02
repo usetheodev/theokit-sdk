@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { Agent, Cron, Theokit } from "../../src/index.js";
 import { assertGoldenHasContractSignal, normalizeForGolden } from "../helpers/normalize.js";
-import { createTempWorkspace, type TempWorkspace } from "../helpers/temp-workspace.js";
+import { createTempWorkspace, type TempWorkspace, useTempCwd } from "../helpers/temp-workspace.js";
 import localDownloadUnsupportedErrorGolden from "./artifacts/local-download-unsupported-error.json";
 import localListEmptyGolden from "./artifacts/local-list-empty.json";
 import cloudJobGolden from "./cron/cloud-job.json";
@@ -10,6 +10,17 @@ import localJobGolden from "./cron/local-job.json";
 import meGolden from "./theokit/me.json";
 import modelsGolden from "./theokit/models.json";
 import repositoriesGolden from "./theokit/repositories.json";
+
+/**
+ * A cloud agent has no local working directory, so these cases pass no `local.cwd` — but the agent
+ * REGISTRY still lands under `process.cwd()`, which during a test run is `packages/sdk/` itself.
+ * Measured 2026-09-01: this file wrote a real `.theokit/agents/registry.json` into the package tree
+ * on every run, invisible to `git status` because `.gitignore` hides it.
+ *
+ * Passing a `local.cwd` to a cloud agent would be a lie about what the agent is; redirecting
+ * `process.cwd()` for the file is the honest fix, and is why this helper exists.
+ */
+useTempCwd();
 
 describe("catalog, cron, and artifacts golden contracts", () => {
   let workspace: TempWorkspace | undefined;

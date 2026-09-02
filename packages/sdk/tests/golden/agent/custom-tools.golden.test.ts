@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { Agent, ConfigurationError, type CustomTool } from "../../../src/index.js";
 import { messageDelta, sseFrame } from "../../helpers/anthropic-sse.js";
-import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
+import { removeTempDirRobust, useTempCwd } from "../../helpers/temp-workspace.js";
 
 /**
  * Golden tests for the public `AgentOptions.tools` surface (inline custom
@@ -84,6 +84,17 @@ async function startStubAnthropic(script: ToolUseScript): Promise<{ server: Serv
   if (typeof address !== "object" || address === null) throw new Error("server bind failed");
   return { server, url: `http://127.0.0.1:${address.port}` };
 }
+
+/**
+ * A cloud agent has no local working directory, so these cases pass no `local.cwd` — but the agent
+ * REGISTRY still lands under `process.cwd()`, which during a test run is `packages/sdk/` itself.
+ * Measured 2026-09-01: this file wrote a real `.theokit/agents/registry.json` into the package tree
+ * on every run, invisible to `git status` because `.gitignore` hides it.
+ *
+ * Passing a `local.cwd` to a cloud agent would be a lie about what the agent is; redirecting
+ * `process.cwd()` for the file is the honest fix, and is why this helper exists.
+ */
+useTempCwd();
 
 describe("custom inline tools (AgentOptions.tools)", () => {
   let cwd: string | undefined;

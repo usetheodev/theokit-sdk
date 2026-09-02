@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Agent, ConfigurationError } from "../../../src/index.js";
 import type { CloudAgent } from "../../../src/internal/cloud-agent/cloud-agent.js";
+import { useTempCwd } from "../../helpers/temp-workspace.js";
 
 /**
  * ADR D15 + D16 + EC-3/EC-4/EC-5 — cloud tool parity validator rejects
@@ -41,6 +42,17 @@ const REPOS = [{ url: "https://github.com/usetheo/example" }];
 function payloadOf(agent: unknown): CloudAgent["cloudPayload"] {
   return (agent as CloudAgent).cloudPayload;
 }
+
+/**
+ * A cloud agent has no local working directory, so these cases pass no `local.cwd` — but the agent
+ * REGISTRY still lands under `process.cwd()`, which during a test run is `packages/sdk/` itself.
+ * Measured 2026-09-01: this file wrote a real `.theokit/agents/registry.json` into the package tree
+ * on every run, invisible to `git status` because `.gitignore` hides it.
+ *
+ * Passing a `local.cwd` to a cloud agent would be a lie about what the agent is; redirecting
+ * `process.cwd()` for the file is the honest fix, and is why this helper exists.
+ */
+useTempCwd();
 
 describe("validateCloudToolParity (ADR D15/D16)", () => {
   describe("rejections — function-based systemPrompt (cloud_incompatible_function_resolver)", () => {
