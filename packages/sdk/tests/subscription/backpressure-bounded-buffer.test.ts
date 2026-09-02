@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BoundedBuffer } from "../../src/subscription/internal/backpressure.js";
 
-describe("E2E: streaming backpressure", () => {
+describe("streaming backpressure", () => {
   it("fast producer + slow consumer — buffer never exceeds limit", async () => {
     const buf = new BoundedBuffer<number>({ highWaterMark: 8 });
     const pushes: Promise<void>[] = [];

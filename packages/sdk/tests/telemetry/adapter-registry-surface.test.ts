@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { _getAllAdapters } from "../../src/internal/telemetry/adapter-registry.js";
 
-describe("E2E: observability adapters", () => {
+describe("observability adapters", () => {
   it("registry contains 7 adapters", () => {
     const adapters = _getAllAdapters();
     expect(adapters.length).toEqual(7);

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { EventedWorkflowExecutor } from "../../src/internal/workflow/evented-executor.js";
 import type { StepContext } from "../../src/types/workflow.js";
 
-describe("E2E: workflow execution", () => {
+describe("workflow execution", () => {
   it("multi-step workflow runs to completion", async () => {
     const executor = new EventedWorkflowExecutor({
       name: "e2e-pipeline",

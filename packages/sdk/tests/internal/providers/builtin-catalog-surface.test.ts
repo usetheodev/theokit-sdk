@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   _resetBuiltinsRegistered,
   registerBuiltins,
-} from "../../src/internal/providers/builtin/index.js";
+} from "../../../src/internal/providers/builtin/index.js";
 import {
   _resetProvidersForTests,
   getProviderProfile,
   listProviders,
-} from "../../src/internal/providers/registry.js";
+} from "../../../src/internal/providers/registry.js";
 
-describe("E2E: provider catalog", () => {
+describe("provider catalog", () => {
   it("builtins + catalog = 40+ providers available", () => {
     _resetProvidersForTests();
     _resetBuiltinsRegistered();
