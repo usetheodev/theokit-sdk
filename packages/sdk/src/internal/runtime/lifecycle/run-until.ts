@@ -48,6 +48,22 @@ export async function* runUntilImpl(
   let consecutiveFailures = 0;
   let tokensUsed = 0; // M55 — the observed sum (0 when usage is absent — fail-open)
   let lastResponse = "";
+  /**
+   * The one place a `GoalResult` is built. Every exit went through the same four-field literal with
+   * only the status varying, nine times, each restating the convention that an empty final response
+   * collapses to `undefined` — duplicated KNOWLEDGE, so adding a field to `GoalResult` was a
+   * nine-site edit where missing one produces a result wrong on a single branch.
+   *
+   * It is a closure over `turn`, `tokensUsed` and `lastResponse` rather than a module function
+   * precisely so the call sites stay one word long: the biome-ignore below argues that the loop's
+   * narrative must read linearly, and this removes no branch and moves no decision.
+   */
+  const finish = (status: GoalResult["status"]): GoalResult => ({
+    status,
+    turnsUsed: turn,
+    tokensUsed,
+    finalResponse: lastResponse || undefined,
+  });
 
   // EC-C: signal already aborted BEFORE first event → emit only [paused].
   if (isAborted()) {
@@ -56,7 +72,8 @@ export async function* runUntilImpl(
       status: "paused",
       reason: "aborted via AbortSignal before first turn",
     };
-    return { status: "paused", turnsUsed: 0, tokensUsed, finalResponse: undefined };
+    // `turn` is 0 and `lastResponse` is "" at this point, so this is the literal it replaces.
+    return finish("paused");
   }
 
   yield { type: "status_change", status: "active", reason: "Goal started" };
@@ -64,12 +81,7 @@ export async function* runUntilImpl(
   while (turn < maxTurns) {
     if (isAborted()) {
       yield { type: "status_change", status: "paused", reason: "aborted via AbortSignal" };
-      return {
-        status: "paused",
-        turnsUsed: turn,
-        tokensUsed,
-        finalResponse: lastResponse || undefined,
-      };
+      return finish("paused");
     }
 
     turn += 1;
@@ -97,12 +109,7 @@ export async function* runUntilImpl(
     // Re-check aborted right after the turn lands: a cancelled turn must NOT spend a judge call.
     if (isAborted()) {
       yield { type: "status_change", status: "paused", reason: "aborted via AbortSignal" };
-      return {
-        status: "paused",
-        turnsUsed: turn,
-        tokensUsed,
-        finalResponse: lastResponse || undefined,
-      };
+      return finish("paused");
     }
     yield { type: "agent_response", turn, content: lastResponse };
 
@@ -130,12 +137,7 @@ export async function* runUntilImpl(
           status: "failed",
           reason: `judge model too unreliable (${consecutiveFailures} parse failures in a row)`,
         };
-        return {
-          status: "failed",
-          turnsUsed: turn,
-          tokensUsed,
-          finalResponse: lastResponse || undefined,
-        };
+        return finish("failed");
       }
     } else {
       consecutiveFailures = 0;
@@ -143,12 +145,7 @@ export async function* runUntilImpl(
 
     if (judgment.verdict === "done") {
       yield { type: "status_change", status: "completed", reason: judgment.reason };
-      return {
-        status: "completed",
-        turnsUsed: turn,
-        tokensUsed,
-        finalResponse: lastResponse || undefined,
-      };
+      return finish("completed");
     }
     // M80 — the missing arm. Without it, a judge recognizing impossibility could only say
     // "continue", and the loop repeated the same turn until it blew the budget — reporting `failed` on
@@ -156,12 +153,7 @@ export async function* runUntilImpl(
     // visible outcome, and the consumer had to reconcile after the loop to tell them apart.
     if (judgment.verdict === "blocked") {
       yield { type: "status_change", status: "blocked", reason: judgment.reason };
-      return {
-        status: "blocked",
-        turnsUsed: turn,
-        tokensUsed,
-        finalResponse: lastResponse || undefined,
-      };
+      return finish("blocked");
     }
     if (judgment.verdict === "skipped") {
       yield {
@@ -169,12 +161,7 @@ export async function* runUntilImpl(
         status: "completed",
         reason: `skipped: ${judgment.reason}`,
       };
-      return {
-        status: "completed",
-        turnsUsed: turn,
-        tokensUsed,
-        finalResponse: lastResponse || undefined,
-      };
+      return finish("completed");
     }
 
     // M55 — token-budget check AFTER the turn (Codex: gentle wind-down, stops the loop).
@@ -184,12 +171,7 @@ export async function* runUntilImpl(
         status: "budget_limited",
         reason: `token budget (${tokenBudget}) reached: ${tokensUsed} used`,
       };
-      return {
-        status: "budget_limited",
-        turnsUsed: turn,
-        tokensUsed,
-        finalResponse: lastResponse || undefined,
-      };
+      return finish("budget_limited");
     }
 
     yield { type: "continuation", turn, prompt: continuationPrompt };
@@ -200,12 +182,7 @@ export async function* runUntilImpl(
     status: "failed",
     reason: `max turns (${maxTurns}) exhausted`,
   };
-  return {
-    status: "failed",
-    turnsUsed: turn,
-    tokensUsed,
-    finalResponse: lastResponse || undefined,
-  };
+  return finish("failed");
 }
 
 /**

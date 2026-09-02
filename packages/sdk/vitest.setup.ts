@@ -36,23 +36,22 @@
  * @internal
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach } from "vitest";
-
 // dogfood-regressions-fix-plan v1.1 T1.1 — top-level preflight.
 // Top-level await is supported in vitest setupFiles (ESM context). If it
 // fails (e.g., rebuild blew up), it `process.exit(1)` with an actionable
 // message before any test loads.
 import { ensureNativeBindings } from "../../tools/preflight-native-bindings.mjs";
-
 // Import directly from the canonical module (not via the `_test-reset.ts`
 // re-export shim) to avoid any possibility of a separate module instance
 // between setup and tests when path-resolvers normalize differently.
 import { setDiagnosticsSink } from "./src/internal/diagnostics.js";
 import { _resetForTests } from "./src/internal/security/redact.js";
+import { removeTempDirRobustSync } from "./tests/helpers/temp-workspace.js";
 
 // B-117 — `agent-registry.js` is imported LAZILY: the `import()` call itself
 // lives INSIDE the `beforeEach` callback below, not at this file's top level —
@@ -162,7 +161,17 @@ afterEach((ctx) => {
   const backup = backupByTask.get(ctx.task.id);
   if (backup === undefined) return;
   backupByTask.delete(ctx.task.id);
-  rmSync(backup.tempHome, { recursive: true, force: true });
+  // Retries are load-bearing here, not padding, and this line lacked them while the helper it now
+  // calls documented at length why they matter. This sandbox IS the transcript root, so the SDK's
+  // fire-and-forget session-summary and registry writes land inside it after the call the test
+  // awaited: `rm` reads the directory, the writer creates a file, and `rmdir` fails with
+  // `ENOTEMPTY` — attributed to whichever test happened to finish first. Observed 2026-09-01 on
+  // tests/golden/runtime/memory-auto-write.golden.test.ts, which passed alone and failed in the
+  // full run, the signature of a race rather than a defect in that test.
+  //
+  // It runs after EVERY test in the suite, so it was the widest instance of a race the codebase had
+  // already diagnosed and fixed twice elsewhere.
+  removeTempDirRobustSync(backup.tempHome);
   if (backup.originalTheokitHome === undefined) {
     delete process.env.THEOKIT_HOME;
   } else {
