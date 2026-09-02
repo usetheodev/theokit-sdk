@@ -2,7 +2,6 @@ import { ConfigurationError } from "../../errors.js";
 import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { SDKMessage } from "../../types/messages.js";
 import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
-import { emitRunEvent } from "../../types/run-events.js";
 import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
 import type { MemoryToolSpec } from "../agent-loop/types.js";
 import { LOCAL_RUNTIME_MOCK_KEY } from "../auth/api-key-validator.js";
@@ -12,6 +11,7 @@ import {
   withInheritedSubAgentCredentials,
 } from "../concurrency/subagent-credentials.js";
 import { diag } from "../diagnostics.js";
+import { emitRunEvent } from "../emit-run-event.js";
 import { FallbackLlmClient } from "../llm/fallback-client.js";
 import { parseModelId } from "../llm/model-identifier.js";
 import { resolveProviderChain } from "../llm/router.js";

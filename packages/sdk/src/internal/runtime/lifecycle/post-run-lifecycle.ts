@@ -7,10 +7,9 @@ import {
 import type { MemorySettings } from "../../../types/agent.js";
 import type { Run } from "../../../types/run.js";
 import type { RunEventSink } from "../../../types/run-events.js";
-import { emitRunEvent } from "../../../types/run-events.js";
 import type { SessionStore } from "../../../types/session-store.js";
 import { diag } from "../../diagnostics.js";
-import type { LocalAgentMemory } from "../../local-agent/local-agent-memory.js";
+import { emitRunEvent } from "../../emit-run-event.js";
 import { resolveMemoryRoot } from "../../memory/storage/memory-root.js";
 import { writeSessionSummary } from "../../memory/storage/session-summary-writer.js";
 import { getCatalogModelInfo } from "../../providers/catalog-loader.js";
@@ -24,6 +23,26 @@ import type { HooksExecutor } from "../hooks/hooks-executor.js";
 import { shouldUsePortMemoryPath } from "../memory-glue/memory-path-selector.js";
 import type { MemoryProvider } from "../memory-glue/memory-provider.js";
 import { buildContextBudgetEvent } from "./context-budget-event.js";
+
+/**
+ * The one capability post-run needs from the agent's memory glue.
+ *
+ * `PostRunLifecycleInputs.memoryGlue` was typed as the concrete `LocalAgentMemory` — four public
+ * methods, private index/breaker/cache state and an `AgentOptions`-taking constructor — of which
+ * `runPostRunLifecycle` calls exactly one, once. That is not a runtime cycle: the import was
+ * `import type`, erased at compile, so nothing loaded in the wrong order. It is a design statement,
+ * and the statement was wrong in direction: a lifecycle module in `runtime/` naming a class in
+ * `local-agent/` makes the generic half depend on the specific one.
+ *
+ * TypeScript is structural, so `LocalAgentMemory` satisfies this with no change at the call site in
+ * `local-agent.ts`. What changes is what runtime/ is allowed to assume.
+ *
+ * @internal
+ */
+export interface SessionIndexSync {
+  /** Fire-and-forget: reconcile the session index if the memory backend is ready. */
+  syncIfReady(): Promise<void>;
+}
 
 /**
  * Inputs for {@link runPostRunLifecycle}. Bundled into a single record so the
@@ -56,7 +75,7 @@ export interface PostRunLifecycleInputs {
   /** SE2 — surface a `compact_boundary` RunEvent when a persistence-side compaction fires. */
   onRunEvent?: RunEventSink;
   hooksExecutor: HooksExecutor;
-  memoryGlue: LocalAgentMemory;
+  memoryGlue: SessionIndexSync;
   /**
    * SDK 2.0 Phase 1 physical Stage 3 prep — iter 27 (refined iter 28):
    * optional port-based session-summary recorder. When supplied AND the

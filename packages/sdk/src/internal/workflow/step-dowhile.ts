@@ -11,7 +11,7 @@ import type {
   StepResult,
   WorkflowOptions,
 } from "../../types/workflow.js";
-import { WorkflowMaxIterationsExceededError } from "../../types/workflow.js";
+import { WorkflowMaxIterationsExceededError } from "../../workflow-errors.js";
 import { errToShape } from "./error-shape.js";
 import type { DispatchFn } from "./step-parallel.js";
 

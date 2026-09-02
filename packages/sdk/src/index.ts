@@ -131,6 +131,8 @@ export {
   type DiagnosticsSink,
   setDiagnosticsSink,
 } from "./internal/diagnostics.js";
+// SE2 — typed runtime event stream (opt-in via SendOptions.onRunEvent).
+export { emitRunEvent } from "./internal/emit-run-event.js";
 export { JudgeCredentialError } from "./internal/judge/judge-call.js";
 // Handoffs — EXTRACTED to `@theokit/sdk-handoff` (SDK 2.0 split, Phase 4 / T4.1).
 // Consumers: `import { Handoff, handoffTo, ... } from "@theokit/sdk-handoff"`.
@@ -205,6 +207,13 @@ export type {
   EvictReason,
   LiveAgentRegistry,
 } from "./internal/runtime/registry/live-agent-registry.js";
+// The bundled root `.d.ts` has always declared these two as VALUES, because the
+// DTS rollup hoists them out of `types/task.ts` along with the task types. The
+// runtime bundle emitted neither, so `import { isValidTaskId } from "@theokit/sdk"`
+// typechecked and was `undefined` at the call site (#279). Exported here so the
+// implementation keeps the promise the types were already making — validating a
+// task id before submitting one is a reasonable thing for a consumer to want.
+export { isValidTaskId, TASK_RESERVED_PREFIXES } from "./internal/task/task-id.js";
 // Telemetry contract (#295). `internal/telemetry/` was not public, so
 // @theokit/sdk-memory inlined structural mirrors of these two types with a note
 // that they "MUST be replaced with the canonical imports" once sdk exposed them.
@@ -366,33 +375,24 @@ export type {
 // reason as `CustomTool` above).
 // SE34 — per-send completion check (`isTaskComplete`) public types.
 export type { CompletionCheck, CompletionCheckResult, MessageOrigin } from "./types/run.js";
-// SE2 — typed runtime event stream (opt-in via SendOptions.onRunEvent).
-export {
-  emitRunEvent,
-  type RunCompactBoundaryEvent,
-  type RunCompletionCheckEvent,
-  type RunEvent,
-  type RunEventSink,
-  type RunMemoryDegradedEvent,
-  type RunPermissionDeniedEvent,
-  type RunRateLimitEvent,
-  type RunTaskCompletedEvent,
-  type RunTaskStartedEvent,
-  type RunTaskUpdatedEvent,
-  type RunToolProgressEvent,
-  type RunTripwireEvent,
+export type {
+  RunCompactBoundaryEvent,
+  RunCompletionCheckEvent,
+  RunEvent,
+  RunEventSink,
+  RunMemoryDegradedEvent,
+  RunPermissionDeniedEvent,
+  RunRateLimitEvent,
+  RunTaskCompletedEvent,
+  RunTaskStartedEvent,
+  RunTaskUpdatedEvent,
+  RunToolProgressEvent,
+  RunTripwireEvent,
 } from "./types/run-events.js";
 // theokit#146 — the shape `Agent.transcript()` returns. A host rendering tool cards from a resumed
 // session needs to name these types; without them the method's return would only be reachable
 // through an inline `import(...)` in the emitted .d.ts.
 export type { SessionMessage, SessionMessagePart } from "./types/session-message.js";
-// The bundled root `.d.ts` has always declared these two as VALUES, because the
-// DTS rollup hoists them out of `types/task.ts` along with the task types. The
-// runtime bundle emitted neither, so `import { isValidTaskId } from "@theokit/sdk"`
-// typechecked and was `undefined` at the call site (#279). Exported here so the
-// implementation keeps the promise the types were already making — validating a
-// task id before submitting one is a reasonable thing for a consumer to want.
-export { isValidTaskId, TASK_RESERVED_PREFIXES } from "./types/task.js";
 export {
   recordWiring,
   UngatedCapabilityError,

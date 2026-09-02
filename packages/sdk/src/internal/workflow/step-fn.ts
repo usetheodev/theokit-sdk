@@ -9,7 +9,7 @@
  */
 
 import type { FnStep, StepContext, StepResult } from "../../types/workflow.js";
-import { WorkflowCompensateNotImplementedError } from "../../types/workflow.js";
+import { WorkflowCompensateNotImplementedError } from "../../workflow-errors.js";
 import { WorkflowSuspendedSentinel } from "./ctx.js";
 import { errToShape } from "./error-shape.js";
 import { withRetry } from "./retry-policy.js";

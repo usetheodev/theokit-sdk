@@ -33,7 +33,7 @@ import {
   WorkflowResumeStepNotFoundError,
   WorkflowSnapshotNotFoundError,
   WorkflowStateError,
-} from "../../src/types/workflow.js";
+} from "../../src/workflow-errors.js";
 
 /** Each entry: an instance, its expected stable `code`, and whether a retry can help. */
 const CASES: ReadonlyArray<{ err: Error; code: string; retryable: boolean; why: string }> = [

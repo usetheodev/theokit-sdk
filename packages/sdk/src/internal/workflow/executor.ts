@@ -8,22 +8,24 @@
  * @internal
  */
 
+import type {
+  Step,
+  StepContext,
+  StepResult,
+  WorkflowEvent,
+  WorkflowOptions,
+  WorkflowResumeOptions,
+  WorkflowRun,
+  WorkflowRunOptions,
+  WorkflowSnapshot,
+} from "../../types/workflow.js";
 import {
-  type Step,
-  type StepContext,
-  type StepResult,
-  type WorkflowEvent,
   WorkflowInputError,
-  type WorkflowOptions,
   WorkflowOutputError,
-  type WorkflowResumeOptions,
   WorkflowResumeStepNotFoundError,
-  type WorkflowRun,
-  type WorkflowRunOptions,
-  type WorkflowSnapshot,
   WorkflowSnapshotNotFoundError,
   WorkflowStateError,
-} from "../../types/workflow.js";
+} from "../../workflow-errors.js";
 import { combineSignals, makeStepContext, WorkflowSuspendedSentinel } from "./ctx.js";
 import { errToShape } from "./error-shape.js";
 import {

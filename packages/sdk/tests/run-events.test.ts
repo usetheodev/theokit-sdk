@@ -3,7 +3,8 @@ import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { PermissionEngine, PermissionPlugin } from "../src/index.js";
-import { emitRunEvent, type RunEvent } from "../src/types/run-events.js";
+import { emitRunEvent } from "../src/internal/emit-run-event.js";
+import type { RunEvent } from "../src/types/run-events.js";
 import { messageDelta, sseFrame } from "./helpers/anthropic-sse.js";
 import { useTempCwd } from "./helpers/temp-workspace.js";
 

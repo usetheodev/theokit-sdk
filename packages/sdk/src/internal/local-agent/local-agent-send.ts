@@ -1,10 +1,10 @@
 import { AgentDisposedError, ConfigurationError } from "../../errors.js";
 import type { AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
-import { emitRunEvent } from "../../types/run-events.js";
 import type { MemoryToolSpec } from "../agent-loop/types.js";
 import { anySignal } from "../concurrency/abort-utils.js";
 import { diagFailure } from "../diagnostics.js";
+import { emitRunEvent } from "../emit-run-event.js";
 import type { PluginManager } from "../plugins/manager.js";
 import {
   type CompletionCheckDeps,

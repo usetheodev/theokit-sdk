@@ -227,17 +227,3 @@ export interface RunMemoryDegradedEvent {
  * @public
  */
 export type RunEventSink = (event: RunEvent) => void;
-
-/**
- * SE2 — emit a {@link RunEvent} to an optional sink, swallowing any sink error so
- * observability can never break the run (fail-safe, mirrors the EventBus EC-2
- * contract). No-op when the sink is absent.
- */
-export function emitRunEvent(sink: RunEventSink | undefined, event: RunEvent): void {
-  if (sink === undefined) return;
-  try {
-    sink(event);
-  } catch {
-    // best-effort: an observability sink must never break the run.
-  }
-}

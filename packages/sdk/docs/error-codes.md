@@ -234,17 +234,17 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `valibot_converter_missing` | domain | ConfigurationError | `packages/sdk/src/schema-normalizer.ts:81` +1 |
 | `work_threw` | domain | — | `packages/sdk/src/internal/task/registry.ts:295` |
 | `workflow_already_committed` | domain | ConfigurationError | `packages/sdk/src/workflow.ts:269` |
-| `workflow_already_running` | domain | — | `packages/sdk/src/types/workflow.ts:577` |
-| `workflow_compensate_not_implemented` | domain | — | `packages/sdk/src/types/workflow.ts:682` +1 |
-| `workflow_duplicate_step_id` | domain | — | `packages/sdk/src/types/workflow.ts:467` |
-| `workflow_input_invalid` | domain | — | `packages/sdk/src/types/workflow.ts:484` |
-| `workflow_max_iterations_exceeded` | domain | — | `packages/sdk/src/types/workflow.ts:617` |
-| `workflow_nested_failed` | domain | — | `packages/sdk/src/types/workflow.ts:539` +1 |
-| `workflow_not_serializable` | domain | — | `packages/sdk/src/types/workflow.ts:631` +1 |
-| `workflow_output_invalid` | domain | — | `packages/sdk/src/types/workflow.ts:501` |
-| `workflow_resume_step_not_found` | domain | — | `packages/sdk/src/types/workflow.ts:646` +1 |
-| `workflow_snapshot_not_found` | domain | — | `packages/sdk/src/types/workflow.ts:595` |
-| `workflow_state_invalid` | domain | — | `packages/sdk/src/types/workflow.ts:518` |
+| `workflow_already_running` | domain | — | `packages/sdk/src/workflow-errors.ts:141` |
+| `workflow_compensate_not_implemented` | domain | — | `packages/sdk/src/workflow-errors.ts:246` +1 |
+| `workflow_duplicate_step_id` | domain | — | `packages/sdk/src/workflow-errors.ts:31` |
+| `workflow_input_invalid` | domain | — | `packages/sdk/src/workflow-errors.ts:48` |
+| `workflow_max_iterations_exceeded` | domain | — | `packages/sdk/src/workflow-errors.ts:181` |
+| `workflow_nested_failed` | domain | — | `packages/sdk/src/workflow-errors.ts:103` +1 |
+| `workflow_not_serializable` | domain | — | `packages/sdk/src/workflow-errors.ts:195` +1 |
+| `workflow_output_invalid` | domain | — | `packages/sdk/src/workflow-errors.ts:65` |
+| `workflow_resume_step_not_found` | domain | — | `packages/sdk/src/workflow-errors.ts:210` +1 |
+| `workflow_snapshot_not_found` | domain | — | `packages/sdk/src/workflow-errors.ts:159` |
+| `workflow_state_invalid` | domain | — | `packages/sdk/src/workflow-errors.ts:82` |
 | `workflow_tool_failed` | domain | WorkflowToolError | `packages/sdk/src/workflow-as-tool.ts:40` +2 |
 | `ws_global_missing` | domain | SubscriptionError | `packages/sdk/src/subscription/theokit-subscribe.ts:183` |
 | `ws_peer_missing` | domain | SubscriptionError | `packages/sdk/src/subscription/internal/ws-adapter-node.ts:48` |

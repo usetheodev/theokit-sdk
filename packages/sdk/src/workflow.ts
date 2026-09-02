@@ -52,7 +52,7 @@ import type {
   WorkflowStepDescription,
   WorkflowStream,
 } from "./types/workflow.js";
-import { WorkflowDuplicateStepIdError, WorkflowNestedError } from "./types/workflow.js";
+import { WorkflowDuplicateStepIdError, WorkflowNestedError } from "./workflow-errors.js";
 
 /* ─── Zod validation schemas ─── */
 
@@ -571,6 +571,9 @@ export { __resetSnapshotStoresForTests } from "./internal/workflow/snapshot-stor
        extraction removes). ─── */
 
 export type * from "./types/workflow.js";
+// SE19 — exposing a Workflow AS an agent tool answers a different question from building one,
+// and lives in its own module. Re-exported so `@theokit/sdk/workflow` is unchanged.
+export { type WorkflowAsToolSpec, WorkflowToolError, workflowAsTool } from "./workflow-as-tool.js";
 export {
   WorkflowAlreadyRunningError,
   WorkflowCompensateNotImplementedError,
@@ -584,11 +587,7 @@ export {
   WorkflowResumeStepNotFoundError,
   WorkflowSnapshotNotFoundError,
   WorkflowStateError,
-} from "./types/workflow.js";
-
-// SE19 — exposing a Workflow AS an agent tool answers a different question from building one,
-// and lives in its own module. Re-exported so `@theokit/sdk/workflow` is unchanged.
-export { type WorkflowAsToolSpec, WorkflowToolError, workflowAsTool } from "./workflow-as-tool.js";
+} from "./workflow-errors.js";
 
 /* ─── Internal helpers ─── */
 

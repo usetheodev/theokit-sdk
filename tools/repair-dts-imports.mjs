@@ -254,6 +254,41 @@ function exportNamesOf(declPath) {
   return names;
 }
 
+/**
+ * The FOURTH shape, measured 2026-09-02 on `@theokit/sdk`: the name IS imported — under an ALIAS the
+ * rollup minted for the chunk (`d as RunEventSink$1`) — and a declaration it hoisted into the same
+ * file still refers to the BARE name. The compiler's own message says so: TS2552, "Cannot find name
+ * 'RunEventSink'. Did you mean 'RunEventSink$1'?".
+ *
+ * It appeared the moment `emitRunEvent` moved out of `src/types/run-events.ts` into a runtime module
+ * — `src/types/*` is the pure-type layer and a value there can only reach a consumer through the DTS
+ * rollup, which is the #279 defect. With the function and the interface in one source file they
+ * landed in one chunk and the reference needed no renaming; split across two, rollup renamed the
+ * import and left the use site alone.
+ *
+ * Same proof obligation as the three above, and the cheapest one to satisfy: the alias is only
+ * substituted when THIS file's own import clause binds `<chunk-local> as <name>$<n>`. Nothing is
+ * inferred from the diagnostic text, so a TS2552 whose suggestion does not correspond to a real
+ * alias in this file is left to stand.
+ */
+function bindAliasedName(source, name) {
+  const alias = new RegExp(
+    String.raw`import\s*\{[^}]*?\b\w+\s+as\s+(${escapeRegExp(name)}\$\d+)\b[^}]*?\}\s*from`,
+  ).exec(source);
+  if (alias === null) return undefined;
+
+  // Rewrite the bare name only where it is USED as a type reference — never inside the import
+  // clause that introduced the alias, and never as part of a longer identifier.
+  const bare = new RegExp(String.raw`(?<![\w$.])${escapeRegExp(name)}(?![\w$])`, "g");
+  let touched = false;
+  const next = source.replace(bare, (match, offset) => {
+    if (offset >= alias.index && offset < alias.index + alias[0].length) return match;
+    touched = true;
+    return alias[1];
+  });
+  return touched ? next : undefined;
+}
+
 function bindReExportedName(source, name) {
   const exportClause = /export\s*\{([^}]*?)\}\s*from\s*(['"])(\.[^'"]+)\2/g;
   for (const match of source.matchAll(exportClause)) {
@@ -449,7 +484,8 @@ for (const [file, names] of unresolved) {
     const next =
       bindReExportedName(source, name) ??
       bindExternalName(source, name, pkgDir) ??
-      bindSiblingName(source, name, filePath, join(pkgDir, "dist"));
+      bindSiblingName(source, name, filePath, join(pkgDir, "dist")) ??
+      bindAliasedName(source, name);
     if (next === undefined) continue;
     source = next;
     touched = true;

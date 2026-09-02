@@ -21,7 +21,7 @@ import type {
   StepResult,
   WorkflowOptions,
 } from "../../types/workflow.js";
-import { WorkflowParallelError } from "../../types/workflow.js";
+import { WorkflowParallelError } from "../../workflow-errors.js";
 import { createSemaphore } from "../concurrency/async-semaphore.js";
 import { errToShape } from "./error-shape.js";
 
