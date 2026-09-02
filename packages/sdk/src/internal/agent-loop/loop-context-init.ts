@@ -3,6 +3,7 @@ import type { MemoryProviderAgentRef } from "../../types/memory-provider.js";
 import type { SDKUserMessage } from "../../types/run.js";
 import { UsageAccumulator } from "../budget/usage-accumulator.js";
 import type { LlmContentPart, LlmMessage } from "../llm/types.js";
+import { replayMessages } from "./replay-messages.js";
 
 /**
  * M35 (multimodal) — build the first user turn's content: the text block plus one image part per attached
@@ -159,10 +160,13 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
   // two events that exist before the loop starts arrive through the batch path like they always
   // did; re-delivering them live would be a behaviour change for no gain.
   if (inputs.onLoopEvent !== undefined) events.subscribe(inputs.onLoopEvent);
-  const priorMessages: LlmMessage[] = (inputs.priorMessages ?? []).map((msg) => ({
-    role: msg.role,
-    content: [{ type: "text", text: msg.text }],
-  }));
+  // #523 — this used to map each turn to `[{ type: "text", text: msg.text }]`, and `text` is the FLAT
+  // projection: a tool call folds to `[tool call] NAME`. So a resumed session handed the model its
+  // own prior turn as prose containing the marker, and the model reproduced the pattern instead of
+  // calling the tool (usetheokit/theokit#631). `replayMessages` uses the structured `parts` that
+  // `narrowToSessionMessage` has been returning all along, and falls back to this exact behaviour
+  // for a message that has none.
+  const priorMessages: LlmMessage[] = replayMessages(inputs.priorMessages ?? []);
   let memorySystemPromptAdditions: string | undefined;
   if (inputs.memoryProvider !== undefined && memoryProviderHandle !== undefined) {
     try {
