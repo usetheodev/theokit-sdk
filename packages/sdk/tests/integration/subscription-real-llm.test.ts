@@ -130,11 +130,14 @@ describe.skipIf(SKIP)("G8 subscription real-LLM composition", () => {
   }, 60_000);
 });
 
+// The whole describe used to hold one test asserting `SKIP === true` — inside `skipIf(!SKIP)`, so it
+// could not fail either way: skipped when SKIP is false, true by construction when it is not. It
+// printed a PASSED line named "honest skip", which is the one line a reader would take as evidence
+// that the honest-skip policy had been checked. The instinct was right — make the skip VISIBLE — and
+// vitest already does that: it reports a skipped describe by name, and the name below says why.
 describe.skipIf(!SKIP)(
   "G8 subscription real-LLM composition (skipped — no OPENROUTER_API_KEY)",
   () => {
-    it("honest skip per real-llm-validation.md", () => {
-      expect(SKIP).toBe(true);
-    });
+    it.todo("real-LLM composition, per docs/real-llm-validation.md");
   },
 );
