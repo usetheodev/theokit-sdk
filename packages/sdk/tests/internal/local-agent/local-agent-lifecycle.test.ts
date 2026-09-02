@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const hoisted = vi.hoisted(() => ({ order: [] as string[] }));
 
-vi.mock("../../../src/internal/local-agent/real-local-run.js", () => ({
+vi.mock("../../../src/internal/local-agent/real-local-run-mcp.js", () => ({
   disposeSessionMcpClients: (agentId: string) => {
     hoisted.order.push(`disposeSessionMcpClients:${agentId}`);
   },

@@ -36,8 +36,9 @@ vi.mock("../../src/internal/agent-loop/loop.js", () => ({
   })),
 }));
 
-const { createRealLocalRun, disposeSessionMcpClients } = await import(
-  "../../src/internal/local-agent/real-local-run.js"
+const { createRealLocalRun } = await import("../../src/internal/local-agent/real-local-run.js");
+const { disposeSessionMcpClients } = await import(
+  "../../src/internal/local-agent/real-local-run-mcp.js"
 );
 
 const MCP_SERVERS = { fs: { command: "node", args: ["fs-server.js"] } };

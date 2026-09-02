@@ -23,7 +23,7 @@ import type { SkillsManager } from "../runtime/skills/skills-manager.js";
 import { loadSubagents } from "../runtime/skills/subagents-loader.js";
 import { discardSession } from "../session/agent-session.js";
 import { flushSessionWrites } from "../session/index.js";
-import { disposeSessionMcpClients } from "./real-local-run.js";
+import { disposeSessionMcpClients } from "./real-local-run-mcp.js";
 
 /**
  * Takes the writer lease when the store knows how to take one.

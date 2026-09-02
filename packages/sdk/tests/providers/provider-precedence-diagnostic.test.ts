@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { resolveRunProvider } from "../../src/internal/local-agent/real-local-run.js";
-import { _resetProviderPrecedenceWarnings } from "../../src/internal/local-agent/real-local-run-provider.js";
+import {
+  _resetProviderPrecedenceWarnings,
+  resolveRunProvider,
+} from "../../src/internal/local-agent/real-local-run-provider.js";
 
 /**
  * B-156. The precedence at `real-local-run.ts:159-164` is deliberate and its rationale is written

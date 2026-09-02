@@ -1,23 +1,17 @@
 import { createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
 import { diag } from "../diagnostics.js";
 import { containsCjk, sanitizeFts5Query } from "../persistence/fts5-sanitize.js";
+import { syncCorpus } from "./corpus-sync.js";
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
 import { LruEmbeddingCache } from "./embedding-cache.js";
 import { escapeLikePattern } from "./escape-like-pattern.js";
 import { defaultIndexPath, type MemoryDb, openMemoryDb } from "./index-db.js";
 import { assertValidBackend, openLanceIndex } from "./index-manager-dispatch.js";
-import {
-  blendScores,
-  collectMarkdownFiles,
-  resolveWeights,
-  sha256,
-  truncateSnippet,
-} from "./index-manager-helpers.js";
+import { blendScores, resolveWeights, truncateSnippet } from "./index-manager-helpers.js";
+import { MemoryIndexRepository } from "./index-repository.js";
 import type { SyncResult } from "./memory-index.js";
 import { type MemoryIndex, parseSearchOptions } from "./memory-index.js";
 import { loadSqliteVecExtension } from "./sqlite-vec-loader.js";
-import { chunkMarkdown } from "./storage/chunk-markdown.js";
 import { type MemoryRoot, projectMemoryDir, resolveMemoryRoot } from "./storage/memory-root.js";
 
 // T4.1 — query-vector LRU cache (DR4 finding #1). Keyed by
@@ -71,11 +65,16 @@ export class IndexManager implements MemoryIndex {
   private lastSyncMs: number | undefined;
   private vectorReady = false;
 
+  /** Every SQL string this class used to hold. See `index-repository.ts` for why it moved. */
+  private readonly repo: MemoryIndexRepository;
+
   private constructor(
     private readonly memoryRoot: MemoryRoot,
     private readonly db: MemoryDb,
     private readonly embedding: EmbeddingRuntime | undefined,
-  ) {}
+  ) {
+    this.repo = new MemoryIndexRepository(db);
+  }
 
   /**
    * Open a memory index. Dispatches to SQLite (default) or Lance (opt-in
@@ -132,31 +131,7 @@ export class IndexManager implements MemoryIndex {
   // this method silently no longer assignable to `MemoryIndex` — the compiler caught it, which is
   // the argument for naming the type instead of restating it.
   async sync(): Promise<SyncResult> {
-    const files = await collectMarkdownFiles(this.memoryRoot);
-    let filesUpdated = 0;
-    let chunksWritten = 0;
-    const existingByPath = this.loadFilesIndex();
-    for (const entry of files) {
-      const raw = await readFile(entry.absolutePath, "utf8");
-      const hash = sha256(raw);
-      const existing = existingByPath.get(entry.absolutePath);
-      if (existing !== undefined && existing.hash === hash) continue;
-      const stats = await stat(entry.absolutePath);
-      const fileId = this.upsertFile(
-        entry.absolutePath,
-        entry.relPath,
-        hash,
-        stats.mtimeMs,
-        entry.source,
-      );
-      this.deleteChunksForFile(fileId);
-      const chunks = chunkMarkdown(raw);
-      for (const chunk of chunks) {
-        this.insertChunk(fileId, chunk.startLine, chunk.endLine, chunk.text, chunk.hash);
-      }
-      filesUpdated += 1;
-      chunksWritten += chunks.length;
-    }
+    const counts = await syncCorpus(this.repo, this.memoryRoot);
     let chunksEmbedded = 0;
     if (this.vectorReady && this.embedding !== undefined) {
       chunksEmbedded = await embedMissingChunks({ db: this.db, runtime: this.embedding });
@@ -164,13 +139,7 @@ export class IndexManager implements MemoryIndex {
     this.lastSyncMs = Date.now();
     // `supported: true` — this implementer genuinely walks the corpus, so its counts are a
     // measurement rather than a placeholder. See SyncResult.supported.
-    return {
-      filesScanned: files.length,
-      filesUpdated,
-      chunksWritten,
-      chunksEmbedded,
-      supported: true,
-    };
+    return { ...counts, chunksEmbedded, supported: true };
   }
 
   async search(query: string, options: SearchOptions = {}): Promise<MemorySearchHit[]> {
@@ -186,12 +155,11 @@ export class IndexManager implements MemoryIndex {
   }
 
   status(): IndexStatus {
-    const files = this.db.prepare("SELECT COUNT(*) as n FROM files").get() ?? { n: 0 };
-    const chunks = this.db.prepare("SELECT COUNT(*) as n FROM chunks").get() ?? { n: 0 };
+    const { files, chunks } = this.repo.counts();
     const status: IndexStatus = {
       backend: this.vectorReady ? "hybrid" : "fts-only",
-      filesIndexed: Number(files.n ?? 0),
-      chunksIndexed: Number(chunks.n ?? 0),
+      filesIndexed: files,
+      chunksIndexed: chunks,
       // Counted with SELECT COUNT(*) just above — these are measurements, not placeholders.
       countsExact: true,
     };
@@ -206,20 +174,9 @@ export class IndexManager implements MemoryIndex {
     // Calling `MATCH ''` would error inside FTS5 on some SQLite versions.
     const sanitized = sanitizeFts5Query(query);
     if (sanitized.length === 0) return [];
-    const stmt = this.db.prepare(
-      `SELECT chunks.id as id, files.rel_path as rel_path, files.source as source,
-              chunks.start_line as start_line, chunks.end_line as end_line,
-              chunks.text as text, bm25(chunks_fts) as bm25_score
-       FROM chunks_fts
-       JOIN chunks ON chunks_fts.rowid = chunks.id
-       JOIN files  ON chunks.file_id = files.id
-       WHERE chunks_fts MATCH ?
-       ORDER BY bm25_score
-       LIMIT ?`,
-    );
     let rows: Array<Record<string, unknown>> = [];
     try {
-      rows = stmt.all(sanitized, limit);
+      rows = this.repo.ftsRows(sanitized, limit);
     } catch (err) {
       // T4.8 — CJK fallback: FTS5's default tokenizer chokes on CJK characters (no word boundaries).
       // Instead of returning empty, fall back to a LIKE search, which handles CJK correctly (slower
@@ -273,17 +230,7 @@ export class IndexManager implements MemoryIndex {
     query: string,
     limit: number,
   ): Array<MemorySearchHit & { chunkId: number }> {
-    const pattern = escapeLikePattern(query);
-    const stmt = this.db.prepare(
-      `SELECT chunks.id as id, files.rel_path as rel_path, files.source as source,
-              chunks.start_line as start_line, chunks.end_line as end_line,
-              chunks.text as text
-       FROM chunks
-       JOIN files ON chunks.file_id = files.id
-       WHERE chunks.text LIKE ? ESCAPE '\\'
-       LIMIT ?`,
-    );
-    const rows = stmt.all(pattern, limit) as Array<Record<string, unknown>>;
+    const rows = this.repo.likeRows(escapeLikePattern(query), limit);
     return rows.map((row) => {
       const path = String(row.rel_path ?? "");
       const startLine = Number(row.start_line ?? 0);
@@ -358,17 +305,7 @@ export class IndexManager implements MemoryIndex {
   private fetchChunksByIds(
     ids: ReadonlyArray<number>,
   ): Array<MemorySearchHit & { chunkId: number }> {
-    if (ids.length === 0) return [];
-    const placeholders = ids.map(() => "?").join(",");
-    const rows = this.db
-      .prepare(
-        `SELECT chunks.id as id, files.rel_path as rel_path, files.source as source,
-                chunks.start_line as start_line, chunks.end_line as end_line,
-                chunks.text as text
-         FROM chunks JOIN files ON chunks.file_id = files.id
-         WHERE chunks.id IN (${placeholders})`,
-      )
-      .all(...ids);
+    const rows = this.repo.chunkRowsByIds(ids);
     return rows.map((row) => {
       const startLine = Number(row.start_line ?? 0);
       const endLine = Number(row.end_line ?? 0);
@@ -387,53 +324,8 @@ export class IndexManager implements MemoryIndex {
     });
   }
 
-  // ───── persistence helpers ─────────────────────────────────────────
-
-  private loadFilesIndex(): Map<string, { id: number; hash: string }> {
-    const rows = this.db.prepare("SELECT id, path, hash FROM files").all() as Array<{
-      id: number;
-      path: string;
-      hash: string;
-    }>;
-    return new Map(rows.map((row) => [row.path, { id: row.id, hash: row.hash }]));
-  }
-
-  private upsertFile(
-    absPath: string,
-    relPath: string,
-    hash: string,
-    mtimeMs: number,
-    source: "memory" | "wiki" | "sessions" = "memory",
-  ): number {
-    const stmt = this.db.prepare(
-      `INSERT INTO files (path, rel_path, mtime, hash, source) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(path) DO UPDATE SET hash = excluded.hash, mtime = excluded.mtime, source = excluded.source
-       RETURNING id`,
-    );
-    const row = stmt.get(absPath, relPath, Math.floor(mtimeMs), hash, source) as { id: number };
-    return row.id;
-  }
-
-  private deleteChunksForFile(fileId: number): void {
-    this.db.prepare("DELETE FROM chunks WHERE file_id = ?").run(fileId);
-  }
-
-  private insertChunk(
-    fileId: number,
-    startLine: number,
-    endLine: number,
-    text: string,
-    hash: string,
-  ): void {
-    this.db
-      .prepare(
-        "INSERT INTO chunks (file_id, start_line, end_line, text, hash) VALUES (?, ?, ?, ?, ?)",
-      )
-      .run(fileId, startLine, endLine, text, hash);
-  }
-
   close(): void {
-    this.db.close();
+    this.repo.close();
   }
 }
 

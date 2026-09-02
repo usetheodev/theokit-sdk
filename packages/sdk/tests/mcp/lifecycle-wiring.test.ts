@@ -32,7 +32,7 @@ vi.mock("../../src/internal/mcp/client.js", () => ({
 }));
 
 const { _buildMcpMapForTests, disposeSessionMcpClients } = await import(
-  "../../src/internal/local-agent/real-local-run.js"
+  "../../src/internal/local-agent/real-local-run-mcp.js"
 );
 
 const CFG = { fs: { command: "node", args: ["fs-server.js"] } };

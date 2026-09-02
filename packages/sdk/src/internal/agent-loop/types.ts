@@ -2,10 +2,12 @@ import type { BuiltinToolName, ModelSelection } from "../../types/agent.js";
 import type { ConversationTurn } from "../../types/conversation.js";
 import type { SDKMessage } from "../../types/messages.js";
 import type { RunStatus, SendOptions } from "../../types/run.js";
+// From the declaring module, not the `internal/session/` barrel: that barrel reaches back into
+// local-agent through `compact-session.ts`, and this import used to close the loop.
+import type { SessionMessage } from "../../types/session-message.js";
 import type { LlmClient } from "../llm/types.js";
 import type { McpClient } from "../mcp/client.js";
 import type { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
-import type { SessionMessage } from "../session/index.js";
 
 /**
  * Minimal memory-tool spec accepted by the agent loop. Concrete shape lives
