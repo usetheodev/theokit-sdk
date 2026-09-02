@@ -30,17 +30,11 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-/**
- * The project config directory literal.
- *
- * Renamed from `THEOKIT_DIR_NAME` in #410. Sharing a name with the (now removed) sovereign env var
- * was the MECHANISM of that defect, not scenery: every grep for the variable landed on this const
- * and looked answered, so "is it read?" returned five hits and nobody checked what they were.
- */
-const THEOKIT_DIR_LITERAL = ".theokit";
+import { CLAUDE_DIR_NAME, THEOKIT_DIR_LITERAL } from "../runtime/compat/foreign-config-sources.js";
 
-/** The Claude Code CLI's project configuration directory. */
-const CLAUDE_DIR_NAME = ".claude";
+// The directory names live with the dialect registry that owns them — a name is one third of what a
+// configuration dialect is, and keeping the three together is what stops the next one shipping
+// without its runtime contract (#522).
 
 /**
  * Resolve the directory cwd-anchored SDK state lives in.

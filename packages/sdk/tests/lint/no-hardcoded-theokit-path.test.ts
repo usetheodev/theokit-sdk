@@ -21,11 +21,18 @@ const SRC_ROOT = join(__dirname, "..", "..", "src");
 /**
  * Files allowed to mention `.theokit` literally:
  *   - `internal/persistence/paths.ts` is the canonical resolver.
+ *   - `internal/runtime/compat/foreign-config-sources.ts` DECLARES the literal, as one third of what
+ *     a configuration dialect is — the directory, the parse, and the runtime contract its commands
+ *     presume. It moved there from `paths.ts` in #522, where the third had gone unwritten and a
+ *     Claude Code hook was executed without `$CLAUDE_PROJECT_DIR`. `paths.ts` imports it.
  *   - Documented migration debt (per-file comment explaining why).
  *
  * As callers migrate to `getTheokitHome(cwd)`, entries leave this list.
  */
-const ALLOWLIST = new Set<string>(["internal/persistence/paths.ts"]);
+const ALLOWLIST = new Set<string>([
+  "internal/persistence/paths.ts",
+  "internal/runtime/compat/foreign-config-sources.ts",
+]);
 
 interface Offender {
   file: string;
