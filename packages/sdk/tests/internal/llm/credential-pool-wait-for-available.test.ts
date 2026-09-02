@@ -97,27 +97,34 @@ describe("T3.9 — CredentialPool.waitForAvailable", () => {
       resetAtMs: Date.now() + 999_999_999,
     });
 
-    // Simulate enough sleeps to exceed maxWaitMs by accumulating elapsed.
+    // A VIRTUAL clock, advanced by the sleeper. The file's opening docblock says the injected
+    // `sleeper` "keeps these tests deterministic without vi.useFakeTimers()", and this case was the
+    // one that abandoned it: it set `maxWaitMs: 5` and let the loop's deadline check read real
+    // wall-clock, with a comment in the committed file admitting the workaround ("we can't easily
+    // ... spec is wall-clock based"). A replaced sleeper was never enough on its own — the deadline
+    // is the other half — so `waitForAvailable` takes a `now` seam beside it.
+    let virtualNow = 1_000_000;
+    let sleepCalls = 0;
     let totalSlept = 0;
     const sleeper = async (ms: number) => {
+      sleepCalls += 1;
       totalSlept += ms;
-      // Force enough wall-clock passage by advancing a stub Date.now? We can't easily.
-      // Instead, return immediately so the loop's `Date.now() < deadline` check
-      // depends on REAL time. To make this test fast and deterministic, the
-      // implementation MUST honor a hard cap on the number of iterations
-      // independent of wall-clock — but spec is wall-clock based.
-      // Workaround: use a very small maxWaitMs so the real wall-clock loop
-      // terminates fast.
+      // The sleep ACTUALLY passes, as far as the loop can tell. A jitter of 0 would otherwise spin
+      // forever against a clock nothing advances, so the floor is what guarantees termination.
+      virtualNow += Math.max(ms, 1);
     };
 
     const ok = await pool.waitForAvailable(new AbortController().signal, {
-      maxWaitMs: 5, // 5 ms — real wall-clock will elapse during the test
+      maxWaitMs: 5_000,
       sleeper,
+      now: () => virtualNow,
     });
 
-    expect(ok).toBe(false);
-    // Sleep was called at least once before the deadline check failed.
-    expect(totalSlept).toBeGreaterThanOrEqual(0);
+    expect(ok, "no entry healed, so the wait must report failure").toBe(false);
+    // `expect(totalSlept).toBeGreaterThanOrEqual(0)` stood here and is true of every number the
+    // accumulator can hold, including the zero it holds when the loop never runs.
+    expect(sleepCalls, "the loop must actually have waited before giving up").toBeGreaterThan(0);
+    expect(totalSlept, "and the waiting must be bounded by the budget").toBeLessThanOrEqual(5_000);
   });
 
   it("returns false promptly when signal aborts mid-wait", async () => {
