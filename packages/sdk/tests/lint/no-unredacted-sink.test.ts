@@ -145,6 +145,12 @@ const WHITELIST = new Set<string>([
   // pre-wrapped via `wrapSpan` in `internal/telemetry/tracer.ts`. Structurally safe.
   // Extracted from loop.ts during G8 LoC split.
   "internal/agent-loop/loop-llm-stream.ts",
+  // Same file, same split, same span: `finalizeLoopOutput` receives the very
+  // `sendSpan` that `runAgentLoop` obtained from `telemetry.startSpan("agent.send", ...)`
+  // (loop.ts:54 -> loop.ts:122). Verified rather than inherited: `tracer.ts:218`
+  // returns `wrapSpan(span, openSpans)`, and that wrap routes every attribute
+  // through `redactAttrValue`/`redactAttrs`.
+  "internal/agent-loop/loop-finalize.ts",
   "internal/agent-loop/tool-dispatch.ts",
   "internal/workflow/telemetry.ts",
   "internal/workflow/executor.ts",

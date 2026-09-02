@@ -6,13 +6,14 @@ import { validateResponse } from "../runtime/validation/validate-response.js";
 import { evaluateBudgetGate } from "./budget-gate.js";
 import { firstDoomLoopVerdict } from "./doom-loop-tracker.js";
 import { initLoopContext, type LoopContext } from "./loop-context-init.js";
+import { finalizeLoopOutput } from "./loop-finalize.js";
 import { type LlmTurnOutput, streamLlmTurn } from "./loop-llm-stream.js";
 import { recordThinkingOnSilentToolRound, thinkingStep } from "./loop-thinking-steps.js";
 import { buildAssistantEvent, buildAssistantTurn } from "./message-builders.js";
 import { dispatchTools } from "./tool-dispatch.js";
 import { applyToolResultGuard } from "./tool-result-guard.js";
 import type { AgentLoopInputs, AgentLoopOutput } from "./types.js";
-import { accumulateUsage, computeUsageCost } from "./usage-and-cost.js";
+import { accumulateUsage } from "./usage-and-cost.js";
 
 /**
  * SE12 — flatten the running transcript to the read-only text projection tool
@@ -150,115 +151,6 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
  * turn, and removing it takes roughly 55 of the function's 123 lines and 12 of its decision points
  * out of the narrative the ignore defends, without moving a single branch of the round trip.
  */
-/** The span type the telemetry handle hands back, or nothing when telemetry is off. */
-type SendSpan = ReturnType<NonNullable<AgentLoopInputs["telemetry"]>["startSpan"]> | undefined;
-
-/**
- * Decide what the END of the loop means, and record it on the context.
- *
- * Two different truths about one exit. `stoppedAtIterationLimit` is the structured signal that the
- * budget ran out mid-work; the error is the same fact written where errors are read, because
- * `status: "error"` with an empty result is byte-for-byte the shape a provider rejection produces
- * and a caller cannot tell the two apart (#338 item 4, `rules/error-handling.md` § 2-3).
- */
-function diagnoseTermination(
-  ctx: LoopContext,
-  budget: IterationBudget,
-  lastTurnDecision: "continue" | "done" | "error" | undefined,
-): void {
-  const exhausted = budget.shouldContinue() === false;
-  // M1-2 (T2.2): the loop exited because the iteration budget is exhausted (not via a `done`/`error`
-  // break) while the last turn still wanted tools — a silent truncation the caller (or a
-  // continuation driver) must detect.
-  if (lastTurnDecision === "continue" && exhausted) ctx.stoppedAtIterationLimit = true;
-  if (!exhausted || ctx.finalStatus !== "finished" || ctx.finalText !== "") return;
-
-  ctx.finalStatus = "error";
-  // Set-once, like every other writer of `ctx.error`: a real failure that already registered itself
-  // keeps its own cause, and exhaustion never overwrites it.
-  if (ctx.error !== undefined) return;
-  ctx.error = {
-    message:
-      `Run stopped after ${budget.total} iteration(s) without producing a reply — the model ` +
-      "was still calling tools when the budget ran out. Raise `SendOptions.maxIterations` " +
-      "(default 8), or inspect `RunResult.stoppedAtIterationLimit` to continue the run.",
-    code: "iteration_limit_reached",
-  };
-}
-
-/**
- * Stamp the run's outcome onto the `agent.send` span.
- *
- * `stoppedByDoomLoop` is an attribute rather than a status because a doom-loop stop reports
- * `finished` — a controlled stop — so without it the span is indistinguishable from a clean finish
- * and ops cannot see the guard fire.
- */
-function stampSendSpan(
-  inputs: AgentLoopInputs,
-  ctx: LoopContext,
-  sendSpan: SendSpan,
-  usage: ReturnType<LoopContext["usage"]["toTokenUsage"]> | undefined,
-  cost: ReturnType<typeof computeUsageCost> | undefined,
-): void {
-  sendSpan?.setAttribute("status", ctx.finalStatus);
-  if (ctx.stoppedByDoomLoop === true) sendSpan?.setAttribute("stoppedByDoomLoop", true);
-  if (inputs.telemetry?.includeContent === true && ctx.finalText.length > 0) {
-    sendSpan?.addEvent("response", { content: ctx.finalText });
-  }
-  if (usage === undefined) return;
-  sendSpan?.setAttributes({
-    totalInputTokens: usage.inputTokens,
-    totalOutputTokens: usage.outputTokens,
-    ...(cost?.amountUsd !== undefined ? { totalCostUsd: cost.amountUsd } : {}),
-  });
-}
-
-/** Flush the memory provider on a clean finish. `sync()` MUST be non-throwing on the hot path. */
-async function syncMemoryProvider(inputs: AgentLoopInputs, ctx: LoopContext): Promise<void> {
-  if (ctx.finalStatus !== "finished") return;
-  if (ctx.memoryProviderHandle === undefined || inputs.memoryProvider?.sync === undefined) return;
-  try {
-    await inputs.memoryProvider.sync(ctx.memoryProviderHandle);
-  } catch {
-    // Swallow — sync() MUST be non-throwing on the hot path.
-  }
-}
-
-/**
- * Everything `runAgentLoop` does AFTER its last turn: diagnose why the loop ended, stamp the span,
- * total usage and cost, flush the memory provider, and shape the output.
- *
- * Extracted because the biome-ignore on `runAgentLoop` argues that context build, LLM round trip,
- * tool dispatch, stop condition and span lifecycle stay co-located so the streaming contract reads
- * linearly — and that argument, which has real force, covers none of this. None of it runs during a
- * turn, so removing it takes roughly 55 of the function's 123 lines and 12 of its decision points
- * out of the narrative the ignore defends, without moving a single branch of the round trip.
- */
-async function finalizeLoopOutput(
-  inputs: AgentLoopInputs,
-  ctx: LoopContext,
-  budget: IterationBudget,
-  sendSpan: SendSpan,
-  lastTurnDecision: "continue" | "done" | "error" | undefined,
-): Promise<AgentLoopOutput> {
-  diagnoseTermination(ctx, budget, lastTurnDecision);
-  const usage = ctx.usage.hasAny() ? ctx.usage.toTokenUsage() : undefined;
-  const cost = usage !== undefined ? computeUsageCost(inputs, usage) : undefined;
-  stampSendSpan(inputs, ctx, sendSpan, usage, cost);
-  await syncMemoryProvider(inputs, ctx);
-  return {
-    events: ctx.events,
-    finalStatus: ctx.finalStatus,
-    result: ctx.finalText,
-    conversation: ctx.conversation,
-    ...(usage !== undefined ? { usage } : {}),
-    ...(cost !== undefined ? { cost } : {}),
-    ...(ctx.error !== undefined ? { error: ctx.error } : {}),
-    ...(ctx.stoppedAtIterationLimit === true ? { stoppedAtIterationLimit: true } : {}),
-    ...(ctx.stoppedByDoomLoop === true ? { stoppedByDoomLoop: true } : {}),
-  };
-}
-
 async function emitAssistantTextStep(
   inputs: AgentLoopInputs,
   ctx: LoopContext,

@@ -160,8 +160,12 @@ export class LocalAgent implements SDKAgent {
   /** T4.1 — PluginManager for code plugins (kind: general/model-provider/memory). @internal */
   private readonly pluginManagerCode: PluginManager = new PluginManager();
   /** Personality presets — lazy-loaded on first `usePersonality` call (ADRs D160-D164). @internal */
-  private personalityRegistry: PersonalityRegistry | undefined;
-  private readonly personalityStore: PersonalityStore;
+  // Not private: `local-agent-personality-extensions.ts` reads both through
+  // `LocalAgentPersonalityTarget`, the same way `local-agent-lifecycle.ts` reads `sessionStore` and
+  // `lifecycleAbortController` above. A field a sibling module needs is part of this class's
+  // implementation surface, and saying so beats handing it over as a closure.
+  personalityRegistry: PersonalityRegistry | undefined;
+  readonly personalityStore: PersonalityStore;
   /** T0.1 — telemetry handle shared with sendLocked + memory recall path. */
   private readonly _telemetry: TelemetryHandle;
 
@@ -538,19 +542,8 @@ export class LocalAgent implements SDKAgent {
     name: string,
     opts?: { save?: boolean; reset?: boolean },
   ): Promise<PersonalityPreset | null> {
-    return localAgentUsePersonality({
-      agentId: this.agentId,
-      workspaceCwd: this.workspaceCwd,
-      disposed: this.disposed,
-      personalityStore: this.personalityStore,
-      personalityRegistry: this.personalityRegistry,
-      invalidateCache: (reason) => this.invalidateCache(reason),
-      onRegistryLoaded: (reg) => {
-        this.personalityRegistry = reg;
-      },
-      name,
-      ...(opts !== undefined ? { opts } : {}),
-    });
+    if (this.disposed) throw new Error("Agent has been disposed");
+    return localAgentUsePersonality(this, name, opts);
   }
 
   // biome-ignore format: G8 budget — artifact stubs (local agents have no artifacts); kept 1-line each.

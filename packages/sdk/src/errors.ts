@@ -1,30 +1,25 @@
 /**
  * Published as `@theokit/sdk/errors`.
  */
+// The hierarchy ROOT lives in a leaf module so a sibling error module can extend it without
+// importing this catalogue — which is a cycle, since this file re-exports those siblings. Same
+// remedy as `types/messages-base.ts` for the same shape. Re-exported below, so
+// `@theokit/sdk/errors` is unchanged.
+
+import { type ErrorCode, type ErrorMetadata, TheokitAgentError } from "./errors-base.js";
+
+export type { ErrorCode, ErrorMetadata };
+// Re-exported by NAME rather than with `export ... from`, and the difference is not cosmetic:
+// rollup-plugin-dts refused the combined form with `"ErrorCode" is not exported by
+// "src/errors-base.ts"` while `tsc --noEmit` was clean — the same class of failure
+// `StructuredOutputError` below records, and the reason the declaration rollup has to be run
+// before believing a split is done.
+export { TheokitAgentError };
+
 import { readEnv } from "./internal/env.js";
 import { defaultRetriableForCode } from "./internal/error-mappers/default-retriable.js";
 import { redactSecrets } from "./internal/security/redact.js";
 import type { RunOperation } from "./types/run.js";
-
-/**
- * Finite, machine-readable error codes for provider-originated errors
- * (ADR D66). Consumers can `switch (err.metadata?.code)` exhaustively
- * — adding a new variant is an explicit decision + test coverage.
- *
- * @public
- */
-export type ErrorCode =
-  | "rate_limit"
-  | "auth_failed"
-  | "invalid_request"
-  | "timeout"
-  | "server_error"
-  | "context_too_long"
-  | "content_filtered"
-  | "model_unavailable"
-  | "network"
-  | "quota_exceeded"
-  | "unknown";
 
 /**
  * T1.1 — closed literal union for `AgentRunError.code`. The previous
@@ -107,64 +102,6 @@ export function coerceToKnownAgentRunErrorCode(code: string | undefined): KnownA
     return code as KnownAgentRunErrorCode;
   }
   return "unknown";
-}
-
-/**
- * Structured context for errors that originated from a provider HTTP
- * call (ADR D65). Lets callers retry with the right backoff (`retryAfter`),
- * surface actionable diagnostics (`provider`, `endpoint`), and inspect the
- * raw response body when needed (`raw`, capped at ~2KB by the mapper).
- *
- * @public
- */
-export interface ErrorMetadata {
-  /** Provider canonical name (e.g., `"anthropic"`, `"openai"`, `"openrouter"`, `"gemini"`). */
-  provider: string;
-  /** HTTP endpoint that failed (e.g., `"/v1/messages"`, `"/v1/chat/completions"`). */
-  endpoint: string;
-  /** Machine-readable error code (finite enum). */
-  code: ErrorCode;
-  /** HTTP status code if applicable. */
-  statusCode?: number;
-  /** Seconds to wait before retry, per provider's `retry-after` header (numeric form only). */
-  retryAfter?: number;
-  /** Raw response body for debugging (truncated to ~2KB by the mapper). */
-  raw?: unknown;
-}
-
-/**
- * Base class for all errors thrown by `@theokit/sdk`.
- *
- * Use `isRetryable` to drive retry/backoff logic. `code` and `protoErrorCode`
- * are populated for server-originated errors when available. `metadata`
- * (ADR D65) carries structured `{ provider, endpoint, code, ... }` when
- * the error originated from a provider HTTP call.
- *
- * @public
- */
-export class TheokitAgentError extends Error {
-  override readonly name: string = "TheokitAgentError";
-  readonly isRetryable: boolean;
-  readonly code?: string;
-  readonly protoErrorCode?: string;
-  readonly metadata?: ErrorMetadata;
-
-  constructor(
-    message: string,
-    options: {
-      isRetryable?: boolean;
-      code?: string;
-      protoErrorCode?: string;
-      cause?: unknown;
-      metadata?: ErrorMetadata;
-    } = {},
-  ) {
-    super(message, options.cause !== undefined ? { cause: options.cause } : undefined);
-    this.isRetryable = options.isRetryable ?? false;
-    if (options.code !== undefined) this.code = options.code;
-    if (options.protoErrorCode !== undefined) this.protoErrorCode = options.protoErrorCode;
-    if (options.metadata !== undefined) this.metadata = options.metadata;
-  }
 }
 
 /**
@@ -553,70 +490,6 @@ export class MemoryAdapterError extends TheokitAgentError {
 }
 
 /**
- * Thrown when a user-supplied task ID violates the grammar
- * `^[a-z0-9][a-z0-9_-]*$` (D368) OR starts with a reserved adapter
- * prefix (`wf-` / `b-` / `cron-`, EC-5).
- *
- * @public
- */
-export class InvalidTaskIdError extends TheokitAgentError {
-  override readonly name: string = "InvalidTaskIdError";
-  readonly taskId: string;
-
-  constructor(message: string, taskId: string, options: { cause?: unknown } = {}) {
-    super(message, {
-      ...options,
-      isRetryable: false,
-      code: "invalid_task_id",
-    });
-    this.taskId = taskId;
-  }
-}
-
-/**
- * Thrown when `Task.subscribe(id)` is called for a task that has been
- * evicted, never submitted, or evicted after retention (D373).
- *
- * @public
- */
-export class TaskNotFoundError extends TheokitAgentError {
-  override readonly name: string = "TaskNotFoundError";
-  readonly taskId: string;
-
-  constructor(taskId: string, options: { cause?: unknown } = {}) {
-    super(`Task not found: ${taskId}`, {
-      ...options,
-      isRetryable: false,
-      code: "task_not_found",
-    });
-    this.taskId = taskId;
-  }
-}
-
-/**
- * Thrown when `CloudAgent` is asked to wrap a task (D370). Cloud
- * task observability is deferred until Theo PaaS GA.
- *
- * @public
- */
-export class UnsupportedTaskOperationError extends TheokitAgentError {
-  override readonly name: string = "UnsupportedTaskOperationError";
-  readonly operation: string;
-
-  constructor(operation: string, options: { cause?: unknown } = {}) {
-    super(
-      `Task operation "${operation}" is not supported on CloudAgent (pre-release; see ADR D370)`,
-      {
-        ...options,
-        isRetryable: false,
-        code: "task_op_unsupported",
-      },
-    );
-    this.operation = operation;
-  }
-}
-
-/**
  * Thrown by `Budget` enforcement (ADR D386) when a `mode: "block"`
  * budget would be exceeded by the upcoming LLM call. The caller catches a
  * typed error to retry after the window resets, or surfaces it to the user.
@@ -744,3 +617,14 @@ export class StructuredOutputError extends TheokitAgentError {
     this.code = code;
   }
 }
+
+// The three Task-API errors live beside the API they belong to (`task-errors.ts`), and are
+// re-exported here so `@theokit/sdk/errors` keeps naming every error in one place. They are one
+// ACTOR — the Task surface — not a slice cut to fit a line budget; the budget is what made the
+// grouping visible, and `StructuredOutputError` above shows the opposite case, a class that must
+// stay in this file because rollup-plugin-dts could not resolve it elsewhere.
+export {
+  InvalidTaskIdError,
+  TaskNotFoundError,
+  UnsupportedTaskOperationError,
+} from "./task-errors.js";
