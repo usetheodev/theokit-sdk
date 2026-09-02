@@ -1,3 +1,4 @@
+import { Cron } from "croner";
 import { ConfigurationError } from "../../errors.js";
 
 /**
@@ -138,12 +139,48 @@ export function validateTimezone(timezone: string): void {
 }
 
 /**
- * Heuristic next-fire-at estimator for fixture mode. Returns a timestamp
- * one hour in the future for shorthand/POSIX inputs. Real scheduling uses
- * a proper evaluator wired in by the local scheduler.
+ * Shorthand (`@daily`, …) to the POSIX five-field form Croner parses.
+ *
+ * Moved here from the scheduler: interpreting a cron expression is this module's subject, and
+ * {@link nextRunAt} needs the same mapping. Two copies would let the scheduler and the value stored
+ * on the job disagree about what `@weekly` means.
  *
  * @internal
  */
-export function estimateNextRunAt(_cron: string, _timezone: string): number {
-  return Date.now() + 60 * 60 * 1000;
+export function normalizeExpression(cron: string): string {
+  switch (cron) {
+    case "@hourly":
+      return "0 * * * *";
+    case "@daily":
+      return "0 0 * * *";
+    case "@weekly":
+      return "0 0 * * 0";
+    case "@monthly":
+      return "0 0 1 * *";
+    case "@yearly":
+      return "0 0 1 1 *";
+    default:
+      return cron;
+  }
+}
+
+/**
+ * When this expression next fires, or `undefined` when it never does again.
+ *
+ * This used to be `estimateNextRunAt`, which read neither of its parameters and returned
+ * `Date.now() + 3600_000` for every input. Its docstring scoped it to fixture mode — "real scheduling
+ * uses a proper evaluator wired in by the local scheduler" — and its one call site was
+ * `Cron.create()`, so EVERY job created carried a `nextRunAt` one hour out whatever its schedule
+ * said. A `@yearly` job reported that it would run in an hour. The scheduler corrected the value
+ * later for jobs it picked up, so the fiction was visible exactly in the window between creating a
+ * job and the scheduler reaching it — and permanently for a job the scheduler never runs.
+ *
+ * Croner is already a dependency and already computes this in the scheduler; this is the same call.
+ * `undefined` rather than a filled-in number when there is no next run: `CronJob.nextRunAt` is
+ * optional, and an absent next run is a real state (a one-shot date in the past), not a zero.
+ *
+ * @internal
+ */
+export function nextRunAt(cron: string, timezone: string): number | undefined {
+  return new Cron(normalizeExpression(cron), { timezone }).nextRun()?.getTime();
 }

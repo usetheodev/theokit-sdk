@@ -96,17 +96,59 @@ describe("CostStatus — 4-value closed enum (D377)", () => {
   });
 });
 
+/**
+ * Both of these used to be `const all: T[] = [...]; expect(all.length).toBe(N)` — an array the test
+ * wrote, counted by the test. That catches a REMOVED member (the literal stops type-checking) and is
+ * blind to an ADDED one: a sixth window leaves the array valid, the length 5, and the suite green.
+ * The describe titles claim to pin a closed enum, and adding is the direction that happens.
+ *
+ * The exhaustive switch with `const _never: never` is the pattern this same file already used for
+ * `CostStatus`; it catches both directions at typecheck. The length assertions are deleted rather
+ * than kept alongside — a weak assertion beside a strong one is how the weak one gets copied on.
+ */
 describe("BudgetWindow — 5-value closed enum (D382)", () => {
-  it("includes the documented 5 windows", () => {
-    const all: BudgetWindow[] = ["1h", "1d", "1w", "30d", "365d"];
-    expect(all.length).toBe(5);
+  it("has exactly the documented 5 windows, and adding a sixth breaks the build", () => {
+    const label = (w: BudgetWindow): string => {
+      switch (w) {
+        case "1h":
+          return "hour";
+        case "1d":
+          return "day";
+        case "1w":
+          return "week";
+        case "30d":
+          return "month";
+        case "365d":
+          return "year";
+        default: {
+          const _never: never = w;
+          return _never;
+        }
+      }
+    };
+    expect(label("1h")).toBe("hour");
+    expect(label("365d")).toBe("year");
   });
 });
 
 describe("BudgetMode — 3-value closed enum (D383)", () => {
-  it("includes audit/warn/block", () => {
-    const all: BudgetMode[] = ["audit", "warn", "block"];
-    expect(all.length).toBe(3);
+  it("has exactly audit/warn/block, and adding a fourth breaks the build", () => {
+    const enforces = (m: BudgetMode): boolean => {
+      switch (m) {
+        case "audit":
+          return false;
+        case "warn":
+          return false;
+        case "block":
+          return true;
+        default: {
+          const _never: never = m;
+          return _never;
+        }
+      }
+    };
+    expect(enforces("block")).toBe(true);
+    expect(enforces("audit")).toBe(false);
   });
 });
 

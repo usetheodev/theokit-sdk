@@ -3,13 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-
+import { writeCredential } from "../../../src/internal/auth/credential-store.js";
+import { resolveCredential } from "../../../src/internal/auth/resolve-credential.js";
 import type {
   CredentialStoreConfig,
   OAuthProviderConfig,
-} from "../../../src/internal/auth/auth-types.js";
-import { writeCredential } from "../../../src/internal/auth/credential-store.js";
-import { resolveCredential } from "../../../src/internal/auth/resolve-credential.js";
+} from "../../../src/internal/auth/types.js";
 
 const roots: string[] = [];
 const FIXED_NOW = 1_000_000_000_000;

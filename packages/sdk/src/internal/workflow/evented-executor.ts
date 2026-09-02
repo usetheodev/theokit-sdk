@@ -21,14 +21,23 @@ const noopLog: StepContext["log"] = { debug: noop, info: noop, warn: noop };
  * Build a StepContext for step iteration — shared between run() and resume().
  * @internal
  */
-function buildStepContext(
-  runId: string,
-  stepIndex: number,
-  currentRef: { value: unknown },
-  stateRef: { value: unknown },
-  suspended: Map<string, SuspendedState>,
-  signal: AbortSignal,
-): StepContext {
+interface StepContextInputs {
+  readonly runId: string;
+  readonly stepIndex: number;
+  readonly currentRef: { value: unknown };
+  readonly stateRef: { value: unknown };
+  readonly suspended: Map<string, SuspendedState>;
+  readonly signal: AbortSignal;
+}
+
+function buildStepContext({
+  runId,
+  stepIndex,
+  currentRef,
+  stateRef,
+  suspended,
+  signal,
+}: StepContextInputs): StepContext {
   return {
     runId,
     signal,
@@ -124,7 +133,13 @@ export class EventedWorkflowExecutor {
     const runId = randomUUID();
     const signal = opts?.signal ?? new AbortController().signal;
 
-    return this._executeSteps(runId, input, 0, signal, opts?.signal);
+    return this._executeSteps({
+      runId,
+      input,
+      startIndex: 0,
+      signal,
+      abortCheckSignal: opts?.signal,
+    });
   }
 
   // SE29 note: this alternate executor does NOT persist `StepContext.state`
@@ -141,18 +156,29 @@ export class EventedWorkflowExecutor {
     }
     this._suspended.delete(runId);
 
-    return this._executeSteps(runId, resumeData, state.stepIndex, new AbortController().signal);
+    return this._executeSteps({
+      runId,
+      input: resumeData,
+      startIndex: state.stepIndex,
+      signal: new AbortController().signal,
+    });
   }
 
   /** Shared step iteration — used by both run() and resume(). */
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: step iteration with suspend/resume + error handling is inherently branchy
-  private async _executeSteps(
-    runId: string,
-    input: unknown,
-    startIndex: number,
-    signal: AbortSignal,
-    abortCheckSignal?: AbortSignal,
-  ): Promise<EventedWorkflowRunResult> {
+  private async _executeSteps({
+    runId,
+    input,
+    startIndex,
+    signal,
+    abortCheckSignal,
+  }: {
+    readonly runId: string;
+    readonly input: unknown;
+    readonly startIndex: number;
+    readonly signal: AbortSignal;
+    readonly abortCheckSignal?: AbortSignal | undefined;
+  }): Promise<EventedWorkflowRunResult> {
     const currentRef = { value: input };
     // SE29 — shared state ref (this alternate executor wires no `stateSchema`,
     // so `setState` is unvalidated here; the main executor validates).
@@ -166,7 +192,14 @@ export class EventedWorkflowExecutor {
       const step = this._steps[i];
       if (!step || step.kind !== "fn") continue;
 
-      const ctx = buildStepContext(runId, i, currentRef, stateRef, this._suspended, signal);
+      const ctx = buildStepContext({
+        runId,
+        stepIndex: i,
+        currentRef,
+        stateRef,
+        suspended: this._suspended,
+        signal,
+      });
 
       try {
         currentRef.value = await step.fn(currentRef.value, ctx);

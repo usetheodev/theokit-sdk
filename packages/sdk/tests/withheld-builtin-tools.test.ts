@@ -24,7 +24,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { runAgentLoop } from "../src/internal/agent-loop/loop.js";
-import type { MemoryToolSpec } from "../src/internal/agent-loop/loop-types.js";
+import type { MemoryToolSpec } from "../src/internal/agent-loop/types.js";
 import type { LlmClient, LlmEvent, LlmFinish, LlmRequest } from "../src/internal/llm/types.js";
 import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
 import type { BuiltinToolName } from "../src/types/agent.js";

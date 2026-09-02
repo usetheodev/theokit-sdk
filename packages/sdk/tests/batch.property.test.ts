@@ -20,9 +20,8 @@
 
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-
-import { batchImpl } from "../src/batch.js";
 import type { TheokitAgentError } from "../src/errors.js";
+import { batchImpl } from "../src/internal/agent/batch.js";
 import type { AgentOptions, SDKAgent } from "../src/types/agent.js";
 import type { BatchOptions, BatchResult } from "../src/types/batch.js";
 

@@ -1,11 +1,22 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Agent, type SDKAgent } from "../../src/index.js";
-import { createTempWorkspace, type TempWorkspace } from "../helpers/temp-workspace.js";
+import { createTempWorkspace, type TempWorkspace, useTempCwd } from "../helpers/temp-workspace.js";
 
 const apiKey = "theo_test_contract_key";
 const model = { id: "google/gemini-2.0-flash-001" };
 const asyncDisposeSymbol = (Symbol as unknown as { asyncDispose: symbol }).asyncDispose;
+
+/**
+ * A cloud agent has no local working directory, so these cases pass no `local.cwd` — but the agent
+ * REGISTRY still lands under `process.cwd()`, which during a test run is `packages/sdk/` itself.
+ * Measured 2026-09-01: this file wrote a real `.theokit/agents/registry.json` into the package tree
+ * on every run, invisible to `git status` because `.gitignore` hides it.
+ *
+ * Passing a `local.cwd` to a cloud agent would be a lie about what the agent is; redirecting
+ * `process.cwd()` for the file is the honest fix, and is why this helper exists.
+ */
+useTempCwd();
 
 describe("Agent.create contract", () => {
   let workspace: TempWorkspace | undefined;

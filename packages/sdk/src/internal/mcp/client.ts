@@ -9,6 +9,7 @@ import type {
 } from "../../types/mcp.js";
 import { resolveChildEnv } from "../runtime/lifecycle/env-policy.js";
 import { safePathJoin } from "../security/path-guard.js";
+import { DEFAULT_MCP_TIMEOUT_MS, handshakeAwareTimeout } from "./handshake-timeout.js";
 
 /**
  * Real MCP client implementing the subset of the 2024-11-05 spec used by the
@@ -46,9 +47,6 @@ export function createMcpClient(
   if (isStdio(config)) return new StdioMcpClient(name, config);
   return new HttpMcpClient(name, config as McpHttpServerConfig, fetchImpl);
 }
-
-/** Default per-request MCP timeout (#59). */
-const DEFAULT_MCP_TIMEOUT_MS = 30_000;
 
 /** Max buffered stdout bytes before a flooding stdio server is torn down (SEC-M0-04). */
 const MAX_STDIO_BUFFER_BYTES = 8 * 1024 * 1024;
@@ -169,6 +167,8 @@ class StdioMcpClient extends BaseMcpClient {
   // instead of racing (or spuriously failing with mcp_not_init).
   private dropped = false;
   private reconnectPromise: Promise<void> | undefined;
+  /** True only while `reconnect()`'s handshake is in flight — see `timeoutFor`. */
+  private reconnecting = false;
 
   constructor(
     name: string,
@@ -180,6 +180,20 @@ class StdioMcpClient extends BaseMcpClient {
 
   private get timeoutMs(): number {
     return this.config.requestTimeoutMs ?? DEFAULT_MCP_TIMEOUT_MS;
+  }
+
+  /**
+   * The deadline for one RPC. The rule itself — and the reasoning behind it — lives in
+   * `handshake-timeout.ts`, where it is a pure function of three values and can be interrogated
+   * without spawning a process. It was private here, which is why the clause "a caller who sets a
+   * LARGER timeout keeps it" went four months with no test.
+   */
+  private timeoutFor(method: string): number {
+    return handshakeAwareTimeout({
+      method,
+      reconnecting: this.reconnecting,
+      requestTimeoutMs: this.timeoutMs,
+    });
   }
 
   /** Spawn the server child and wire stdout/stderr/error/exit handlers.
@@ -268,14 +282,18 @@ class StdioMcpClient extends BaseMcpClient {
     for (let attempt = 0; attempt < MAX_RECONNECT_ATTEMPTS; attempt += 1) {
       await reconnectDelay(attempt);
       this.spawnChild();
+      this.reconnecting = true;
       try {
         // The handshake uses send() directly (child is now live) so it does not
-        // re-enter ensureConnected.
+        // re-enter ensureConnected. `reconnecting` gives it the handshake floor: this attempt has
+        // just paid for a process spawn, which the caller's request budget was never sized for.
         await super.initialize();
         this.dropped = false;
         return;
       } catch (err) {
         lastErr = err; // child dropped again — retry with backoff (bounded)
+      } finally {
+        this.reconnecting = false;
       }
     }
     throw new NetworkError(`MCP ${this.name} reconnect exhausted`, {
@@ -385,9 +403,10 @@ class StdioMcpClient extends BaseMcpClient {
       // entry (no leak) instead of hanging forever. SEC-M0-04 — an unresponsive
       // server is torn down (SIGKILL) so it cannot linger as a zombie / keep
       // flooding stdout past the deadline.
+      const budget = this.timeoutFor(method);
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(mcpTimeoutError(this.name, this.timeoutMs));
+        reject(mcpTimeoutError(this.name, budget));
         this.child?.kill("SIGKILL");
         this.child = undefined;
         // M2 #59 — a timed-out server is a DROP: mark reconnectable (was missing,
@@ -398,7 +417,7 @@ class StdioMcpClient extends BaseMcpClient {
         this.rejectAllPending(
           new NetworkError(`MCP ${this.name} disconnected`, { code: "mcp_disconnected" }),
         );
-      }, this.timeoutMs);
+      }, budget);
       this.pending.set(id, { resolve, reject, timer });
     });
   }

@@ -1,5 +1,10 @@
+/**
+ * Owner: `internal/local-agent/` (8 of 34 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
+ */
 // T4.1 / D438 — import primitives from leaf to break the run<->agent cycle (#5).
-import type { CustomTool, ModelSelection } from "./agent-prims.js";
+import type { CustomTool, ModelSelection, PermissionMode } from "./agent-prims.js";
 import type { ConversationStep, ConversationTurn } from "./conversation.js";
 import type { McpServerConfig } from "./mcp.js";
 import type { SDKMessage } from "./messages.js";
@@ -313,6 +318,28 @@ export interface SDKUserMessage {
 /**
  * Per-send overrides and callbacks.
  *
+ * ## Which options do I need?
+ *
+ * Twenty-one optional fields with genuinely different audiences, so most callers read all of them to
+ * find their two. This table is the fix that was chosen; the alternative — nesting the groups under
+ * `observe?` and `toolPolicy?` and carrying the flat keys as deprecated aliases for one major — would
+ * have added surface to remove surface, and the harm here is the READING cost, not a representable
+ * illegal state. There is no measured defect behind this grouping and no consumer census; the fields
+ * and the audiences are what was measured.
+ *
+ * | If you are… | you want |
+ * |---|---|
+ * | rendering a live UI | `onDelta`, `onStep`, `onRunEvent` |
+ * | applying a policy | `permissionMode`, `activeTools`, `toolChoice`, `toolResultGuard`, `perToolTimeoutMs` |
+ * | running an eval or a harness | `maxIterations`, `completionCheck`, `doomLoop`, `signal` |
+ * | orchestrating agents | `origin`, `task`, `context` |
+ * | overriding this one send | `model`, `systemPrompt`, `tools`, `mcpServers`, `contextPaths`, `local` |
+ *
+ * Every field appears in exactly one row, and
+ * `tests/lint/send-options-audience-table.test.ts` fails when one is added without a row — a table
+ * that silently stops covering the type is worse than none, because a reader trusts it and stops
+ * looking.
+ *
  * @public
  */
 export interface SendOptions {
@@ -379,7 +406,7 @@ export interface SendOptions {
    * ask rules), `bypass` / `bypassPermissions` (allow all except an explicit deny).
    * Absent ⇒ the plugin's own construction-time mode applies. Local runtime.
    */
-  permissionMode?: import("../permission-engine.js").PermissionMode;
+  permissionMode?: PermissionMode;
   onStep?: (args: { step: ConversationStep }) => void | Promise<void>;
   onDelta?: (args: { update: InteractionUpdate }) => void | Promise<void>;
   /**

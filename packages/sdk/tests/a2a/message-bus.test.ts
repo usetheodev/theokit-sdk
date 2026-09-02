@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { MessageBus } from "../../src/a2a/message-bus.js";
+import { A2APeerNotRegisteredError, MessageBus } from "../../src/a2a/message-bus.js";
 import type { A2AMessage } from "../../src/a2a/types.js";
+import { TheokitAgentError } from "../../src/errors.js";
 
 describe("MessageBus", () => {
   it("clears the timeout timer when the handler resolves (no leaked timer keeps the loop alive)", async () => {
@@ -83,5 +84,37 @@ describe("MessageBus", () => {
     await bus.send("a", "lazy", { type: "ping", payload: null });
 
     expect(handled, "send must resolve without waiting for the 100ms handler").toBe(false);
+  });
+});
+
+describe("MessageBus — an unregistered peer is a typed failure (#380 sibling)", () => {
+  // The timeout branch of these same two methods got A2ARequestTimeoutError, with a docstring quoting
+  // docs/error-codes.md — "branch on `code`, never on the message". The FIRST branch of both kept
+  // throwing a bare Error whose message embedded the address, which is the exact shape that quote
+  // rejects, so a caller had no way to distinguish "nobody is listening" from any other failure.
+
+  it("send rejects with A2APeerNotRegisteredError carrying the address", async () => {
+    const bus = new MessageBus();
+    const err = await bus.send("a", "ghost", { type: "ping", payload: {} }).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(A2APeerNotRegisteredError);
+    expect(err).toBeInstanceOf(TheokitAgentError);
+    expect((err as A2APeerNotRegisteredError).code).toBe("a2a_peer_not_registered");
+    expect((err as A2APeerNotRegisteredError).to).toBe("ghost");
+    expect((err as A2APeerNotRegisteredError).isRetryable, "a peer registers or it does not").toBe(
+      false,
+    );
+  });
+
+  it("request rejects the same way, so a caller branches once", async () => {
+    const bus = new MessageBus();
+    const err = await bus.request("a", "ghost", { type: "ping", payload: {} }).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(A2APeerNotRegisteredError);
+    expect((err as A2APeerNotRegisteredError).to).toBe("ghost");
   });
 });

@@ -16,14 +16,15 @@
  */
 
 import { z } from "zod";
+import { TheokitAgentError } from "../errors.js";
 import {
   currentDelegationDepth,
   withDelegationDepth,
-} from "../internal/runtime/concurrency/delegation-depth.js";
+} from "../internal/concurrency/delegation-depth.js";
 import {
   currentInheritedSubAgentCredentials,
   type InheritedCredentials,
-} from "../internal/runtime/concurrency/subagent-credentials.js";
+} from "../internal/concurrency/subagent-credentials.js";
 import { getAgentFacade } from "../internal/runtime/registry/agent-factory-registry.js";
 import type {
   AgentDefinition,
@@ -214,14 +215,18 @@ export interface SubAgentSpec {
  * chain length now travels with the run (`internal/runtime/concurrency/delegation-depth.ts`),
  * and a caller-threaded `parentDepth` still adds to it.
  */
-export class MaxDelegationDepthError extends Error {
-  readonly code = "max_delegation_depth" as const;
+export class MaxDelegationDepthError extends TheokitAgentError {
+  override readonly name = "MaxDelegationDepthError";
+  override readonly code = "max_delegation_depth" as const;
   constructor(
     public readonly currentDepth: number,
     public readonly maxDepth: number,
   ) {
-    super(`Max delegation depth ${maxDepth} exceeded (current: ${currentDepth})`);
-    this.name = "MaxDelegationDepthError";
+    // Not retryable: the depth is a property of the call graph, and it is the same on a retry.
+    super(`Max delegation depth ${maxDepth} exceeded (current: ${currentDepth})`, {
+      code: "max_delegation_depth",
+      isRetryable: false,
+    });
   }
 }
 
@@ -508,7 +513,10 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
   return tool;
 }
 
-/** SE36 — `SubAgent.create` replaces `defineSubAgent` (ADR 0015). @public */
+/** SE36 — `SubAgent.create` replaces `defineSubAgent` (ADR 0015). @public  *
+ * `SubAgent.create` returns a **`CustomTool`** — the sub-agent is exposed to the
+ * parent as a callable tool, not as a `SubAgent` instance.
+ */
 export class SubAgent {
   private constructor() {}
   static create(spec: SubAgentSpec, parentDepth = 0): CustomTool {

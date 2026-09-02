@@ -16,6 +16,12 @@ import {
   validateApiKeyShape,
 } from "../../src/internal/auth/api-key-validator.js";
 import * as fixtureMode from "../../src/internal/runtime/fixtures/fixture-mode.js";
+import { useTempCwd } from "../helpers/temp-workspace.js";
+
+// Agent.create defaults its workspace to process.cwd(), which during a test run is the
+// package itself — this file created agents without saying where, and the state landed in
+// packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 describe("T1.3 — validateApiKeyShape unit", () => {
   function assertMalformed(

@@ -13,24 +13,38 @@
  * @public
  */
 
+import { TheokitAgentError } from "../errors.js";
+
 /** Thrown when the interactive path is requested but no backend can provide it
  *  (no provider injected, or a local backend whose native module / spawn failed).
- *  The caller falls back to non-interactive exec. */
-export class InteractiveUnavailableError extends Error {
-  readonly code = "interactive_unavailable" as const;
+ *  The caller falls back to non-interactive exec.
+ *
+ *  Extends {@link TheokitAgentError} like every other typed error the SDK publishes: it used to
+ *  extend bare `Error`, so a consumer catching `TheokitAgentError` — the documented way to catch
+ *  anything this SDK throws — missed it, and it carried no `isRetryable`. Additive: `instanceof
+ *  Error` and the `code` literal are unchanged. */
+export class InteractiveUnavailableError extends TheokitAgentError {
+  override readonly name = "InteractiveUnavailableError";
+  override readonly code = "interactive_unavailable" as const;
   constructor(message: string) {
-    super(message);
-    this.name = "InteractiveUnavailableError";
+    // Not retryable: no backend is a configuration fact, and retrying re-asks the same question.
+    super(message, { code: "interactive_unavailable", isRetryable: false });
   }
 }
 
 /** Thrown (typed) when a write/kill targets an unknown or already-exited session,
- *  so callers branch on the type instead of string-matching a message. */
-export class NoSuchSessionError extends Error {
-  readonly code = "no_such_session" as const;
+ *  so callers branch on the type instead of string-matching a message.
+ *
+ *  Extends {@link TheokitAgentError} — see {@link InteractiveUnavailableError} for why. */
+export class NoSuchSessionError extends TheokitAgentError {
+  override readonly name = "NoSuchSessionError";
+  override readonly code = "no_such_session" as const;
   constructor(sessionId: string) {
-    super(`no such live session "${sessionId}" (it may have exited or been killed)`);
-    this.name = "NoSuchSessionError";
+    // Not retryable: the session is gone, and it does not come back.
+    super(`no such live session "${sessionId}" (it may have exited or been killed)`, {
+      code: "no_such_session",
+      isRetryable: false,
+    });
   }
 }
 

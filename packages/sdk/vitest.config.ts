@@ -74,6 +74,9 @@ export const SHARED_TEST_OPTIONS = {
   // (T6.1, ADR D60). Tests never write to the developer's real state.
   // Also runs native-bindings preflight (T1.1, dogfood-regressions-fix v1.1).
   setupFiles: ["./vitest.setup.ts"],
+  // Runs once, after every file — the only place that can see what the WHOLE suite left behind.
+  // See vitest.global-setup.ts for the 540 MB this was written for.
+  globalSetup: ["./vitest.global-setup.ts"],
   // theokit-sdk-biome-cleanup 2026-05-30 — ALL SDK tests run in the forks
   // pool, each file in its OWN subprocess. Reasons:
   //

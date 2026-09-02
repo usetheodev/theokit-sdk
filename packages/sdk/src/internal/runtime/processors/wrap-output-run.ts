@@ -11,7 +11,8 @@
 
 import type { Processor } from "../../../types/processors.js";
 import type { Run, RunResult } from "../../../types/run.js";
-import { emitRunEvent, type RunEventSink } from "../../../types/run-events.js";
+import type { RunEventSink } from "../../../types/run-events.js";
+import { emitRunEvent } from "../../emit-run-event.js";
 import { runOutputProcessors } from "./run-processors.js";
 
 export function wrapRunWithOutputProcessors(args: {

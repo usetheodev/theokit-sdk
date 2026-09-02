@@ -1,4 +1,6 @@
 /**
+ * Published as `@theokit/sdk/mcp-auth`.
+ *
  * OAuth for remote MCP servers: the PKCE authorization flow, token refresh, and the storage the two
  * of them need.
  *

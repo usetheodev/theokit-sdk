@@ -137,11 +137,11 @@ function createSquad(options: SquadOptions): Squad {
  */
 async function buildPipeline(
   agents: ReadonlyArray<SDKAgent | AgentDefinition>,
-  nome: string | undefined,
+  name: string | undefined,
 ): Promise<ReturnType<ReturnType<typeof Workflow.create>["commit"]>> {
   // Compose Workflow + agentStep — identity threading: each agent's prompt is the previous agent's
   // output (the run input for the first agent).
-  let builder = Workflow.create({ name: nome ?? "squad" });
+  let builder = Workflow.create({ name: name ?? "squad" });
   for (let i = 0; i < agents.length; i++) {
     const member = agents[i];
     if (member === undefined) continue;

@@ -8,13 +8,22 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
 import { DEFAULT_DISCOVERY_SPECS, runDiscovery } from "../src/context/index.js";
 import { readFactsFromMarkdown } from "../src/internal/memory/storage/markdown-store.js";
 import { loadHookConfig } from "../src/internal/runtime/hooks/hooks-source.js";
-import { PluginsManager } from "../src/internal/runtime/plugins/plugins-manager.js";
+import { PluginsManager } from "../src/internal/runtime/plugin-loader/plugins-manager.js";
 import { SkillsManager } from "../src/internal/runtime/skills/skills-manager.js";
 import { loadSubagents } from "../src/internal/runtime/skills/subagents-loader.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
+
+/*
+ * #524 — these suites declare `claude-code` explicitly, because the SDK no longer reads `.claude/`
+ * unless a project asks for it. What they assert is unchanged: the formats are understood, and the
+ * capability is intact. Only the trigger moved, from "the directory exists" to "the consumer said
+ * so" — which is what makes this a default change rather than a removal.
+ */
+const CLAUDE_CODE = ["claude-code"] as const;
 
 /*
  * End-to-end: a project laid out for the Claude Code CLI, read by this SDK.
@@ -37,8 +46,22 @@ import { loadSubagents } from "../src/internal/runtime/skills/subagents-loader.j
 describe("a real Claude Code project, read end to end", () => {
   let cwd: string;
   let claudeHome: string;
+  /**
+   * The public barrel, loaded ONCE for the whole file.
+   *
+   * It used to be `await import("../src/index.js")` inside each of the three agent tests, and the
+   * cost of transforming the barrel's module graph therefore landed entirely on whichever test ran
+   * first — against the same 20s budget as its own work, while its two siblings, doing the same
+   * work, got a warm cache. Under full-suite load that first test timed out at 20029ms; measured
+   * twice, and a run in between where it passed is what made it look like flakiness rather than an
+   * asymmetry. The import is dynamic and not static because `beforeAll` sets CLAUDE_CONFIG_DIR and
+   * the barrel must not be evaluated before it.
+   *
+   * This does not widen any budget. It stops one test paying for three.
+   */
+  let Agent: typeof import("../src/index.js")["Agent"];
 
-  beforeAll(() => {
+  beforeAll(async () => {
     cwd = mkdtempSync(join(tmpdir(), "cc-e2e-"));
     claudeHome = mkdtempSync(join(tmpdir(), "cc-e2e-home-"));
     process.env.CLAUDE_CONFIG_DIR = claudeHome;
@@ -113,8 +136,17 @@ describe("a real Claude Code project, read end to end", () => {
     );
   });
 
+  // `afterAll`, not `onTestFinished`: these two directories are created in `beforeAll`, and
+  // `onTestFinished` may only be called from inside a test — it throws "Hook onTestFinished() can
+  // only be called inside a test" and skips the whole file. Found by running, after a sweep that
+  // added the registration uniformly to sixteen files and got the hook wrong in exactly this one.
+  afterAll(() => {
+    removeTempDirRobustSync(cwd);
+    removeTempDirRobustSync(claudeHome);
+  });
+
   it("test_the_agents_the_cli_project_declares_all_load", async () => {
-    const loaded = await loadSubagents(cwd, true, undefined);
+    const loaded = await loadSubagents(cwd, true, undefined, CLAUDE_CODE);
     // Four declarations plus the bundle's; the README contributes nothing and stops nothing.
     expect(Object.keys(loaded).sort()).toEqual([
       "auditor",
@@ -126,13 +158,13 @@ describe("a real Claude Code project, read end to end", () => {
   });
 
   it("test_the_skill_the_cli_project_declares_loads", async () => {
-    const mgr = new SkillsManager(cwd, undefined, true);
+    const mgr = new SkillsManager(cwd, undefined, true, undefined, undefined, CLAUDE_CODE);
     await mgr.refresh();
     expect((await mgr.list()).map((s) => s.name)).toContain("greet");
   });
 
   it("test_the_plugin_bundle_is_registered", async () => {
-    const mgr = new PluginsManager(cwd, undefined, true, false, undefined);
+    const mgr = new PluginsManager(cwd, undefined, true, false, undefined, CLAUDE_CODE);
     await mgr.initialize();
     expect((await mgr.list()).map((p) => p.name)).toContain("judge");
   });
@@ -145,17 +177,18 @@ describe("a real Claude Code project, read end to end", () => {
     })) as { id: string; content: string }[];
     expect(found.map((f) => f.id)).toContain("CLAUDE.md");
     expect(found.some((f) => f.id.startsWith("claude-rules"))).toBe(true);
+    ({ Agent } = await import("../src/index.js"));
   });
 
   it("test_the_hooks_declared_in_the_cli_settings_file_load", async () => {
-    const config = await loadHookConfig(cwd);
+    const config = await loadHookConfig(cwd, CLAUDE_CODE);
     expect(Object.keys(config.hooks ?? {}).sort()).toEqual(["preToolUse", "stop"]);
   });
 
   it("test_a_hook_event_this_runtime_never_fires_is_not_silently_accepted", async () => {
     // SessionStart has no firing point here. Accepting it would register a hook that never runs,
     // which reads to an operator exactly like a hook that ran and did nothing.
-    const config = await loadHookConfig(cwd);
+    const config = await loadHookConfig(cwd, CLAUDE_CODE);
     expect(JSON.stringify(config)).not.toContain("echo start");
   });
 
@@ -182,6 +215,9 @@ describe("a real Claude Code project, read end to end", () => {
    */
   it("test_reading_a_cli_project_creates_nothing_in_it", async () => {
     const readOnly = mkdtempSync(join(tmpdir(), "cc-e2e-read-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(readOnly);
+    });
     mkdirSync(join(readOnly, ".claude", "agents"), { recursive: true });
     writeFileSync(
       join(readOnly, ".claude", "agents", "solo.md"),
@@ -189,7 +225,7 @@ describe("a real Claude Code project, read end to end", () => {
     );
     writeFileSync(join(readOnly, "CLAUDE.md"), "# Project\n\nRead me.\n");
 
-    await loadSubagents(readOnly, true, undefined);
+    await loadSubagents(readOnly, true, undefined, CLAUDE_CODE);
     await runDiscovery({ cwd: readOnly, specs: DEFAULT_DISCOVERY_SPECS, maxBytesPerFile: 200_000 });
     await readFactsFromMarkdown(readOnly);
 
@@ -200,7 +236,9 @@ describe("a real Claude Code project, read end to end", () => {
   // directory. Asserting only the first half would let "creates nothing, ever" pass unchallenged.
   it("test_running_an_agent_creates_theokit_and_only_sdk_state_in_it", async () => {
     const ran = mkdtempSync(join(tmpdir(), "cc-e2e-ran-"));
-    const { Agent } = await import("../src/index.js");
+    onTestFinished(() => {
+      removeTempDirRobustSync(ran);
+    });
     const agent = await Agent.create({
       model: { id: "anthropic/claude-sonnet-4-6" },
       apiKey: "theo_test_e2e",
@@ -211,8 +249,25 @@ describe("a real Claude Code project, read end to end", () => {
 
     expect(existsSync(join(ran, ".theokit"))).toBe(true);
     // Only this SDK's own state — nothing here is a Claude Code shape the CLI would try to read.
-    expect(readdirSync(join(ran, ".theokit")).sort()).toEqual(["agents", "memory"]);
-  });
+    //
+    // `memory/` USED TO BE IN THIS LIST, and its disappearance is a real behaviour change from the
+    // 2026-09-02 kernel flip rather than a weakened assertion. The legacy path called
+    // `memoryGlue.ensureTools()` inside `executeSendLocked` — BEFORE the fixture-vs-real fork — so
+    // the SQLite index was created on any send at all, including this one, which uses a
+    // `theo_test_*` key and is answered by the fixture responder without the agent loop ever
+    // running. The port path initialises memory through `provider.init()` inside the loop, so a run
+    // that never reaches the loop no longer leaves an empty index behind.
+    //
+    // Where it matters the behaviour is unchanged, and that is asserted elsewhere rather than
+    // assumed: `golden/memory/sessions-corpus.golden.test.ts` drives a REAL loop and still finds the
+    // summary indexed and searchable after `run.wait()`.
+    expect(readdirSync(join(ran, ".theokit")).sort()).toEqual(["agents"]);
+    // 60s for THIS test, not for the suite. It does a full Agent.create + send against the 20s global
+    // budget and timed out once under full-suite load while passing in isolation and while its
+    // siblings in this same file, doing the same work, passed. Raising the global timeout would
+    // weaken 5478 tests to accommodate one; the 20s figure was chosen deliberately against exactly
+    // that, and the reason is written in vitest.config.ts.
+  }, 60_000);
 
   // The other direction, and the one the scope named: a memory this SDK records has to land where
   // the CLI looks, not only be able to read what the CLI wrote.
@@ -223,7 +278,6 @@ describe("a real Claude Code project, read end to end", () => {
   // question.
   it("test_a_memory_this_agent_records_lands_where_the_cli_reads", async () => {
     const cliMemory = join(claudeHome, "projects", cwd.replace(/[^a-zA-Z0-9]/g, "-"), "memory");
-    const { Agent } = await import("../src/index.js");
     const agent = await Agent.create({
       model: { id: "anthropic/claude-sonnet-4-6" },
       apiKey: "theo_test_e2e",
@@ -240,7 +294,9 @@ describe("a real Claude Code project, read end to end", () => {
 
   it("test_without_a_configured_directory_nothing_moves", async () => {
     const plain = mkdtempSync(join(tmpdir(), "cc-e2e-plain-"));
-    const { Agent } = await import("../src/index.js");
+    onTestFinished(() => {
+      removeTempDirRobustSync(plain);
+    });
     const agent = await Agent.create({
       model: { id: "anthropic/claude-sonnet-4-6" },
       apiKey: "theo_test_e2e",

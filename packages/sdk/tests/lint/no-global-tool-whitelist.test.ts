@@ -12,7 +12,7 @@
  * - `let _toolWhitelist`
  * - `let whitelist:`
  *
- * The canonical store lives in `internal/runtime/concurrency/async-local-storage.ts`
+ * The canonical store lives in `internal/concurrency/async-local-storage.ts`
  * (the `toolWhitelistStore` constant of type `AsyncLocalStorage`).
  *
  * @internal
@@ -21,6 +21,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { expectScopeCovered } from "./_scope-sentinel.js";
 
 const SRC_ROOT = join(__dirname, "..", "..", "src");
 
@@ -46,6 +47,7 @@ const PATTERN = /\blet\s+(_?[Tt]ool[Ww]hitelist|_?whitelist\s*:)/;
 describe("no global mutable tool whitelist (T5.2, ADR D111)", () => {
   it("packages/sdk/src/ has no `let _toolWhitelist` / `let whitelist:` declarations", async () => {
     const files = await walk(SRC_ROOT);
+    expectScopeCovered(files, "index.ts", SRC_ROOT);
     const offenders: Offender[] = [];
     for (const file of files) {
       const text = await readFile(file, "utf8");
@@ -66,7 +68,7 @@ describe("no global mutable tool whitelist (T5.2, ADR D111)", () => {
 
   it("async-local-storage.ts exports the canonical AsyncLocalStorage<Set<string>>", async () => {
     const text = await readFile(
-      join(SRC_ROOT, "internal", "runtime", "concurrency", "async-local-storage.ts"),
+      join(SRC_ROOT, "internal", "concurrency", "async-local-storage.ts"),
       "utf8",
     );
     expect(text).toContain("AsyncLocalStorage<Set<string>>");

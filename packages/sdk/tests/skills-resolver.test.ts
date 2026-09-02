@@ -45,17 +45,23 @@ describe("SE22 — dynamic skills resolver", () => {
     });
     const inputs = makeInputs(resolver);
 
-    const adminPrompt = await assembleSystemPromptForSend(
-      inputs,
-      "admin",
-      undefined,
-      [],
-      undefined,
-    );
+    const adminPrompt = await assembleSystemPromptForSend({
+      inputs: inputs,
+      userText: "admin",
+      baseSystemPrompt: undefined,
+      memoryFacts: [],
+      activeMemorySummary: undefined,
+    });
     expect(adminPrompt).toContain("admin-tools");
     expect(adminPrompt).not.toContain("user-tools");
 
-    const userPrompt = await assembleSystemPromptForSend(inputs, "user", undefined, [], undefined);
+    const userPrompt = await assembleSystemPromptForSend({
+      inputs: inputs,
+      userText: "user",
+      baseSystemPrompt: undefined,
+      memoryFacts: [],
+      activeMemorySummary: undefined,
+    });
     expect(userPrompt).toContain("user-tools");
     expect(userPrompt).not.toContain("admin-tools");
   });
@@ -67,7 +73,13 @@ describe("SE22 — dynamic skills resolver", () => {
     await mgr.initialize();
     const inputs = makeInputs({ enabled: ["static-skill"] }, mgr);
 
-    const prompt = await assembleSystemPromptForSend(inputs, "hi", undefined, [], undefined);
+    const prompt = await assembleSystemPromptForSend({
+      inputs: inputs,
+      userText: "hi",
+      baseSystemPrompt: undefined,
+      memoryFacts: [],
+      activeMemorySummary: undefined,
+    });
     expect(prompt).toContain("static-skill");
     expect(prompt).toContain("A static skill");
   });
@@ -77,13 +89,13 @@ describe("SE22 — dynamic skills resolver", () => {
       autoInject: false,
       inline: [Skill.create({ name: "hidden-skill", description: "d", instructions: "b" })],
     });
-    const prompt = await assembleSystemPromptForSend(
-      makeInputs(resolver),
-      "x",
-      undefined,
-      [],
-      undefined,
-    );
+    const prompt = await assembleSystemPromptForSend({
+      inputs: makeInputs(resolver),
+      userText: "x",
+      baseSystemPrompt: undefined,
+      memoryFacts: [],
+      activeMemorySummary: undefined,
+    });
     expect(prompt ?? "").not.toContain("hidden-skill");
   });
 
@@ -95,7 +107,13 @@ describe("SE22 — dynamic skills resolver", () => {
     };
     const inputs = makeInputs(resolver);
 
-    await assembleSystemPromptForSend(inputs, "x", undefined, [], undefined);
+    await assembleSystemPromptForSend({
+      inputs: inputs,
+      userText: "x",
+      baseSystemPrompt: undefined,
+      memoryFacts: [],
+      activeMemorySummary: undefined,
+    });
     expect(calls).toBe(1); // resolved exactly once in the assembly path
 
     // The systemPrompt-resolver ctx path uses the base manager, never the resolver.
@@ -109,7 +127,13 @@ describe("SE22 — dynamic skills resolver", () => {
       throw new Error("resolver boom");
     };
     await expect(
-      assembleSystemPromptForSend(makeInputs(resolver), "x", undefined, [], undefined),
+      assembleSystemPromptForSend({
+        inputs: makeInputs(resolver),
+        userText: "x",
+        baseSystemPrompt: undefined,
+        memoryFacts: [],
+        activeMemorySummary: undefined,
+      }),
     ).rejects.toThrow("resolver boom");
   });
 });

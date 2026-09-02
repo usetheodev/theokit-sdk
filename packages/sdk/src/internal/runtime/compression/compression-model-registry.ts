@@ -26,6 +26,8 @@
  * @internal
  */
 
+import { TheokitAgentError } from "../../../errors.js";
+
 /**
  * Exact `agent-model → compression-model` map. Most cases land here.
  * Entries MUST keep cheaper-tier model within the SAME vendor family
@@ -92,14 +94,16 @@ const NO_AUTH_PROVIDERS: ReadonlySet<string> = new Set(["ollama", "lmstudio", "l
  *
  * @public
  */
-export class CompressionModelUnresolvedError extends Error {
+export class CompressionModelUnresolvedError extends TheokitAgentError {
   override readonly name = "CompressionModelUnresolvedError";
   readonly agentModel: string;
   constructor(agentModel: string) {
+    // Not retryable: the registry has no entry for this model until someone adds one.
     super(
       `Could not resolve a same-family-cheaper-tier compression model for "${agentModel}". ` +
         `Provide Agent.create({compression: {model: "<your-cheaper-model>"}}) ` +
         `OR add "${agentModel}" to the compression-model-registry (see ADR D440).`,
+      { code: "compression_model_unresolved", isRetryable: false },
     );
     this.agentModel = agentModel;
   }

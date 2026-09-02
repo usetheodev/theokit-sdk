@@ -4,10 +4,8 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  isStoredOAuthAvailable,
-  shouldUseRealLocalRuntime,
-} from "../src/internal/runtime/fixtures/fixture-mode.js";
+import { isStoredOAuthAvailable } from "../src/internal/auth/credential-availability.js";
+import { shouldUseRealLocalRuntime } from "../src/internal/runtime/fixtures/fixture-mode.js";
 
 /**
  * #445 — a successful `/login` must not leave the consumer talking to the fixture responder.

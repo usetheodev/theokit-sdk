@@ -117,7 +117,7 @@ export async function waitForCloseWaitBelow(
 /**
  * Assert that a {@link ProbeResult} shows no lingering CLOSE_WAIT sockets
  * above `threshold` (DoD: ≤ 5 for a 1000-concurrent-SSE run measured at full
- * concurrency — see the call-site note in `1000-concurrent-sse.test.ts` for
+ * concurrency — see the call-site note in `concurrent-sse-1000.test.ts` for
  * why the default smoke run may use a different, explicitly-reasoned budget).
  *
  * Unlike the pre-B-099 version, this THROWS on `available: false` instead of

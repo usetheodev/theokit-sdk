@@ -1,4 +1,5 @@
-import type { SessionMessage } from "./session-types.js";
+import { globalSingleton } from "../global-singleton.js";
+import type { SessionMessage } from "./types.js";
 
 /**
  * The in-memory session cache — in a LEAF module, on purpose.
@@ -11,11 +12,23 @@ import type { SessionMessage } from "./session-types.js";
  *
  * This state's natural owner was never `agent-session.ts`: they are two process-wide maps that both
  * modules read. Extracting them into a leaf removes the cycle under ANY detector, with no tool
- * policy and without changing a line of behavior — the same `Map`/`Set` instances remain
- * the only ones in the process, because an ES module is a singleton.
+ * policy and without changing a line of behavior.
+ *
+ * THE CLAIM THAT USED TO CLOSE THIS PARAGRAPH WAS FALSE. It said the same `Map`/`Set` instances
+ * remain the only ones in the process "because an ES module is a singleton". A module is a singleton
+ * per MODULE INSTANCE, and `internal/global-singleton.ts` exists in this repository, in writing, to
+ * refute exactly that: a package loaded twice — two copies in `node_modules`, ESM and CJS side by
+ * side, a monorepo with distinct versions — evaluates the module twice and produces two Maps that
+ * cannot see each other. Both now go through the helper, which keys on the global symbol registry.
  */
-export const sessions = new Map<string, SessionMessage[]>();
-export const hydratedKeys = new Set<string>();
+export const sessions = globalSingleton(
+  "theokit-sdk.session.cache.messages",
+  () => new Map<string, SessionMessage[]>(),
+);
+export const hydratedKeys = globalSingleton(
+  "theokit-sdk.session.cache.hydrated",
+  () => new Set<string>(),
+);
 
 /** The per-(cwd, agentId) transcript key for cache/hydration bookkeeping. */
 export function transcriptKey(cwd: string, agentId: string): string {

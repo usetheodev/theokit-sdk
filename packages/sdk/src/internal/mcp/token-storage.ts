@@ -80,7 +80,7 @@ const KEYTAR_SERVICE = "theokit-mcp";
  * there, which is untested and not asserted here. The one case where the guard is genuinely
  * load-bearing is a worker thread whose environment copy was blanked.
  *
- * The OS is UNTESTED here: every POSIX-mode test in `mcp-token-store-modes.test.ts` is
+ * The OS is UNTESTED here: every POSIX-mode test in `mcp/token-store-modes.test.ts` is
  * `it.skipIf(!POSIX)` and CI runs ubuntu only, so nothing exercises real Windows chmod semantics or
  * libuv's `USERPROFILE` lookup. The BRANCH SELECTION is tested — `process.platform` is spy-able, and
  * `test_the_store_reads_USERPROFILE_and_not_HOME_on_win32` pins all three legs.
@@ -96,7 +96,7 @@ const KEYTAR_SERVICE = "theokit-mcp";
  * performs and 97 079 for the write (89x and 645x). The resolution is free relative to the I/O it
  * precedes.
  *
- * B-089. `packages/sdk/tests/mcp-token-store-modes.test.ts` pins it: import once, move HOME, write,
+ * B-089. `packages/sdk/tests/mcp/token-store-modes.test.ts` pins it: import once, move HOME, write,
  * assert the write followed — and it must hold under `--pool=threads`, not only under the repo's
  * configured `forks`.
  *

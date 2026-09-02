@@ -8,22 +8,24 @@
  * @internal
  */
 
+import type {
+  Step,
+  StepContext,
+  StepResult,
+  WorkflowEvent,
+  WorkflowOptions,
+  WorkflowResumeOptions,
+  WorkflowRun,
+  WorkflowRunOptions,
+  WorkflowSnapshot,
+} from "../../types/workflow.js";
 import {
-  type Step,
-  type StepContext,
-  type StepResult,
-  type WorkflowEvent,
   WorkflowInputError,
-  type WorkflowOptions,
   WorkflowOutputError,
-  type WorkflowResumeOptions,
   WorkflowResumeStepNotFoundError,
-  type WorkflowRun,
-  type WorkflowRunOptions,
-  type WorkflowSnapshot,
   WorkflowSnapshotNotFoundError,
   WorkflowStateError,
-} from "../../types/workflow.js";
+} from "../../workflow-errors.js";
 import { combineSignals, makeStepContext, WorkflowSuspendedSentinel } from "./ctx.js";
 import { errToShape } from "./error-shape.js";
 import {
@@ -38,6 +40,7 @@ import { getSnapshotStoreFor } from "./snapshot-store.js";
 import { runAgentStep } from "./step-agent.js";
 import { runBranchStep } from "./step-branch.js";
 import { runDowhileStep } from "./step-dowhile.js";
+import type { StepExecution } from "./step-execution.js";
 import { runFnStep } from "./step-fn.js";
 import { runForeachStep } from "./step-foreach.js";
 import { runParallelStep } from "./step-parallel.js";
@@ -131,7 +134,12 @@ async function runOneStep<T>(args: {
   });
   let result: StepResult;
   try {
-    result = await dispatchStep(args.step, args.acc, args.ctx, args.options, args.stepResults);
+    result = await dispatchStep(args.step, args.acc, {
+      ctx: args.ctx,
+      options: args.options,
+      prevStepResults: args.stepResults,
+      dispatch: dispatchStep,
+    });
   } catch (err) {
     if (err instanceof WorkflowSuspendedSentinel) {
       const outcome = await handleSuspend<T>(err, { ...args, stepSpan, stepCtx: args.ctx });
@@ -340,23 +348,22 @@ export async function executeWorkflow<TInput, TOutput>(
 export async function dispatchStep(
   step: Step,
   input: unknown,
-  ctx: StepContext,
-  options: WorkflowOptions,
-  prevStepResults: ReadonlyArray<StepResult>,
+  exec: StepExecution,
 ): Promise<StepResult> {
+  const { ctx } = exec;
   switch (step.kind) {
     case "fn":
       return runFnStep(step, input, ctx);
     case "agent":
       return runAgentStep(step, input, ctx);
     case "parallel":
-      return runParallelStep(step, input, ctx, options, prevStepResults, dispatchStep);
+      return runParallelStep(step, input, exec);
     case "branch":
-      return runBranchStep(step, input, ctx, options, prevStepResults, dispatchStep);
+      return runBranchStep(step, input, exec);
     case "foreach":
-      return runForeachStep(step, input, ctx, options, prevStepResults, dispatchStep);
+      return runForeachStep(step, input, exec);
     case "dowhile":
-      return runDowhileStep(step, input, ctx, options, prevStepResults, dispatchStep);
+      return runDowhileStep(step, input, exec);
     case "sleep":
       return runSleepStep(step, input, ctx);
     case "suspend":

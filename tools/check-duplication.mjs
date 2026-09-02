@@ -48,16 +48,22 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 /**
  * Duplicated lines across `packages/*​/src`, as measured on 2026-08-26.
  *
- * 3237 across 109 clones. Pinned exactly: the point is that it cannot grow, and a
- * budget with slack in it is slack someone will spend.
+ * 2886 across 102 clones, as measured on 2026-09-01. Pinned exactly: the point is that it
+ * cannot grow, and a budget with slack in it is slack someone will spend.
  *
- * Was 3333 on 2026-08-22, and 3647 on 2026-08-17. Extracting the agent-name slug rule out
- * of its two copies (`sdk-handoff`) dropped it by 314; the #400 session-path work dropped
- * another 96 by routing three call sites through one resolver. The gate's own message asks
- * for the new figure to be pinned each time — a budget that keeps the old slack lets the
- * duplication come back unnoticed.
+ * Was 3237 on 2026-08-26, 3333 on 2026-08-22, and 3647 on 2026-08-17. Extracting the
+ * agent-name slug rule out of its two copies (`sdk-handoff`) dropped it by 314; the #400
+ * session-path work dropped another 96 by routing three call sites through one resolver.
+ * The 351 that came off between 2026-08-26 and 2026-09-01 were already gone when this was
+ * re-pinned — the gate had been passing with that much slack, which is exactly the state
+ * its own message warns about. The gate asks for the new figure to be pinned each time;
+ * a budget that keeps the old slack lets the duplication come back unnoticed.
+ *
+ * 2886 -> 2683 on 2026-09-02: the #524 opt-in threaded one `compatSources` parameter through the
+ * four config-reading subsystems, and the paths that had each resolved their own roots now share
+ * `projectConfigRoots`. Pinned in the same commit that earned it.
  */
-const BUDGET_LINES = Number(process.env.MAX_DUPLICATED_LINES ?? 3237);
+const BUDGET_LINES = Number(process.env.MAX_DUPLICATED_LINES ?? 2683);
 
 const out = mkdtempSync(join(tmpdir(), "jscpd-gate-"));
 try {

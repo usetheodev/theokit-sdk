@@ -1,8 +1,9 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { DEFAULT_DISCOVERY_SPECS, runDiscovery } from "../src/context/index.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /*
  * Rules written for the Claude Code CLI.
@@ -21,6 +22,9 @@ describe("rules under .claude", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "cc-rules-compat-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
   });
 
   const discover = async (): Promise<{ id: string; content: string }[]> =>

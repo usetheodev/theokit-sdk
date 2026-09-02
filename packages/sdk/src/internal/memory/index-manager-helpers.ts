@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { readdir, stat } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { stat } from "node:fs/promises";
+import { relative } from "node:path";
 
 import type { MemorySearchHit, SearchOptions } from "./index-manager-contract.js";
+import { listMarkdownIn } from "./storage/list-markdown.js";
 import { memoryMdPath, notesDir } from "./storage/markdown-store.js";
 import type { MemoryRoot } from "./storage/memory-root.js";
 import { discoverSessionFiles } from "./storage/session-loader.js";
@@ -60,27 +61,18 @@ export interface DiscoveredFile {
 }
 
 /**
- * Every `*.md` in `dir` as a discovered memory file, minus `skip`. A directory that does not exist
- * yet contributes nothing — the store is created lazily, and its absence is not an error.
+ * Every `*.md` in `dir` as a discovered memory file, minus `skip`, tagged for the memory bucket.
+ *
+ * A directory that does not exist yet contributes nothing — the store is created lazily, and its
+ * absence is not an error. The listing itself lives in `storage/list-markdown.ts`; this adds the tag.
  */
 async function markdownFilesIn(
   dir: string,
   root: string,
   skip: readonly string[] = [],
 ): Promise<DiscoveredFile[]> {
-  let entries: string[];
-  try {
-    entries = await readdir(dir);
-  } catch {
-    return [];
-  }
-  return entries
-    .filter((entry) => entry.endsWith(".md") && !skip.includes(entry))
-    .map((entry) => ({
-      absolutePath: join(dir, entry),
-      relPath: relative(root, join(dir, entry)),
-      source: "memory" as const,
-    }));
+  const files = await listMarkdownIn(dir, root, { skip });
+  return files.map((file) => ({ ...file, source: "memory" as const }));
 }
 
 /**

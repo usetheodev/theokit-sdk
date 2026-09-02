@@ -24,6 +24,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { expectScopeCovered } from "./_scope-sentinel.js";
 
 const SRC_ROOT = join(__dirname, "..", "..", "src");
 
@@ -72,6 +73,7 @@ async function scanFile(file: string): Promise<Offender[]> {
 describe("no TODO / FIXME / XXX / HACK markers in src (S3)", () => {
   it("packages/sdk/src/ has no production stub markers", async () => {
     const files = await walk(SRC_ROOT);
+    expectScopeCovered(files, "index.ts", SRC_ROOT);
     const offenders: Offender[] = [];
     for (const file of files) {
       offenders.push(...(await scanFile(file)));

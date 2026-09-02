@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ConfigurationError } from "../../../src/errors.js";
-import { createSemaphore } from "../../../src/internal/runtime/concurrency/async-semaphore.js";
+import { createSemaphore } from "../../../src/internal/concurrency/async-semaphore.js";
 import { pollUntil } from "../../helpers/poll-until.js";
 
 describe("AsyncSemaphore (T1.1)", () => {

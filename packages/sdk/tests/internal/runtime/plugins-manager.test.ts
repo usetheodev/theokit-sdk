@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ConfigurationError } from "../../../src/errors.js";
-import { PluginsManager } from "../../../src/internal/runtime/plugins/plugins-manager.js";
+import { PluginsManager } from "../../../src/internal/runtime/plugin-loader/plugins-manager.js";
 
 let dir: string;
 beforeEach(() => {

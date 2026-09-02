@@ -3,16 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-
+import { readStoredOAuth, writeCredential } from "../../../src/internal/auth/credential-store.js";
+import { openaiDeviceLogin } from "../../../src/internal/auth/oauth-device.js";
+import { ensureFreshCredential } from "../../../src/internal/auth/oauth-engine.js";
 import type {
   CredentialStoreConfig,
   HttpDeps,
   OAuthProviderConfig,
   ResolvedCredential,
-} from "../../../src/internal/auth/auth-types.js";
-import { readStoredOAuth, writeCredential } from "../../../src/internal/auth/credential-store.js";
-import { openaiDeviceLogin } from "../../../src/internal/auth/oauth-device.js";
-import { ensureFreshCredential } from "../../../src/internal/auth/oauth-engine.js";
+} from "../../../src/internal/auth/types.js";
 
 /**
  * M43 — the account_id lifecycle (ADR D4). account_id is the ChatGPT-Account-Id the Codex backend requires

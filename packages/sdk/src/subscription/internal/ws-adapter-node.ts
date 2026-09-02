@@ -10,7 +10,7 @@
 
 import { randomUUID } from "node:crypto";
 import { SubscriptionError } from "../types.js";
-import type { UpgradeContext, WebSocketHandle, WsAdapter } from "./adapter-types.js";
+import type { UpgradeContext, WebSocketHandle, WsAdapter } from "./types.js";
 
 /**
  * Minimal structural shape of the `ws` lib's `WebSocketServer + WebSocket`.

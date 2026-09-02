@@ -1,11 +1,12 @@
 import type { z as ZodNamespace, ZodType } from "zod";
-
+import { StructuredOutputError } from "./errors.js";
 import {
   buildToolPrompt,
   buildTransientAgentOptions,
   disposeAndDeleteTransient,
   extractUsage,
   makeOutputTool,
+  STRUCTURED_OUTPUT_MESSAGES,
   setupStructuredOutput,
 } from "./internal/structured-output-helpers.js";
 import type { AgentOptions, LocalOptions, ModelSelection, SDKAgent } from "./types/agent.js";
@@ -87,15 +88,8 @@ export interface GenerateObjectResult<T> {
  *
  * @public
  */
-export class GenerateObjectError extends Error {
+export class GenerateObjectError extends StructuredOutputError {
   override readonly name = "GenerateObjectError";
-  readonly code: "no_tool_call" | "parse_failed";
-  override readonly cause?: unknown;
-  constructor(code: "no_tool_call" | "parse_failed", message: string, cause?: unknown) {
-    super(message);
-    this.code = code;
-    if (cause !== undefined) this.cause = cause;
-  }
 }
 
 interface GenerateObjectDeps {
@@ -232,16 +226,13 @@ export async function generateObjectImpl<T extends ZodType>(
         if (result.status === "error" && result.error !== undefined) {
           throw new GenerateObjectError(
             "no_tool_call",
-            `Agent run failed before the model could reply: ${result.error.message ?? "unknown error"} [${result.error.code ?? "?"}]`,
+            STRUCTURED_OUTPUT_MESSAGES.runFailed(result.error.message, result.error.code),
             result.error,
           );
         }
         // Model didn't call the output tool.
         if (attempt === maxRetries) {
-          throw new GenerateObjectError(
-            "no_tool_call",
-            "The model returned text instead of calling the `output` tool.",
-          );
+          throw new GenerateObjectError("no_tool_call", STRUCTURED_OUTPUT_MESSAGES.noToolCall);
         }
         continue;
       }
@@ -278,7 +269,7 @@ export async function generateObjectImpl<T extends ZodType>(
     }
     throw new GenerateObjectError(
       "parse_failed",
-      "Schema parse failed after all retries.",
+      STRUCTURED_OUTPUT_MESSAGES.parseFailed,
       lastParseError,
     );
   } finally {

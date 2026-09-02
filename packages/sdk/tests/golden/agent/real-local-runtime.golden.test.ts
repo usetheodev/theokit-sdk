@@ -12,6 +12,7 @@ import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
  */
 
 import { createServer, type Server } from "node:http";
+import { messageDelta, sseFrame } from "../../helpers/anthropic-sse.js";
 
 async function startStubAnthropic(textFrames: string[]): Promise<{
   server: Server;
@@ -25,11 +26,10 @@ async function startStubAnthropic(textFrames: string[]): Promise<{
     }
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
-    const encoder = (event: string, data: string): string => `event: ${event}\ndata: ${data}\n\n`;
-    res.write(encoder("message_start", "{}"));
+    res.write(sseFrame("message_start", "{}"));
     for (const text of textFrames) {
       res.write(
-        encoder(
+        sseFrame(
           "content_block_delta",
           JSON.stringify({
             type: "content_block_delta",
@@ -39,17 +39,8 @@ async function startStubAnthropic(textFrames: string[]): Promise<{
         ),
       );
     }
-    res.write(
-      encoder(
-        "message_delta",
-        JSON.stringify({
-          type: "message_delta",
-          delta: { stop_reason: "end_turn" },
-          usage: { input_tokens: 5, output_tokens: 2 },
-        }),
-      ),
-    );
-    res.write(encoder("message_stop", "{}"));
+    res.write(messageDelta("end_turn", { input_tokens: 5, output_tokens: 2 }));
+    res.write(sseFrame("message_stop", "{}"));
     res.end();
     req.on("close", () => undefined);
   });

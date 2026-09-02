@@ -5,6 +5,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { Agent } from "../../../src/index.js";
+import { useTempCwd } from "../../helpers/temp-workspace.js";
+
+// Agent.create defaults its workspace to process.cwd(), which during a test run is the
+// package itself — this file created agents without saying where, and the state landed in
+// packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 const FIXTURE_KEY = "theo_test_fixture_key_for_invalidate_cache_tests";
 

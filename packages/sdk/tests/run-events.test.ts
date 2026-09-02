@@ -3,7 +3,15 @@ import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { PermissionEngine, PermissionPlugin } from "../src/index.js";
-import { emitRunEvent, type RunEvent } from "../src/types/run-events.js";
+import { emitRunEvent } from "../src/internal/emit-run-event.js";
+import type { RunEvent } from "../src/types/run-events.js";
+import { messageDelta, sseFrame } from "./helpers/anthropic-sse.js";
+import { useTempCwd } from "./helpers/temp-workspace.js";
+
+// Agent.create defaults its workspace to process.cwd(), which during a test run is the
+// package itself — this file created agents without saying where, and the sessions landed in
+// packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 /**
  * SE2 — typed runtime event stream. The pure `emitRunEvent` is fail-safe; the
@@ -47,7 +55,6 @@ interface Script {
 
 function startStub(script: Script): Promise<{ server: Server; url: string }> {
   let call = 0;
-  const enc = (event: string, data: string) => `event: ${event}\ndata: ${data}\n\n`;
   const server = createServer((req, res) => {
     if (req.url !== "/v1/messages") {
       res.statusCode = 404;
@@ -56,11 +63,11 @@ function startStub(script: Script): Promise<{ server: Server; url: string }> {
     }
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
-    res.write(enc("message_start", "{}"));
+    res.write(sseFrame("message_start", "{}"));
     call += 1;
     if (call === 1) {
       res.write(
-        enc(
+        sseFrame(
           "content_block_start",
           JSON.stringify({
             type: "content_block_start",
@@ -70,7 +77,7 @@ function startStub(script: Script): Promise<{ server: Server; url: string }> {
         ),
       );
       res.write(
-        enc(
+        sseFrame(
           "content_block_delta",
           JSON.stringify({
             type: "content_block_delta",
@@ -80,21 +87,12 @@ function startStub(script: Script): Promise<{ server: Server; url: string }> {
         ),
       );
       res.write(
-        enc("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })),
+        sseFrame("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })),
       );
-      res.write(
-        enc(
-          "message_delta",
-          JSON.stringify({
-            type: "message_delta",
-            delta: { stop_reason: "tool_use" },
-            usage: { input_tokens: 10, output_tokens: 5 },
-          }),
-        ),
-      );
+      res.write(messageDelta("tool_use", { input_tokens: 10, output_tokens: 5 }));
     } else {
       res.write(
-        enc(
+        sseFrame(
           "content_block_delta",
           JSON.stringify({
             type: "content_block_delta",
@@ -103,18 +101,9 @@ function startStub(script: Script): Promise<{ server: Server; url: string }> {
           }),
         ),
       );
-      res.write(
-        enc(
-          "message_delta",
-          JSON.stringify({
-            type: "message_delta",
-            delta: { stop_reason: "end_turn" },
-            usage: { input_tokens: 20, output_tokens: 5 },
-          }),
-        ),
-      );
+      res.write(messageDelta("end_turn", { input_tokens: 20, output_tokens: 5 }));
     }
-    res.write(enc("message_stop", "{}"));
+    res.write(sseFrame("message_stop", "{}"));
     res.end();
   });
   return new Promise((resolve) => {

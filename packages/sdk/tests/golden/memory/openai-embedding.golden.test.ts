@@ -13,23 +13,30 @@ interface StubBody {
   input: string[];
 }
 
-function makeFetchStub(responses: Array<{ status: number; body?: unknown }>): {
+function makeFetchStub(
+  responses: Array<{ status: number; body?: unknown; headers?: Record<string, string> }>,
+): {
   fetch: typeof fetch;
   calls: StubBody[];
+  /** Wall-clock ms of each call, relative to the first. Lets a test SEE the backoff. */
+  callTimes: number[];
 } {
   const calls: StubBody[] = [];
+  const callTimes: number[] = [];
+  const t0 = Date.now();
   let i = 0;
   const fetchImpl: typeof fetch = async (_input, init) => {
     const body = JSON.parse(String(init?.body ?? "{}")) as StubBody;
     calls.push(body);
+    callTimes.push(Date.now() - t0);
     const resp = responses[Math.min(i, responses.length - 1)] ?? { status: 200 };
     i += 1;
     return new Response(JSON.stringify(resp.body ?? {}), {
       status: resp.status,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...resp.headers },
     });
   };
-  return { fetch: fetchImpl, calls };
+  return { fetch: fetchImpl, calls, callTimes };
 }
 
 function embeddingPayload(n: number, dim = 1536): { data: Array<{ embedding: number[] }> } {
@@ -111,6 +118,34 @@ describe("OpenAI embedding adapter", () => {
     expect(vectors).toHaveLength(1);
     expect(stub.calls).toHaveLength(2);
     expect(runtime.stats().retries).toBe(1);
+  });
+
+  it("waits at least the backoff floor before retrying a 429 that sent Retry-After", async () => {
+    // The two tests above say "with backoff" and never observe one: they pass identically against a
+    // 0ms sleep. This one is the oracle for WHICH backoff.
+    //
+    // The adapter used to answer "how do we retry an HTTP call to a model provider" by hand —
+    // `50 * attempt`, linear, no Retry-After, no cap — while the SDK already answered it in
+    // `internal/llm/retry.ts` (full jitter per Brooker 2015). It now shares that answer, tuned
+    // tighter for this layer: base 250ms, cap 4s, because an embedding retry sits inside a memory
+    // write on the agent's critical path and carries no abort signal.
+    //
+    // `Retry-After: 0` is what makes this deterministic — the provider's hint wins, clamped up to
+    // the base — so the assertion is a fixed floor rather than a jitter range. Against the old
+    // linear code the first retry slept 50ms and this fails.
+    const stub = makeFetchStub([
+      { status: 429, headers: { "retry-after": "0" } },
+      { status: 200, body: embeddingPayload(1) },
+    ]);
+    const runtime = await openAiMemoryEmbeddingProviderAdapter.create({
+      apiKey: "sk-stub",
+      fetch: stub.fetch,
+    });
+    await runtime.embed(["retry-after"]);
+
+    expect(stub.calls).toHaveLength(2);
+    const waited = (stub.callTimes[1] ?? 0) - (stub.callTimes[0] ?? 0);
+    expect(waited, `retry waited ${waited}ms; the floor is 250ms`).toBeGreaterThanOrEqual(200);
   });
 
   it("retries on 5xx with backoff then succeeds (EC-9)", async () => {

@@ -24,15 +24,17 @@ import {
   writeSync,
 } from "node:fs";
 import { dirname } from "node:path";
+import { TheokitAgentError } from "../../errors.js";
 
 /** Raised when a JSONL line is not valid JSON or is not a JSON object. Carries the 1-based line number. */
-export class JsonlParseError extends Error {
+export class JsonlParseError extends TheokitAgentError {
+  override readonly name = "JsonlParseError";
   constructor(
     message: string,
     readonly line: number,
   ) {
-    super(message);
-    this.name = "JsonlParseError";
+    // Not retryable: the bytes on the line do not change between reads.
+    super(message, { code: "jsonl_parse_failed", isRetryable: false });
   }
 }
 

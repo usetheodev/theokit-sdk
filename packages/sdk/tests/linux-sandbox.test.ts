@@ -22,12 +22,14 @@ import {
   type BwrapDetection,
   createSandboxBackend,
   LinuxSandbox,
-  resetSandboxWarnLatch,
   resolveSandboxPosture,
   SandboxBackend,
   seccompPathForArch,
   wrapCommandForSandbox,
 } from "../src/sandbox/index.js";
+// By explicit module path, not through the barrel: these are test seams and the package keeps them
+// out of its public surface (see the note at the foot of src/sandbox/index.ts).
+import { __resetSandboxWarnLatchForTests } from "../src/sandbox/linux-sandbox.js";
 
 const detectOk = (): BwrapDetection => ({ ok: true, bin: "/usr/bin/bwrap" });
 const detectFailure = (): BwrapDetection => ({ ok: false, reason: "bwrap not found in PATH" });
@@ -54,13 +56,13 @@ describe("M75 T2.2 — wrapCommandForSandbox", () => {
   });
 
   it("test_seccomp_only_goes_in_when_there_is_a_path", () => {
-    const sem = wrapCommandForSandbox("workspace-write", { cwd: "/w", env: {} }, "true");
+    const withoutSeccomp = wrapCommandForSandbox("workspace-write", { cwd: "/w", env: {} }, "true");
     const com = wrapCommandForSandbox(
       "workspace-write",
       { cwd: "/w", env: {}, seccompPath: "/tmp/f.bpf" },
       "true",
     );
-    expect(sem).not.toContain("--seccomp");
+    expect(withoutSeccomp).not.toContain("--seccomp");
     // The program comes in via an fd 3 redirect — that is how bwrap reads it.
     expect(com).toContain("--seccomp");
     expect(com).toContain("3< ");
@@ -100,7 +102,7 @@ describe("M75 T2.2 — LinuxSandbox", () => {
 
 describe("M75 T2.2 — honest degradation (negative cases)", () => {
   it("test_absent_bwrap_warns_ONCE_and_returns_an_unconfined_backend", () => {
-    resetSandboxWarnLatch();
+    __resetSandboxWarnLatchForTests();
     const warnings: string[] = [];
     const opts = {
       mode: "workspace-write" as const,
@@ -124,7 +126,7 @@ describe("M75 T2.2 — honest degradation (negative cases)", () => {
   });
 
   it("test_danger_full_access_does_not_warn_because_it_is_an_explicit_opt_out", () => {
-    resetSandboxWarnLatch();
+    __resetSandboxWarnLatchForTests();
     const warnings: string[] = [];
     const s = createSandboxBackend({
       mode: "danger-full-access",

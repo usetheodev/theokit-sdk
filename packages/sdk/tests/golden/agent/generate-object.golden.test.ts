@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
 import { Agent, AuthenticationError, GenerateObjectError } from "../../../src/index.js";
+import { messageDelta, sseFrame } from "../../helpers/anthropic-sse.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
@@ -36,10 +37,9 @@ async function startStubAnthropic(script: StubScript): Promise<{ server: Server;
     iter += 1;
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
-    const encoder = (event: string, data: string): string => `event: ${event}\ndata: ${data}\n\n`;
-    res.write(encoder("message_start", "{}"));
+    res.write(sseFrame("message_start", "{}"));
     res.write(
-      encoder(
+      sseFrame(
         "content_block_start",
         JSON.stringify({
           type: "content_block_start",
@@ -49,7 +49,7 @@ async function startStubAnthropic(script: StubScript): Promise<{ server: Server;
       ),
     );
     res.write(
-      encoder(
+      sseFrame(
         "content_block_delta",
         JSON.stringify({
           type: "content_block_delta",
@@ -59,19 +59,10 @@ async function startStubAnthropic(script: StubScript): Promise<{ server: Server;
       ),
     );
     res.write(
-      encoder("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })),
+      sseFrame("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })),
     );
-    res.write(
-      encoder(
-        "message_delta",
-        JSON.stringify({
-          type: "message_delta",
-          delta: { stop_reason: "tool_use" },
-          usage: { input_tokens: 42, output_tokens: 7 },
-        }),
-      ),
-    );
-    res.write(encoder("message_stop", "{}"));
+    res.write(messageDelta("tool_use", { input_tokens: 42, output_tokens: 7 }));
+    res.write(sseFrame("message_stop", "{}"));
     res.end();
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
@@ -158,10 +149,9 @@ describe("Agent.generateObject", () => {
       }
       res.statusCode = 200;
       res.setHeader("content-type", "text/event-stream");
-      const encoder = (e: string, d: string): string => `event: ${e}\ndata: ${d}\n\n`;
-      res.write(encoder("message_start", "{}"));
+      res.write(sseFrame("message_start", "{}"));
       res.write(
-        encoder(
+        sseFrame(
           "content_block_delta",
           JSON.stringify({
             type: "content_block_delta",
@@ -170,13 +160,8 @@ describe("Agent.generateObject", () => {
           }),
         ),
       );
-      res.write(
-        encoder(
-          "message_delta",
-          JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn" } }),
-        ),
-      );
-      res.write(encoder("message_stop", "{}"));
+      res.write(messageDelta("end_turn"));
+      res.write(sseFrame("message_stop", "{}"));
       res.end();
     });
     await new Promise<void>((resolve) => noToolServer.listen(0, "127.0.0.1", () => resolve()));
@@ -329,10 +314,9 @@ describe("Agent.generateObject", () => {
       }
       res.statusCode = 200;
       res.setHeader("content-type", "text/event-stream");
-      const e = (ev: string, d: string): string => `event: ${ev}\ndata: ${d}\n\n`;
-      res.write(e("message_start", "{}"));
+      res.write(sseFrame("message_start", "{}"));
       res.write(
-        e(
+        sseFrame(
           "content_block_start",
           JSON.stringify({
             type: "content_block_start",
@@ -342,7 +326,7 @@ describe("Agent.generateObject", () => {
         ),
       );
       res.write(
-        e(
+        sseFrame(
           "content_block_delta",
           JSON.stringify({
             type: "content_block_delta",
@@ -351,9 +335,11 @@ describe("Agent.generateObject", () => {
           }),
         ),
       );
-      res.write(e("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })));
       res.write(
-        e(
+        sseFrame("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })),
+      );
+      res.write(
+        sseFrame(
           "content_block_start",
           JSON.stringify({
             type: "content_block_start",
@@ -363,7 +349,7 @@ describe("Agent.generateObject", () => {
         ),
       );
       res.write(
-        e(
+        sseFrame(
           "content_block_delta",
           JSON.stringify({
             type: "content_block_delta",
@@ -372,14 +358,11 @@ describe("Agent.generateObject", () => {
           }),
         ),
       );
-      res.write(e("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 1 })));
       res.write(
-        e(
-          "message_delta",
-          JSON.stringify({ type: "message_delta", delta: { stop_reason: "tool_use" } }),
-        ),
+        sseFrame("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 1 })),
       );
-      res.write(e("message_stop", "{}"));
+      res.write(messageDelta("tool_use"));
+      res.write(sseFrame("message_stop", "{}"));
       res.end();
     });
     await new Promise<void>((resolve) => multiServer.listen(0, "127.0.0.1", () => resolve()));

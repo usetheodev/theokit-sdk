@@ -28,21 +28,6 @@
  * fix, reintroduced by the comment explaining the fix (usetheodev/theokit-sdk#283).
  */
 export { providerFromApiKeyPrefix } from "../internal/auth/api-key-prefix.js";
-// Contract types (leaf module — single canonical origin).
-export type {
-  CredentialStoreConfig,
-  DeviceCodeGrant,
-  DeviceDeps,
-  DeviceOAuthConfig,
-  HttpDeps,
-  OAuthProviderConfig,
-  OAuthTokens,
-  OpenAIDeviceConfig,
-  ResolvedCredential,
-  StoredApiCredential,
-  StoredCredential,
-  StoredOAuthCredential,
-} from "../internal/auth/auth-types.js";
 // Credential store.
 export {
   assertSecureModes,
@@ -75,3 +60,18 @@ export {
   type ResolveCredentialOptions,
   resolveCredential,
 } from "../internal/auth/resolve-credential.js";
+// Contract types (leaf module — single canonical origin).
+export type {
+  CredentialStoreConfig,
+  DeviceCodeGrant,
+  DeviceDeps,
+  DeviceOAuthConfig,
+  HttpDeps,
+  OAuthProviderConfig,
+  OAuthTokens,
+  OpenAIDeviceConfig,
+  ResolvedCredential,
+  StoredApiCredential,
+  StoredCredential,
+  StoredOAuthCredential,
+} from "../internal/auth/types.js";

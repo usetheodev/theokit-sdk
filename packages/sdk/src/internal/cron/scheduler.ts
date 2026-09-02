@@ -1,7 +1,7 @@
 import { Cron as Croner } from "croner";
-
 import type { CronJob } from "../../types/cron.js";
 import { listJobs, upsertJob } from "./store.js";
+import { normalizeExpression } from "./validate.js";
 
 /**
  * Real local cron scheduler. When `Cron.start()` is called the scheduler
@@ -102,21 +102,4 @@ function refreshNextRunAt(jobId: string, timer: Croner): void {
   const existing = listJobs().find((entry) => entry.id === jobId);
   if (existing === undefined) return;
   upsertJob({ ...existing, nextRunAt: next.getTime() });
-}
-
-function normalizeExpression(cron: string): string {
-  switch (cron) {
-    case "@hourly":
-      return "0 * * * *";
-    case "@daily":
-      return "0 0 * * *";
-    case "@weekly":
-      return "0 0 * * 0";
-    case "@monthly":
-      return "0 0 1 * *";
-    case "@yearly":
-      return "0 0 1 1 *";
-    default:
-      return cron;
-  }
 }

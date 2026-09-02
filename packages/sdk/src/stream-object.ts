@@ -1,11 +1,12 @@
 import type { z as ZodNamespace, ZodType } from "zod";
-
+import { StructuredOutputError } from "./errors.js";
 import {
   buildToolPrompt,
   buildTransientAgentOptions,
   disposeAndDeleteTransient,
   extractUsage,
   makeOutputTool,
+  STRUCTURED_OUTPUT_MESSAGES,
   setupStructuredOutput,
 } from "./internal/structured-output-helpers.js";
 import type { AgentOptions, LocalOptions, ModelSelection, SDKAgent } from "./types/agent.js";
@@ -77,15 +78,8 @@ export type StreamObjectEvent<T> =
  *
  * @public
  */
-export class StreamObjectError extends Error {
+export class StreamObjectError extends StructuredOutputError {
   override readonly name = "StreamObjectError";
-  readonly code: "no_tool_call" | "parse_failed";
-  override readonly cause?: unknown;
-  constructor(code: "no_tool_call" | "parse_failed", message: string, cause?: unknown) {
-    super(message);
-    this.code = code;
-    if (cause !== undefined) this.cause = cause;
-  }
 }
 
 interface StreamObjectDeps {
@@ -107,11 +101,16 @@ interface StreamObjectDeps {
  *
  * `knip` resolves imports statically and does not follow a destructure off a
  * dynamic-import promise, so it reports this export as unused on every run. It
- * is not: removing it breaks `Agent.streamObject`. That is why this file is
- * named in `knip.json`'s ignore list rather than cleaned up — the entry is a
- * tool limitation, not a suppression of a real finding, and the difference is
- * the whole reason this comment exists.
+ * is not: removing it breaks `Agent.streamObject`. The `@knipignore` tag below
+ * silences that one false positive — a tool limitation, not a suppression of a
+ * real finding, and the difference is the whole reason this comment exists.
  *
+ * The tag replaced a whole-file entry in `knip.json`'s ignore list, which also
+ * excluded the four other exports in this file from dead-code analysis. The tag
+ * is scoped to the symbol knip actually cannot resolve, so the rest of the file
+ * is examined again.
+ *
+ * @knipignore reached only via `await import()` in agent.ts; knip cannot follow it
  * @internal
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: streaming loop interleaves text-delta accumulation, partial-parse attempts, retries, and final dispose — splitting harms locality of the iterator contract.
@@ -185,15 +184,12 @@ export async function* streamObjectImpl<T extends ZodType>(
         if (result.status === "error" && result.error !== undefined) {
           throw new StreamObjectError(
             "no_tool_call",
-            `Agent run failed before the model could reply: ${result.error.message ?? "unknown error"} [${result.error.code ?? "?"}]`,
+            STRUCTURED_OUTPUT_MESSAGES.runFailed(result.error.message, result.error.code),
             result.error,
           );
         }
         if (attempt === maxRetries) {
-          throw new StreamObjectError(
-            "no_tool_call",
-            "The model returned text instead of calling the `output` tool.",
-          );
+          throw new StreamObjectError("no_tool_call", STRUCTURED_OUTPUT_MESSAGES.noToolCall);
         }
         continue;
       }
@@ -214,7 +210,7 @@ export async function* streamObjectImpl<T extends ZodType>(
 
     throw new StreamObjectError(
       "parse_failed",
-      "Schema parse failed after all retries.",
+      STRUCTURED_OUTPUT_MESSAGES.parseFailed,
       lastParseError,
     );
   } finally {

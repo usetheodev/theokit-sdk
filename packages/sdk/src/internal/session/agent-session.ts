@@ -23,9 +23,9 @@ import {
 
 // `SessionMessage` lives in `./session-types.ts` (leaf types file). Re-exported
 // for back-compat with downstream importers that pulled it from here.
-export type { SessionMessage } from "./session-types.js";
+export type { SessionMessage } from "./types.js";
 
-import type { SessionMessage } from "./session-types.js";
+import type { SessionMessage } from "./types.js";
 
 // M75 — the cache lives in a leaf; see session-cache.ts for the reason (cycle broken by extraction).
 export {
@@ -36,6 +36,7 @@ export {
 } from "./session-cache.js";
 
 import { diag } from "../diagnostics.js";
+import { globalSingleton } from "../global-singleton.js";
 import { hydratedKeys, sessions, transcriptKey } from "./session-cache.js";
 
 const pendingWrites = new Map<string, Promise<void>>();
@@ -276,7 +277,10 @@ export function clearAllSessions(): void {
   hydratedKeys.clear();
   recordCounts.clear();
   // M50 review F11 — the auto-compact attempt marks live on globalThis; tests reset them here.
-  const g = globalThis as unknown as Record<symbol, Map<string, number>>;
-  const sym = Symbol.for("theokit-sdk.session.auto-compact-attempts");
-  g[sym]?.clear();
+  // Through the helper, with the SAME key compact-session.ts uses: two files hand-rolling one slot is
+  // how two copies of a mechanism drift apart.
+  globalSingleton(
+    "theokit-sdk.session.auto-compact-attempts",
+    () => new Map<string, number>(),
+  ).clear();
 }

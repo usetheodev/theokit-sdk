@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { Agent, ConfigurationError, type CustomTool } from "../../../src/index.js";
-import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
+import { messageDelta, sseFrame } from "../../helpers/anthropic-sse.js";
+import { removeTempDirRobust, useTempCwd } from "../../helpers/temp-workspace.js";
 
 /**
  * Golden tests for the public `AgentOptions.tools` surface (inline custom
@@ -28,13 +29,12 @@ async function startStubAnthropic(script: ToolUseScript): Promise<{ server: Serv
     }
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
-    const encoder = (event: string, data: string): string => `event: ${event}\ndata: ${data}\n\n`;
-    res.write(encoder("message_start", "{}"));
+    res.write(sseFrame("message_start", "{}"));
     call += 1;
     if (call === 1) {
       // First turn: emit a tool_use for the custom tool.
       res.write(
-        encoder(
+        sseFrame(
           "content_block_start",
           JSON.stringify({
             type: "content_block_start",
@@ -49,7 +49,7 @@ async function startStubAnthropic(script: ToolUseScript): Promise<{ server: Serv
         ),
       );
       res.write(
-        encoder(
+        sseFrame(
           "content_block_delta",
           JSON.stringify({
             type: "content_block_delta",
@@ -59,22 +59,13 @@ async function startStubAnthropic(script: ToolUseScript): Promise<{ server: Serv
         ),
       );
       res.write(
-        encoder("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })),
+        sseFrame("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })),
       );
-      res.write(
-        encoder(
-          "message_delta",
-          JSON.stringify({
-            type: "message_delta",
-            delta: { stop_reason: "tool_use" },
-            usage: { input_tokens: 10, output_tokens: 5 },
-          }),
-        ),
-      );
+      res.write(messageDelta("tool_use", { input_tokens: 10, output_tokens: 5 }));
     } else {
       // Second turn: emit final text consuming the tool_result.
       res.write(
-        encoder(
+        sseFrame(
           "content_block_delta",
           JSON.stringify({
             type: "content_block_delta",
@@ -83,18 +74,9 @@ async function startStubAnthropic(script: ToolUseScript): Promise<{ server: Serv
           }),
         ),
       );
-      res.write(
-        encoder(
-          "message_delta",
-          JSON.stringify({
-            type: "message_delta",
-            delta: { stop_reason: "end_turn" },
-            usage: { input_tokens: 20, output_tokens: 5 },
-          }),
-        ),
-      );
+      res.write(messageDelta("end_turn", { input_tokens: 20, output_tokens: 5 }));
     }
-    res.write(encoder("message_stop", "{}"));
+    res.write(sseFrame("message_stop", "{}"));
     res.end();
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
@@ -102,6 +84,17 @@ async function startStubAnthropic(script: ToolUseScript): Promise<{ server: Serv
   if (typeof address !== "object" || address === null) throw new Error("server bind failed");
   return { server, url: `http://127.0.0.1:${address.port}` };
 }
+
+/**
+ * A cloud agent has no local working directory, so these cases pass no `local.cwd` — but the agent
+ * REGISTRY still lands under `process.cwd()`, which during a test run is `packages/sdk/` itself.
+ * Measured 2026-09-01: this file wrote a real `.theokit/agents/registry.json` into the package tree
+ * on every run, invisible to `git status` because `.gitignore` hides it.
+ *
+ * Passing a `local.cwd` to a cloud agent would be a lie about what the agent is; redirecting
+ * `process.cwd()` for the file is the honest fix, and is why this helper exists.
+ */
+useTempCwd();
 
 describe("custom inline tools (AgentOptions.tools)", () => {
   let cwd: string | undefined;

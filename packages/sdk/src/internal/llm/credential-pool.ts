@@ -150,16 +150,46 @@ export class CredentialPool {
     opts: {
       maxWaitMs: number;
       sleeper?: (ms: number, signal: AbortSignal) => Promise<void>;
+      /**
+       * Clock seam, the companion to `sleeper`. Production omits it and gets `Date.now`.
+       *
+       * `sleeper` alone was not enough to make this loop testable: a test could replace the SLEEP
+       * but the deadline check still read real wall-clock, so the one case that exercises timeout
+       * had to set `maxWaitMs: 5` and race the scheduler — with a comment in the committed file
+       * saying so ("we can't easily ... spec is wall-clock based"). A sleeper that also advances a
+       * virtual clock closes the loop deterministically, which is what `rules/testing.md` § 6 asks
+       * for when it says to inject the clock rather than sleep.
+       */
+      now?: () => number;
     },
   ): Promise<boolean> {
     if (signal.aborted) return false;
     if (this.hasAvailable()) return true;
-    const sleeper = opts.sleeper ?? sleepWithAbort;
-    const deadline = Date.now() + opts.maxWaitMs;
-    while (Date.now() < deadline) {
+    const now = opts.now ?? Date.now;
+    return await this.pollUntilAvailable(
+      signal,
+      now() + opts.maxWaitMs,
+      opts.sleeper ?? sleepWithAbort,
+      now,
+    );
+  }
+
+  /**
+   * The polling half of `waitForAvailable`, with both seams already resolved.
+   *
+   * Its own method because resolving two optional seams and running the loop in one body put the
+   * function over the cognitive-complexity gate. The split is also the honest one: everything above
+   * is a guard, everything here is the wait.
+   */
+  private async pollUntilAvailable(
+    signal: AbortSignal,
+    deadline: number,
+    sleeper: (ms: number, signal: AbortSignal) => Promise<void>,
+    now: () => number,
+  ): Promise<boolean> {
+    while (now() < deadline) {
       if (signal.aborted) return false;
-      const jittered = this.computeJitteredSleepMs(deadline);
-      await sleeper(jittered, signal);
+      await sleeper(this.computeJitteredSleepMs(deadline, now), signal);
       if (signal.aborted) return false;
       if (this.hasAvailable()) return true;
     }
@@ -175,13 +205,13 @@ export class CredentialPool {
    * without `resetAtMs`), fall back to a 250 ms ceiling so we stay
    * responsive without hot-looping.
    */
-  private computeJitteredSleepMs(deadline: number): number {
+  private computeJitteredSleepMs(deadline: number, now: () => number = Date.now): number {
     const resetAt = this.earliestResetAt();
-    const remaining = deadline - Date.now();
+    const remaining = deadline - now();
     const ceiling =
       resetAt === undefined
         ? Math.min(remaining, 250)
-        : Math.min(remaining, Math.max(0, resetAt - Date.now()) + 50);
+        : Math.min(remaining, Math.max(0, resetAt - now()) + 50);
     return Math.max(0, Math.floor(Math.random() * ceiling));
   }
 

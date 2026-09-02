@@ -9,7 +9,13 @@
       "protocol:openai-responses",
       "tool",
       "flagship"
-    ]
+    ],
+    "provenance": {
+      "capturedFrom": "a live OpenAI Responses-API stream, recorded outside this repository",
+      "reproducible": false,
+      "note": "`recordedAt` gives the date and not the procedure, and there is no capture script in this monorepo \u2014 a grep for `recordedAt` reaches only these two files. Refreshing them means re-recording a real stream by hand against the provider and pasting the interactions verbatim. Stated rather than left implicit: the previous metadata read as though a command existed.",
+      "refreshWhen": "the provider changes its SSE event names, or a new event type must be parsed"
+    }
   },
   "interactions": [
     {

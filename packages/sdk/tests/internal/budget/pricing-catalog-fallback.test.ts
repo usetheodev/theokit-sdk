@@ -62,7 +62,10 @@ describe("M44 — getPricingEntry step-5 catalog fallback", () => {
         );
       }
     }
-    // Advisory: deltas mean one of the snapshots is stale — re-run both refresh scripts.
+    // NOT advisory — this fails the build. A delta means the litellm snapshot and the provider
+    // catalog disagree on a price, so one of the two is stale: re-run both refresh scripts and
+    // commit the result. Calling a blocking assertion "advisory" is the expensive direction of the
+    // mistake, because someone triaging a red build reads it and goes looking elsewhere.
     expect(deltas).toEqual([]);
   });
 });

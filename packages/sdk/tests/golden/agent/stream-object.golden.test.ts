@@ -5,6 +5,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
 import { Agent, StreamObjectError } from "../../../src/index.js";
+import {
+  blockStop,
+  messageDelta,
+  sseFrame,
+  textBlockStart,
+  textDelta,
+} from "../../helpers/anthropic-sse.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
@@ -16,7 +23,18 @@ import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
  */
 
 interface StubScript {
-  iterations: Array<{ toolName: string; rawInput: string }>;
+  iterations: Array<{
+    toolName: string;
+    rawInput: string;
+    /**
+     * Text chunks streamed BEFORE the tool call, in order.
+     *
+     * `streamObject` emits a `partial` when streamed TEXT best-effort-parses toward the schema
+     * (stream-object.ts:163-173) — a tool call alone produces none. Without this the partials test
+     * observed an empty array and its whole oracle sat inside a loop that never ran.
+     */
+    textChunks?: readonly string[];
+  }>;
 }
 
 async function startStubAnthropic(script: StubScript): Promise<{ server: Server; url: string }> {
@@ -36,10 +54,14 @@ async function startStubAnthropic(script: StubScript): Promise<{ server: Server;
     iter += 1;
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
-    const enc = (event: string, data: string): string => `event: ${event}\ndata: ${data}\n\n`;
-    res.write(enc("message_start", "{}"));
+    res.write(sseFrame("message_start", "{}"));
+    for (const chunk of step.textChunks ?? []) {
+      res.write(textBlockStart(0));
+      res.write(textDelta(chunk, 0));
+      res.write(blockStop(0));
+    }
     res.write(
-      enc(
+      sseFrame(
         "content_block_start",
         JSON.stringify({
           type: "content_block_start",
@@ -49,7 +71,7 @@ async function startStubAnthropic(script: StubScript): Promise<{ server: Server;
       ),
     );
     res.write(
-      enc(
+      sseFrame(
         "content_block_delta",
         JSON.stringify({
           type: "content_block_delta",
@@ -58,18 +80,11 @@ async function startStubAnthropic(script: StubScript): Promise<{ server: Server;
         }),
       ),
     );
-    res.write(enc("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })));
     res.write(
-      enc(
-        "message_delta",
-        JSON.stringify({
-          type: "message_delta",
-          delta: { stop_reason: "tool_use" },
-          usage: { input_tokens: 11, output_tokens: 4 },
-        }),
-      ),
+      sseFrame("content_block_stop", JSON.stringify({ type: "content_block_stop", index: 0 })),
     );
-    res.write(enc("message_stop", "{}"));
+    res.write(messageDelta("tool_use", { input_tokens: 11, output_tokens: 4 }));
+    res.write(sseFrame("message_stop", "{}"));
     res.end();
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
@@ -225,7 +240,10 @@ describe("Agent.streamObject", () => {
     await iter.return();
     // After return(), generator's finally must have disposed the transient agent.
     const after = await Agent.list();
-    expect(after.items.length).toBeLessThanOrEqual(before.items.length);
+    // EXACTLY restored, not merely "no larger". `<=` also passes when the transient agent was never
+    // created — which is the state a broken stream leaves behind, and the one this test is here to
+    // tell apart from a clean disposal.
+    expect(after.items.length).toBe(before.items.length);
   });
 
   it("ignores duplicate output tool calls (EC-6)", async () => {
@@ -288,10 +306,9 @@ describe("Agent.streamObject", () => {
       }
       res.statusCode = 200;
       res.setHeader("content-type", "text/event-stream");
-      const enc = (e: string, d: string): string => `event: ${e}\ndata: ${d}\n\n`;
-      res.write(enc("message_start", "{}"));
+      res.write(sseFrame("message_start", "{}"));
       res.write(
-        enc(
+        sseFrame(
           "content_block_start",
           JSON.stringify({
             type: "content_block_start",
@@ -301,7 +318,7 @@ describe("Agent.streamObject", () => {
         ),
       );
       res.write(
-        enc(
+        sseFrame(
           "content_block_delta",
           JSON.stringify({
             type: "content_block_delta",
@@ -310,18 +327,9 @@ describe("Agent.streamObject", () => {
           }),
         ),
       );
-      res.write(enc("content_block_stop", "{}"));
-      res.write(
-        enc(
-          "message_delta",
-          JSON.stringify({
-            type: "message_delta",
-            delta: { stop_reason: "end_turn" },
-            usage: { input_tokens: 5, output_tokens: 7 },
-          }),
-        ),
-      );
-      res.write(enc("message_stop", "{}"));
+      res.write(sseFrame("content_block_stop", "{}"));
+      res.write(messageDelta("end_turn", { input_tokens: 5, output_tokens: 7 }));
+      res.write(sseFrame("message_stop", "{}"));
       res.end();
     });
     await new Promise<void>((r) => noToolServer.listen(0, "127.0.0.1", () => r()));
@@ -348,17 +356,35 @@ describe("Agent.streamObject", () => {
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: test must inspect every partial sequentially to assert monotonic invariant; splitting harms test locality.
   it("attempt counter is monotonically increasing across partials", async () => {
-    // Synthetic check on the contract: we don't strictly require partials
-    // to be emitted (provider-dependent), but if they are, attempt MUST be
-    // strictly increasing. We verify the type-level invariant.
+    // This used to script a tool call and nothing else, and a tool call produces no `partial`.
+    // MEASURED when the anchor below was added: `attempts.length` was 0, so the monotonic oracle sat
+    // inside a loop that never ran and the test had never compared anything. Its comment said as
+    // much — "we don't strictly require partials to be emitted ... we verify the type-level
+    // invariant" — which is a description of asserting nothing.
+    //
+    // The stub now streams text that parses progressively toward the schema, which is what makes a
+    // partial, so there is a real sequence to require monotonic.
     if (cwd === undefined) throw new Error("missing workspace");
     const stub = await startStubAnthropic({
-      iterations: [{ toolName: "output", rawInput: JSON.stringify({ a: 1 }) }],
+      iterations: [
+        // Attempt 1 streams a parseable object and then calls the tool with a value the schema
+        // REJECTS (`b` missing), which is what forces a second attempt. Attempt 2 succeeds.
+        { toolName: "output", rawInput: JSON.stringify({ a: 1 }), textChunks: ['{"a": 1}'] },
+        {
+          toolName: "output",
+          rawInput: JSON.stringify({ a: 1, b: 2 }),
+          textChunks: ['{"a": 1, "b": 2}'],
+        },
+      ],
     });
     server = stub.server;
     process.env.ANTHROPIC_API_KEY = "sk-stub";
     process.env.ANTHROPIC_API_BASE_URL = stub.url;
-    const schema = z.object({ a: z.number() });
+    // The counter increments PER PARTIAL across the whole run, and `bestEffortPartialParse` requires
+    // a BALANCED object — so a single streamed object yields exactly one partial no matter how it is
+    // chunked, and the sequence this test is named for only exists across ATTEMPTS. The stub above
+    // scripts two: the first tool call returns a value the schema rejects, forcing a retry.
+    const schema = z.object({ a: z.number(), b: z.number() });
     const attempts: number[] = [];
     for await (const evt of Agent.streamObject({
       apiKey: "real-not-fixture",
@@ -369,6 +395,14 @@ describe("Agent.streamObject", () => {
     })) {
       if (evt.type === "partial") attempts.push(evt.attempt);
     }
+    // The anchor. Without it every assertion below sits inside a loop that does not run when the
+    // stream produced no `partial` event, and the test reports a pass having compared nothing —
+    // including in the case it exists to catch, where retries stopped being emitted at all.
+    expect(
+      attempts.length,
+      "no partial events: there is no attempt sequence to check",
+    ).toBeGreaterThan(1);
+
     // Strictly increasing (no duplicates, no regressions).
     for (let i = 1; i < attempts.length; i += 1) {
       const cur = attempts[i];
@@ -399,6 +433,9 @@ describe("Agent.streamObject", () => {
       // drain
     }
     const after = await Agent.list();
-    expect(after.items.length).toBeLessThanOrEqual(before.items.length);
+    // EXACTLY restored, not merely "no larger". `<=` also passes when the transient agent was never
+    // created — which is the state a broken stream leaves behind, and the one this test is here to
+    // tell apart from a clean disposal.
+    expect(after.items.length).toBe(before.items.length);
   });
 });

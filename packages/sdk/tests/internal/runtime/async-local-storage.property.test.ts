@@ -10,7 +10,7 @@ import { describe, it } from "vitest";
 import {
   currentToolWhitelist,
   withToolWhitelist,
-} from "../../../src/internal/runtime/concurrency/async-local-storage.js";
+} from "../../../src/internal/concurrency/async-local-storage.js";
 
 describe("AsyncLocalStorage — property invariants (T5.1)", () => {
   it("parallel forks see only their own whitelist (200 runs)", async () => {

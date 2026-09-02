@@ -3,16 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import type {
-  CredentialStoreConfig,
-  DeviceDeps,
-  DeviceOAuthConfig,
-  HttpDeps,
-  OAuthProviderConfig,
-  OpenAIDeviceConfig,
-  ResolvedCredential,
-} from "../../../src/internal/auth/auth-types.js";
 import { writeCredential } from "../../../src/internal/auth/credential-store.js";
 import {
   extractAccountId,
@@ -24,6 +14,15 @@ import {
   exchangeCode,
   refreshOAuthTokens,
 } from "../../../src/internal/auth/oauth-engine.js";
+import type {
+  CredentialStoreConfig,
+  DeviceDeps,
+  DeviceOAuthConfig,
+  HttpDeps,
+  OAuthProviderConfig,
+  OpenAIDeviceConfig,
+  ResolvedCredential,
+} from "../../../src/internal/auth/types.js";
 import { AuthCallbackError } from "../../../src/server/auth/errors.js";
 
 /**

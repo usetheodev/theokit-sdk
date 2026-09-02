@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { diag } from "../../diagnostics.js";
 import { projectConfigRoots } from "../../persistence/paths.js";
-import { pluginBundleDirs } from "../plugins/plugin-bundles.js";
+import { pluginBundleDirs } from "../plugin-loader/plugin-bundles.js";
 import { discoverSkills, type Skill } from "./discover-skills.js";
 import { stripSkillFrontmatter } from "./skill-frontmatter.js";
 
@@ -62,6 +62,14 @@ export class SkillsManager {
     // M22 — optional custom skills directory + inline (code-defined) skills.
     private readonly skillsDir?: string,
     private readonly inline?: StoredSkill[],
+    /**
+     * Declared foreign dialects (#524). Empty reads `.theokit/` only.
+     *
+     * The quietest of the four subsystems and the one worth stating: a skill's text enters the
+     * SYSTEM PROMPT, so importing skills from a directory this SDK does not own is a
+     * prompt-injection surface, not a convenience.
+     */
+    private readonly compatSources: readonly string[] = [],
   ) {
     void _enabled;
   }
@@ -88,8 +96,8 @@ export class SkillsManager {
     const roots =
       this.skillsDir === undefined
         ? [
-            ...projectConfigRoots(this.cwd).map((root) => join(root, "skills")),
-            ...(await pluginBundleDirs(this.cwd)).map((bundle) => join(bundle, "skills")),
+            ...projectConfigRoots(this.cwd, this.compatSources).map((root) => join(root, "skills")),
+            ...(await pluginBundleDirs(this.cwd, this.compatSources)).map((b) => join(b, "skills")),
           ]
         : [this.skillsDir];
     const discovered: StoredSkill[] = [];

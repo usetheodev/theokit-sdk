@@ -38,18 +38,20 @@ function generatePkceVerifier(): string {
 }
 
 function txCookieSecret<TSession>(opts: DefineAuthOptions<TSession>): string {
-  // For T1.2 minimal impl, derive a per-session-manager secret from the
-  // SessionManager identity. Production T2+ may refactor to share the
-  // SessionManager's actual secret rotation chain via a `getCookieSecret()` method.
-  // Falls back to TX_FALLBACK_SECRET when not available — apps should override.
-  const sess = opts.session as unknown as { secret?: string | string[] };
-  if (sess.secret) {
-    if (Array.isArray(sess.secret)) {
-      const first = sess.secret[0];
-      if (first) return first;
-    } else {
-      return sess.secret;
-    }
+  // Read through the PORT. This was `opts.session as unknown as { secret?: string | string[] }` —
+  // and `as unknown as` is the tell: TypeScript would have refused the property access, so the code
+  // asserted a shape `SessionManager` does not offer. No conforming caller could reach the branch,
+  // nothing in src/ supplied the field, and it was green only because a test double carried one. The
+  // comment that stood here said this code WANTED a `getCookieSecret()` method; `SessionManager` now
+  // declares it, optional and additive, so the branch is reachable through the contract and the
+  // double conforms rather than the code conforming to the double.
+  const fromManager = opts.session.getCookieSecret?.();
+  if (Array.isArray(fromManager)) {
+    // First entry encrypts; the rest exist to verify cookies written before the last rotation.
+    const first = fromManager[0];
+    if (first !== undefined && first !== "") return first;
+  } else if (fromManager !== undefined && fromManager !== "") {
+    return fromManager;
   }
   const fromEnv = process.env.THEOKIT_OAUTH_TX_SECRET;
   if (fromEnv) return fromEnv;
@@ -269,10 +271,29 @@ function defineAuth<TSession>(opts: DefineAuthOptions<TSession>): AuthOrchestrat
   return { startSignIn, finishSignIn, signIn, signOut, getSession };
 }
 
-/** SE36 — `Auth.create` replaces `defineAuth` (ADR 0015). @public */
+/** SE36 — `Auth.create` replaces `defineAuth` (ADR 0015). @public  *
+ * `Auth.create` returns an **`AuthOrchestrator<TSession>`**, not an `Auth`. The class is
+ * the namespace; the orchestrator is the product.
+ */
 export class Auth {
   private constructor() {}
   static create<TSession>(opts: DefineAuthOptions<TSession>): AuthOrchestrator<TSession> {
     return defineAuth(opts);
   }
+}
+
+/**
+ * Test seam over {@link txCookieSecret}.
+ *
+ * Exported so the resolution order can be exercised through a CONFORMING `SessionManager` — the
+ * point of the change that introduced `getCookieSecret`. Without a seam the only way to reach it is
+ * a full `defineAuth` round trip, which is what let the previous version go untested through the
+ * port and tested only through a cast.
+ *
+ * @internal
+ */
+export function _txCookieSecretForTests<TSession>(
+  opts: Pick<DefineAuthOptions<TSession>, "session">,
+): string {
+  return txCookieSecret(opts as DefineAuthOptions<TSession>);
 }

@@ -8,6 +8,7 @@
  * @public
  */
 
+import { ConfigurationError, TheokitAgentError } from "../errors.js";
 import type { EnvPolicy } from "../types/env-policy.js";
 import { shellEscapePosix } from "./shell-escape.js";
 
@@ -67,11 +68,12 @@ export interface SandboxConfig {
  * anything — a container or VM runner enforcing its own policy — can do so in the protocol's
  * vocabulary instead of inventing an error of its own.
  */
-export class SandboxSecurityError extends Error {
-  readonly code = "sandbox_security" as const;
+export class SandboxSecurityError extends TheokitAgentError {
+  override readonly name = "SandboxSecurityError";
+  override readonly code = "sandbox_security" as const;
   constructor(message: string) {
-    super(message);
-    this.name = "SandboxSecurityError";
+    // not retryable: a refused command is refused every time; retrying re-asks the same question
+    super(message, { code: "sandbox_security", isRetryable: false });
   }
 }
 
@@ -85,11 +87,12 @@ export class SandboxSecurityError extends Error {
  * unconfined `LocalSandbox`. Throw this instead from a backend that must never silently run outside
  * its isolation.
  */
-export class SandboxNotAvailableError extends Error {
-  readonly code = "sandbox_not_available" as const;
+export class SandboxNotAvailableError extends TheokitAgentError {
+  override readonly name = "SandboxNotAvailableError";
+  override readonly code = "sandbox_not_available" as const;
   constructor(message: string) {
-    super(message);
-    this.name = "SandboxNotAvailableError";
+    // not retryable: a missing runtime does not appear on a second attempt
+    super(message, { code: "sandbox_not_available", isRetryable: false });
   }
 }
 
@@ -145,7 +148,7 @@ export abstract class SandboxBackend {
     const result = await this.execute(
       `find ${this.shellEscape(dir)} -name ${this.shellEscape(pattern)} -type f 2>/dev/null`,
     );
-    if (result.exitCode !== 0) return [];
+    this.assertCommandRan("glob", result);
     return result.stdout.trim().split("\n").filter(Boolean);
   }
 
@@ -154,14 +157,37 @@ export abstract class SandboxBackend {
     const result = await this.execute(
       `grep -rn ${this.shellEscape(pattern)} ${this.shellEscape(target)} 2>/dev/null`,
     );
-    if (result.exitCode !== 0) return [];
+    // `grep` exits 1 for NO MATCH and >= 2 for an error, so a 1 is an answer and is not asserted on.
+    if (result.exitCode !== 1) this.assertCommandRan("grep", result);
     return result.stdout.trim().split("\n").filter(Boolean);
   }
 
   async listDir(path: string): Promise<string[]> {
     const result = await this.execute(`ls -1 ${this.shellEscape(path)}`);
-    if (result.exitCode !== 0) return [];
+    this.assertCommandRan("listDir", result);
     return result.stdout.trim().split("\n").filter(Boolean);
+  }
+
+  /**
+   * Turns "the command did not run" into an error instead of an empty array.
+   *
+   * `glob`, `grep` and `listDir` used to `return []` on any non-zero exit, so a search that could not
+   * run reported the same thing as a search that found nothing — opposite facts, one normal and one
+   * meaning the agent is looking at a filesystem it cannot read. That is the failure mode a backend
+   * whose `execute` is not a POSIX shell hits, which this class's own docblock warns about in prose
+   * and could not enforce.
+   *
+   * A genuine no-match is still `[]`: `find` exits 0 with empty output, and `grep`'s exit 1 is
+   * checked by its caller before this is reached.
+   */
+  private assertCommandRan(operation: string, result: ExecuteResult): void {
+    if (result.exitCode === 0) return;
+    throw new ConfigurationError(
+      `${operation} failed (exit ${String(result.exitCode)}): ${result.stderr.trim() || "no stderr"}. ` +
+        `The derived helpers shell out to POSIX \`cat\`/\`find\`/\`grep\`/\`ls\` — a backend whose ` +
+        `execute() is not a POSIX shell must override them.`,
+      { code: "sandbox_derived_helper_failed" },
+    );
   }
 
   protected truncateOutput(output: string): string {

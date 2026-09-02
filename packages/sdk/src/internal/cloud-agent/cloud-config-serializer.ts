@@ -9,7 +9,7 @@ import type {
   MemoryPayload,
   ProvidersRedacted,
   SubagentRef,
-} from "./cloud-payload-types.js";
+} from "./types.js";
 
 /**
  * Pure JSON serializer for the cloud-agent payload (ADR D15, T1.1).

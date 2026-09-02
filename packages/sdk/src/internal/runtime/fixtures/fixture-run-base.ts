@@ -11,7 +11,7 @@ import type {
 } from "../../../types/run.js";
 import { generateRunId } from "../../ids.js";
 import { applyExtraRunFields } from "./fixture-responder.js";
-import type { FixtureScript } from "./fixture-types.js";
+import type { FixtureScript } from "./types.js";
 
 /**
  * Shared bootstrap state extracted from `createLocalRun` / `createCloudRun`.

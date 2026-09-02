@@ -75,7 +75,11 @@ describe("persistence stack integration", () => {
     const db = new Database(dbPath);
     try {
       const walResult = applyWalWithFallback(db, "integration-test");
-      expect(["wal", "delete"]).toContain(walResult.mode);
+      // WAL, not "either". This runs against a real temp dir, and every filesystem this suite is
+      // supported on gives it. Accepting the fallback hid the case worth knowing about: if a CI
+      // filesystem ever refuses WAL, the right answer is a skip naming that filesystem, not an
+      // oracle that reports success either way.
+      expect(walResult.mode).toBe("wal");
 
       // 5. migrateSchema runs all migrations on fresh DB
       const migrateResult = migrateSchema({

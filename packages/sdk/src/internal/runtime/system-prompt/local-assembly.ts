@@ -1,8 +1,8 @@
 import type { AgentOptions, ModelSelection, SystemPromptContext } from "../../../types/agent.js";
 import type { FileContextManager } from "../context/context-manager.js";
-import type { MemoryFact } from "../memory/memory-store.js";
-import { reasoningActive } from "../reasoning/native-reasoning.js";
+import type { MemoryFact } from "../memory-glue/memory-store.js";
 import { SkillsManager } from "../skills/skills-manager.js";
+import { reasoningActive } from "./native-reasoning.js";
 import type { SystemPromptPipeline } from "./pipeline.js";
 import type { SystemPromptAssemblyContext } from "./types.js";
 
@@ -56,6 +56,7 @@ export async function resolveSendSkills(
     inputs.settingSourcesIncludeProject,
     settings.skillsDir,
     settings.inline,
+    inputs.options.local?.compatSources ?? [],
   );
   // `initialize()` skips the filesystem scan when project sources are off (fast
   // path — inline-only), so a per-send resolver is cheap for inline skills.
@@ -94,14 +95,24 @@ export async function buildSystemPromptContext(
  *
  * @internal
  */
-export async function buildAssemblyContext(
-  inputs: LocalAssemblyInputs,
-  userText: string,
-  baseSystemPrompt: string | undefined,
-  memoryFacts: ReadonlyArray<MemoryFact>,
-  activeMemorySummary: string | undefined,
-  contextPaths?: readonly string[],
-): Promise<SystemPromptAssemblyContext> {
+export interface AssemblyRequest {
+  readonly inputs: LocalAssemblyInputs;
+  readonly userText: string;
+  readonly baseSystemPrompt: string | undefined;
+  readonly memoryFacts: ReadonlyArray<MemoryFact>;
+  readonly activeMemorySummary: string | undefined;
+  /** T3 — the per-send in-scope file set that activates path-scoped rules. */
+  readonly contextPaths?: readonly string[] | undefined;
+}
+
+export async function buildAssemblyContext({
+  inputs,
+  userText,
+  baseSystemPrompt,
+  memoryFacts,
+  activeMemorySummary,
+  contextPaths,
+}: AssemblyRequest): Promise<SystemPromptAssemblyContext> {
   // SE22 — resolve skills ONCE per send; the resolver (if any) runs here, before
   // assembly. `buildSystemPromptContext` receives the resolved manager so the
   // <skills> block reflects the per-send resolution.
@@ -141,20 +152,8 @@ export async function buildAssemblyContext(
  * @internal
  */
 export async function assembleSystemPromptForSend(
-  inputs: LocalAssemblyInputs,
-  userText: string,
-  baseSystemPrompt: string | undefined,
-  memoryFacts: ReadonlyArray<MemoryFact>,
-  activeMemorySummary: string | undefined,
-  contextPaths?: readonly string[],
+  request: AssemblyRequest,
 ): Promise<string | undefined> {
-  const ctx = await buildAssemblyContext(
-    inputs,
-    userText,
-    baseSystemPrompt,
-    memoryFacts,
-    activeMemorySummary,
-    contextPaths,
-  );
-  return inputs.systemPromptPipeline.assemble(ctx);
+  const ctx = await buildAssemblyContext(request);
+  return request.inputs.systemPromptPipeline.assemble(ctx);
 }

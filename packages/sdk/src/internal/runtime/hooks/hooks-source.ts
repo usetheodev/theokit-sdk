@@ -42,6 +42,15 @@ export interface HookCommand {
   command: string;
   matcher?: string;
   timeoutMs?: number;
+  /**
+   * The config file this command was declared in.
+   *
+   * Carried so the executor can supply the runtime contract the declaring DIALECT presumes — a
+   * command from `.claude/settings.json` is written against Claude Code's runtime and expects
+   * `$CLAUDE_PROJECT_DIR` to exist (#522). Absent for a command built in memory, which is native by
+   * construction.
+   */
+  sourcePath?: string;
 }
 
 export interface HookConfig {
@@ -78,13 +87,19 @@ export function _resetWarnOnceForTests(): void {
  *
  * @internal
  */
-export async function loadHookConfig(cwd: string): Promise<HookConfig> {
+export async function loadHookConfig(
+  cwd: string,
+  compatSources: readonly string[] = [],
+): Promise<HookConfig> {
   const merged: HookConfig = {};
   let sawAny = false;
-  for (const path of hookConfigCandidates(cwd)) {
+  for (const path of hookConfigCandidates(cwd, compatSources)) {
     if (!existsSync(path)) continue;
     sawAny = true;
-    mergeInto(merged, await readHookFile(path));
+    // Stamped at merge, where the file is still known. One line later the commands are pooled per
+    // event and every trace of which dialect declared them is gone — which is how a Claude Code
+    // command came to be run without Claude Code's runtime (#522).
+    mergeInto(merged, stampSource(await readHookFile(path), path));
   }
   if (!sawAny && existsSync(join(cwd, ".theokit", "hooks"))) {
     warnOnce(
@@ -106,13 +121,32 @@ export async function loadHookConfig(cwd: string): Promise<HookConfig> {
  * The shape never needed translating: `parseClaudeCodeConfig` reads the `hooks` key off whatever
  * object it is given, and a settings file is that same object with other keys alongside.
  */
-function hookConfigCandidates(cwd: string): string[] {
-  const roots = projectConfigRoots(cwd);
+function hookConfigCandidates(cwd: string, compatSources: readonly string[]): string[] {
+  const roots = projectConfigRoots(cwd, compatSources);
   return [
     ...roots.map((root) => join(root, "hooks.json")),
     ...roots.map((root) => join(root, "settings.json")),
     ...roots.map((root) => join(root, "settings.local.json")),
   ];
+}
+
+/**
+ * Record which file each command came from.
+ *
+ * A command already carrying a `sourcePath` keeps it: nothing produces that today, and a nested
+ * config that declared its own origin would be describing something this function cannot see.
+ */
+function stampSource(config: HookConfig, sourcePath: string): HookConfig {
+  if (config.hooks === undefined) return config;
+  const hooks: NonNullable<HookConfig["hooks"]> = {};
+  for (const [event, commands] of Object.entries(config.hooks) as [
+    HookEvent,
+    HookCommand[] | undefined,
+  ][]) {
+    if (commands === undefined) continue;
+    hooks[event] = commands.map((c) => ({ sourcePath, ...c }));
+  }
+  return { hooks };
 }
 
 /**

@@ -21,6 +21,7 @@
 // Canonical origin moved to the public `compaction.ts` (leaf type — M42 DTS lesson); re-exported
 // here for the existing internal importers.
 import type { CompressibleMessage } from "../../../compaction.js";
+import { TheokitAgentError } from "../../../errors.js";
 
 export type { CompressibleMessage };
 
@@ -31,8 +32,14 @@ export type { CompressibleMessage };
  *
  * @public
  */
-export class CompressionFailedError extends Error {
+export class CompressionFailedError extends TheokitAgentError {
   override readonly name = "CompressionFailedError";
+
+  constructor(message: string, options: { cause?: unknown } = {}) {
+    // Retryable: both throw sites are about ONE LLM call that failed or came back empty, which is
+    // the transient shape the SDK's retry layer exists for.
+    super(message, { ...options, code: "compression_failed", isRetryable: true });
+  }
 }
 
 /**

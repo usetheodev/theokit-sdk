@@ -1,7 +1,9 @@
-import type { CustomTool, SDKAgent } from "../../types/agent.js";
+import type { CustomTool } from "../../types/agent.js";
+import type { MemoryProviderAgentRef } from "../../types/memory-provider.js";
 import type { SDKUserMessage } from "../../types/run.js";
 import { UsageAccumulator } from "../budget/usage-accumulator.js";
 import type { LlmContentPart, LlmMessage } from "../llm/types.js";
+import { replayMessages } from "./replay-messages.js";
 
 /**
  * M35 (multimodal) — build the first user turn's content: the text block plus one image part per attached
@@ -21,15 +23,16 @@ function buildUserContent(text: string, images: SDKUserMessage["images"]): LlmCo
   return content;
 }
 
-import { emitRunEvent, type RunEventSink } from "../../types/run-events.js";
+import type { RunEventSink } from "../../types/run-events.js";
 import { diag } from "../diagnostics.js";
+import { emitRunEvent } from "../emit-run-event.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
-import type { MemoryProviderHandle } from "../runtime/memory/memory-provider.js";
+import type { MemoryProviderHandle } from "../runtime/memory-glue/memory-provider.js";
 import { createDoomLoopTracker, type DoomLoopTracker } from "./doom-loop-tracker.js";
 import { createEventLog, type LiveEventLog } from "./live-events.js";
-import type { AgentLoopInputs } from "./loop-types.js";
 import { buildSystemEvent, buildUserEvent } from "./message-builders.js";
 import type { ResolvedTool } from "./tool-dispatch.js";
+import type { AgentLoopInputs } from "./types.js";
 
 /**
  * Mutable state for the agent loop. Extracted to share the shape between
@@ -64,7 +67,7 @@ export interface LoopContext {
   /** Per-run doom-loop detector; `undefined` when disabled via `SendOptions.doomLoop: false`. */
   doomLoop?: DoomLoopTracker;
   usage: UsageAccumulator;
-  error?: import("./loop-types.js").AgentLoopErrorDetail;
+  error?: import("./types.js").AgentLoopErrorDetail;
   nudgeAttempts: number;
   /** M1-4: count of honored `stop`-hook feedback re-prompts, bounded by MAX_STOP_FEEDBACK_ATTEMPTS. */
   stopFeedbackAttempts: number;
@@ -80,11 +83,8 @@ export interface LoopContext {
  * Build the minimal `SDKAgent` view for MemoryProvider hooks.
  * @internal
  */
-export function buildAgentRef(inputs: AgentLoopInputs): SDKAgent {
-  return {
-    agentId: inputs.agentId,
-    model: inputs.model,
-  } as SDKAgent;
+export function buildAgentRef(inputs: AgentLoopInputs): MemoryProviderAgentRef {
+  return { agentId: inputs.agentId, model: inputs.model };
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: pre-existing complexity from sdk-2-0 Phase 1 memory wiring (T1.5.1-T1.5.3). Refactor deferred to Phase 5 cleanup.
@@ -95,7 +95,8 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
       memoryProviderHandle = await inputs.memoryProvider.init({
         cwd: process.cwd(),
       });
-    } catch {
+    } catch (cause) {
+      reportMemoryDegraded("init", cause, inputs.runEventSink);
       memoryProviderHandle = undefined;
     }
   }
@@ -127,7 +128,8 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
     let providerTools: ReadonlyArray<CustomTool> = [];
     try {
       providerTools = inputs.memoryProvider.buildTools(memoryProviderHandle, buildAgentRef(inputs));
-    } catch {
+    } catch (cause) {
+      reportMemoryDegraded("buildTools", cause, inputs.runEventSink);
       providerTools = [];
     }
     for (const providerTool of providerTools) {
@@ -158,10 +160,13 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
   // two events that exist before the loop starts arrive through the batch path like they always
   // did; re-delivering them live would be a behaviour change for no gain.
   if (inputs.onLoopEvent !== undefined) events.subscribe(inputs.onLoopEvent);
-  const priorMessages: LlmMessage[] = (inputs.priorMessages ?? []).map((msg) => ({
-    role: msg.role,
-    content: [{ type: "text", text: msg.text }],
-  }));
+  // #523 — this used to map each turn to `[{ type: "text", text: msg.text }]`, and `text` is the FLAT
+  // projection: a tool call folds to `[tool call] NAME`. So a resumed session handed the model its
+  // own prior turn as prose containing the marker, and the model reproduced the pattern instead of
+  // calling the tool (usetheokit/theokit#631). `replayMessages` uses the structured `parts` that
+  // `narrowToSessionMessage` has been returning all along, and falls back to this exact behaviour
+  // for a message that has none.
+  const priorMessages: LlmMessage[] = replayMessages(inputs.priorMessages ?? []);
   let memorySystemPromptAdditions: string | undefined;
   if (inputs.memoryProvider !== undefined && memoryProviderHandle !== undefined) {
     try {
@@ -179,7 +184,8 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
       ) {
         memorySystemPromptAdditions = passResult.systemPromptAdditions;
       }
-    } catch {
+    } catch (cause) {
+      reportMemoryDegraded("activePass", cause, inputs.runEventSink);
       memorySystemPromptAdditions = undefined;
     }
   }
@@ -200,6 +206,29 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
     ...(memoryProviderHandle !== undefined ? { memoryProviderHandle } : {}),
     ...(memorySystemPromptAdditions !== undefined ? { memorySystemPromptAdditions } : {}),
   };
+}
+
+/**
+ * Reports a memory stage that failed and was degraded away.
+ *
+ * Three `catch { <field> = <empty> }` blocks in {@link initLoopContext} used to turn every
+ * MemoryProvider failure into a silent downgrade: no memory tool registered, no provider tools, no
+ * recalled context in the system prompt. The agent then answered without the memory it was
+ * configured with, and nothing — not stderr, not the typed `RunEventSink`, not the span in scope —
+ * recorded it. `safeListTools` in this same file already handles the structurally identical case
+ * correctly, which is what makes the three a defect rather than a style choice.
+ *
+ * Degrading to a working agent is the RIGHT behaviour. The defect was that the degradation was
+ * unobservable.
+ *
+ * @internal
+ */
+function reportMemoryDegraded(stage: string, cause: unknown, sink?: RunEventSink): void {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  diag(`[theokit-sdk] memory ${stage} failed — continuing without it: ${message}\n`);
+  // The diagnostic above goes to the SDK's stderr, which an embedding UI does not read. The event is
+  // how a host can say "memory is degraded" instead of showing a healthy run.
+  emitRunEvent(sink, { type: "memory_degraded", stage, message });
 }
 
 /**

@@ -14,29 +14,13 @@
  * This was the audit's only CRITICAL cycle — it crossed the runtime ↔
  * persistence layer boundary, violating `rules/architecture.md § 1`.
  */
-import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-
-function runMadge(): string {
-  // T4.1 follow-up: was `"../../../../.."` (5 ups → meta-repo `theokit-tools`,
-  // no pnpm workspace) → `pnpm exec madge` errored out → test passed vacuously.
-  // 4 ups lands at the `theokit-sdk` workspace root where madge runs correctly.
-  const repoRoot = resolve(__dirname, "../../../..");
-  const target = "packages/sdk/src";
-  const result = spawnSync(
-    "pnpm",
-    ["exec", "madge", "--circular", "--extensions", "ts,tsx", target],
-    { cwd: repoRoot, encoding: "utf8", timeout: 60_000 },
-  );
-  return (result.stdout ?? "") + (result.stderr ?? "");
-}
+import { cycleLines, madgeCircularReport } from "./madge-report.js";
 
 describe("Architecture — Cycle #9 closure (T1.1 / D432, CRITICAL)", () => {
   it("madge reports NO cycle containing agent-session.ts AND conversation-storage-fs.ts", () => {
-    const output = runMadge();
-    const cycleLines = output.split("\n").filter((line) => /^\d+\)/.test(line.trim()));
-    const offending = cycleLines.filter(
+    const lines = cycleLines(madgeCircularReport());
+    const offending = lines.filter(
       (line) => line.includes("agent-session.ts") && line.includes("conversation-storage-fs.ts"),
     );
     expect(
@@ -46,9 +30,8 @@ describe("Architecture — Cycle #9 closure (T1.1 / D432, CRITICAL)", () => {
   }, 90_000);
 
   it("madge reports NO cycle containing agent-session.ts AND agent-session-store.ts (back-edge eliminated)", () => {
-    const output = runMadge();
-    const cycleLines = output.split("\n").filter((line) => /^\d+\)/.test(line.trim()));
-    const offending = cycleLines.filter(
+    const lines = cycleLines(madgeCircularReport());
+    const offending = lines.filter(
       (line) => line.includes("agent-session.ts") && line.includes("agent-session-store.ts"),
     );
     expect(offending).toEqual([]);

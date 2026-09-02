@@ -3,6 +3,12 @@ import { MaxDelegationDepthError, SubAgent } from "../../src/a2a/subagent.js";
 import type { AgentFacadePort } from "../../src/internal/runtime/registry/agent-factory-registry.js";
 import { setAgentFacade } from "../../src/internal/runtime/registry/agent-factory-registry.js";
 import type { CustomTool } from "../../src/types/agent.js";
+import { useTempCwd } from "../helpers/temp-workspace.js";
+
+// Agent.create defaults its workspace to process.cwd(), which during a test run is the
+// package itself — this file created agents without saying where, and the state landed in
+// packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 /*
  * #364 — `maxDelegationDepth` could not fire through any supported call.

@@ -14,11 +14,29 @@
  * mirrors the skills contract test to exercise the same capability wiring.
  */
 
-import { describe, expect, it } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 
 import { assertEval, Eval, Scorers } from "../../../src/eval.js";
+import { removeTempDirRobustSync } from "../../helpers/temp-workspace.js";
 
 const EXPECTED = "Using skill: code-review (metadata only — body redacted).";
+
+/**
+ * A temp cwd, not `process.cwd()`.
+ *
+ * `process.cwd()` during a vitest run is `packages/sdk` itself, so every agent this suite creates
+ * persisted a real session under the repository. Nothing here reads from the repo — the fixture
+ * responses come from the `theo_test_*` key, not from anything on disk — so the process cwd was
+ * incidental, and it cost 540 MB of `.theokit/` residue across the checkout before anyone measured
+ * it. `.gitignore` hides that directory, which is why it never showed up in a diff or in CI.
+ */
+const EVAL_CWD = mkdtempSync(join(tmpdir(), "theokit-eval-suite-"));
+afterAll(() => {
+  removeTempDirRobustSync(EVAL_CWD);
+});
 
 const FIXTURE_AGENT = {
   apiKey: "theo_test_eval",
@@ -26,7 +44,7 @@ const FIXTURE_AGENT = {
   skills: {
     enabled: ["code-review", "test-architect"],
   },
-  local: { cwd: process.cwd(), sandboxOptions: { enabled: false } as const },
+  local: { cwd: EVAL_CWD, sandboxOptions: { enabled: false } as const },
 };
 
 describe("eval suite: skill usage (fixture mode)", () => {

@@ -420,14 +420,29 @@ export interface ShouldCompactInput {
 }
 
 /**
+ * Characters per token in the tokenizer-free estimate below.
+ *
+ * Exported so the ratio has ONE owner. It used to be a named constant in `built-in-processors.ts`
+ * and an inlined `4` here, with both `estimateTokens` functions `@public` from two different package
+ * entry points — so tuning the ratio, or switching to code points instead of UTF-16 units (the
+ * caveat both docblocks already carried), would have silently diverged them.
+ *
+ * @public
+ */
+export const CHARS_PER_TOKEN = 4;
+
+/**
  * Tokenizer-free token estimate via the conventional ~4-chars-per-token
- * heuristic: `ceil(text.length / 4)`. `""` → 0; any non-empty text → ≥ 1.
+ * heuristic: `ceil(text.length / CHARS_PER_TOKEN)`. `""` → 0; any non-empty text → ≥ 1.
  * A cheap PRE-CALL gate for {@link shouldCompact} — NOT exact tokenization
  * (a consumer needing exactness supplies their own tokenizer). Uses UTF-16
  * `.length` (code units), so multibyte text is approximate.
+ *
+ * `built-in-processors.ts` re-exports this under the same name, so both entry points keep working
+ * and there is one implementation behind them.
  */
 export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
+  return Math.ceil(text.length / CHARS_PER_TOKEN);
 }
 
 /**

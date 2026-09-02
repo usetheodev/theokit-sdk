@@ -25,11 +25,40 @@ const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DIST_ENTRY = join(PKG_ROOT, "dist", "index.js");
 const distBuilt = existsSync(DIST_ENTRY);
 
-describe.skipIf(!distBuilt)(
+/**
+ * An unbuilt dist means two different things, and this file used to report them as one.
+ *
+ * Locally it is an ordinary environment difference: the general `pnpm test` sweep runs before
+ * `pnpm build`, so skipping is right. In CI it is a defect — the contract is what stops a broken
+ * published surface — so the block RUNS there and its first case fails with the diagnosis.
+ *
+ * What this replaces is `it("precondition — dist/index.js exists (run pnpm build first)")` as the
+ * first case INSIDE `skipIf(!distBuilt)`: skipped when the dist was missing, true by construction
+ * when it was not, so it could not fail in either state and the one message a developer needs was
+ * inside the block being skipped.
+ *
+ * A module-scope `console.warn` was tried first and is kept as the LOCAL hint, with its limit
+ * measured rather than assumed: it prints under `--reporter=verbose` and NOT under the default
+ * reporter, which is what CI runs. So it is a convenience, never the signal — the failing case below
+ * is the signal.
+ */
+const inCi = process.env.CI !== undefined && process.env.CI !== "";
+
+if (!distBuilt && !inCi) {
+  console.warn(
+    `[theokit-consumer-contract] SKIPPED: ${DIST_ENTRY} does not exist — run \`pnpm build\` first.\n`,
+  );
+}
+
+describe.skipIf(!distBuilt && !inCi)(
   "Contract: @theokit/sdk dist honors the theokit consumer surface (M48)",
   () => {
-    it("precondition — dist/index.js exists (run pnpm build first)", () => {
-      expect(distBuilt).toBe(true);
+    it("the dist exists — in CI an unbuilt dist is a defect, not an environment", () => {
+      expect(
+        distBuilt,
+        `${DIST_ENTRY} does not exist. CI ran the contract suite without building it; ` +
+          "`prepublishOnly` is `pnpm build && pnpm test:contract` for exactly this reason.",
+      ).toBe(true);
     });
 
     it("exports Agent with getOrCreate + registry (theokit bridge + boot/shutdown bind these)", async () => {

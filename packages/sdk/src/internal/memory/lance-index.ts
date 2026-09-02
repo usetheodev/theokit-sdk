@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
@@ -144,7 +144,7 @@ export class LanceIndex {
       const existingDim = embField?.type?.listSize ?? embField?.type?.fixedSize;
       if (typeof existingDim === "number" && existingDim !== dim) {
         throw new ConfigurationError(
-          `Embedding dimension mismatch in Lance index: storage has ${existingDim}-dim vectors, current provider yields ${dim}-dim. Run \`theokit-migrate-memory\` after switching providers, or use a different storagePath.`,
+          `Embedding dimension mismatch in Lance index: storage has ${existingDim}-dim vectors, current provider yields ${dim}-dim. Re-embed with \`migrateSqliteToLance\` after switching providers, or use a different storagePath.`,
           { code: "embedding_dimension_mismatch" },
         );
       }
@@ -294,5 +294,3 @@ export function isLanceAvailable(): boolean {
 export function lanceStoragePath(root: MemoryRoot): string {
   return join(root, "lance");
 }
-
-void existsSync; // imported but only used conditionally via mkdirSync

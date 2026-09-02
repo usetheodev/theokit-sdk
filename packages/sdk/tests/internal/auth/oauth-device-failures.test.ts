@@ -17,12 +17,6 @@
 import { describe, expect, it } from "vitest";
 
 import { AuthCallbackError } from "../../../src/internal/../server/auth/errors.js";
-import type {
-  DeviceCodeGrant,
-  DeviceDeps,
-  DeviceOAuthConfig,
-  OpenAIDeviceConfig,
-} from "../../../src/internal/auth/auth-types.js";
 import {
   deviceLogin,
   openaiDeviceLogin,
@@ -30,6 +24,12 @@ import {
   requestDeviceCode,
   requestOpenAIUsercode,
 } from "../../../src/internal/auth/oauth-device.js";
+import type {
+  DeviceCodeGrant,
+  DeviceDeps,
+  DeviceOAuthConfig,
+  OpenAIDeviceConfig,
+} from "../../../src/internal/auth/types.js";
 
 const FIXED_NOW = 1_000_000_000_000;
 

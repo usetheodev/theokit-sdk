@@ -6,10 +6,10 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
-import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../../src/internal/agent-loop/types.js";
 import type { LlmClient, LlmEvent, LlmFinish } from "../../../src/internal/llm/types.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
 import { HISTOGRAM_NAMES } from "../../../src/internal/telemetry/span-names.js";
+import { makeLoopInputs } from "./_helpers/make-inputs.js";
 
 function spyTelemetry(): {
   handle: NonNullable<AgentLoopInputs["telemetry"]>;
@@ -56,21 +56,15 @@ function llmWith(finish: Partial<LlmFinish>): LlmClient {
   };
 }
 
-function baseInputs(llm: LlmClient, telemetry: AgentLoopInputs["telemetry"]): AgentLoopInputs {
-  return {
+const baseInputs = (llm: LlmClient, telemetry: AgentLoopInputs["telemetry"]): AgentLoopInputs =>
+  makeLoopInputs({
     agentId: "metrics",
-    runId: "run-1",
     userMessage: "go",
     model: { id: "mock" },
     llm,
-    mcp: new Map(),
-    hooks: new HooksExecutor(process.cwd()),
-    shellCwd: process.cwd(),
-    shellSandbox: false,
     maxIterations: 4,
     telemetry,
-  };
-}
+  });
 
 describe("M3 #64/#66 — metrics emitted through the loop", () => {
   it("emits llm.call duration + token metrics on a normal finish", async () => {

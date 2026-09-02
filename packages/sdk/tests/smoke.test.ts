@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-
 import {
   Agent,
   AuthenticationError,
@@ -13,6 +12,7 @@ import {
   UnknownAgentError,
   UnsupportedRunOperationError,
 } from "../src/index.js";
+import { expectPublicError } from "./helpers/assert-public-error.js";
 
 describe("@theokit/sdk public surface", () => {
   it("exports Agent, Cron, and Theokit façades", () => {
@@ -81,9 +81,11 @@ describe("error class hierarchy", () => {
     const err = new UnsupportedRunOperationError("not supported here", "stream");
     expect(err.operation).toBe("stream");
     expect(err).toBeInstanceOf(Error);
-    expect(err).toBeInstanceOf(TheokitAgentError);
-    expect(err.isRetryable).toBe(false);
-    expect(err.code).toBe("unsupported_run_operation");
+    expectPublicError(err, {
+      ctor: TheokitAgentError,
+      code: "unsupported_run_operation",
+      isRetryable: false,
+    });
   });
 
   it("UnsupportedRunOperationError carries the downloadArtifact operation", () => {

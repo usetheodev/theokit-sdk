@@ -27,15 +27,10 @@ import { readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { InvalidTaskIdError } from "../../errors.js";
-import {
-  isValidTaskId,
-  type TaskFilter,
-  type TaskHandle,
-  type TaskState,
-  type TaskStoreOptions,
-} from "../../types/task.js";
+import type { TaskFilter, TaskHandle, TaskState, TaskStoreOptions } from "../../types/task.js";
 import { diag } from "../diagnostics.js";
 import { atomicWriteText } from "../persistence/atomic-write.js";
+import { isValidTaskId } from "./task-id.js";
 
 const JSON_LOAD_CAP = 256;
 const DEFAULT_LIST_LIMIT = 100;

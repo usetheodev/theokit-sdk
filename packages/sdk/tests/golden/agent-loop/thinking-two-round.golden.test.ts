@@ -15,9 +15,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
-import type { LlmClient, LlmEvent, LlmFinish } from "../../../src/internal/llm/types.js";
+import type { LlmClient } from "../../../src/internal/llm/types.js";
 import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
 import type { ConversationTurn } from "../../../src/types/conversation.js";
+import { type ScriptedClient, scriptedClient } from "../../helpers/scripted-client.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 const SIG_ROUND_1 = "SIGNATURE-FOR-ROUND-ONE";
@@ -27,40 +28,41 @@ const SIG_ROUND_2 = "SIGNATURE-FOR-ROUND-TWO";
  * A stub whose round 1 streams thinking + a signature and finishes with a tool call and NO text —
  * exactly what Anthropic emits when the model reasons and then acts without narrating.
  */
-function twoRoundThinkingClient(cwd: string): LlmClient {
-  let round = 0;
-  return {
-    name: "stub",
-    async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
-      round += 1;
-      if (round === 1) {
-        yield { type: "reasoning_delta", text: "I should read the file." };
-        yield { type: "reasoning_delta", text: "", signature: SIG_ROUND_1 };
-        return {
-          stopReason: "tool_use",
-          text: "", // no preamble — the case the first fix dropped
-          toolCalls: [
-            {
-              type: "tool_use",
-              id: "call_1",
-              name: "shell",
-              input: { command: `cat ${join(cwd, "data.txt")}` },
-            },
-          ],
-          thinking: { type: "thinking", text: "I should read the file.", signature: SIG_ROUND_1 },
-        };
-      }
-      yield { type: "reasoning_delta", text: "Now I can answer." };
-      yield { type: "reasoning_delta", text: "", signature: SIG_ROUND_2 };
-      yield { type: "text_delta", text: "The answer is 42." };
-      return {
+function twoRoundThinkingClient(cwd: string): ScriptedClient {
+  return scriptedClient([
+    {
+      events: [
+        { type: "reasoning_delta", text: "I should read the file." },
+        { type: "reasoning_delta", text: "", signature: SIG_ROUND_1 },
+      ],
+      finish: {
+        stopReason: "tool_use",
+        text: "", // no preamble — the case the first fix dropped
+        toolCalls: [
+          {
+            type: "tool_use",
+            id: "call_1",
+            name: "shell",
+            input: { command: `cat ${join(cwd, "data.txt")}` },
+          },
+        ],
+        thinking: { type: "thinking", text: "I should read the file.", signature: SIG_ROUND_1 },
+      },
+    },
+    {
+      events: [
+        { type: "reasoning_delta", text: "Now I can answer." },
+        { type: "reasoning_delta", text: "", signature: SIG_ROUND_2 },
+        { type: "text_delta", text: "The answer is 42." },
+      ],
+      finish: {
         stopReason: "end_turn",
         text: "The answer is 42.",
         toolCalls: [],
         thinking: { type: "thinking", text: "Now I can answer.", signature: SIG_ROUND_2 },
-      };
+      },
     },
-  };
+  ]);
 }
 
 /** Every thinking step of the conversation, paired with the assistant text of its own turn. */
@@ -104,7 +106,7 @@ describe("theokit#122 — thinking stays with the round that produced it", () =>
       runId: "run-thinking",
       model: { id: "stub-model" },
       userMessage: "read data.txt",
-      llm: twoRoundThinkingClient(cwd),
+      llm: twoRoundThinkingClient(cwd).client,
       mcp: new Map(),
       hooks,
       shellCwd: cwd,
@@ -132,7 +134,7 @@ describe("theokit#122 — thinking stays with the round that produced it", () =>
     // reaches Anthropic without its signed block, the request is rejected outright — which is the
     // failure enabling extended thinking on the request side made reachable.
     const seenRequests: Array<{ messages: unknown[] }> = [];
-    const base = twoRoundThinkingClient(cwd);
+    const base = twoRoundThinkingClient(cwd).client;
     const recording: LlmClient = {
       name: "stub",
       async *stream(request, signal) {

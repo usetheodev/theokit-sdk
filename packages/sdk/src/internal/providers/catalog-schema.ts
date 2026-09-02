@@ -106,3 +106,59 @@ export type CatalogModel = z.infer<typeof catalogModelSchema>;
  * the parsed value.
  */
 export type CatalogModelCost = z.infer<typeof costSchema>;
+
+/**
+ * One provider entry in the vendored catalog.
+ *
+ * LOOSE like `catalogModelSchema` beside it, and for the same reason: this validates a vendored data
+ * file that upstream extends over time, so unknown keys are kept rather than rejected. What it does
+ * NOT do is what the hand-rolled check it replaced did — assert. That check tested nine fields with
+ * `typeof`/`Array.isArray` and then cast the whole object through `as unknown as CatalogEntry`, so
+ * `capabilities`' contents, `aliases`, `modelsUrl`, `hostname`, `extraHeaders` and `models` were
+ * declared and never checked. Standing next to zod — one of this package's three runtime
+ * dependencies — and reimplementing a worse version of it is the Don't-Reinvent rung of
+ * `rules/parsimony-ladder.md`.
+ *
+ * `apiMode` and `authType` are the closed unions from `types/provider-profile.ts`. Enumerating them
+ * here means an entry naming a mode the SDK cannot dispatch is dropped with a WARN at load, instead
+ * of reaching `selectTransport` as a string that matches no branch.
+ */
+export const catalogEntrySchema = z
+  .object({
+    id: z.string().min(1),
+    displayName: z.string().min(1),
+    apiMode: z.enum([
+      "chat_completions",
+      "anthropic_messages",
+      "responses_api",
+      "bedrock",
+      "bedrock_anthropic",
+    ]),
+    authType: z.enum([
+      "api_key",
+      "oauth_device_code",
+      "oauth_external",
+      "aws_sdk",
+      "aws_bearer",
+      "gcp_oauth",
+      "none",
+    ]),
+    baseUrl: z.string(),
+    envVars: z.array(z.string()),
+    fallbackModels: z.array(z.string()),
+    capabilities: z.object({
+      supportsToolUse: z.boolean(),
+      supportsVision: z.boolean(),
+      supportsStructuredOutput: z.boolean(),
+      supportsStreaming: z.boolean(),
+      supportsCacheControl: z.boolean(),
+      maxContextTokens: z.number().int().positive().optional(),
+      maxOutputTokens: z.number().int().positive().optional(),
+    }),
+    aliases: z.array(z.string()).optional(),
+    modelsUrl: z.string().optional(),
+    hostname: z.string().optional(),
+    extraHeaders: z.record(z.string(), z.string()).optional(),
+    models: z.record(z.string(), catalogModelSchema).optional(),
+  })
+  .loose();

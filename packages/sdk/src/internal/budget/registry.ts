@@ -37,9 +37,35 @@ export function validateBudgetName(name: string): void {
   }
 }
 
+/**
+ * Refuse a `BudgetScope` this version does not implement.
+ *
+ * `BudgetScope` declares `"agent" | "call" | "process"` and `scope` is REQUIRED, so every caller must
+ * pick from a union two-thirds of which is unbuilt. Measured 2026-09-02: nothing outside this file
+ * reads `scope` at all — `buildHandle` copies it onto the handle and the tracker never consults it —
+ * so `scope: "agent"` was ACCEPTED and silently ignored. A caller asking for per-agent accounting got
+ * process-wide accounting and no signal of any kind.
+ *
+ * That is the failure `rules/error-handling.md` § 2 exists to prevent, and it is worse than the
+ * unbuilt feature: a limit believed to be per-agent, applied globally, is a cost control that reports
+ * the wrong number. Refusing is honest; narrowing the union to `"process"` would be honest too and is
+ * a breaking change to a published type, so it belongs to a major rather than to this fix.
+ *
+ * @internal
+ */
+function assertImplementedScope(scope: BudgetOptions["scope"]): void {
+  if (scope === "process") return;
+  throw new ConfigurationError(
+    `Budget scope "${scope}" is declared but not implemented — only "process" is honoured. ` +
+      "A budget created with it would have been accounted process-wide with no warning.",
+    { code: "unimplemented_budget_scope" },
+  );
+}
+
 export function createBudget(opts: BudgetOptions): BudgetHandle {
   // EC-7: name validation
   validateBudgetName(opts.name);
+  assertImplementedScope(opts.scope);
   if (registry.has(opts.name)) {
     // EC-16: duplicate throws (vs Task.submit idempotent return)
     throw new ConfigurationError(`Budget "${opts.name}" already exists`, {

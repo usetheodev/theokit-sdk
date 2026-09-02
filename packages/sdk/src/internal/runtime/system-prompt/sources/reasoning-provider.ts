@@ -1,4 +1,4 @@
-import { REASONING_PREAMBLE } from "../../reasoning/native-reasoning.js";
+import { REASONING_PREAMBLE } from "../native-reasoning.js";
 import type { SystemPromptAssemblyContext, SystemPromptProvider } from "../types.js";
 
 /**

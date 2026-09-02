@@ -47,14 +47,54 @@ module.exports = {
       to: {},
     },
     {
+      // THE INVARIANT THAT MATTERS, AND THE ONE WITH NO EXCEPTIONS. A type in the domain layer
+      // reaching into an adapter is the port-depends-on-adapter inversion — `types/agent.ts:20-22`
+      // states it in prose ("so no types/*.ts file reaches into internal/") and until 2026-09-01
+      // nothing enforced it: `types/memory-provider.ts` called itself "the DIP-correct home" and
+      // then took `MemoryRoot` from `internal/memory/storage/`. That type now lives in the port and
+      // the adapter imports it back.
+      name: "types-dont-import-internal",
+      severity: "error",
+      comment:
+        "G7a: src/types/* is the domain layer. It MUST NOT depend on src/internal/ — that is a port depending on an adapter. No exceptions.",
+      from: { path: "(^|/)packages/sdk/src/types/" },
+      to: { path: "(^|/)packages/sdk/src/internal/" },
+    },
+    {
+      // G7b, NARROWED 2026-09-01 WITH ITS REASON, because the previous wording could never hold.
+      //
+      // This rule forbade src/types/* from importing ANY src/ module outside types/, at severity
+      // error, and reported zero violations for as long as it existed. It was not passing: the
+      // config never set `tsPreCompilationDeps`, whose default is false, so every `import type` and
+      // `import("...")`-in-type-position edge was erased before the rule could see it — and a
+      // type-only edge is the ONLY kind a types/ file can make. The rule was structurally incapable
+      // of firing on the only thing it forbade. Turning the option on took the dependency count from
+      // 1251 to 1911 and surfaced nine violations immediately.
+      //
+      // Four of the nine were real and are fixed: `PermissionMode` (a pure string union that lived
+      // in the permission-engine runtime module and was reached for by types/agent, types/run and
+      // types/plugin) moved to the `agent-prims` type leaf, and `MemoryRoot` moved into its port.
+      //
+      // The remaining five reference a public CLASS as a type — `Agent`, `Workflow`,
+      // `TheokitAgentError`, `SandboxBackend`, and `InlineSkill` (which extends a type from
+      // internal/, so relocating it would trade this violation for a G7a one). A class cannot move
+      // into types/ without ceasing to be a class, and a type-only reference to one is erased at
+      // compile time and creates no runtime coupling. So the literal wording was unsatisfiable for
+      // an SDK whose public types describe its public classes, and a rule that fires on legitimate
+      // code is a rule somebody disables. They are declared here rather than left as five red lines
+      // nobody can clear: a NEW types/ → runtime edge outside this list still fails.
       name: "types-dont-import-runtime",
       severity: "error",
       comment:
-        "G7: src/types/* are pure type definitions. They MUST NOT depend on runtime modules (src/agent, src/cron, src/theokit, src/errors, src/internal).",
+        "G7b: src/types/* must not depend on runtime modules, except for type-only references to the five declared public classes below. New edges outside that list are violations.",
       from: { path: "(^|/)packages/sdk/src/types/" },
       to: {
         path: "(^|/)packages/sdk/src/",
-        pathNot: "(^|/)packages/sdk/src/types/",
+        pathNot: [
+          "(^|/)packages/sdk/src/types/",
+          "(^|/)packages/sdk/src/(agent|workflow|errors|create-skill)\\.ts$",
+          "(^|/)packages/sdk/src/sandbox/types\\.ts$",
+        ],
       },
     },
     {
@@ -89,6 +129,7 @@ module.exports = {
     },
   ],
   options: {
+    tsPreCompilationDeps: true,
     doNotFollow: { path: "node_modules" },
     exclude: {
       path: "(^|/)(node_modules|dist|coverage|referencia)/",

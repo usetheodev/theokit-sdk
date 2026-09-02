@@ -1,5 +1,5 @@
 import { diag } from "../../diagnostics.js";
-import { safeRequire, type TelemetryAdapter } from "../safe-require.js";
+import { safeRequire, type TelemetryAdapter, type TelemetryWiring } from "../safe-require.js";
 
 /**
  * Langfuse OTel adapter (ADR D42). Detects `@langfuse/node` and registers
@@ -28,16 +28,16 @@ export const langfuseAdapter: TelemetryAdapter = {
   moduleName: "@langfuse/node",
   displayName: "Langfuse",
   detect: () => safeRequire<LangfuseModule>("@langfuse/node") !== undefined,
-  register: () => {
-    if (registeredHere) return;
+  register: (): TelemetryWiring => {
+    if (registeredHere) return "instrumented";
     const lf = safeRequire<LangfuseModule>("@langfuse/node");
     const otel = safeRequire<{ trace: OTelTraceApi }>("@opentelemetry/api");
-    if (lf === undefined || otel === undefined) return;
+    if (lf === undefined || otel === undefined) return "not-wired";
     const provider = otel.trace.getTracerProvider();
     if (provider.addSpanProcessor === undefined) {
       // Provider is a no-op proxy — user hasn't configured a real one.
       // Skip; their app likely doesn't use OTel pipelines yet.
-      return;
+      return "not-wired";
     }
     // EC-12: detect existing Langfuse processor on the provider.
     const existing = provider.getActiveSpanProcessor?.();
@@ -46,7 +46,7 @@ export const langfuseAdapter: TelemetryAdapter = {
       if (ctor.toLowerCase().includes("langfuse")) {
         // Already wired — skip.
         registeredHere = true;
-        return;
+        return "instrumented";
       }
     }
     if (lf.LangfuseSpanProcessor === undefined) {
@@ -54,11 +54,12 @@ export const langfuseAdapter: TelemetryAdapter = {
       diag(
         "[theokit-sdk] @langfuse/node detected but LangfuseSpanProcessor not found (v2?). Use Langfuse v3+ for auto-instrumentation.\n",
       );
-      return;
+      return "not-wired";
     }
     const client = new lf.Langfuse();
     const processor = new lf.LangfuseSpanProcessor({ langfuse: client });
     provider.addSpanProcessor(processor);
     registeredHere = true;
+    return "instrumented";
   },
 };

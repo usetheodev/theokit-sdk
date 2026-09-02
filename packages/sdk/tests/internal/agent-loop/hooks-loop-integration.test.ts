@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
-import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../../src/internal/agent-loop/types.js";
 import type {
   LlmClient,
   LlmEvent,
@@ -15,9 +15,9 @@ import type {
 } from "../../../src/internal/llm/types.js";
 import { PluginManager } from "../../../src/internal/plugins/manager.js";
 import type { Plugin } from "../../../src/internal/plugins/types.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
 import { PermissionEngine } from "../../../src/permission-engine.js";
 import { PermissionPlugin } from "../../../src/permission-plugin.js";
+import { makeLoopInputs } from "./_helpers/make-inputs.js";
 
 /** LLM that emits one tool_use on the first turn, then ends. */
 function toolThenEndLlm(): LlmClient {
@@ -67,17 +67,11 @@ function repeatingToolLlm(onTurn: () => void): LlmClient {
   };
 }
 
-function baseInputs(llm: LlmClient, extra: Partial<AgentLoopInputs>): AgentLoopInputs {
-  return {
+const baseInputs = (llm: LlmClient, extra: Partial<AgentLoopInputs>): AgentLoopInputs =>
+  makeLoopInputs({
     agentId: "hooks-integration",
-    runId: "run-1",
     userMessage: "go",
-    model: { id: "mock-model" },
     llm,
-    mcp: new Map(),
-    hooks: new HooksExecutor(process.cwd()),
-    shellCwd: process.cwd(),
-    shellSandbox: false,
     maxIterations: 8,
     customTools: [
       {
@@ -88,21 +82,25 @@ function baseInputs(llm: LlmClient, extra: Partial<AgentLoopInputs>): AgentLoopI
       },
     ],
     ...extra,
-  };
-}
+  });
 
 function pluginOn(hook: string, fn: (...a: unknown[]) => unknown): Plugin {
   return {
     name: `p-${hook}`,
     version: "1.0",
     kind: "general",
-    register: (ctx) => ctx.on(hook as never, fn as never),
+    register: (ctx) => {
+      // Braces on purpose: `on` returns a disposer now, and a concise arrow body would make
+      // `register` return it — which the Plugin contract types as void | Promise<void>.
+      ctx.on(hook as never, fn as never);
+    },
   };
 }
 
 describe("wired hooks fire through the real loop (#65 integration)", () => {
   it("the loop invokes on_session_start/end, post_tool_call, pre/post_llm_call and transform_tool_result", async () => {
     const fired = new Set<string>();
+    let seenToolStdout: string | undefined;
     const mgr = new PluginManager();
     await mgr.initialize([
       pluginOn("on_session_start", () => fired.add("session_start")),
@@ -111,7 +109,16 @@ describe("wired hooks fire through the real loop (#65 integration)", () => {
       pluginOn("post_llm_call", () => fired.add("post_llm")),
       pluginOn("post_tool_call", (c) => {
         fired.add("post_tool");
-        expect((c as { result: { stdout: string } }).result.stdout).toBe("raw");
+        // CAPTURED, not asserted. `PluginManager` runs fire-and-forget hooks inside
+        // `try { await h(ctx); } catch (err) { diag(...) }` (manager.ts:215-225) — by design, since a
+        // plugin must not break a run. A vitest assertion failure is an ordinary thrown Error, so an
+        // `expect` here was caught, written to the diagnostics sink, and the run stayed green. This
+        // was the only place in the suite where a failing assertion could not fail its test, and it
+        // was verified: replacing the value with "WRONG" inside the hook left all 8 tests passing.
+        //
+        // The claim is real and worth keeping — the hook sees the tool's raw stdout — so it is
+        // asserted after the loop returns, the shape this same file uses correctly three times below.
+        seenToolStdout = (c as { result: { stdout: string } }).result.stdout;
       }),
       pluginOn("transform_tool_result", (results) => {
         fired.add("transform_result");
@@ -120,6 +127,8 @@ describe("wired hooks fire through the real loop (#65 integration)", () => {
     ]);
 
     await runAgentLoop(baseInputs(toolThenEndLlm(), { pluginManager: mgr }));
+
+    expect(seenToolStdout, "post_tool_call must see the tool's raw stdout").toBe("raw");
 
     // Every previously-dead hook fired through the REAL loop.
     expect([...fired].sort()).toEqual(

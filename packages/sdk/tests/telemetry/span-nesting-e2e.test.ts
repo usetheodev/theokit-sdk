@@ -6,7 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runAgentLoop } from "../../src/internal/agent-loop/loop.js";
-import type { AgentLoopInputs } from "../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../src/internal/agent-loop/types.js";
 import type {
   LlmClient,
   LlmEvent,

@@ -11,14 +11,8 @@ import {
   TaskNotFoundError,
   UnsupportedTaskOperationError,
 } from "../../src/errors.js";
-import {
-  isValidTaskId,
-  TASK_RESERVED_PREFIXES,
-  type TaskEvent,
-  type TaskHandle,
-  type TaskKind,
-  type TaskState,
-} from "../../src/types/task.js";
+import { isValidTaskId, TASK_RESERVED_PREFIXES } from "../../src/internal/task/task-id.js";
+import type { TaskEvent, TaskHandle, TaskKind, TaskState } from "../../src/types/task.js";
 
 describe("TaskState — closed 5-value enum (D362)", () => {
   it("includes exactly the 5 documented states", () => {

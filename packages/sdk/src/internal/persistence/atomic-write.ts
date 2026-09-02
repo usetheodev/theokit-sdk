@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, open, rename, statfs, unlink } from "node:fs/promises";
-import { dirname } from "node:path";
+import { mkdir, open, readdir, rename, statfs, unlink } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { diag } from "../diagnostics.js";
 
 // T5.8 — Linux filesystem magic numbers (from `<linux/magic.h>`).
@@ -79,7 +79,7 @@ export function __TESTING__resetNfsWarnings(): void {
 
 /**
  * M107 — temp-file creation control, shared by `replaceFileAtomic`,
- * `atomicWriteJson` e `atomicWriteText`.
+ * `atomicWriteJson` and `atomicWriteText`.
  *
  * Both fields are OPTIONAL and the default is byte-identical to the behavior
  * before M107. See `replaceFileAtomic` for why the mode reassertion
@@ -188,17 +188,27 @@ export async function replaceFileAtomic(
   // tmp's permission bits, so the final file is also 0o600.
   const handle = await open(tmp, options?.exclusive === true ? "wx" : "w", options?.mode ?? 0o600);
   try {
-    await handle.writeFile(content, "utf8");
-    await handle.sync();
-    // Conditional by measurement, not by taste — see this function's docblock.
-    if (options?.mode !== undefined) await handle.chmod(options.mode);
-  } finally {
-    await handle.close();
-  }
-  try {
+    try {
+      await handle.writeFile(content, "utf8");
+      await handle.sync();
+      // Conditional by measurement, not by taste — see this function's docblock.
+      if (options?.mode !== undefined) await handle.chmod(options.mode);
+    } finally {
+      await handle.close();
+    }
     await rename(tmp, filePath);
   } catch (cause) {
-    // Cleanup tmp on rename failure so we don't leak stale .tmp files.
+    // EVERY failure after the open removes the temp, not only a rename failure.
+    //
+    // Cleanup used to sit on the rename alone, so a write error, a full disk or an fsync failure
+    // closed the handle in a `finally` and propagated with the temp still on disk. That is not the
+    // unfixable case — a process killed mid-write cannot clean up after itself — it is the ordinary
+    // error path, and it leaked by construction.
+    //
+    // Found by this package's own suite pollution gate, which reported a stray
+    // `.theokit/agents/registry.json.<pid>.<hex>.tmp` on two separate full runs and not on the ones
+    // between. `sweepStaleAtomicTemps` reaps what a crash leaves; this stops the failures that are
+    // reachable from inside the process from contributing.
     await unlink(tmp).catch(() => undefined);
     throw cause;
   }
@@ -245,12 +255,65 @@ export async function atomicWriteJson<T>(
 
 /**
  * Atomic text write. Same crash-safety guarantees as `replaceFileAtomic` +
- * auto-mkdir of the parent directory. Used by `theokit-migrate-config`
- * (T4.1, EC-2 MUST FIX) so a crash mid-migration leaves previous MD files
- * intact rather than corrupting them.
+ * auto-mkdir of the parent directory. Written for `theokit-migrate-config` (T4.1, EC-2 MUST FIX) so
+ * a crash mid-migration left previous MD files intact rather than corrupting them; that CLI is no
+ * longer published, and the guarantee is the reason every other caller uses this too.
  *
  */
 export async function atomicWriteText(filePath: string, content: string): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });
   await replaceFileAtomic(filePath, content);
+}
+
+/**
+ * Delete leftover atomic-write temps beside `filePath`, and report what it could not claim.
+ *
+ * A crash — or a test runner killing a worker — between the `open` and the `rename` leaves
+ * `<file>.<pid>.<hex>.tmp` behind. Nothing collected them: `atomicWriteTempTarget` was exported for
+ * a caller that never existed, and `packages/sdk/.theokit/agents/` had accumulated **1,984** of them
+ * between 2026-05-16 and 2026-09-01.
+ *
+ * IT RETURNS WHAT IT SKIPPED, and that is the part worth having. Of those 1,984 files only 1,522
+ * matched the current `<pid>.<16-hex>.tmp` shape; the other 462 carried an older suffix from before
+ * the format changed. A sweeper that only knows today's format leaves 23% behind and reports
+ * success — an under-collecting cleanup is worse than an absent one, because the absence is at
+ * least visible on disk. Callers that care can log `skipped`; callers that do not still get the
+ * honest count rather than a silent one.
+ *
+ * Best-effort by construction: a directory that cannot be read, or a file that vanishes between the
+ * listing and the unlink, is not an error. Sweeping is housekeeping, and housekeeping must never
+ * fail the operation it was attached to.
+ *
+ * @internal
+ */
+export async function sweepStaleAtomicTemps(
+  filePath: string,
+): Promise<{ removed: number; skipped: string[] }> {
+  const dir = dirname(filePath);
+  const target = filePath.slice(dir.length + 1);
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return { removed: 0, skipped: [] };
+  }
+  let removed = 0;
+  const skipped: string[] = [];
+  for (const name of entries) {
+    if (!name.startsWith(`${target}.`) || !name.endsWith(".tmp")) continue;
+    if (atomicWriteTempTarget(name) !== target) {
+      // Ours by prefix, but not in the shape this module writes today — an older format, or
+      // something else entirely. Named rather than deleted: this function must not become a
+      // wildcard `.tmp` remover on a path it shares with other tools.
+      skipped.push(name);
+      continue;
+    }
+    try {
+      await unlink(join(dir, name));
+      removed += 1;
+    } catch {
+      skipped.push(name);
+    }
+  }
+  return { removed, skipped };
 }

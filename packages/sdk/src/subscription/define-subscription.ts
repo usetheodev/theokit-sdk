@@ -89,7 +89,10 @@ export function defineSubscription<TInput, TOutput>(
   };
 }
 
-/** SE36 — `Subscription.create` replaces `defineSubscription` (ADR 0015). @public */
+/** SE36 — `Subscription.create` replaces `defineSubscription` (ADR 0015). @public  *
+ * `Subscription.create` returns a **`SubscriptionDescriptor<TInput, TOutput>`**, not a
+ * `Subscription`. The class is the namespace; the descriptor is the product.
+ */
 export class Subscription {
   private constructor() {}
   static create<TInput, TOutput>(

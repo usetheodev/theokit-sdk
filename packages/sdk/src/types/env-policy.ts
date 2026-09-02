@@ -1,4 +1,7 @@
 /**
+ * Owner: `sandbox/` (1 of 2 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Child-process environment policy contract (#54).
  *
  * The DIP-correct home for the `EnvPolicy` contract type: the domain `types/`

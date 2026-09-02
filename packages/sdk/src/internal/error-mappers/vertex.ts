@@ -15,7 +15,7 @@ import {
   type TheokitAgentError,
   UnknownAgentError,
 } from "../../errors.js";
-import { buildErrorMetadata } from "./shared.js";
+import { buildErrorMetadata, httpStatusToErrorCode, parseErrorBody } from "./shared.js";
 
 interface VertexErrorBody {
   error?: {
@@ -38,6 +38,7 @@ type VertexCode =
   | "auth_unauthenticated"
   | "auth_permission"
   | "invalid_request"
+  | "quota_exceeded"
   | "timeout"
   | "server_error"
   | "unknown";
@@ -52,14 +53,28 @@ const VERTEX_RULES: ReadonlyArray<{ test: (s: number, e: string) => boolean; cod
     code: "invalid_request",
   },
   { test: (s, e) => s === 408 || e === "DEADLINE_EXCEEDED", code: "timeout" },
-  { test: (s) => s >= 500, code: "server_error" },
 ];
 
+/**
+ * Vertex's `google.rpc` status enum is a real Google contract and is classified by
+ * VERTEX_RULES, which win. Anything the enum does not answer falls through to the
+ * shared RFC 9110 ladder rather than to a fourth hand-written copy of it — the copy
+ * that used to live here guarded `>= 500` with no ceiling and could not reach
+ * `quota_exceeded` at all.
+ *
+ * The one translation: Vertex splits authentication into `auth_unauthenticated`
+ * (401 / UNAUTHENTICATED) and `auth_permission` (403 / PERMISSION_DENIED), which is
+ * finer than the shared `auth_failed`. Both rules match on status before the
+ * fallback runs, so the `auth_failed` arm below is defensive rather than live — a
+ * 401/403 arriving with a body that somehow defeats both rules still lands on an
+ * authentication error instead of on `unknown`.
+ */
 function classifyVertexError(args: MapVertexErrorArgs, errStatus: string): VertexCode {
   for (const rule of VERTEX_RULES) {
     if (rule.test(args.status, errStatus)) return rule.code;
   }
-  return "unknown";
+  const shared = httpStatusToErrorCode(args.status);
+  return shared === "auth_failed" ? "auth_permission" : shared;
 }
 
 function vertexMetadata(args: MapVertexErrorArgs, code: string) {
@@ -93,6 +108,10 @@ const VERTEX_ERROR_BUILDERS: Record<
     new ConfigurationError(`Vertex validation: ${msg}`, {
       metadata: vertexMetadata(args, "invalid_request"),
     }),
+  quota_exceeded: (args, msg) =>
+    new RateLimitError(`Vertex quota exceeded: ${msg}`, {
+      metadata: vertexMetadata(args, "quota_exceeded"),
+    }),
   timeout: (args, msg) =>
     new NetworkError(`Vertex timeout: ${msg}`, { metadata: vertexMetadata(args, "timeout") }),
   server_error: (args, msg) =>
@@ -104,21 +123,9 @@ const VERTEX_ERROR_BUILDERS: Record<
 };
 
 export function mapVertexError(args: MapVertexErrorArgs): TheokitAgentError {
-  const parsed = parseBody(args.body);
+  const parsed = parseErrorBody<VertexErrorBody>(args.body);
   const errStatus = parsed.error?.status ?? "";
   const message = parsed.error?.message ?? "Vertex request failed";
   const code = classifyVertexError(args, errStatus);
   return VERTEX_ERROR_BUILDERS[code](args, message);
-}
-
-function parseBody(body: unknown): VertexErrorBody {
-  if (body !== null && typeof body === "object") return body as VertexErrorBody;
-  if (typeof body === "string") {
-    try {
-      return JSON.parse(body) as VertexErrorBody;
-    } catch {
-      return {};
-    }
-  }
-  return {};
 }

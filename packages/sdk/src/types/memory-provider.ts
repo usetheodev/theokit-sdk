@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/memory/storage/` (1 of 2 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * `MemoryProvider` — kernel-facing port for the memory subsystem
  * (SDK 2.0 Phase 1 / T1.1 — Hexagonal Architecture / Ports & Adapters,
  * SOLID Dependency Inversion).
@@ -10,7 +13,7 @@
  *
  * DIP-correct home (SE46): the port + companion contract types live in the
  * domain `types/` layer; the application-layer module
- * (`internal/runtime/memory/memory-provider.ts`) re-exports them for
+ * (`internal/runtime/memory-glue/memory-provider.ts`) re-exports them for
  * back-compat while the concrete providers live under `internal/`.
  *
  * Layered model (mirrors Budget):
@@ -22,9 +25,27 @@
  * @public — surface-level interface; impls are internal-but-replaceable.
  */
 
-import type { CustomTool } from "./agent-prims.js";
+import type { CustomTool, ModelSelection } from "./agent-prims.js";
 import type { MemoryAdapter, MemoryFact } from "./memory-adapter.js";
-import type { SDKAgent } from "./sdk-agent.js";
+
+/**
+ * The agent identity a `MemoryProvider` is given — the whole of it.
+ *
+ * `buildTools` used to declare `agent: SDKAgent`, a 33-member interface, and the agent loop satisfied
+ * it with `{ agentId, model } as SDKAgent`. The cast is what made it compile, and it suppressed
+ * exactly the check that mattered: an implementation reaching for any of the other 31 members —
+ * `send()`, `fork()`, `dispose()` — gets `undefined is not a function` at runtime with no
+ * compile-time signal.
+ *
+ * Two fields is what the port actually offers, so two fields is what it declares. `SDKAgent`
+ * structurally satisfies this, so a caller holding a real agent still passes it, and TypeScript's
+ * bivariant method parameters mean an existing implementation typed `agent: SDKAgent` still compiles.
+ * What changes is that the fabricated ref no longer needs a cast to exist.
+ */
+export interface MemoryProviderAgentRef {
+  readonly agentId: string;
+  readonly model: ModelSelection | undefined;
+}
 
 /** Result of `MemoryProvider.runActivePass(...)` — what the kernel injects into the LLM call. */
 export interface ActiveMemoryPassResult {
@@ -74,7 +95,7 @@ export interface RecordSessionSummaryArgs {
    * rather than optional. An implementation that recomputed it from `cwd` would write the summary
    * into a different directory than the one the rest of the subsystem uses (#463).
    */
-  readonly memoryRoot: import("../internal/memory/storage/memory-root.js").MemoryRoot;
+  readonly memoryRoot: MemoryRoot;
   /** Run id used as the filename key. */
   readonly runId: string;
   /** Agent identity for scope (foldering). */
@@ -125,7 +146,10 @@ export interface MemoryProvider {
   /** Construct or fetch the per-agent handle. Lazy + idempotent. */
   init(opts: MemoryProviderInitOptions): Promise<MemoryProviderHandle>;
   /** Build the LLM-facing tool catalog (memory_search, memory_get, …). */
-  buildTools(handle: MemoryProviderHandle, agent: SDKAgent): ReadonlyArray<CustomTool>;
+  buildTools(
+    handle: MemoryProviderHandle,
+    agent: MemoryProviderAgentRef,
+  ): ReadonlyArray<CustomTool>;
   /** Run the active-memory pre-LLM pass — recall + compress + format. */
   runActivePass(
     handle: MemoryProviderHandle,
@@ -172,3 +196,21 @@ export interface MemoryProvider {
   /** Release the handle (close index, flush caches). Idempotent + non-throwing. */
   dispose(handle: MemoryProviderHandle): Promise<void> | void;
 }
+
+/**
+ * A directory that has been RESOLVED as a memory root, distinguished from a bare `cwd`.
+ *
+ * Structural rather than a `unique symbol` brand: a `unique symbol` is identity-based and the d.ts
+ * bundler inlines the declaration into each package that re-exports it, so `@theokit/sdk-memory`
+ * ended up with a `MemoryRoot` its own compiler considered incompatible with the SDK's, on values
+ * that were the same string. A structural tag refuses a bare `string` exactly as well and survives
+ * the package boundary, which is where this type has to work.
+ *
+ * G7 / DIP — defined HERE, in the domain types layer, rather than in
+ * `internal/memory/storage/memory-root.ts`. It was defined in the adapter and reached for from this
+ * file, which made the port depend on the adapter for a field of its own argument type; the runtime
+ * helpers (`resolveMemoryRoot`, `asMemoryRoot`) stay in the adapter and import it from here.
+ *
+ * @public
+ */
+export type MemoryRoot = string & { readonly __memoryRoot: "resolved" };

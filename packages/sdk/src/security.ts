@@ -20,6 +20,7 @@
  * tries to flip the flag mid-run.
  */
 
+import { ConfigurationError } from "./errors.js";
 import {
   addPattern as _addPattern,
   redactSecrets as _redactSecrets,
@@ -72,6 +73,19 @@ export class Security {
    * // → text containing "MYORG-AAAA...AAAA" now masks like a builtin.
    */
   static addPattern(re: RegExp): void {
+    // Validated HERE rather than in the primitive. `internal/security/redact.ts` has to stay below
+    // `errors.ts` — the error hierarchy imports `redactSecrets` for the anti-leak invariant on
+    // `providerError` — so it cannot import ConfigurationError without closing a cycle. This is the
+    // surface a consumer touches, and it can.
+    //
+    // Without /g, `String.replaceAll` throws and only the first match would be masked anyway: a
+    // pattern registered to redact a secret would leave every occurrence after the first in clear.
+    if (!re.global) {
+      throw new ConfigurationError(
+        "Security.addPattern: regex must have /g flag for replace-all semantics",
+        { code: "invalid_redaction_pattern" },
+      );
+    }
     _addPattern(re);
   }
 }

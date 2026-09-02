@@ -8,11 +8,12 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-// EC-flake: Agent.registry is a process-wide singleton (D310). When this
-// file runs in parallel with other tests that touch Agent.registry, the
-// global state gets stomped. Force serial execution within this file's
-// describes — vitest's `concurrent` option's inverse is `sequential` (default)
-// but file-level parallelism is what we need to control.
+// The isolation this file needs is real and is already in place, but not where this comment used to
+// point. A five-line note here announced that it would "force serial execution within this file's
+// describes", and no control followed it — nothing was forced. The hazard it named is also gone:
+// vitest's forks pool gives each FILE its own process, so `Agent.registry` cannot be stomped by
+// another file. What isolates the cases inside this one is `evictAll` in both hooks plus a unique id
+// per test, which is code rather than prose.
 
 import { Agent } from "../src/agent.js";
 import {

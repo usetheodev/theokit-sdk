@@ -1,10 +1,9 @@
 import { createRequire } from "node:module";
 import type { z as ZodNamespace, ZodType } from "zod";
 import { ConfigurationError } from "../errors.js";
-
 import type { AgentOptions, CustomTool, LocalOptions, ModelSelection } from "../types/agent.js";
 import type { ProviderRoutingSettings } from "../types/providers.js";
-import { toJsonSchema } from "./zod/to-json-schema.js";
+import { toJsonSchema } from "./zod-to-json-schema.js";
 
 /**
  * Shared helpers for `Agent.generateObject` (ADR D33) and
@@ -148,4 +147,17 @@ export async function disposeAndDeleteTransient(
   }
 }
 
-void (null as unknown as ZodType); // satisfies unused-import check
+/**
+ * The three failure messages, verbatim from what both entry points already emit.
+ *
+ * Identical strings in two files is how two APIs start describing the same failure differently: the
+ * first person to improve one of them improves half the product.
+ *
+ * @internal
+ */
+export const STRUCTURED_OUTPUT_MESSAGES = {
+  runFailed: (message: string | undefined, code: string | undefined): string =>
+    `Agent run failed before the model could reply: ${message ?? "unknown error"} [${code ?? "?"}]`,
+  noToolCall: "The model returned text instead of calling the `output` tool.",
+  parseFailed: "Schema parse failed after all retries.",
+} as const;

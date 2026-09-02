@@ -26,6 +26,21 @@ export interface SyncResult {
   filesUpdated: number;
   chunksWritten: number;
   chunksEmbedded: number;
+  /**
+   * Whether this backend actually walked a corpus.
+   *
+   * REQUIRED, not optional, and that is the point. `MemoryIndex` has two implementers and consumers
+   * hold the interface: `IndexManager` walks files, and `LanceMemoryAdapter` has no corpus to walk —
+   * it is a vector store fed by explicit `addFacts`. The adapter used to answer with a frozen
+   * all-zeros result, which a caller cannot tell apart from a real sync that found nothing to do.
+   * The comment above it stated that as the intention ("so callers' existing logging does not
+   * break"), which is the substitution defect written down as a feature.
+   *
+   * A required boolean forces every implementer to say which case it is in, and forces the compiler
+   * to notice a new implementer that forgot. An optional flag would have let the next backend
+   * reproduce the silence.
+   */
+  supported: boolean;
 }
 
 /**

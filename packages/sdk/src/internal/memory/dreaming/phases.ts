@@ -1,5 +1,5 @@
 import type { EmbeddingRuntime } from "../embedding-adapter.js";
-import type { MemoryFact } from "../types.js";
+import type { MemoryFact, MemoryKind } from "../types.js";
 
 /**
  * Dreaming/REM phase logic.
@@ -45,8 +45,14 @@ const DEFAULT_CLUSTER_THRESHOLD = 0.75;
  * source file survives; the artefact the agent reads does not. That is ADR-14's third rule —
  * the invariant is about what the agent reads, not what survives on disk.
  */
-const CONSOLIDATABLE_KINDS = new Set(["project", "session"]);
-const ATOMIC_KINDS = new Set(["user", "feedback", "reference"]);
+// Typed against `MemoryKind` rather than `string`, so the compiler checks these against the vocabulary
+// they mirror. They were `Set<string>` and CONSOLIDATABLE_KINDS held "session" — not a member of
+// `MemoryKind`, and rejected by `markdown-store.assertWritable` before any fact is written, so no
+// fact reaching this policy could ever carry it. The arm read as though sessions were consolidatable
+// while no session could exist. Adding a member to either set is now a type error unless `MemoryKind`
+// gains it deliberately.
+const CONSOLIDATABLE_KINDS: ReadonlySet<MemoryKind> = new Set(["project"]);
+const ATOMIC_KINDS: ReadonlySet<MemoryKind> = new Set(["user", "feedback", "reference"]);
 
 /**
  * Three levels, graded by how much the store knows about the entry. The middle one exists

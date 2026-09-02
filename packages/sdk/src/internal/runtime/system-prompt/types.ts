@@ -1,5 +1,5 @@
 import type { SystemPromptContext } from "../../../types/agent.js";
-import type { MemoryFact } from "../memory/memory-store.js";
+import type { MemoryFact } from "../memory-glue/memory-store.js";
 
 /**
  * Context passed to every {@link SystemPromptProvider}. Extends the public

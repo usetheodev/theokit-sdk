@@ -12,8 +12,10 @@
 
 import { ConfigurationError } from "../../errors.js";
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
+import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
 import { collapseSystemText, makeLlmFinish } from "./finish.js";
 import { toStringToolResultContent } from "./tool-result-content.js";
+import { wrapTransportError } from "./transport-error.js";
 import type {
   LlmClient,
   LlmEvent,
@@ -106,7 +108,14 @@ export class OllamaNativeClient implements LlmClient {
         endpoint: "/api/chat",
       });
       if (mapped !== undefined) throw mapped;
-      throw fetchErr;
+      // A raw fetch error must NOT leave this file. `isTransientError` is
+      // `err instanceof TheokitAgentError && err.isRetryable`, and router.ts wraps every resolved
+      // client in RetryingLlmClient — so a foreign error is non-transient BY CONTRACT and a dropped
+      // connection to a local Ollama, the most ordinary transient failure there is, was never
+      // retried. openai.ts:183 records this same bug being fixed for the other transports and names
+      // Ollama as the one that still had it. `wrapTransportError` passes AbortError and any
+      // TheokitAgentError through untouched, so it cannot relabel an already-mapped provider error.
+      throw wrapTransportError(fetchErr, { providerId: "ollama", endpoint: "/api/chat" });
     }
 
     if (!response.ok) {
@@ -125,7 +134,17 @@ export class OllamaNativeClient implements LlmClient {
         endpoint: "/api/chat",
       });
       if (mapped !== undefined) throw mapped;
-      throw new Error(`Ollama /api/chat HTTP ${response.status}: ${text.slice(0, 200)}`);
+      // A status the Ollama body dialect does not recognise still has an HTTP meaning, and that
+      // meaning lives in ONE place — the shared RFC 9110 ladder the four provider mappers delegate
+      // to. Reaching for it here rather than writing a sixth copy is the point of that unification;
+      // a bare `new Error` would be outside the hierarchy exactly like the raw fetch error above.
+      throw mapOpenAICompatibleError({
+        providerId: "ollama",
+        status: response.status,
+        body: bodyJson,
+        headers: response.headers,
+        endpoint: "/api/chat",
+      });
     }
 
     const accumulator = new OllamaStreamAccumulator();

@@ -8,7 +8,7 @@
 
 import type { ZodType } from "zod";
 import type { StepResult, WorkflowOptions, WorkflowRun } from "../../types/workflow.js";
-import { WorkflowStateError } from "../../types/workflow.js";
+import { WorkflowStateError } from "../../workflow-errors.js";
 import type { StateController } from "./ctx.js";
 
 export interface AssembleParams<TO> {

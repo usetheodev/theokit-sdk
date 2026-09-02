@@ -70,8 +70,10 @@ export class AgentMailbox {
   }
 
   private _dispatch(msg: A2AMessage): unknown {
-    if (this._handler) {
-      return this._handler(msg);
-    }
+    // A disposed mailbox is still registered until the bus drops it, so a
+    // message can arrive with no handler. `undefined` is the reply in that
+    // case, and saying so explicitly is what lets `noImplicitReturns` hold.
+    if (this._handler === null) return undefined;
+    return this._handler(msg);
   }
 }

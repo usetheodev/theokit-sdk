@@ -24,10 +24,10 @@
 import { NetworkError, TheokitAgentError } from "../../errors.js";
 
 /** Did the error come from an `abort()` rather than a network failure? */
-function ehAbort(err: unknown): boolean {
+function isAbortError(err: unknown): boolean {
   if (typeof err !== "object" || err === null) return false;
-  const nome = (err as { name?: unknown }).name;
-  return nome === "AbortError" || nome === "TimeoutError";
+  const name = (err as { name?: unknown }).name;
+  return name === "AbortError" || name === "TimeoutError";
 }
 
 /**
@@ -39,7 +39,7 @@ export function wrapTransportError(
   err: unknown,
   ctx: { providerId: string; endpoint: string },
 ): unknown {
-  if (ehAbort(err)) return err;
+  if (isAbortError(err)) return err;
   // Any SDK error already carries a mapped message and code — a provider's 429 or context-length
   // refusal must not be relabelled "transport failure" on its way out (#371 widened this from
   // `NetworkError` to the whole hierarchy when the SSE read started routing through here).

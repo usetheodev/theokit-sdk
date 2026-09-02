@@ -10,11 +10,8 @@
 
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  WorkflowNotSerializableError,
-  type WorkflowOptions,
-  type WorkflowSnapshot,
-} from "../../types/workflow.js";
+import type { WorkflowOptions, WorkflowSnapshot } from "../../types/workflow.js";
+import { WorkflowNotSerializableError } from "../../workflow-errors.js";
 import { atomicWriteText } from "../persistence/atomic-write.js";
 
 export interface WorkflowSnapshotStore {

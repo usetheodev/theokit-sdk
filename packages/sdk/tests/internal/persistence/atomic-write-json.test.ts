@@ -17,26 +17,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { atomicWriteJson } from "../../../src/internal/persistence/atomic-write.js";
+import { withUmask } from "../../helpers/with-umask.js";
 
 /** Permission bits of `path`, without the node type. */
 function fileMode(target: string): number {
   return statSync(target).mode & 0o777;
-}
-
-/**
- * Runs `fn` under a specific `umask` and restores the previous one — always, even on failure.
- *
- * `umask` is PROCESS state. This package's suite runs in a single fork
- * (`vitest.config.ts`: `singleFork: true`), so leaking a `umask` from here would contaminate every test
- * creating a file afterwards. The `finally` is what prevents that.
- */
-async function sobUmask(mask: number, fn: () => Promise<void>): Promise<void> {
-  const previous = process.umask(mask);
-  try {
-    await fn();
-  } finally {
-    process.umask(previous);
-  }
 }
 
 describe("atomicWriteJson", () => {
@@ -100,7 +85,9 @@ describe("atomicWriteJson", () => {
     const path = join(dir, "config.json");
     const circular: Record<string, unknown> = { a: 1 };
     circular.self = circular;
-    await expect(atomicWriteJson(path, circular)).rejects.toThrow();
+    // Measured: the V8 TypeError from JSON.stringify. Asserting it distinguishes "the value could
+    // not be serialised" from "the write failed", which is the whole point of the case.
+    await expect(atomicWriteJson(path, circular)).rejects.toThrow(/Converting circular structure/);
   });
 });
 
@@ -154,7 +141,7 @@ describe("M107 T1.1 — atomicWriteJson honours mode and exclusive", () => {
     ]);
 
     for (const [mask, expected] of measuredBefore) {
-      await sobUmask(mask, async () => {
+      await withUmask(mask, async () => {
         const noBag = join(dir, `sem-bag-${mask.toString(8)}.json`);
         const emptyBag = join(dir, `bag-empty-${mask.toString(8)}.json`);
 
@@ -176,7 +163,7 @@ describe("M107 T1.1 — atomicWriteJson honours mode and exclusive", () => {
     // file comes out `0o400` (measured) and the caller's request is lost SILENTLY.
     const path = join(dir, "explicitly-requested.json");
 
-    await sobUmask(0o200, async () => {
+    await withUmask(0o200, async () => {
       // Act
       await atomicWriteJson(path, { a: 1 }, { mode: 0o600 });
 
@@ -189,7 +176,7 @@ describe("M107 T1.1 — atomicWriteJson honours mode and exclusive", () => {
     // Arrange — the primitive imposes no policy: it changes the DEFAULT, not the caller's freedom.
     const path = join(dir, "permissive.json");
 
-    await sobUmask(0o002, async () => {
+    await withUmask(0o002, async () => {
       // Act
       await atomicWriteJson(path, { a: 1 }, { mode: 0o644 });
 
@@ -204,7 +191,10 @@ describe("M107 T1.1 — atomicWriteJson honours mode and exclusive", () => {
 
     // Act + Assert — the system error PROPAGATES; it is not converted into an SDK type nor swallowed
     // (`.claude/rules/error-handling.md § 2`). And nothing was written to the destination.
-    await expect(atomicWriteJson(path, { a: 1 }, { mode: -1 })).rejects.toThrow();
+    // Measured: RangeError from fs, naming the argument.
+    await expect(atomicWriteJson(path, { a: 1 }, { mode: -1 })).rejects.toThrow(
+      /The value of "mode" is out of range/,
+    );
     expect(readdirSync(dir)).toEqual([]);
   });
 
@@ -216,7 +206,10 @@ describe("M107 T1.1 — atomicWriteJson honours mode and exclusive", () => {
     writeFileSync(join(path, "occupant.txt"), "x");
 
     // Act + Assert
-    await expect(atomicWriteJson(path, { a: 1 }, { mode: 0o600 })).rejects.toThrow();
+    // Measured: EISDIR — the target path is a directory, which is what this case sets up.
+    await expect(atomicWriteJson(path, { a: 1 }, { mode: 0o600 })).rejects.toMatchObject({
+      code: "EISDIR",
+    });
     expect(readdirSync(dir).filter((f) => f.includes(".tmp"))).toEqual([]);
   });
 

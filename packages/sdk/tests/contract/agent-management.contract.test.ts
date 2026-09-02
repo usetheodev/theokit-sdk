@@ -76,22 +76,27 @@ describe("Agent management contract", () => {
     // returned everything passed it just the same. `includeArchived` and `limit` were passed and
     // never asserted.
     //
-    // MEASURED, in an isolated worktree, before rewriting: `Agent.list` does not filter by
-    // `prUrl` AT ALL. Two cloud agents on different repos, listed with
-    // prUrl=".../usetheo/example/pull/123" — both came back. `limit: 1` returned 8 items. The
-    // implementation (src/agent.ts:358 → internal/runtime/registry/agent-registry.ts:129-134)
-    // filters on `runtime` and `cwd` and nothing else; `prUrl`, `includeArchived`, `limit` and
-    // `cursor` are accepted by the type and silently dropped.
+    // THE MEASUREMENT THAT USED TO SIT HERE IS NOW FALSE, and this is the correction of it. It
+    // said `Agent.list` "filters on `runtime` and `cwd` and nothing else; `prUrl`,
+    // `includeArchived`, `limit` and `cursor` are accepted by the type and silently dropped", and
+    // removed those options from the arrange on that basis. Re-derived 2026-09-02, three of the
+    // four are no longer true:
     //
-    // So an oracle asserting a non-matching agent is ABSENT cannot pass — the gap is in the
-    // product, not in this test, and closing it is not a test-only change. Filed as a finding
-    // rather than papered over with a matcher that agrees with any implementation. The filter
-    // options are dropped from the arrange below because passing an inert option and asserting
-    // nothing about it is the exact smell this correction is about.
+    //   `includeArchived` — read at src/agent.ts:363-364 and filtered at
+    //                       agent-registry.ts:140 (B-115, dated 2026-08-19).
+    //   `limit` / `cursor` — piped through `paginateByKey` at src/agent.ts:366-372, and
+    //                        tests/agent-list-get-runs-b115.test.ts:119-136 asserts the pagination
+    //                        the old comment said did not exist.
+    //   `prUrl`            — not fixed but REMOVED from the public type; types/agent.ts:845-849
+    //                        records why, citing parsimony ladder rung 1.
     //
-    // What IS implemented is scoping by `runtime` + `cwd`, so the oracle is an ABSENCE assertion:
-    // a superset matcher cannot fail, an absence assertion can. Measured killing power, three
-    // mutants in an isolated worktree on internal/runtime/registry/agent-registry.ts:129-134:
+    // So the options are passed and asserted again below. A comment that removed coverage on the
+    // strength of a measurement has to be re-derived when the measurement expires, or it goes on
+    // removing coverage for a reason that stopped being true.
+    //
+    // WHAT IS STILL TRUE, and worth keeping: the oracle is an ABSENCE assertion, because a superset
+    // matcher cannot fail. Measured killing power, three mutants in an isolated worktree on
+    // internal/runtime/registry/agent-registry.ts:129-134:
     //
     //   runtime filter disabled only  → test SURVIVES
     //   cwd filter disabled only      → test SURVIVES
@@ -113,10 +118,24 @@ describe("Agent management contract", () => {
         local: { cwd: workspace.cwd },
       });
 
-      const listed = await Agent.list({ runtime: "cloud", apiKey: CLOUD_KEY });
+      const listed = await Agent.list({
+        runtime: "cloud",
+        apiKey: CLOUD_KEY,
+        // Passed AND asserted, unlike the version that dropped them as inert.
+        includeArchived: false,
+        limit: 10,
+      });
       const ids = listed.items.map((info) => info.agentId);
 
       expect(ids, "the cloud agent must be listed").toContain(cloudAgentId);
+      expect(
+        listed.items.length,
+        "limit is read now (src/agent.ts:366-372 via paginateByKey), so the page must honour it",
+      ).toBeLessThanOrEqual(10);
+      expect(
+        listed.items.every((info) => info.archived !== true),
+        "includeArchived: false is read now (agent-registry.ts:140) — an archived agent must not appear",
+      ).toBe(true);
       expect(
         ids,
         "and an agent scoped to another runtime AND another cwd must NOT be — this is the half a superset matcher cannot check",

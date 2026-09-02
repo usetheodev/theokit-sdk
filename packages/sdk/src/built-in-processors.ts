@@ -8,19 +8,19 @@
  * @public
  */
 
-import type { Processor, ProcessorControls } from "./types/processors.js";
-
-/** Rough char→token ratio for the estimate below (no tokenizer dependency). */
-const CHARS_PER_TOKEN = 4;
-
 /**
  * Approximate token count from string length. This is an ESTIMATE
  * (≈ UTF-16-code-units / 4, NOT Unicode code points, NOT an exact per-model
  * tokenizer count) — good enough for a coarse cap, and dependency-free.
+ *
+ * Re-exported rather than reimplemented: the ratio lives in `compaction.ts`, which is where the
+ * heuristic is load-bearing. The name and the behaviour here are unchanged.
  */
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / CHARS_PER_TOKEN);
-}
+import { CHARS_PER_TOKEN, estimateTokens } from "./compaction.js";
+import { ConfigurationError } from "./errors.js";
+import type { Processor, ProcessorControls } from "./types/processors.js";
+
+export { CHARS_PER_TOKEN, estimateTokens };
 
 /** Options for {@link createUnicodeNormalizer}. @public */
 export interface UnicodeNormalizerOptions {
@@ -83,7 +83,9 @@ export interface TokenLimiterOptions {
  */
 export function createTokenLimiter(opts: TokenLimiterOptions): Processor {
   if (!Number.isInteger(opts.limit) || opts.limit <= 0) {
-    throw new Error("createTokenLimiter: `limit` must be a positive integer.");
+    throw new ConfigurationError("createTokenLimiter: `limit` must be a positive integer.", {
+      code: "invalid_processor_options",
+    });
   }
   const limit = opts.limit;
   const strategy = opts.strategy ?? "truncate";
@@ -104,14 +106,20 @@ export function createTokenLimiter(opts: TokenLimiterOptions): Processor {
   };
 }
 
-/** SE36 — `TokenLimiter.create` replaces `createTokenLimiter` (ADR 0015). @public */
+/** SE36 — `TokenLimiter.create` replaces `createTokenLimiter` (ADR 0015). @public  *
+ * `TokenLimiter.create` returns a **`Processor`**, not a `TokenLimiter`. The class is
+ * the namespace; the processor is the product.
+ */
 export class TokenLimiter {
   private constructor() {}
   static create(opts: TokenLimiterOptions): Processor {
     return createTokenLimiter(opts);
   }
 }
-/** SE36 — `UnicodeNormalizer.create` replaces `createUnicodeNormalizer` (ADR 0015). @public */
+/** SE36 — `UnicodeNormalizer.create` replaces `createUnicodeNormalizer` (ADR 0015). @public  *
+ * `UnicodeNormalizer.create` returns a **`Processor`**, not a `UnicodeNormalizer`. The
+ * class is the namespace; the processor is the product.
+ */
 export class UnicodeNormalizer {
   private constructor() {}
   static create(opts: UnicodeNormalizerOptions = {}): Processor {

@@ -32,6 +32,7 @@ import { describe, expect, it } from "vitest";
 
 import { ConfigurationError } from "../../../src/errors.js";
 import { validateCronExpression, validateTimezone } from "../../../src/internal/cron/validate.js";
+import { expectPublicError } from "../../helpers/assert-public-error.js";
 
 /**
  * Runs a validator that is expected to refuse, and hands back the error for assertion.
@@ -59,8 +60,10 @@ describe("validateCronExpression — refusals", () => {
   it("test_an_empty_expression_is_refused_as_invalid_cron", () => {
     const err = cronRefusal("");
 
-    expect(err).toBeInstanceOf(ConfigurationError);
-    expect(err.code).toBe("invalid_cron");
+    expectPublicError(err, {
+      ctor: ConfigurationError,
+      code: "invalid_cron",
+    });
     expect(err.message).toContain("empty");
   });
 
@@ -69,15 +72,19 @@ describe("validateCronExpression — refusals", () => {
     // number or `undefined`; the boundary refuses it rather than letting `.startsWith` explode.
     const err = cronRefusal(undefined);
 
-    expect(err).toBeInstanceOf(ConfigurationError);
-    expect(err.code).toBe("invalid_cron");
+    expectPublicError(err, {
+      ctor: ConfigurationError,
+      code: "invalid_cron",
+    });
   });
 
   it("test_an_unknown_shorthand_is_refused", () => {
     const err = cronRefusal("@sometimes");
 
-    expect(err).toBeInstanceOf(ConfigurationError);
-    expect(err.code).toBe("invalid_cron");
+    expectPublicError(err, {
+      ctor: ConfigurationError,
+      code: "invalid_cron",
+    });
     expect(err.message, "the message must name the shorthand the user typed").toContain(
       "@sometimes",
     );
@@ -86,8 +93,10 @@ describe("validateCronExpression — refusals", () => {
   it("test_an_expression_with_too_few_fields_is_refused", () => {
     const err = cronRefusal("* * *");
 
-    expect(err).toBeInstanceOf(ConfigurationError);
-    expect(err.code).toBe("invalid_cron");
+    expectPublicError(err, {
+      ctor: ConfigurationError,
+      code: "invalid_cron",
+    });
     expect(err.message).toContain("expected 5 fields, got 3");
   });
 
@@ -96,8 +105,10 @@ describe("validateCronExpression — refusals", () => {
     // field by one and fire the job at a wildly different time.
     const err = cronRefusal("0 * * * * *");
 
-    expect(err).toBeInstanceOf(ConfigurationError);
-    expect(err.code).toBe("invalid_cron");
+    expectPublicError(err, {
+      ctor: ConfigurationError,
+      code: "invalid_cron",
+    });
     expect(err.message).toContain("expected 5 fields, got 6");
   });
 
@@ -136,8 +147,10 @@ describe("validateCronExpression — refusals", () => {
   ])("test_%s_is_refused_and_the_message_names_the_field", (_label, cron, fieldNumber) => {
     const err = cronRefusal(cron);
 
-    expect(err).toBeInstanceOf(ConfigurationError);
-    expect(err.code).toBe("invalid_cron");
+    expectPublicError(err, {
+      ctor: ConfigurationError,
+      code: "invalid_cron",
+    });
     expect(err.message, "the message must point at the offending field").toContain(
       `(field ${fieldNumber})`,
     );
@@ -197,8 +210,10 @@ describe("validateTimezone", () => {
   it("test_an_empty_zone_is_refused", () => {
     const err = refusalOf(() => validateTimezone(""), "the empty timezone");
 
-    expect(err).toBeInstanceOf(ConfigurationError);
-    expect(err.code).toBe("invalid_timezone");
+    expectPublicError(err, {
+      ctor: ConfigurationError,
+      code: "invalid_timezone",
+    });
   });
 
   it.each([

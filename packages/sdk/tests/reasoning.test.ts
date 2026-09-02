@@ -6,7 +6,7 @@ import {
   isNativeReasoning,
   REASONING_PREAMBLE,
   reasoningActive,
-} from "../src/internal/runtime/reasoning/native-reasoning.js";
+} from "../src/internal/runtime/system-prompt/native-reasoning.js";
 import { SystemPromptPipeline } from "../src/internal/runtime/system-prompt/pipeline.js";
 import { ReasoningPromptProvider } from "../src/internal/runtime/system-prompt/sources/reasoning-provider.js";
 import type { SystemPromptAssemblyContext } from "../src/internal/runtime/system-prompt/types.js";
@@ -92,35 +92,32 @@ describe("SE37 — tool-attach guard uses the EFFECTIVE (per-send override) mode
   const toolNames = (r: { customTools?: ReadonlyArray<{ name: string }> }) =>
     (r.customTools ?? []).map((t) => t.name);
 
+  /**
+   * Everything the two cases hold FIXED. It used to be four bare `undefined` in a row between
+   * `opts` and the model — the transposition hazard the options record removed.
+   */
+  const BASE = {
+    agentOptions: opts,
+    sendOptions: undefined,
+    pluginManager: undefined,
+    personalityToolWhitelist: undefined,
+    agentId: "a",
+    personalityName: undefined,
+    subagents: undefined,
+  } as const;
+
   it("does NOT attach `think` when the effective model reasons natively (matches preamble path)", () => {
     // create-time model is non-native, but the per-send override IS native → both paths must suppress.
     const nativeOverride = { id: "x", params: [{ id: "thinking", value: "high" }] };
-    const r = buildRunToolCatalogInput(
-      opts,
-      undefined,
-      undefined,
-      undefined,
-      "a",
-      undefined,
-      undefined,
-      nativeOverride,
-    );
+    const r = buildRunToolCatalogInput({ ...BASE, effectiveModel: nativeOverride });
     expect(toolNames(r)).not.toContain("think");
   });
 
   it("attaches `think` when the effective model is non-native", () => {
-    const r = buildRunToolCatalogInput(
-      opts,
-      undefined,
-      undefined,
-      undefined,
-      "a",
-      undefined,
-      undefined,
-      {
-        id: "openai/gpt-4o-mini",
-      },
-    );
+    const r = buildRunToolCatalogInput({
+      ...BASE,
+      effectiveModel: { id: "openai/gpt-4o-mini" },
+    });
     expect(toolNames(r)).toContain("think");
   });
 });

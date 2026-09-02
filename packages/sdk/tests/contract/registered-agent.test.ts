@@ -5,9 +5,13 @@
  * `arch-review-fixes-2026-06-06` (T3.1 / ADR D431) — this iter adds the
  * missing snapshot test the T1.2 plan acceptance asks for.
  *
- * Per `cycle-implement.md`, contract tests live under `tests/contract/**`
- * which is excluded from the default vitest run (vitest.config.ts). The
- * tsc pass at the top of `pnpm test` is the canonical gate.
+ * This file RUNS in the default gate. The blanket `tests/contract/**` exclusion it used to cite was
+ * replaced by `ROADMAP_ONLY_SUITES`, a named list of three files that does not include this one —
+ * `vitest.config.ts` records the measurement. The claim also attributed the exclusion to
+ * `cycle-implement.md`, which never said it.
+ *
+ * The part that IS load-bearing: the compile-time pins below are checked by `tsc`, not by the
+ * runtime assertions, so a `pnpm test` that skipped the typecheck would not exercise them.
  */
 
 import { describe, expect, it } from "vitest";

@@ -71,8 +71,8 @@ describe("M77 T2.1 — structured context-budget event", () => {
     const resolved = resolveEffectiveContextWindow({ margin: 0.95, floor: 128_000 });
     const event = buildContextBudgetEvent("m", resolved);
     if (event !== undefined) {
-      const comoRunEvent: RunEvent = event;
-      expect(comoRunEvent.type).toBe("compaction_fallback");
+      const asRunEvent: RunEvent = event;
+      expect(asRunEvent.type).toBe("compaction_fallback");
     }
   });
 

@@ -4,7 +4,7 @@ import type { ToolContextMessage } from "../../types/agent-prims.js";
 import type { ToolResultContentBlock } from "../../types/content-blocks.js";
 import type { LlmToolCallPart } from "../llm/types.js";
 import { runShell, type ShellExecuteOptions } from "../runtime/tools/shell-tool.js";
-import type { AgentLoopInputs, ResolvedTool } from "./loop-types.js";
+import type { AgentLoopInputs, ResolvedTool } from "./types.js";
 
 /** @internal */
 export interface ToolResult {
@@ -40,54 +40,37 @@ export async function executeTool(
   if (resolved.origin === "shell") return runShellTool(inputs, call);
   // #119 — `inputs.agentId` is the run's session identity (the `Agent.getOrCreate(sessionId)`
   // key). Threaded to the handler as `ctx.threadId` so a stateful tool can scope state per session.
+  // The two handler origins differ ONLY in what the handler is allowed to see, and the difference
+  // is now the presence of a key rather than the position of an `undefined`. Memory tools get no
+  // cancellation signal and no transcript projection — deliberate, and previously expressed as two
+  // bare `undefined` three slots apart in a 7-argument call.
   if (resolved.origin === "memory")
-    return runMemoryTool(resolved, call, inputs.context, inputs.agentId);
+    return runHandlerTool("memory", resolved.memoryHandler, call, {
+      context: inputs.context,
+      threadId: inputs.agentId,
+    });
   if (resolved.origin === "custom")
-    return runCustomTool(
-      resolved,
-      call,
-      inputs.signal,
-      inputs.context,
-      inputs.messages,
-      inputs.agentId,
-    );
+    return runHandlerTool("custom", resolved.customHandler, call, {
+      signal: inputs.signal,
+      context: inputs.context,
+      messages: inputs.messages,
+      threadId: inputs.agentId,
+    });
   return runMcpTool(inputs, resolved, call);
 }
 
-async function runMemoryTool(
-  resolved: ResolvedTool,
-  call: LlmToolCallPart,
-  context?: unknown,
-  threadId?: string,
-): Promise<ToolResult> {
-  return runHandlerTool(
-    "memory",
-    resolved.memoryHandler,
-    call,
-    undefined,
-    context,
-    undefined,
-    threadId,
-  );
-}
-
-async function runCustomTool(
-  resolved: ResolvedTool,
-  call: LlmToolCallPart,
-  signal?: AbortSignal,
-  context?: unknown,
-  messages?: readonly ToolContextMessage[],
-  threadId?: string,
-): Promise<ToolResult> {
-  return runHandlerTool(
-    "custom",
-    resolved.customHandler,
-    call,
-    signal,
-    context,
-    messages,
-    threadId,
-  );
+/**
+ * What a tool handler receives alongside its input. It always WAS one object — the handler's own
+ * second parameter — and `runHandlerTool` spent four positional slots re-assembling it. Nothing in
+ * the type system separated `AbortSignal | undefined` from `ToolContextMessage[] | undefined` when
+ * both arrived as a literal `undefined`, so transposing them compiled and silently turned off either
+ * tool cancellation or the transcript projection.
+ */
+interface HandlerToolCtx {
+  readonly signal?: AbortSignal | undefined;
+  readonly context?: unknown;
+  readonly messages?: readonly ToolContextMessage[] | undefined;
+  readonly threadId?: string | undefined;
 }
 
 async function runHandlerTool(
@@ -95,20 +78,13 @@ async function runHandlerTool(
   handler:
     | ((
         input: Record<string, unknown>,
-        ctx?: {
-          signal?: AbortSignal;
-          context?: unknown;
-          messages?: readonly ToolContextMessage[];
-          threadId?: string;
-        },
+        ctx?: HandlerToolCtx,
       ) => string | ToolResultContentBlock[] | Promise<string | ToolResultContentBlock[]>)
     | undefined,
   call: LlmToolCallPart,
-  signal?: AbortSignal,
-  context?: unknown,
-  messages?: readonly ToolContextMessage[],
-  threadId?: string,
+  ctx: HandlerToolCtx,
 ): Promise<ToolResult> {
+  const { signal, context, messages, threadId } = ctx;
   if (handler === undefined) {
     return { stdout: "", stderr: `${kind} tool ${call.name} has no handler`, exitCode: 127 };
   }

@@ -25,6 +25,7 @@ import {
   AuthenticationError,
   ConfigurationError,
   IntegrationNotConnectedError,
+  isTransientError,
   NetworkError,
   RateLimitError,
   UnknownAgentError,
@@ -70,6 +71,31 @@ describe("mapHttpStatusToError", () => {
     // `ConfigurationError` has three subclasses in src/, not one — naming the exact constructor is
     // what excludes all of them rather than the one I happened to think of.
     expect(err.constructor.name).toBe("ConfigurationError");
+  });
+
+  it("test_408_is_a_retryable_timeout_not_a_configuration_error", () => {
+    // 408 Request Timeout is TRANSIENT: the request did not arrive in time, and the same request
+    // may well succeed on the next attempt. Every one of the four provider mappers already says so
+    // — openai-compatible.ts:59, anthropic.ts:67, bedrock.ts:71, vertex.ts:54 all map 408 to a
+    // NetworkError carrying a `timeout` code. This generic ladder is the FIFTH copy of the same
+    // knowledge and it was the one that drifted: 408 fell into the `status >= 400 && status < 500`
+    // arm and came back as a ConfigurationError, which is `isRetryable: false`.
+    //
+    // The consequence is silent and the wrong way round. Nothing throws; the caller's `catch`
+    // simply behaves correctly for a situation that is not the one it is in, and refuses to retry
+    // a request that would have succeeded. That is why this asserts the RETRY CONTRACT and not
+    // just the class name — the class is the mechanism, `isTransientError` is the promise.
+    const err = mapHttpStatusToError(408, {});
+
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.constructor.name, "HTTP 408 exactly NetworkError").toBe("NetworkError");
+    expect(
+      isTransientError(err),
+      "408 must be retryable — all four provider mappers already treat it so",
+    ).toBe(true);
+    expect(err, "408 must NOT be the non-retryable configuration branch").not.toBeInstanceOf(
+      ConfigurationError,
+    );
   });
 
   it("test_5xx_are_network_errors_so_the_caller_may_retry", () => {

@@ -30,17 +30,11 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-/**
- * The project config directory literal.
- *
- * Renamed from `THEOKIT_DIR_NAME` in #410. Sharing a name with the (now removed) sovereign env var
- * was the MECHANISM of that defect, not scenery: every grep for the variable landed on this const
- * and looked answered, so "is it read?" returned five hits and nobody checked what they were.
- */
-const THEOKIT_DIR_LITERAL = ".theokit";
+import { adaptersFor, THEOKIT_DIR_LITERAL } from "../runtime/compat/foreign-config-sources.js";
 
-/** The Claude Code CLI's project configuration directory. */
-const CLAUDE_DIR_NAME = ".claude";
+// The directory names live with the dialect registry that owns them — a name is one third of what a
+// configuration dialect is, and keeping the three together is what stops the next one shipping
+// without its runtime contract (#522).
 
 /**
  * Resolve the directory cwd-anchored SDK state lives in.
@@ -98,8 +92,11 @@ export function getTheokitHome(cwd: string): string {
  * Semver-exempt: reachable via the `@theokit/sdk/internal/persistence` sub-path, which the package
  * declares in `exports` but does NOT cover with its semver contract.
  */
-export function projectConfigRoots(cwd: string): string[] {
-  return [join(cwd, THEOKIT_DIR_LITERAL), join(cwd, CLAUDE_DIR_NAME)];
+export function projectConfigRoots(cwd: string, sources: readonly string[] = []): string[] {
+  return [
+    join(cwd, THEOKIT_DIR_LITERAL),
+    ...adaptersFor(sources).map((adapter) => join(cwd, adapter.dirName)),
+  ];
 }
 
 /**
@@ -115,8 +112,8 @@ export function projectConfigRoots(cwd: string): string[] {
  * reading a project's configuration, and guessing at someone's enablement would run code they
  * turned off.
  */
-export function pluginBundleRoots(cwd: string): string[] {
-  return projectConfigRoots(cwd).map((root) => join(root, "plugins"));
+export function pluginBundleRoots(cwd: string, sources: readonly string[] = []): string[] {
+  return projectConfigRoots(cwd, sources).map((root) => join(root, "plugins"));
 }
 
 /**

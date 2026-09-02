@@ -3,7 +3,6 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { ConfigurationError } from "../../../src/errors.js";
 import {
   isLanceAvailable,
   LanceIndex,
@@ -12,15 +11,28 @@ import {
 import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
 
 /**
- * LanceIndex tests — Phase 5 of v1.2 plan (ADR D43).
- * Covers EC-1 (no SQL injection in filters), EC-8 (dimension mismatch),
- * typed error when @lancedb/lancedb absent, surface coverage.
+ * SOURCE-LEVEL guards on `lance-index.ts` — Phase 5 of v1.2 plan (ADR D43).
  *
- * NOTE: Full Lance roundtrip requires `@lancedb/lancedb` installed. When
- * absent (default CI), we validate:
- *   - typed error on open()
- *   - source code uses structured filter (no string interpolation)
- *   - typed module surface is reachable
+ * The name matters because the old one over-promised. This file calls into `LanceIndex` at exactly
+ * ONE line, inside `it.skipIf(isLanceAvailable())` — and `@lancedb/lancedb` IS resolvable in this
+ * workspace, so on any machine with the peer installed the file executes zero calls into the class it
+ * is named for. That gate is right: the test exists so the unavailable-backend error path is not
+ * claimed when the module is there. What was wrong was the title around it.
+ *
+ * What the running cases DO cover, and it is worth having:
+ *   - EC-1 — a source sentinel that fails if `.where()` regains raw `${variable}` interpolation or
+ *     loses `escapeSqlValue`. Lance's predicate API takes a SQL string and supports no bind
+ *     parameters, so the escape is the only defence and a static check is the only cheap guard.
+ *   - EC-8 — the dimension-mismatch code and message exist in the source.
+ *   - path helpers, which need no peer.
+ *
+ * THE BEHAVIOURAL COVERAGE IS ELSEWHERE and is correctly gated:
+ * `tests/integration/lance-end-to-end.test.ts` runs 13 cases against the real peer.
+ *
+ * Three tests were deleted rather than kept: two built a `ConfigurationError` and asserted it had
+ * the code they had just passed it, under names claiming the code "is informative"; one assigned
+ * `{ backend: "lance" }` to a type alias and asserted the value it had written. None said anything
+ * about Lance.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -69,15 +81,12 @@ describe("LanceIndex (ADR D43)", () => {
     );
   });
 
-  it("ConfigurationError code 'lance_backend_unavailable' is informative", () => {
-    const err = new ConfigurationError("test", { code: "lance_backend_unavailable" });
-    expect(err.code).toBe("lance_backend_unavailable");
-  });
-
-  it("ConfigurationError code 'embedding_dimension_mismatch' is informative", () => {
-    const err = new ConfigurationError("test", { code: "embedding_dimension_mismatch" });
-    expect(err.code).toBe("embedding_dimension_mismatch");
-  });
+  // Two tests stood here: `new ConfigurationError("test", { code: X })` followed by
+  // `expect(err.code).toBe(X)`, under names claiming the code "is informative" — which no assertion
+  // checked. They asserted that a constructor assigns its argument, in a file named for LanceIndex.
+  // Both codes ARE covered where they mean something: `lance_backend_unavailable` by the skipIf test
+  // above, `embedding_dimension_mismatch` by the source sentinel below and by
+  // tests/integration/lance-end-to-end.test.ts against the real peer.
 
   it("EC-1 MUST FIX: source code escapes user input in SQL predicates, NEVER raw interpolation", () => {
     // Static analysis sentinel: Lance 0.30.0's `.where()` accepts SQL string
@@ -107,12 +116,8 @@ describe("LanceIndex (ADR D43)", () => {
     expect(src).toContain("Embedding dimension mismatch in Lance index");
   });
 
-  it("memory types accept backend: 'lance'", async () => {
-    // Compile-time sanity: TelemetrySettings shape includes `backend: "lance"`.
-    // We import the type alias and assign — TS would fail to compile if
-    // the union didn't include "lance".
-    type Memory = import("../../../src/types/agent.js").MemorySettings;
-    const m: Memory["index"] = { backend: "lance" };
-    expect(m?.backend).toBe("lance");
-  });
+  // `it("memory types accept backend: 'lance'")` stood here, assigning
+  // `{ backend: "lance" }` to a type alias and asserting the value it had just written. The
+  // compile-time claim it makes is real and is made by every other file that types a Lance option;
+  // the runtime assertion was tautological.
 });

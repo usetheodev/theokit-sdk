@@ -2,6 +2,13 @@ import { createServer, type Server } from "node:http";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
+import { sseFrame } from "../../helpers/anthropic-sse.js";
+import { useTempCwd } from "../../helpers/temp-workspace.js";
+
+// This file creates agents without naming a cwd — `local: {}` and an omitted `local` both fall
+// back to process.cwd(), which during a test run is the package itself, so the sessions landed
+// in packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 /**
  * Behaviour gate for the real cloud Run. Stub PaaS HTTP server emits the
@@ -30,7 +37,7 @@ async function startPaaSStub(): Promise<{ server: Server; url: string }> {
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
     const send = (event: string, data: Record<string, unknown>): void => {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      res.write(sseFrame(event, JSON.stringify(data)));
     };
     send("status", { status: "CREATING" });
     send("status", { status: "RUNNING" });

@@ -1,5 +1,5 @@
 import type { AgentDefinition } from "../../../types/agent.js";
-import { withToolWhitelist } from "../concurrency/async-local-storage.js";
+import { withToolWhitelist } from "../../concurrency/async-local-storage.js";
 
 /**
  * Resolve a sub-agent's tool whitelist from its {@link AgentDefinition.tools}

@@ -5,7 +5,7 @@ import type {
   SDKUserMessageEvent,
 } from "../../types/messages.js";
 import type { LlmContentPart, LlmMessage, LlmThinkingPart, LlmToolCallPart } from "../llm/types.js";
-import type { AgentLoopInputs } from "./loop-types.js";
+import type { AgentLoopInputs } from "./types.js";
 
 /**
  * Message-builder helpers extracted from `loop.ts` (G8 file-size budget).

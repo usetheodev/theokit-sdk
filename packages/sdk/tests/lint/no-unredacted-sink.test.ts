@@ -16,6 +16,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { expectScopeCovered } from "./_scope-sentinel.js";
 
 const SRC_ROOT = join(__dirname, "..", "..", "src");
 
@@ -144,6 +145,12 @@ const WHITELIST = new Set<string>([
   // pre-wrapped via `wrapSpan` in `internal/telemetry/tracer.ts`. Structurally safe.
   // Extracted from loop.ts during G8 LoC split.
   "internal/agent-loop/loop-llm-stream.ts",
+  // Same file, same split, same span: `finalizeLoopOutput` receives the very
+  // `sendSpan` that `runAgentLoop` obtained from `telemetry.startSpan("agent.send", ...)`
+  // (loop.ts:54 -> loop.ts:122). Verified rather than inherited: `tracer.ts:218`
+  // returns `wrapSpan(span, openSpans)`, and that wrap routes every attribute
+  // through `redactAttrValue`/`redactAttrs`.
+  "internal/agent-loop/loop-finalize.ts",
   "internal/agent-loop/tool-dispatch.ts",
   "internal/workflow/telemetry.ts",
   "internal/workflow/executor.ts",
@@ -164,8 +171,9 @@ const WHITELIST = new Set<string>([
   // agentId and workspaceCwd are non-secret structural labels.
   "agent.ts",
   // Extracted from agent.ts during G8 LoC split — same span.setAttribute
-  // callsites (agentId + workspaceCwd) on pre-wrapped tracer spans.
-  "agent-helpers.ts",
+  // callsites (agentId + workspaceCwd) on pre-wrapped tracer spans. Moved under
+  // internal/ when the public root stopped holding implementation modules.
+  "internal/agent/helpers.ts",
   // G8 subscription server-integration: `fs.writeFile` persists the
   // SubscriptionManifest (declarative registry — version + subscription names
   // + zod-derived input/output schemas). No user payload, no PII, no secrets.
@@ -235,6 +243,7 @@ describe("lint: no unredacted output sinks in src/ (T1.5.2)", () => {
 
   it("scans src/ for unredacted sinks (informational + gate)", async () => {
     const files = await walkTs(SRC_ROOT);
+    expectScopeCovered(files, "index.ts", SRC_ROOT);
     const offenders: Offender[] = [];
     for (const file of files) {
       const rel = relative(SRC_ROOT, file).replace(/\\/g, "/");

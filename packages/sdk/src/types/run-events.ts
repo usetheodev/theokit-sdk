@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/agent-loop/` (3 of 11 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * SE2 — typed runtime EVENT stream, ADDITIVE to the `SDKMessage` content stream.
  *
  * `Run.stream()` yields `SDKMessage`s (the conversation content). `RunEvent`s are
@@ -28,7 +31,8 @@ export type RunEvent =
   | RunTripwireEvent
   | RunCompletionCheckEvent
   | RunMcpServerFailedEvent
-  | RunMcpServerReadyEvent;
+  | RunMcpServerReadyEvent
+  | RunMemoryDegradedEvent;
 
 /**
  * theokit#188 — an MCP server was configured but its tools could not be listed, so NONE of its
@@ -182,22 +186,39 @@ export interface RunCompactionFallbackEvent {
 }
 
 /**
- * SE2 — the opt-in sink for {@link RunEvent}s. Supplied via `SendOptions.onRunEvent`.
- * Synchronous + best-effort: a throwing sink must never break the run (the emitter
- * try-catches it), so keep it fast (push to a queue, don't await).
+ * A memory stage failed and the run continued without it.
+ *
+ * The same shape of gap {@link RunMcpServerFailedEvent} closed for MCP, in the module next door.
+ * `initLoopContext` had three bare `catch { <field> = <empty> }` blocks: an init failure meant no
+ * memory tool was registered, a `buildTools` failure meant no provider tools, and a `runActivePass`
+ * failure meant no recalled context in the system prompt. The agent then answered without the memory
+ * it was configured with, and nothing recorded it — not stderr, not this sink, not the span in scope.
+ *
+ * Degrading to a working agent is the right BEHAVIOUR. This event exists because the degradation was
+ * unobservable, so a host UI showed a healthy run.
+ *
+ * Emitted once per failing stage per run.
+ *
+ * @public
  */
-export type RunEventSink = (event: RunEvent) => void;
+export interface RunMemoryDegradedEvent {
+  readonly type: "memory_degraded";
+  /** Which stage failed: `init`, `buildTools`, or `activePass`. */
+  readonly stage: string;
+  /** Why it failed, as the provider reported it. */
+  readonly message: string;
+}
 
 /**
- * SE2 — emit a {@link RunEvent} to an optional sink, swallowing any sink error so
- * observability can never break the run (fail-safe, mirrors the EventBus EC-2
- * contract). No-op when the sink is absent.
+ * Receives every {@link RunEvent} a run emits, in emission order.
+ *
+ * Wired through `onRunEvent` on the run options. The sink is observability, never control flow: it
+ * cannot cancel, alter, or delay the run, and {@link emitRunEvent} swallows anything it throws — a
+ * broken sink degrades what you can see, never what the agent does.
+ *
+ * Synchronous by signature, so a slow sink slows the run. Hand work off rather than awaiting inside
+ * it; returning a promise here would be ignored, not awaited.
+ *
+ * @public
  */
-export function emitRunEvent(sink: RunEventSink | undefined, event: RunEvent): void {
-  if (sink === undefined) return;
-  try {
-    sink(event);
-  } catch {
-    // best-effort: an observability sink must never break the run.
-  }
-}
+export type RunEventSink = (event: RunEvent) => void;

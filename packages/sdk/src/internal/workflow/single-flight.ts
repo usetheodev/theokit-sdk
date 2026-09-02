@@ -12,7 +12,7 @@
  * @internal
  */
 
-import { WorkflowAlreadyRunningError } from "../../types/workflow.js";
+import { WorkflowAlreadyRunningError } from "../../workflow-errors.js";
 
 interface Flight {
   controller: AbortController;

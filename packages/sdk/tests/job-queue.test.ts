@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { JobQueue } from "../src/job-queue.js";
+import { pollUntil } from "./helpers/poll-until.js";
 
 describe("JobQueue", () => {
   it("enqueue returns a job ID immediately", () => {
@@ -12,8 +13,15 @@ describe("JobQueue", () => {
   it("job transitions to completed on success", async () => {
     const q = new JobQueue();
     const id = q.enqueue(async () => "done");
-    // Wait for microtask
-    await new Promise((r) => setTimeout(r, 10));
+    // Waits for the job to LEAVE the running state, not for 10ms. The sleeps here were four copies
+    // of the same guess, and `rules/testing.md` § 6 names wall-clock in a unit test as the
+    // anti-pattern: too short flakes under load, too long is paid on every run forever.
+    await pollUntil(
+      () => q.getJob(id)?.status !== "running" && q.getJob(id)?.status !== "pending",
+      {
+        message: () => `job never settled; status was ${String(q.getJob(id)?.status)}`,
+      },
+    );
     const job = q.getJob(id);
     expect(job?.status).toBe("completed");
     expect(job?.result).toBe("done");
@@ -24,7 +32,12 @@ describe("JobQueue", () => {
     const id = q.enqueue(async () => {
       throw new Error("oops");
     });
-    await new Promise((r) => setTimeout(r, 10));
+    await pollUntil(
+      () => q.getJob(id)?.status !== "running" && q.getJob(id)?.status !== "pending",
+      {
+        message: () => `job never settled; status was ${String(q.getJob(id)?.status)}`,
+      },
+    );
     const job = q.getJob(id);
     expect(job?.status).toBe("failed");
     expect(job?.error).toBe("oops");
@@ -35,7 +48,12 @@ describe("JobQueue", () => {
     const id = q.enqueue(() => {
       throw new Error("sync boom");
     });
-    await new Promise((r) => setTimeout(r, 10));
+    await pollUntil(
+      () => q.getJob(id)?.status !== "running" && q.getJob(id)?.status !== "pending",
+      {
+        message: () => `job never settled; status was ${String(q.getJob(id)?.status)}`,
+      },
+    );
     const job = q.getJob(id);
     expect(job?.status).toBe("failed");
     expect(job?.error).toBe("sync boom");
@@ -63,7 +81,9 @@ describe("JobQueue", () => {
   it("cancel returns false for already completed job", async () => {
     const q = new JobQueue();
     const id = q.enqueue(async () => "fast");
-    await new Promise((r) => setTimeout(r, 10));
+    await pollUntil(() => q.getJob(id)?.status === "completed", {
+      message: () => `job never completed; status was ${String(q.getJob(id)?.status)}`,
+    });
     expect(q.cancel(id)).toBe(false);
   });
 

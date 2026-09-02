@@ -12,7 +12,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { Agent } from "../src/agent.js";
 import { ConfigurationError } from "../src/errors.js";
-import { removeTempDirRobust } from "./helpers/temp-workspace.js";
+import { removeTempDirRobust, useTempCwd } from "./helpers/temp-workspace.js";
+
+// This file creates agents without naming a cwd — `local: {}` and an omitted `local` both fall
+// back to process.cwd(), which during a test run is the package itself, so the sessions landed
+// in packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 async function buildWorkspace(presets: Record<string, string> = {}): Promise<string> {
   const cwd = await mkdtemp(join(tmpdir(), "theokit-personality-api-"));

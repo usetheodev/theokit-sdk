@@ -6,7 +6,12 @@
 
 export type { ToolContextMessage } from "../types/agent-prims.js";
 export { AgentMailbox } from "./agent-mailbox.js";
-export { A2ARequestTimeoutError, MessageBus, type RequestOptions } from "./message-bus.js";
+export {
+  A2APeerNotRegisteredError,
+  A2ARequestTimeoutError,
+  MessageBus,
+  type RequestOptions,
+} from "./message-bus.js";
 export {
   type DelegationCompleteContext,
   type DelegationCompleteDecision,

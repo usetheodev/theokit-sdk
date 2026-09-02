@@ -25,7 +25,21 @@ export interface MemoryDb {
   /** SQLite `pragma()` access (used by `applyWalWithFallback`). */
   pragma(statement: string, options?: { simple?: boolean }): unknown;
   close(): void;
-  /** Load a SQLite loadable extension at the given path (used by sqlite-vec). */
+  /**
+   * Load a SQLite loadable extension at the given path.
+   *
+   * NOTHING IN THIS PACKAGE CALLS IT, and it is not dead. The caller is the `sqlite-vec` package:
+   * `loadSqliteVecExtension` hands it this handle and its `load()` does
+   * `db.loadExtension(getLoadablePath())` (sqlite-vec@0.1.9 index.mjs:44). An audit read the absent
+   * in-repo call site as "dead surface that only exists to be refused" and recommended deleting the
+   * member — which would have removed the contract a third-party library depends on. Saying who
+   * calls it is what makes that reading impossible next time.
+   *
+   * On the `node:sqlite` fallback the adapter's Proxy answers with a throwing stub, and that is also
+   * deliberate: the throw is caught by `loadSqliteVecExtension` and becomes a
+   * `ConfigurationError` with code `sqlite_vec_unavailable`, so the bare `Error` never escapes to a
+   * consumer. The stub's message is what ends up as that error's cause.
+   */
   loadExtension(path: string): void;
 }
 

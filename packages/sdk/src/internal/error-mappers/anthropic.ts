@@ -30,7 +30,7 @@ import {
   type TheokitAgentError,
   UnknownAgentError,
 } from "../../errors.js";
-import { buildErrorMetadata } from "./shared.js";
+import { buildErrorMetadata, httpStatusToErrorCode } from "./shared.js";
 
 interface MapAnthropicErrorArgs {
   status: number;
@@ -73,11 +73,16 @@ export function mapAnthropicError(args: MapAnthropicErrorArgs): TheokitAgentErro
   return new UnknownAgentError(message, { code: "anthropic_unknown", metadata });
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: explicit branch table is clearer than splitting
+/**
+ * Anthropic's own body dialect first, then the shared RFC 9110 ladder.
+ *
+ * Only the 400 arm is Anthropic-specific: the vendor expresses "context too long"
+ * and "content filtered" inside the body of a generic bad-request, so reading it
+ * is a real per-vendor contract. Everything else — 401/403, 402, 408, 429, 5xx —
+ * is HTTP semantics and lives once, in `httpStatusToErrorCode`. It used to be
+ * copied here, and the copy could not reach `quota_exceeded` at all.
+ */
 function mapAnthropicStatusToCode(status: number, body: unknown): ErrorCode {
-  if (status === 401 || status === 403) return "auth_failed";
-  if (status === 429) return "rate_limit";
-  if (status === 408) return "timeout";
   if (status === 400) {
     const text = JSON.stringify(body ?? "").toLowerCase();
     if (
@@ -95,8 +100,7 @@ function mapAnthropicStatusToCode(status: number, body: unknown): ErrorCode {
     }
     return "invalid_request";
   }
-  if (status >= 500 && status < 600) return "server_error";
-  return "unknown";
+  return httpStatusToErrorCode(status);
 }
 
 function formatMessage(status: number, code: ErrorCode): string {
