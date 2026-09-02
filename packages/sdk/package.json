@@ -1,7 +1,7 @@
 {
   "name": "@theokit/sdk",
   "version": "4.63.4-next.0",
-  "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
+  "description": "TypeScript SDK for the Theo agent harness \u2014 same surface, local or cloud.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheokit/theokit-sdk#readme",
   "bugs": "https://github.com/usetheokit/theokit-sdk/issues",
@@ -447,6 +447,7 @@
   "devDependencies": {
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/sdk-trace-base": "^2.10.0",
+    "@theokit/sdk-budget": "workspace:*",
     "@types/better-sqlite3": "^7.6.13",
     "@types/proper-lockfile": "^4.1.4",
     "@types/ws": "^8.18.0",

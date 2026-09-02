@@ -4,8 +4,15 @@
  * Composes M7-4 (default-deny engine) + M7-5 (PermissionPlugin veto)
  * + M7-6 (formatCostUsd honest-null) in one flow.
  */
+
+// By PACKAGE NAME, through the export map, which is the surface a consumer actually gets. This read
+// `../../sdk-budget/src/format-cost.js` and crossed three boundaries in one line: the dependency was
+// undeclared (it resolved only because the two packages sit side by side on disk), the export map
+// was bypassed (`./src/format-cost.js` is not among sdk-budget's two published subpaths), and it
+// read TypeScript source rather than the built output this repo's satellites are exercised through
+// everywhere else. An integration test that composes two packages has to compose what they publish.
+import { formatCostUsd } from "@theokit/sdk-budget";
 import { describe, expect, it } from "vitest";
-import { formatCostUsd } from "../../sdk-budget/src/format-cost.js";
 import { PermissionEngine, PermissionPlugin } from "../src/index.js";
 import type { HookHandler, Plugin, PreToolCallDecision } from "../src/internal/plugins/types.js";
 
