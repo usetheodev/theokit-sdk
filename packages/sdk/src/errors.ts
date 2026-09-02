@@ -608,11 +608,56 @@ export class UnsupportedBudgetOperationError extends TheokitAgentError {
  *
  * @public
  */
+/**
+ * Why a structured-output call failed.
+ *
+ * A named union rather than a repeated inline one: the narrow form was written out at the class AND
+ * in `agent-generate.ts`'s local type, so widening it meant finding both. One name, one edit.
+ *
+ * @public
+ */
+export type StructuredOutputErrorCode =
+  /** The model did not call the forced output tool. The original meaning, unchanged. */
+  | "no_tool_call"
+  /** The tool was called and its arguments did not parse against the schema. */
+  | "parse_failed"
+  /** The agent run errored before there was an answer to structure. */
+  | "upstream_run_failed"
+  /** The agent run was cancelled before there was an answer to structure. */
+  | "run_cancelled"
+  /** The loop finished with tools only and produced no text to structure. */
+  | "no_text_answer";
+
 export class StructuredOutputError extends TheokitAgentError {
   override readonly name: string = "StructuredOutputError";
-  override readonly code: "no_tool_call" | "parse_failed";
+  /**
+   * Why the structuring failed.
+   *
+   * Three of these are new, and they name causes the SDK ALREADY distinguished in prose while
+   * reporting all three as `no_tool_call`: an upstream run that errored, a run that was cancelled,
+   * and a tool-only completion with no text to structure. Three tests asserted the byte-identical
+   * oracle for three genuinely different setups — swap any two and all three still passed — because
+   * the only thing that differed was the free-text message.
+   *
+   * `no_tool_call` keeps its original meaning: the model did not call the forced output tool.
+   */
+  override readonly code:
+    | "no_tool_call"
+    | "parse_failed"
+    | "upstream_run_failed"
+    | "run_cancelled"
+    | "no_text_answer";
 
-  constructor(code: "no_tool_call" | "parse_failed", message: string, cause?: unknown) {
+  constructor(
+    code:
+      | "no_tool_call"
+      | "parse_failed"
+      | "upstream_run_failed"
+      | "run_cancelled"
+      | "no_text_answer",
+    message: string,
+    cause?: unknown,
+  ) {
     super(message, { code, isRetryable: false, ...(cause === undefined ? {} : { cause }) });
     this.code = code;
   }

@@ -12,6 +12,7 @@
 
 import type { z as ZodNamespace, ZodType } from "zod";
 
+import type { StructuredOutputErrorCode } from "./errors.js";
 import { DEFAULT_AGENTIC_MODEL_ID } from "./internal/runtime/config/default-model.js";
 import type { LocalOptions, ModelSelection, SDKAgent } from "./types/agent.js";
 // SE9 — GenerateOptions/GenerateRunResult live in types/run.ts (co-located with
@@ -85,7 +86,7 @@ export async function agentGenerate<T extends ZodType>(
 
 /** The GenerateObjectError constructor shape (typed structurally to avoid a static import). */
 type GenerateObjectErrorCtor = new (
-  code: "no_tool_call" | "parse_failed",
+  code: StructuredOutputErrorCode,
   message: string,
   cause?: unknown,
 ) => Error;
@@ -100,23 +101,41 @@ function structurableAnswerOrThrow(
 ): string {
   if (result.status === "error") {
     throw new GenerateObjectError(
-      "no_tool_call",
+      "upstream_run_failed",
       `Agent run failed before an answer could be structured: ${result.error?.message ?? "unknown error"} [${result.error?.code ?? "?"}]`,
       result.error,
     );
   }
   if (result.status === "cancelled") {
     throw new GenerateObjectError(
-      "no_tool_call",
+      "run_cancelled",
       "Agent run was cancelled before an answer could be structured.",
     );
   }
   const answer = result.result;
   if (answer === undefined || answer.length === 0) {
     throw new GenerateObjectError(
-      "no_tool_call",
+      "no_text_answer",
       "The tool loop finished with no text answer (tool-only completion) — there is nothing to structure.",
     );
   }
   return answer;
+}
+
+/**
+ * Test seam over `structurableAnswerOrThrow`.
+ *
+ * The three guards it holds map to three `RunResult` shapes, and only one of them is reachable from
+ * an integration test without racing: a pre-aborted signal produces `status: "error"`, not
+ * `"cancelled"` (measured 2026-09-02 — the integration test's own comment claimed the opposite for as
+ * long as all three errors carried the same code and nothing could tell). Driving the function
+ * directly is what lets the `cancelled` branch be covered at all.
+ *
+ * @internal
+ */
+export function _structurableAnswerOrThrowForTests(
+  result: RunResult,
+  ctor: GenerateObjectErrorCtor,
+): string {
+  return structurableAnswerOrThrow(result, ctor);
 }

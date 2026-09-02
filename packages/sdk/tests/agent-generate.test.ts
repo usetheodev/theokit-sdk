@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-
+import { _structurableAnswerOrThrowForTests } from "../src/agent-generate.js";
 import { Agent } from "../src/index.js";
 import { messageDelta, sseFrame } from "./helpers/anthropic-sse.js";
 import { useTempCwd } from "./helpers/temp-workspace.js";
@@ -151,7 +151,7 @@ describe("agent.generate (SE9) — integrated structured output", () => {
     });
     await expect(
       agent.generate("x", { output: z.object({ a: z.string() }) }),
-    ).rejects.toMatchObject({ name: "GenerateObjectError", code: "no_tool_call" });
+    ).rejects.toMatchObject({ name: "GenerateObjectError", code: "upstream_run_failed" });
     agent.dispose();
   });
 
@@ -168,14 +168,16 @@ describe("agent.generate (SE9) — integrated structured output", () => {
     });
     await expect(
       agent.generate("x", { output: z.object({ a: z.string() }) }),
-    ).rejects.toMatchObject({ name: "GenerateObjectError", code: "no_tool_call" });
+    ).rejects.toMatchObject({ name: "GenerateObjectError", code: "no_text_answer" });
     agent.dispose();
   });
 
-  it("surfaces a typed error when the underlying run is cancelled (pre-aborted signal)", async () => {
-    // A pre-aborted signal → no round starts → the phase-1 run resolves `cancelled`,
-    // so there is nothing to structure. Deterministic (no network race): the signal
-    // is already aborted before send, exercising the `cancelled` guard branch.
+  it("surfaces a typed error when a pre-aborted signal stops the run before an answer", async () => {
+    // MEASURED, and it is not what this test used to claim. Its comment said "the phase-1 run
+    // resolves `cancelled` ... exercising the `cancelled` guard branch"; the run actually resolves
+    // `error`, so the guard reached is the upstream-failure one. Nothing could tell while all three
+    // guards threw the same `no_tool_call` code — which is the finding this fix comes from, showing
+    // up in the opposite direction. The `cancelled` branch is covered directly below instead.
     const stub = await startStub([{ kind: "text", text: "unreached" }]);
     server = stub.server;
     process.env.ANTHROPIC_API_KEY = "sk-stub";
@@ -189,7 +191,7 @@ describe("agent.generate (SE9) — integrated structured output", () => {
     controller.abort();
     await expect(
       agent.generate("x", { output: z.object({ a: z.string() }), signal: controller.signal }),
-    ).rejects.toMatchObject({ name: "GenerateObjectError", code: "no_tool_call" });
+    ).rejects.toMatchObject({ name: "GenerateObjectError", code: "upstream_run_failed" });
     agent.dispose();
   });
 
@@ -213,5 +215,71 @@ describe("agent.generate (SE9) — integrated structured output", () => {
     });
     expect(res.raw).toEqual({ a: 123 });
     agent.dispose();
+  });
+});
+
+describe("structurableAnswerOrThrow — one code per cause", () => {
+  /**
+   * Three genuinely different upstream conditions used to throw the byte-identical oracle
+   * `{ name: "GenerateObjectError", code: "no_tool_call" }`, so swapping any two setups left all
+   * three tests green. Only the free-text message differed, and `docs/error-codes.md` states this
+   * SDK's codes are contract without qualification.
+   *
+   * Driven directly because one of the three is unreachable from an integration test: a pre-aborted
+   * signal produces `status: "error"`, not `"cancelled"` — measured, after the codes were split. The
+   * integration test above asserts what that path really does; this covers the branch it does not
+   * reach.
+   */
+  class Ctor extends Error {
+    constructor(
+      readonly code: string,
+      message: string,
+      override readonly cause?: unknown,
+    ) {
+      super(message);
+    }
+  }
+
+  it("an errored run is upstream_run_failed, naming the underlying error", () => {
+    expect(() =>
+      _structurableAnswerOrThrowForTests(
+        { status: "error", error: { message: "boom", code: "provider_down" } } as never,
+        Ctor as never,
+      ),
+    ).toThrow(/boom.*provider_down/);
+    try {
+      _structurableAnswerOrThrowForTests({ status: "error" } as never, Ctor as never);
+    } catch (err) {
+      expect((err as Ctor).code).toBe("upstream_run_failed");
+    }
+  });
+
+  it("a cancelled run is run_cancelled", () => {
+    try {
+      _structurableAnswerOrThrowForTests({ status: "cancelled" } as never, Ctor as never);
+      expect.unreachable("the cancelled guard did not fire");
+    } catch (err) {
+      expect((err as Ctor).code).toBe("run_cancelled");
+    }
+  });
+
+  it("a tool-only completion is no_text_answer", () => {
+    for (const result of [{ status: "finished" }, { status: "finished", result: "" }]) {
+      try {
+        _structurableAnswerOrThrowForTests(result as never, Ctor as never);
+        expect.unreachable("the empty-answer guard did not fire");
+      } catch (err) {
+        expect((err as Ctor).code).toBe("no_text_answer");
+      }
+    }
+  });
+
+  it("returns the answer when there is one", () => {
+    expect(
+      _structurableAnswerOrThrowForTests(
+        { status: "finished", result: "hello" } as never,
+        Ctor as never,
+      ),
+    ).toBe("hello");
   });
 });
