@@ -214,6 +214,18 @@ export interface RunMemoryDegradedEvent {
   readonly message: string;
 }
 
+/**
+ * Receives every {@link RunEvent} a run emits, in emission order.
+ *
+ * Wired through `onRunEvent` on the run options. The sink is observability, never control flow: it
+ * cannot cancel, alter, or delay the run, and {@link emitRunEvent} swallows anything it throws — a
+ * broken sink degrades what you can see, never what the agent does.
+ *
+ * Synchronous by signature, so a slow sink slows the run. Hand work off rather than awaiting inside
+ * it; returning a promise here would be ignored, not awaited.
+ *
+ * @public
+ */
 export type RunEventSink = (event: RunEvent) => void;
 
 /**
