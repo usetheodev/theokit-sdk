@@ -16,3 +16,8 @@ did not run, nothing errored, and the transcript read as the model narrating an 
 A turn with no `parts` replays exactly as before, so sessions stored by an older SDK keep the
 behaviour they were written under. Tool results replay as a user message, which is the convention
 the live loop already uses.
+
+**An already-affected session recovers on its next turn.** No need to start a new one or delete
+anything: the stored `parts` were always correct — only the `text` projection carried the marker —
+so reading structure instead of prose heals a contaminated transcript rather than merely stopping
+new contamination. Verified against a session that had accumulated seven occurrences of the marker.
