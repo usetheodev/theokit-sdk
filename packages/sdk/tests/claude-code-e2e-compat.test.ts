@@ -18,6 +18,14 @@ import { loadSubagents } from "../src/internal/runtime/skills/subagents-loader.j
 import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /*
+ * #524 — these suites declare `claude-code` explicitly, because the SDK no longer reads `.claude/`
+ * unless a project asks for it. What they assert is unchanged: the formats are understood, and the
+ * capability is intact. Only the trigger moved, from "the directory exists" to "the consumer said
+ * so" — which is what makes this a default change rather than a removal.
+ */
+const CLAUDE_CODE = ["claude-code"] as const;
+
+/*
  * End-to-end: a project laid out for the Claude Code CLI, read by this SDK.
  *
  * The fixture is BUILT, not copied. An earlier version of this file read the real `.claude`
@@ -138,7 +146,7 @@ describe("a real Claude Code project, read end to end", () => {
   });
 
   it("test_the_agents_the_cli_project_declares_all_load", async () => {
-    const loaded = await loadSubagents(cwd, true, undefined);
+    const loaded = await loadSubagents(cwd, true, undefined, CLAUDE_CODE);
     // Four declarations plus the bundle's; the README contributes nothing and stops nothing.
     expect(Object.keys(loaded).sort()).toEqual([
       "auditor",
@@ -150,13 +158,13 @@ describe("a real Claude Code project, read end to end", () => {
   });
 
   it("test_the_skill_the_cli_project_declares_loads", async () => {
-    const mgr = new SkillsManager(cwd, undefined, true);
+    const mgr = new SkillsManager(cwd, undefined, true, undefined, undefined, CLAUDE_CODE);
     await mgr.refresh();
     expect((await mgr.list()).map((s) => s.name)).toContain("greet");
   });
 
   it("test_the_plugin_bundle_is_registered", async () => {
-    const mgr = new PluginsManager(cwd, undefined, true, false, undefined);
+    const mgr = new PluginsManager(cwd, undefined, true, false, undefined, CLAUDE_CODE);
     await mgr.initialize();
     expect((await mgr.list()).map((p) => p.name)).toContain("judge");
   });
@@ -173,14 +181,14 @@ describe("a real Claude Code project, read end to end", () => {
   });
 
   it("test_the_hooks_declared_in_the_cli_settings_file_load", async () => {
-    const config = await loadHookConfig(cwd);
+    const config = await loadHookConfig(cwd, CLAUDE_CODE);
     expect(Object.keys(config.hooks ?? {}).sort()).toEqual(["preToolUse", "stop"]);
   });
 
   it("test_a_hook_event_this_runtime_never_fires_is_not_silently_accepted", async () => {
     // SessionStart has no firing point here. Accepting it would register a hook that never runs,
     // which reads to an operator exactly like a hook that ran and did nothing.
-    const config = await loadHookConfig(cwd);
+    const config = await loadHookConfig(cwd, CLAUDE_CODE);
     expect(JSON.stringify(config)).not.toContain("echo start");
   });
 
@@ -217,7 +225,7 @@ describe("a real Claude Code project, read end to end", () => {
     );
     writeFileSync(join(readOnly, "CLAUDE.md"), "# Project\n\nRead me.\n");
 
-    await loadSubagents(readOnly, true, undefined);
+    await loadSubagents(readOnly, true, undefined, CLAUDE_CODE);
     await runDiscovery({ cwd: readOnly, specs: DEFAULT_DISCOVERY_SPECS, maxBytesPerFile: 200_000 });
     await readFactsFromMarkdown(readOnly);
 

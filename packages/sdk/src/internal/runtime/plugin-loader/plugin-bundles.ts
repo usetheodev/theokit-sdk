@@ -22,9 +22,13 @@ import { pluginBundleRoots } from "../../persistence/paths.js";
  * A missing root is not an error: most projects carry no plugins, and treating their absence as a
  * failure would make "none installed" indistinguishable from "the directory could not be read".
  */
-export async function pluginBundleDirs(cwd: string): Promise<string[]> {
+export async function pluginBundleDirs(
+  cwd: string,
+  /** Declared foreign dialects (#524). Empty reads `.theokit/plugins` only. */
+  compatSources: readonly string[] = [],
+): Promise<string[]> {
   const dirs: string[] = [];
-  for (const root of pluginBundleRoots(cwd)) {
+  for (const root of pluginBundleRoots(cwd, compatSources)) {
     let entries: Dirent[];
     try {
       entries = await readdir(root, { withFileTypes: true });

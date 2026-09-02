@@ -87,10 +87,13 @@ export function _resetWarnOnceForTests(): void {
  *
  * @internal
  */
-export async function loadHookConfig(cwd: string): Promise<HookConfig> {
+export async function loadHookConfig(
+  cwd: string,
+  compatSources: readonly string[] = [],
+): Promise<HookConfig> {
   const merged: HookConfig = {};
   let sawAny = false;
-  for (const path of hookConfigCandidates(cwd)) {
+  for (const path of hookConfigCandidates(cwd, compatSources)) {
     if (!existsSync(path)) continue;
     sawAny = true;
     // Stamped at merge, where the file is still known. One line later the commands are pooled per
@@ -118,8 +121,8 @@ export async function loadHookConfig(cwd: string): Promise<HookConfig> {
  * The shape never needed translating: `parseClaudeCodeConfig` reads the `hooks` key off whatever
  * object it is given, and a settings file is that same object with other keys alongside.
  */
-function hookConfigCandidates(cwd: string): string[] {
-  const roots = projectConfigRoots(cwd);
+function hookConfigCandidates(cwd: string, compatSources: readonly string[]): string[] {
+  const roots = projectConfigRoots(cwd, compatSources);
   return [
     ...roots.map((root) => join(root, "hooks.json")),
     ...roots.map((root) => join(root, "settings.json")),
@@ -127,15 +130,6 @@ function hookConfigCandidates(cwd: string): string[] {
   ];
 }
 
-/**
- * Append one source's commands onto the accumulator, per event.
- *
- * MERGED, not first-wins, and the distinction is deliberate. An agent or a skill is a NAMED
- * declaration: two files claiming one name collide, and the explicit namespace should win. Hooks are
- * unnamed lists — two files declaring `PreToolUse` are two sets of commands an operator wrote, and
- * keeping only one drops the other in silence, which is the failure class this package guards
- * against everywhere else.
- */
 /**
  * Record which file each command came from.
  *
@@ -155,6 +149,15 @@ function stampSource(config: HookConfig, sourcePath: string): HookConfig {
   return { hooks };
 }
 
+/**
+ * Append one source's commands onto the accumulator, per event.
+ *
+ * MERGED, not first-wins, and the distinction is deliberate. An agent or a skill is a NAMED
+ * declaration: two files claiming one name collide, and the explicit namespace should win. Hooks are
+ * unnamed lists — two files declaring `PreToolUse` are two sets of commands an operator wrote, and
+ * keeping only one drops the other in silence, which is the failure class this package guards
+ * against everywhere else.
+ */
 function mergeInto(target: HookConfig, source: HookConfig): void {
   for (const [event, commands] of Object.entries(source.hooks ?? {}) as [
     HookEvent,

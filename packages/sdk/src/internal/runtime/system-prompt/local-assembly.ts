@@ -56,6 +56,7 @@ export async function resolveSendSkills(
     inputs.settingSourcesIncludeProject,
     settings.skillsDir,
     settings.inline,
+    inputs.options.local?.compatSources ?? [],
   );
   // `initialize()` skips the filesystem scan when project sources are off (fast
   // path — inline-only), so a per-send resolver is cheap for inline skills.

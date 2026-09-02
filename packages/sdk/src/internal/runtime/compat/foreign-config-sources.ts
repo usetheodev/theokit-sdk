@@ -1,4 +1,9 @@
-/**
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
+import { diag } from "../../diagnostics.js";
+
+/*
  * The foreign configuration dialects this SDK can read, and what each one PRESUMES.
  *
  * ## Why a registry and not a list of directory names
@@ -86,9 +91,28 @@ export const CLAUDE_CODE_SOURCE: ConfigSourceAdapter = {
   runtimeEnv: (cwd) => ({ CLAUDE_PROJECT_DIR: cwd }),
 };
 
+const FOREIGN_SOURCES: readonly ConfigSourceAdapter[] = [CLAUDE_CODE_SOURCE];
+
 const BY_DIR_NAME: ReadonlyMap<string, ConfigSourceAdapter> = new Map(
-  [NATIVE_SOURCE, CLAUDE_CODE_SOURCE].map((a) => [a.dirName, a]),
+  [NATIVE_SOURCE, ...FOREIGN_SOURCES].map((a) => [a.dirName, a]),
 );
+
+/**
+ * The adapters a caller declared, in declaration order, skipping any name that names no adapter.
+ *
+ * An unknown name is DROPPED rather than turned into `<cwd>/<name>`: a typo must fail closed. Making
+ * a directory out of an unrecognised string would import a dialect nothing knows how to parse — and
+ * the whole reason this exists is that a directory name was never enough to describe a dialect.
+ */
+export function adaptersFor(kinds: readonly string[]): ConfigSourceAdapter[] {
+  const byKind = new Map(FOREIGN_SOURCES.map((a) => [a.kind, a]));
+  const out: ConfigSourceAdapter[] = [];
+  for (const kind of kinds) {
+    const adapter = byKind.get(kind);
+    if (adapter !== undefined && !out.includes(adapter)) out.push(adapter);
+  }
+  return out;
+}
 
 /**
  * The adapter whose directory an absolute config path sits under, or `undefined` for a path that
@@ -144,4 +168,47 @@ export function undefinedVariablesIn(
     names.add(name);
   }
   return [...names];
+}
+
+/**
+ * Workspaces already reported, so repeated agent construction in one process says it once.
+ *
+ * Keyed by the resolved directory rather than by dialect kind, so a long-lived host that drives
+ * several workspaces still reports each of them.
+ */
+const reported = new Set<string>();
+
+/**
+ * Reports a foreign configuration directory that exists in the workspace and was not declared.
+ *
+ * ## Why the flip needs a voice
+ *
+ * Before #524 a `.claude/` was read with no opt-in; after it, the same directory is ignored. From
+ * inside the repository the two states are indistinguishable — the hook file is there, it is
+ * executable, and it does not run. The only remaining way to learn why is a CHANGELOG entry for a
+ * version the reader may not know they crossed.
+ *
+ * ## Why `diag` rather than `diagFailure`
+ *
+ * `diagFailure` falls back to stderr, and this is not a failure: ignoring an undeclared foreign
+ * directory is precisely what #524 asked for. Every repository that has Claude Code set up and does
+ * NOT want it imported would pay a stderr line at every agent start — on a TUI host's render
+ * surface — for behaving as instructed. That is the corruption `diagnostics.ts` exists to prevent.
+ *
+ * So it goes on the interceptable channel, for the reader holding the question it answers.
+ */
+export function reportUndeclaredSources(cwd: string, declared: readonly string[]): void {
+  const declaredKinds = new Set(adaptersFor(declared).map((a) => a.kind));
+  for (const adapter of FOREIGN_SOURCES) {
+    if (declaredKinds.has(adapter.kind)) continue;
+    const dir = join(cwd, adapter.dirName);
+    if (!existsSync(dir)) continue;
+    if (reported.has(dir)) continue;
+    reported.add(dir);
+    diag(
+      `[theokit] ${adapter.dirName}/ is present but not declared, so its hooks, skills, subagents ` +
+        `and plugins are ignored. To read it, pass ` +
+        `local: { compatSources: ["${adapter.kind}"] } (usetheokit/theokit-sdk#524).\n`,
+    );
+  }
 }

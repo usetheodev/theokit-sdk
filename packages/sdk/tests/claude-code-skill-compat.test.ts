@@ -6,6 +6,14 @@ import { SkillsManager } from "../src/internal/runtime/skills/skills-manager.js"
 import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /*
+ * #524 — these suites declare `claude-code` explicitly, because the SDK no longer reads `.claude/`
+ * unless a project asks for it. What they assert is unchanged: the formats are understood, and the
+ * capability is intact. Only the trigger moved, from "the directory exists" to "the consumer said
+ * so" — which is what makes this a default change rather than a removal.
+ */
+const CLAUDE_CODE = ["claude-code"] as const;
+
+/*
  * Skills authored for the Claude Code CLI.
  *
  * Format was never the problem: measured 2026-08-26, `SkillFrontmatter` requires exactly `name` and
@@ -32,7 +40,7 @@ describe("skills declared under .claude", () => {
 
   it("test_a_skill_under_dot_claude_is_discovered", async () => {
     writeSkill(".claude", "cli-skill", "from .claude.");
-    const mgr = new SkillsManager(cwd, undefined, true);
+    const mgr = new SkillsManager(cwd, undefined, true, undefined, undefined, CLAUDE_CODE);
     await mgr.refresh();
     expect((await mgr.list()).map((s) => s.name)).toEqual(["cli-skill"]);
   });
@@ -40,7 +48,7 @@ describe("skills declared under .claude", () => {
   it("test_skills_from_both_directories_are_merged", async () => {
     writeSkill(".theokit", "theokit-skill", "from .theokit.");
     writeSkill(".claude", "cli-skill", "from .claude.");
-    const mgr = new SkillsManager(cwd, undefined, true);
+    const mgr = new SkillsManager(cwd, undefined, true, undefined, undefined, CLAUDE_CODE);
     await mgr.refresh();
     expect((await mgr.list()).map((s) => s.name).sort()).toEqual(["cli-skill", "theokit-skill"]);
   });
@@ -48,7 +56,7 @@ describe("skills declared under .claude", () => {
   it("test_the_explicit_namespace_wins_when_both_declare_the_same_skill", async () => {
     writeSkill(".theokit", "shared", "FROM THEOKIT.");
     writeSkill(".claude", "shared", "from claude.");
-    const mgr = new SkillsManager(cwd, undefined, true);
+    const mgr = new SkillsManager(cwd, undefined, true, undefined, undefined, CLAUDE_CODE);
     await mgr.refresh();
     expect((await mgr.list()).find((s) => s.name === "shared")?.description).toBe("FROM THEOKIT.");
   });
@@ -62,7 +70,14 @@ describe("skills declared under .claude", () => {
       join(cwd, "custom", "only-here", "SKILL.md"),
       "---\nname: only-here\ndescription: the only one.\n---\nBody.\n",
     );
-    const mgr = new SkillsManager(cwd, undefined, true, join(cwd, "custom"));
+    const mgr = new SkillsManager(
+      cwd,
+      undefined,
+      true,
+      join(cwd, "custom"),
+      undefined,
+      CLAUDE_CODE,
+    );
     await mgr.refresh();
     expect((await mgr.list()).map((s) => s.name)).toEqual(["only-here"]);
   });

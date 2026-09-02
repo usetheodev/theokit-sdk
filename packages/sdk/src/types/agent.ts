@@ -55,6 +55,18 @@ export type { InvalidateCacheOptions, PersonalityPreset, SDKAgent, SystemPromptS
 export type SettingSource = "project" | "user" | "team" | "mdm" | "plugins" | "all";
 
 /**
+ * A foreign configuration dialect this SDK can read.
+ *
+ * A DIFFERENT axis from {@link SettingSource}, and collapsing the two would be wrong: that one is
+ * about SCOPE (user vs project, and the trust posture behind it), this one about which product's
+ * format a project wants imported. A project can legitimately want project scope with `.theokit/`
+ * only — which is now the default.
+ *
+ * @public
+ */
+export type CompatSource = "claude-code";
+
+/**
  * A tool the SDK declares to the model on its own initiative — not one the consumer passed in
  * {@link AgentOptions.tools}, and not one an MCP server exposed.
  *
@@ -99,6 +111,27 @@ export interface LocalOptions {
    */
   cwd?: string | string[];
   settingSources?: SettingSource[];
+  /**
+   * Foreign configuration dialects to import. Default: none — `.theokit/` only.
+   *
+   * `.claude/` used to be read unconditionally across hooks, plugins, skills and subagents, so a
+   * repository that merely had Claude Code set up had its hooks executed, its skills folded into
+   * the system prompt and its subagents registered, having configured nothing for this SDK
+   * (usetheokit/theokit-sdk#524). One consequence was every turn being denied, because those hook
+   * commands are written against a runtime that defines `$CLAUDE_PROJECT_DIR` and this one did not
+   * (#522).
+   *
+   * A trust gate answers "do I trust the code in this directory?". That is a different question
+   * from "do I want another product's configuration imported into this one?", and they come apart
+   * in the ordinary case: a repository you trust completely is exactly where `.claude/` is
+   * populated — for a different tool, by a different contract, often by a teammate who never heard
+   * of this SDK.
+   *
+   * Listing a dialect is all-or-nothing for that dialect, and restores exactly the previous
+   * behaviour. On a name collision `.theokit/` wins: the native definition is the one the project
+   * wrote for this runtime.
+   */
+  compatSources?: CompatSource[];
   sandboxOptions?: { enabled: boolean };
   /**
    * Directory for the native Claude-shaped session transcript

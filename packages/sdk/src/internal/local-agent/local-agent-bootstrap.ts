@@ -47,64 +47,81 @@ export interface BootstrappedSubmanagers {
   plugins?: { list: () => Promise<PluginMetadata[]> };
 }
 
-export function bootstrapSubmanagers(args: {
+interface BootstrapArgs {
   options: AgentOptions;
   workspaceCwd: string;
   settingSourcesIncludeProject: boolean;
   settingSourcesIncludePlugins: boolean;
-}): BootstrappedSubmanagers {
-  const out: BootstrappedSubmanagers = {};
-  if (args.options.context !== undefined) {
-    out.context = new FileContextManager(
-      args.workspaceCwd,
-      args.options.context,
-      args.settingSourcesIncludeProject,
-    );
-  }
+}
+
+function buildContext(args: BootstrapArgs, out: BootstrappedSubmanagers): void {
+  if (args.options.context === undefined) return;
+  out.context = new FileContextManager(
+    args.workspaceCwd,
+    args.options.context,
+    args.settingSourcesIncludeProject,
+  );
+}
+
+function buildProviders(args: BootstrapArgs, out: BootstrappedSubmanagers): void {
   const providerCount =
     (args.options.providers?.routes?.length ?? 0) + enabledPluginNames(args.options.plugins).length;
-  if (providerCount > 0 || args.options.providers !== undefined) {
-    out.providers = new ProvidersManagerImpl(
-      normalizeModel(args.options.model),
-      args.options.providers,
-      args.options.plugins,
-    );
-  }
-  if (args.options.skills !== undefined || args.settingSourcesIncludeProject) {
-    // SE22 — a SkillsResolver resolves per-send; the create-time (base) manager
-    // that backs `agent.skills` is built from the STATIC config only.
-    const staticSkills =
-      typeof args.options.skills === "function" ? undefined : args.options.skills;
-    out.skillsManager = new SkillsManager(
-      args.workspaceCwd,
-      staticSkills?.enabled,
-      args.settingSourcesIncludeProject,
-      // M22 — custom skills directory + inline (code-defined) skills.
-      staticSkills?.skillsDir,
-      staticSkills?.inline,
-    );
-    const localSkills = out.skillsManager;
-    out.skills = {
-      // Project to the public shape (name + description only). Inline skills carry
-      // their body + references on the object; `list()` must never leak them —
-      // the body is reachable exclusively through `get()`.
-      list: async () =>
-        (await localSkills.list()).map((s) => ({ name: s.name, description: s.description })),
-      get: (name) => localSkills.get(name),
-    };
-  }
-  if (args.options.plugins !== undefined || args.settingSourcesIncludePlugins) {
-    out.pluginsManager = new PluginsManager(
-      args.workspaceCwd,
-      // The array (code-`Plugin`) form has no named-enable list; `undefined`
-      // here preserves "no filter / load all file-discovered plugins".
-      asPluginsSettings(args.options.plugins)?.enabled,
-      args.settingSourcesIncludePlugins,
-      false,
-      undefined,
-    );
-    const localPlugins = out.pluginsManager;
-    out.plugins = { list: () => localPlugins.list() };
-  }
+  if (providerCount === 0 && args.options.providers === undefined) return;
+  out.providers = new ProvidersManagerImpl(
+    normalizeModel(args.options.model),
+    args.options.providers,
+    args.options.plugins,
+  );
+}
+
+function buildSkills(args: BootstrapArgs, out: BootstrappedSubmanagers): void {
+  if (args.options.skills === undefined && !args.settingSourcesIncludeProject) return;
+  // SE22 — a SkillsResolver resolves per-send; the create-time (base) manager
+  // that backs `agent.skills` is built from the STATIC config only.
+  const staticSkills = typeof args.options.skills === "function" ? undefined : args.options.skills;
+  out.skillsManager = new SkillsManager(
+    args.workspaceCwd,
+    staticSkills?.enabled,
+    args.settingSourcesIncludeProject,
+    // M22 — custom skills directory + inline (code-defined) skills.
+    staticSkills?.skillsDir,
+    staticSkills?.inline,
+    // #524 — the same declaration the per-send manager reads. Omitting it here would make
+    // `agent.skills` disagree with the system prompt about which skills exist.
+    args.options.local?.compatSources ?? [],
+  );
+  const localSkills = out.skillsManager;
+  out.skills = {
+    // Project to the public shape (name + description only). Inline skills carry
+    // their body + references on the object; `list()` must never leak them —
+    // the body is reachable exclusively through `get()`.
+    list: async () =>
+      (await localSkills.list()).map((s) => ({ name: s.name, description: s.description })),
+    get: (name) => localSkills.get(name),
+  };
+}
+
+function buildPlugins(args: BootstrapArgs, out: BootstrappedSubmanagers): void {
+  if (args.options.plugins === undefined && !args.settingSourcesIncludePlugins) return;
+  out.pluginsManager = new PluginsManager(
+    args.workspaceCwd,
+    // The array (code-`Plugin`) form has no named-enable list; `undefined`
+    // here preserves "no filter / load all file-discovered plugins".
+    asPluginsSettings(args.options.plugins)?.enabled,
+    args.settingSourcesIncludePlugins,
+    false,
+    undefined,
+    args.options.local?.compatSources ?? [],
+  );
+  const localPlugins = out.pluginsManager;
+  out.plugins = { list: () => localPlugins.list() };
+}
+
+export function bootstrapSubmanagers(args: BootstrapArgs): BootstrappedSubmanagers {
+  const out: BootstrappedSubmanagers = {};
+  buildContext(args, out);
+  buildProviders(args, out);
+  buildSkills(args, out);
+  buildPlugins(args, out);
   return out;
 }

@@ -58,8 +58,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  * re-pinned — the gate had been passing with that much slack, which is exactly the state
  * its own message warns about. The gate asks for the new figure to be pinned each time;
  * a budget that keeps the old slack lets the duplication come back unnoticed.
+ *
+ * 2886 -> 2683 on 2026-09-02: the #524 opt-in threaded one `compatSources` parameter through the
+ * four config-reading subsystems, and the paths that had each resolved their own roots now share
+ * `projectConfigRoots`. Pinned in the same commit that earned it.
  */
-const BUDGET_LINES = Number(process.env.MAX_DUPLICATED_LINES ?? 2886);
+const BUDGET_LINES = Number(process.env.MAX_DUPLICATED_LINES ?? 2683);
 
 const out = mkdtempSync(join(tmpdir(), "jscpd-gate-"));
 try {

@@ -52,12 +52,14 @@ function writeClaudeHook(dir: string, script: string): void {
   writeFileSync(join(dir, ".claude", "hooks", "guard.sh"), script, { mode: 0o755 });
 }
 
+// #524 — `.claude/` is read only once the project declares it, so every executor here says so.
+// The runtime contract this suite is about begins after that declaration, not before it.
 describe("a hook imported from .claude gets the runtime contract that format presumes", () => {
   it("runs a hook that reaches a project file through $CLAUDE_PROJECT_DIR", async () => {
     const dir = claudeProject();
     writeClaudeHook(dir, "#!/usr/bin/env bash\nexit 0\n");
 
-    const hooks = new HooksExecutor(dir);
+    const hooks = new HooksExecutor(dir, ["claude-code"]);
     await hooks.initialize(true);
     const decision = await hooks.run({ event: "preToolUse", tool: "shell", input: {} });
 
@@ -77,7 +79,7 @@ describe("a hook imported from .claude gets the runtime contract that format pre
       '#!/usr/bin/env bash\n[ -d "$CLAUDE_PROJECT_DIR/.claude/hooks" ] || exit 3\nexit 0\n',
     );
 
-    const hooks = new HooksExecutor(dir);
+    const hooks = new HooksExecutor(dir, ["claude-code"]);
     await hooks.initialize(true);
     const decision = await hooks.run({ event: "preToolUse", tool: "shell", input: {} });
 
@@ -105,7 +107,7 @@ describe("a hook imported from .claude gets the runtime contract that format pre
       }),
     );
 
-    const hooks = new HooksExecutor(dir);
+    const hooks = new HooksExecutor(dir, ["claude-code"]);
     await hooks.initialize(true);
     const decision = await hooks.run({ event: "preToolUse", tool: "shell", input: {} });
 
@@ -128,7 +130,7 @@ describe("a hook imported from .claude gets the runtime contract that format pre
       }),
     );
 
-    const hooks = new HooksExecutor(dir);
+    const hooks = new HooksExecutor(dir, ["claude-code"]);
     await hooks.initialize(true);
     const decision = await hooks.run({ event: "preToolUse", tool: "shell", input: {} });
 
@@ -141,7 +143,7 @@ describe("a hook imported from .claude gets the runtime contract that format pre
     const dir = claudeProject();
     writeClaudeHook(dir, "#!/usr/bin/env bash\necho 'policy says no' >&2\nexit 1\n");
 
-    const hooks = new HooksExecutor(dir);
+    const hooks = new HooksExecutor(dir, ["claude-code"]);
     await hooks.initialize(true);
     const decision = await hooks.run({ event: "preToolUse", tool: "shell", input: {} });
 

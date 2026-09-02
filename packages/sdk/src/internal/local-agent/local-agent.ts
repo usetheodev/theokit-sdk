@@ -23,6 +23,7 @@ import { PersonalityStore } from "../personality/store.js";
 import type { PersonalityPreset } from "../personality/types.js";
 import { PluginManager } from "../plugins/manager.js";
 import { extractCodePlugins } from "../plugins/plugin-guards.js";
+import { reportUndeclaredSources } from "../runtime/compat/foreign-config-sources.js";
 import type { ProvidersManagerImpl } from "../runtime/config/providers-manager.js";
 import type { FileContextManager } from "../runtime/context/context-manager.js";
 import { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
@@ -184,7 +185,11 @@ export class LocalAgent implements SDKAgent {
     this.pluginsManager = sub.pluginsManager;
     if (sub.plugins !== undefined) this.plugins = sub.plugins;
 
-    this.hooksExecutor = new HooksExecutor(this.workspaceCwd);
+    const compatSources = options.local?.compatSources ?? [];
+    // #524 — the flip is silent from inside the repository: the hook file is there, executable, and
+    // not running. Reported here, once per workspace, on the interceptable channel.
+    reportUndeclaredSources(this.workspaceCwd, compatSources);
+    this.hooksExecutor = new HooksExecutor(this.workspaceCwd, compatSources);
     this.defaultMemoryProviderForLoop = createLocalAgentMemoryProvider({
       agentOptions: options,
       workspaceCwd: this.workspaceCwd,
@@ -223,6 +228,7 @@ export class LocalAgent implements SDKAgent {
       this.workspaceCwd,
       this.settingSourcesIncludeProject,
       this.options.agents,
+      this.options.local?.compatSources ?? [],
     );
     // SE40 — hydrate persisted session history from the native transcript so a
     // resumed agent sees the conversation from the previous process.

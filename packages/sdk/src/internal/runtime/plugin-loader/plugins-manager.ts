@@ -40,6 +40,8 @@ export class PluginsManager {
     private readonly settingSourcesIncludePlugins: boolean,
     private readonly cloud: boolean,
     private readonly localPaths: string[] | undefined,
+    /** Declared foreign dialects (#524). Empty reads `.theokit/plugins` only. */
+    private readonly compatSources: readonly string[] = [],
   ) {}
 
   async initialize(): Promise<void> {
@@ -53,7 +55,7 @@ export class PluginsManager {
 
   async refresh(): Promise<void> {
     this.plugins = [];
-    for (const pluginsRoot of pluginBundleRoots(this.cwd)) {
+    for (const pluginsRoot of pluginBundleRoots(this.cwd, this.compatSources)) {
       await this.refreshRoot(pluginsRoot);
     }
   }

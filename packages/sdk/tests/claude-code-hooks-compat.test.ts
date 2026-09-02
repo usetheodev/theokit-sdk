@@ -6,6 +6,14 @@ import { loadHookConfig } from "../src/internal/runtime/hooks/hooks-source.js";
 import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /*
+ * #524 — these suites declare `claude-code` explicitly, because the SDK no longer reads `.claude/`
+ * unless a project asks for it. What they assert is unchanged: the formats are understood, and the
+ * capability is intact. Only the trigger moved, from "the directory exists" to "the consumer said
+ * so" — which is what makes this a default change rather than a removal.
+ */
+const CLAUDE_CODE = ["claude-code"] as const;
+
+/*
  * Hook configuration under `.claude`.
  *
  * The format already agreed: `.theokit/hooks.json` is documented as "identical to Claude Code's
@@ -45,14 +53,14 @@ describe("hooks declared under .claude", () => {
 
   it("test_a_hooks_file_under_dot_claude_is_loaded", async () => {
     writeHooks(".claude", "echo do-claude");
-    const config = await loadHookConfig(cwd);
+    const config = await loadHookConfig(cwd, CLAUDE_CODE);
     expect(JSON.stringify(config)).toContain("echo do-claude");
   });
 
   it("test_hooks_from_both_files_all_run_rather_than_one_silently_losing", async () => {
     writeHooks(".theokit", "echo do-theokit");
     writeHooks(".claude", "echo do-claude");
-    const config = await loadHookConfig(cwd);
+    const config = await loadHookConfig(cwd, CLAUDE_CODE);
     expect(JSON.stringify(config)).toContain("echo do-theokit");
     expect(JSON.stringify(config)).toContain("echo do-claude");
   });
@@ -68,7 +76,7 @@ describe("hooks declared under .claude", () => {
         },
       }),
     );
-    const config = await loadHookConfig(cwd);
+    const config = await loadHookConfig(cwd, CLAUDE_CODE);
     expect(JSON.stringify(config)).toContain("echo from-settings");
   });
 
@@ -85,7 +93,7 @@ describe("hooks declared under .claude", () => {
         }),
       );
     }
-    const config = await loadHookConfig(cwd);
+    const config = await loadHookConfig(cwd, CLAUDE_CODE);
     expect(JSON.stringify(config)).toContain("echo shared");
     expect(JSON.stringify(config)).toContain("echo personal");
   });
@@ -96,12 +104,12 @@ describe("hooks declared under .claude", () => {
       join(cwd, ".claude", "settings.json"),
       JSON.stringify({ permissions: { allow: ["Bash"] }, env: { A: "1" } }),
     );
-    expect(await loadHookConfig(cwd)).toEqual({});
+    expect(await loadHookConfig(cwd, CLAUDE_CODE)).toEqual({});
   });
 
   // The accepted case (rules/testing.md § 4.2): a project with neither must still load cleanly,
   // or "no hooks" would have become an error rather than an empty config.
   it("test_a_project_with_no_hooks_file_anywhere_loads_an_empty_config", async () => {
-    expect(await loadHookConfig(cwd)).toEqual({});
+    expect(await loadHookConfig(cwd, CLAUDE_CODE)).toEqual({});
   });
 });

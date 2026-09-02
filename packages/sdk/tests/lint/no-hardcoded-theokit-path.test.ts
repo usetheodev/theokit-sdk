@@ -68,10 +68,17 @@ describe("lint: no hardcoded .theokit paths in src/", () => {
       const lines = content.split("\n");
       lines.forEach((line, idx) => {
         // Match `.theokit` only inside string/template literals.
-        // Skip single-line `//` and `*` comment lines so JSDoc examples
-        // are not false positives.
+        // Skip comment lines so JSDoc examples are not false positives.
+        //
+        // `/**` was missing from this list and a one-line docblock — `/** reads `.theokit/` only.
+        // */` — counted as a hardcoded path. It is the very case the exemption was written for: a
+        // JSDoc mentioning the literal it documents. The filter already skips every other comment
+        // form, and no executable statement can begin with `/**`, so the gap admitted false
+        // positives without admitting one real offender.
         const trimmed = line.trim();
-        if (trimmed.startsWith("//") || trimmed.startsWith("*")) return;
+        if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/**")) {
+          return;
+        }
         if (/['"`]\.theokit/.test(line)) {
           offenders.push({ file: rel, line: idx + 1, text: trimmed });
         }
@@ -99,14 +106,18 @@ describe("lint: no hardcoded .theokit paths in src/", () => {
     //
     // Pinned exactly, so the next literal added fails here. When the migration removes some, LOWER
     // this number in the same commit — a ratchet that is only ever loosened is a budget.
+    //
+    // 28 → 23 when `/**` joined the comment filter (#524): five of the twenty-eight were one-line
+    // docblocks naming the literal they document, never code. The ratchet moved DOWN, which is the
+    // direction it is allowed to move without an argument.
     expect(
       offenders.length,
-      offenders.length > 28
-        ? `${offenders.length} hardcoded \`.theokit\` literals, up from the pinned 28. Use ` +
+      offenders.length > 23
+        ? `${offenders.length} hardcoded \`.theokit\` literals, up from the pinned 23. Use ` +
             "getTheokitHome() instead of writing the path."
-        : `${offenders.length} literals remain, below the pinned 28 — lower the number in this file ` +
+        : `${offenders.length} literals remain, below the pinned 23 — lower the number in this file ` +
             "to lock the ground in.",
-    ).toBe(28);
+    ).toBe(23);
   });
 
   it("the canonical resolver paths.ts is present", async () => {

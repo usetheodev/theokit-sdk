@@ -63,7 +63,11 @@ interface HookConfig {
 export class HooksExecutor {
   private config: HookConfig = {};
 
-  constructor(private readonly cwd: string) {}
+  constructor(
+    private readonly cwd: string,
+    /** Declared foreign dialects (#524). Empty reads `.theokit/` only. */
+    private readonly compatSources: readonly string[] = [],
+  ) {}
 
   async initialize(settingSourcesIncludeProject: boolean): Promise<void> {
     if (!settingSourcesIncludeProject) {
@@ -72,7 +76,7 @@ export class HooksExecutor {
     }
     // ADR D77: try .theokit/hooks/*.md first; fallback .theokit/hooks.json
     // with deprecation warn. Shared loader in hooks-source.ts.
-    this.config = await loadHookConfig(this.cwd);
+    this.config = await loadHookConfig(this.cwd, this.compatSources);
   }
 
   /** Fire every hook registered for `event` and aggregate the decisions. */
