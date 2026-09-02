@@ -71,6 +71,7 @@ import {
 } from "./local-agent-runtime-extensions.js";
 import { type DispatchRunArgs, executeSendLocked } from "./local-agent-send.js";
 import { registerRunAsTask } from "./local-agent-task-wrap.js";
+import { reportUnknownLocalOptions } from "./local-option-keys.js";
 
 /**
  * Local SDKAgent implementation. Owns the workspace cwd plus the file-based
@@ -185,6 +186,9 @@ export class LocalAgent implements SDKAgent {
     this.pluginsManager = sub.pluginsManager;
     if (sub.plugins !== undefined) this.plugins = sub.plugins;
 
+    // #526 — an unrecognised key here used to be accepted in silence, so a typo and an SDK too old
+    // to know the option produced the identical result: the default, and no complaint.
+    reportUnknownLocalOptions(options.local as Record<string, unknown> | undefined);
     const compatSources = options.local?.compatSources ?? [];
     // #524 — the flip is silent from inside the repository: the hook file is there, executable, and
     // not running. Reported here, once per workspace, on the interceptable channel.
