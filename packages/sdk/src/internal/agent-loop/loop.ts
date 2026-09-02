@@ -133,8 +133,14 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
     ) {
       try {
         await inputs.memoryProvider.dispose(ctxRef.memoryProviderHandle);
-      } catch {
-        // Per contract: dispose MUST be non-throwing on the hot path.
+      } catch (cause) {
+        // Still swallowed, per the same contract: dispose MUST be non-throwing on the hot path.
+        // Recorded rather than discarded, for the same reason as the sync failure above — the span
+        // is live here and a provider that fails to release its handles every run is otherwise
+        // invisible to the operator.
+        sendSpan?.addEvent("memory.dispose.failed", {
+          message: cause instanceof Error ? cause.message : String(cause),
+        });
       }
     }
     sendSpan?.end();

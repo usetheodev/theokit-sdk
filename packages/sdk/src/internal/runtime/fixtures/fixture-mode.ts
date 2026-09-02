@@ -105,6 +105,16 @@ export function shouldUseRealLocalRuntime(apiKey: string | undefined): boolean {
   // For zero-config Ollama, we accept the default `http://localhost:11434`
   // unconditionally; the actual call will surface a typed
   // `ollama_unreachable` if Ollama is not running.
+  // READ THIS BEFORE AUDITING THE CHAIN: the last term is unconditionally `true`, so this whole
+  // expression is `true` for any non-fixture, non-empty key. The three terms above it cannot change
+  // the outcome — they are documentation of which credentials the SDK recognises, not a decision.
+  // `presentProviderCredentialEnvVars` is separately exported and IS load-bearing: the "Missing API
+  // key" refusal names what the caller actually set (#338 item 5).
+  //
+  // The terms are kept rather than collapsed to `return true` because the day the builtin-Ollama
+  // assumption is revisited, this is the list to re-activate — and because two tests and
+  // `internal/agent/helpers.ts:130` already document the chain in this shape. What is not kept is
+  // the impression that it discriminates.
   return (
     presentProviderCredentialEnvVars().length > 0 ||
     isAwsBedrockAuthAvailable() ||
@@ -214,15 +224,17 @@ function isGcpVertexAuthAvailable(): boolean {
 }
 
 /**
- * ADR D182 / T1.2: zero-config local providers (`authType: "none"`) are
- * always available — Ollama defaults to localhost:11434, LM Studio to
- * localhost:1234, llama.cpp to localhost:8080. We don't probe here
- * (would require async); we return `true` when ANY of the documented
- * local hosts is reachable in spirit. The first real LLM call surfaces
- * `ollama_unreachable` via the typed mapper if no daemon is up.
+ * ADR D182 / T1.2: **always `true`.** Zero-config local providers (`authType: "none"`) need no
+ * credential — Ollama defaults to localhost:11434, LM Studio to localhost:1234, llama.cpp to
+ * localhost:8080 — and the SDK ships Ollama as a builtin, so one is always nominally available.
+ * Nothing is probed here; probing would be async. If no daemon is up, the first real LLM call
+ * surfaces `ollama_unreachable` via the typed mapper.
+ *
+ * This used to say it returned true "when ANY of the documented local hosts is reachable in spirit",
+ * which reads as a probe and is not a testable statement. The body has always been `return true`.
+ * The distinction matters because of where this sits — see the note on the `||` chain in
+ * `shouldUseRealLocalRuntime`.
  */
 function isLocalNoAuthProviderAvailable(): boolean {
-  // Always true — the SDK ships Ollama as a builtin. Caller will see a
-  // typed error if it isn't actually running.
   return true;
 }

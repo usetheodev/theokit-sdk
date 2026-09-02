@@ -314,7 +314,15 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
 async function safeConversation(run: Run): Promise<Awaited<ReturnType<Run["conversation"]>>> {
   try {
     return await run.conversation();
-  } catch {
+  } catch (cause) {
+    // The `[]` fallback stays — degrading to the user turn beats crashing the post-run lifecycle,
+    // which is what the docblock above promises. What was inconsistent is the silence: the two other
+    // failure paths in this same file (partial transcript write, session summary write) both diag
+    // the cause, so the file had already decided persistence failures deserve a diagnostic. This one
+    // silently TRUNCATES what gets persisted — the turn is written with the user message and no
+    // assistant or tool content — which is the least visible of the three and was the only quiet one.
+    const msg = cause instanceof Error ? cause.message : String(cause);
+    diag(`[theokit-sdk] conversation() failed; persisting the user turn only: ${msg}\n`);
     return [];
   }
 }

@@ -80,13 +80,24 @@ function stampSendSpan(
 }
 
 /** Flush the memory provider on a clean finish. `sync()` MUST be non-throwing on the hot path. */
-async function syncMemoryProvider(inputs: AgentLoopInputs, ctx: LoopContext): Promise<void> {
+async function syncMemoryProvider(
+  inputs: AgentLoopInputs,
+  ctx: LoopContext,
+  sendSpan: SendSpan,
+): Promise<void> {
   if (ctx.finalStatus !== "finished") return;
   if (ctx.memoryProviderHandle === undefined || inputs.memoryProvider?.sync === undefined) return;
   try {
     await inputs.memoryProvider.sync(ctx.memoryProviderHandle);
-  } catch {
-    // Swallow — sync() MUST be non-throwing on the hot path.
+  } catch (cause) {
+    // Still swallowed — a memory sync failure must not fail a finished run, and `sync()` is
+    // contracted non-throwing. What changed is that the fact stops being invisible: a memory index
+    // that has quietly stopped syncing used to produce a run that was green in every surface an
+    // operator has. The span is live and being written to on the lines around this one, so recording
+    // it costs a line.
+    sendSpan?.addEvent("memory.sync.failed", {
+      message: cause instanceof Error ? cause.message : String(cause),
+    });
   }
 }
 
@@ -111,7 +122,7 @@ export async function finalizeLoopOutput(
   const usage = ctx.usage.hasAny() ? ctx.usage.toTokenUsage() : undefined;
   const cost = usage !== undefined ? computeUsageCost(inputs, usage) : undefined;
   stampSendSpan(inputs, ctx, sendSpan, usage, cost);
-  await syncMemoryProvider(inputs, ctx);
+  await syncMemoryProvider(inputs, ctx, sendSpan);
   return {
     events: ctx.events,
     finalStatus: ctx.finalStatus,

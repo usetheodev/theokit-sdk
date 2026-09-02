@@ -103,8 +103,13 @@ export async function* runUntilImpl(
     // M55 review HIGH — thread the abort INTO the in-flight run: without this, Esc mid-turn is
     // cosmetic (the turn keeps mutating the workspace until it finishes on its own). `run.cancel()`
     // aborts the stream + in-flight tool calls (types/run.ts contract).
+    // Called directly, not through a hand-written shape. `SDKAgent.send()` returns `Promise<Run>`
+    // and `Run.cancel(): Promise<void>` is declared in `types/run.ts` — the cast re-declared, less
+    // precisely, what the compiler already knew, and `cancel?.()` through it meant a rename would
+    // keep compiling while Esc mid-turn silently went back to being cosmetic. Which is the exact
+    // defect the comment above says this was added to fix.
     const cancelOnAbort = (): void => {
-      void (run as { cancel?: () => Promise<void> }).cancel?.();
+      void run.cancel();
     };
     if (signal !== undefined) {
       if (signal.aborted) cancelOnAbort();
@@ -114,7 +119,7 @@ export async function* runUntilImpl(
     if (signal !== undefined) signal.removeEventListener("abort", cancelOnAbort);
     lastResponse = result.result ?? "";
     // M55 — token accounting fails open: it only sums when the run reports usage.
-    const turnTokens = (result as { usage?: { totalTokens?: number } }).usage?.totalTokens;
+    const turnTokens = result.usage?.totalTokens;
     if (typeof turnTokens === "number") tokensUsed += turnTokens;
     // Re-check aborted right after the turn lands: a cancelled turn must NOT spend a judge call.
     if (isAborted()) {

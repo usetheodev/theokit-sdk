@@ -62,7 +62,7 @@ const defaultRetry = (attempt: number) => Math.min(30_000, 1000 * 2 ** attempt);
  *
  * @public
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: G8 subscribe orchestrates reconnect + transport switch + resume — refactor candidate tracked in subscription/theokit-subscribe.ts:52 followup
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: subscribe orchestrates reconnect + transport switch + resume, and the interleaving is the contract. THE DEBT IS UNOWNED — this used to claim it was "tracked in subscription/theokit-subscribe.ts:52 followup", which is a line in an unrelated JSDoc block in this same file, and grepping the file for followup/todo/fixme/#NNN returns only this comment. The citation was its own only evidence. Saying the debt is unowned is worse news and true; a maintainer who checks the tracking before touching the module's @public entry point now learns that in one grep instead of three.
 export async function* subscribe<TInput, TOutput>(
   name: string,
   input: TInput,
