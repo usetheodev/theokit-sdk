@@ -75,8 +75,11 @@ describe("workflowAsTool (SE19)", () => {
       description: "Runs a calculation workflow",
       inputSchema: z.object({ x: z.number() }),
     });
+    // Measured: ZodError from the tool's input schema.
     // biome-ignore lint/suspicious/noExplicitAny: intentionally invalid input for the negative case.
-    await expect(tool.handler({ x: "not-a-number" } as any)).rejects.toThrow();
+    await expect(tool.handler({ x: "not-a-number" } as any)).rejects.toThrow(
+      /"expected": "number"/,
+    );
     expect(workflow.run).not.toHaveBeenCalled(); // never ran with invalid input
   });
 });

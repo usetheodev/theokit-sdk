@@ -38,7 +38,10 @@ describe("replaceFileAtomic — cleanup on a failed write", () => {
           throw new Error("boom");
         },
       } as unknown as string),
-    ).rejects.toThrow();
+      // Measured: node's own TypeError, because the fake `toString` makes the value un-writable. The
+      // case is about the .tmp file being cleaned up AFTER a write failure, so asserting which
+      // failure is what stops it passing on an unrelated one.
+    ).rejects.toThrow(/The "data" argument must be of type s/);
 
     const leftovers = readdirSync(dir).filter((f) => f.endsWith(".tmp"));
     expect(
@@ -58,7 +61,9 @@ describe("replaceFileAtomic — cleanup on a failed write", () => {
     const { mkdirSync } = await import("node:fs");
     mkdirSync(asDir);
 
-    await expect(replaceFileAtomic(target, "content")).rejects.toThrow();
+    // Measured: EISDIR. The case is about the temp file being cleaned up after a write failure, so
+    // asserting WHICH failure is what keeps it from passing on an unrelated one.
+    await expect(replaceFileAtomic(target, "content")).rejects.toMatchObject({ code: "EISDIR" });
 
     const leftovers = readdirSync(dir).filter((f) => f.endsWith(".tmp"));
     expect(leftovers).toEqual([]);

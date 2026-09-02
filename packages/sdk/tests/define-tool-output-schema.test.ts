@@ -36,7 +36,8 @@ describe("Tool outputSchema (SE16)", () => {
       // biome-ignore lint/suspicious/noExplicitAny: intentionally returning an invalid shape for the negative case.
       handler: () => ({ temp: "not-a-number" }) as any,
     });
-    await expect(tool.handler({ city: "SF" })).rejects.toThrow(); // ZodError
+    // Measured: the ZodError the trailing comment already claimed, now asserted rather than noted.
+    await expect(tool.handler({ city: "SF" })).rejects.toThrow(/"expected": "number"/);
   });
 
   it("a string outputSchema returns the string as-is (not JSON-quoted)", async () => {

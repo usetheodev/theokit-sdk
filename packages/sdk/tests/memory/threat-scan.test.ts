@@ -108,7 +108,11 @@ describe("appendFactToMarkdown — the write boundary", () => {
     ).rejects.toThrow(/Refusing to write a memory entry/);
 
     // The point of scanning at the WRITE boundary: nothing reached disk to be recalled later.
-    await expect(readdir(join(dir, ".theokit", "memory"))).rejects.toThrow();
+    // Measured: ENOENT. This asserts the directory is ABSENT, so the code matters — a bare toThrow
+    // would also pass on EACCES, which would mean the opposite (it exists and is unreadable).
+    await expect(readdir(join(dir, ".theokit", "memory"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("persists a legitimate entry that uses imperative phrasing", async () => {

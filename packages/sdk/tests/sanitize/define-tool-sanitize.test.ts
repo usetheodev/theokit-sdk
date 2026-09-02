@@ -67,6 +67,8 @@ describe("Tool.create({ sanitize })", () => {
       handler: () => "ok",
     });
     // Sanitize is hygiene, not a validity bypass — a genuinely missing field still throws ZodError.
-    await expect(tool.handler({})).rejects.toThrow();
+    // Measured: a ZodError, whose message is the issue array. Asserting the issue rather than the
+    // bare fact of a throw — a bare toThrow also passes on a TypeError from the test's own setup.
+    await expect(tool.handler({})).rejects.toThrow(/"expected": "string"/);
   });
 });

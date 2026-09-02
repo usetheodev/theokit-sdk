@@ -54,7 +54,10 @@ describe("SDKAgent capability query", () => {
     const agent = await Agent.create(FIXTURE);
     try {
       expect(agent.supports("downloadArtifact")).toBe(false);
-      await expect(agent.downloadArtifact("whatever")).rejects.toThrow();
+      // Measured: the typed UnsupportedRunOperationError, by its message.
+      await expect(agent.downloadArtifact("whatever")).rejects.toThrow(
+        /Artifacts are not supported for local/,
+      );
     } finally {
       await agent.dispose();
     }
@@ -93,7 +96,10 @@ describe("SDKAgent capability query", () => {
       );
       // Synchronous, unlike the local `downloadArtifact` rejection — another shape a caller
       // cannot infer from the type, and a second reason to ask instead of guessing the catch.
-      expect(() => agent.fork?.({ allowedTools: new Set<string>(), prompt: "anything" })).toThrow();
+      // Measured: the typed refusal naming the operation.
+      expect(() => agent.fork?.({ allowedTools: new Set<string>(), prompt: "anything" })).toThrow(
+        /Agent.fork\(\) is not supported on clou/,
+      );
     } finally {
       await agent.dispose();
     }

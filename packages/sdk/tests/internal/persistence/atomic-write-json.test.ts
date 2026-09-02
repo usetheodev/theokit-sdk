@@ -85,7 +85,9 @@ describe("atomicWriteJson", () => {
     const path = join(dir, "config.json");
     const circular: Record<string, unknown> = { a: 1 };
     circular.self = circular;
-    await expect(atomicWriteJson(path, circular)).rejects.toThrow();
+    // Measured: the V8 TypeError from JSON.stringify. Asserting it distinguishes "the value could
+    // not be serialised" from "the write failed", which is the whole point of the case.
+    await expect(atomicWriteJson(path, circular)).rejects.toThrow(/Converting circular structure/);
   });
 });
 
@@ -189,7 +191,10 @@ describe("M107 T1.1 — atomicWriteJson honours mode and exclusive", () => {
 
     // Act + Assert — the system error PROPAGATES; it is not converted into an SDK type nor swallowed
     // (`.claude/rules/error-handling.md § 2`). And nothing was written to the destination.
-    await expect(atomicWriteJson(path, { a: 1 }, { mode: -1 })).rejects.toThrow();
+    // Measured: RangeError from fs, naming the argument.
+    await expect(atomicWriteJson(path, { a: 1 }, { mode: -1 })).rejects.toThrow(
+      /The value of "mode" is out of range/,
+    );
     expect(readdirSync(dir)).toEqual([]);
   });
 
@@ -201,7 +206,10 @@ describe("M107 T1.1 — atomicWriteJson honours mode and exclusive", () => {
     writeFileSync(join(path, "occupant.txt"), "x");
 
     // Act + Assert
-    await expect(atomicWriteJson(path, { a: 1 }, { mode: 0o600 })).rejects.toThrow();
+    // Measured: EISDIR — the target path is a directory, which is what this case sets up.
+    await expect(atomicWriteJson(path, { a: 1 }, { mode: 0o600 })).rejects.toMatchObject({
+      code: "EISDIR",
+    });
     expect(readdirSync(dir).filter((f) => f.includes(".tmp"))).toEqual([]);
   });
 

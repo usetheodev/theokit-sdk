@@ -156,7 +156,10 @@ describe("writeProjectInstructions (M4-2)", () => {
   it("fails loud when the parent directory does not exist (EC-3)", async () => {
     const base = await mkdtemp(join(tmpdir(), "project-instr-w4-"));
     try {
-      await expect(writeProjectInstructions(join(base, "nope-missing"), "X")).rejects.toThrow();
+      // Measured: ENOENT from the missing parent directory.
+      await expect(writeProjectInstructions(join(base, "nope-missing"), "X")).rejects.toMatchObject(
+        { code: "ENOENT" },
+      );
     } finally {
       await rm(base, { recursive: true, force: true });
     }
