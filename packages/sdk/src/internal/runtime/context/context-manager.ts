@@ -223,7 +223,10 @@ async function loadContextConfig(cwd: string): Promise<FileContextConfig> {
 
   warnOnce(
     "context-json-deprecated",
-    "[theokit-sdk] .theokit/context.json is deprecated; migrate to .theokit/context/<name>.md via theokit-migrate-config",
+    // Names no command: `theokit-migrate-config` was unpublished with the `bin` entry, and a warning
+    // that tells you to run something the package does not ship is worse than one that tells you
+    // what the target looks like.
+    "[theokit-sdk] .theokit/context.json is deprecated; move each entry to its own file under .theokit/context/<name>.md",
   );
 
   let raw: string;

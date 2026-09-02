@@ -255,9 +255,9 @@ export async function atomicWriteJson<T>(
 
 /**
  * Atomic text write. Same crash-safety guarantees as `replaceFileAtomic` +
- * auto-mkdir of the parent directory. Used by `theokit-migrate-config`
- * (T4.1, EC-2 MUST FIX) so a crash mid-migration leaves previous MD files
- * intact rather than corrupting them.
+ * auto-mkdir of the parent directory. Written for `theokit-migrate-config` (T4.1, EC-2 MUST FIX) so
+ * a crash mid-migration left previous MD files intact rather than corrupting them; that CLI is no
+ * longer published, and the guarantee is the reason every other caller uses this too.
  *
  */
 export async function atomicWriteText(filePath: string, content: string): Promise<void> {

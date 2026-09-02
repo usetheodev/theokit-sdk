@@ -277,12 +277,24 @@ function bindAliasedName(source, name) {
   ).exec(source);
   if (alias === null) return undefined;
 
-  // Rewrite the bare name only where it is USED as a type reference — never inside the import
-  // clause that introduced the alias, and never as part of a longer identifier.
+  // The spans this must NOT touch. Both are places the bare name is a BINDING rather than a use.
+  //
+  //  - the import clause that introduced the alias, obviously;
+  //  - every `export { … }` clause, which is the one that was missed. `rollup-plugin-dts` emits the
+  //    public surface as `export { …, RunEventSink$1 as RunEventSink, … }`, and rewriting the bare
+  //    name there produced `RunEventSink$1 as RunEventSink$1` — the PUBLIC NAME DISAPPEARED from the
+  //    package. The declaration still compiled, so nothing downstream complained; the break landed
+  //    in a consumer's `import type { RunEventSink } from "@theokit/sdk"`. Caught by
+  //    `pnpm quality:dts-parity`, whose entire job is that class of silent removal.
+  const offLimits = [{ start: alias.index, end: alias.index + alias[0].length }];
+  for (const clause of source.matchAll(/export\s*\{[^}]*\}/g)) {
+    offLimits.push({ start: clause.index ?? 0, end: (clause.index ?? 0) + clause[0].length });
+  }
+
   const bare = new RegExp(String.raw`(?<![\w$.])${escapeRegExp(name)}(?![\w$])`, "g");
   let touched = false;
   const next = source.replace(bare, (match, offset) => {
-    if (offset >= alias.index && offset < alias.index + alias[0].length) return match;
+    if (offLimits.some((span) => offset >= span.start && offset < span.end)) return match;
     touched = true;
     return alias[1];
   });

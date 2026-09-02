@@ -144,7 +144,7 @@ export class LanceIndex {
       const existingDim = embField?.type?.listSize ?? embField?.type?.fixedSize;
       if (typeof existingDim === "number" && existingDim !== dim) {
         throw new ConfigurationError(
-          `Embedding dimension mismatch in Lance index: storage has ${existingDim}-dim vectors, current provider yields ${dim}-dim. Run \`theokit-migrate-memory\` after switching providers, or use a different storagePath.`,
+          `Embedding dimension mismatch in Lance index: storage has ${existingDim}-dim vectors, current provider yields ${dim}-dim. Re-embed with \`migrateSqliteToLance\` after switching providers, or use a different storagePath.`,
           { code: "embedding_dimension_mismatch" },
         );
       }

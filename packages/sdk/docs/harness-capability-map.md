@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1177 export(s) across 46 entry point(s).
+1186 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -67,6 +67,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `AgentDisposedError` | class | T1.6 — Thrown when a consumer calls `agent.send()` or any method on an agent that has already been `dispose()`d.  |
 | `AgentFactory` | class | Handle returned by {@link createAgentFactory } .  |
 | `AgentMemory` | interface | Direct memory API exposed on `SDKAgent.memory`.  |
+| `AgentOperation` | type | An operation a consumer may ask an {@link SDKAgent } about via `supports()`.  |
 | `AgentOperationOptions` | interface | Options for archive/unarchive/delete. |
 | `AgentOptions` | interface | Top-level options accepted by `Agent.create()`.  |
 | `AgentPromptResult` | type | Result of a one-shot {@link Agent.prompt } call. |
@@ -102,7 +103,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `BudgetLimit` | interface | A single limit; stacked in an array (D384, ANY exceeded blocks). |
 | `BudgetMode` | type | Enforcement mode (D383).  |
 | `BudgetOptions` | interface | Options for `Budget.create`. |
-| `BudgetScope` | type | Scope of a budget — where the charge is attributed.  |
+| `BudgetScope` | type | Accounting scope for a budget.  |
 | `BudgetSnapshot` | interface | Per-window snapshot returned by `Budget.snapshot()`. |
 | `BudgetThresholdEvent` | interface | Threshold event emitted at 80% and 95% in `warn` and `block` modes. |
 | `BudgetTotal` | interface | Aggregate snapshot of usage so far. |
@@ -119,7 +120,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `computeCost` | function | Returns CostBreakdown with `status="estimated"`, `"unknown"`, or `"included"`.  |
 | `ConfigurationError` | class | Invalid model, bad request parameters, malformed options. |
 | `ContextBudget` | interface | Token budget used by the context manager for a single agent. |
-| `ContextManagerKind` | type | Context manager backend.  |
+| `ContextManagerKind` | type | Owner: `src/` (1 of 2 importers).  |
 | `ContextSettings` | interface | Context configuration accepted by `Agent.create()` via {@link AgentOptions.context } . |
 | `ContextSnapshot` | interface | Result of `agent.context.snapshot()`.  |
 | `ContextSource` | interface | A single context source resolved by the context manager. |
@@ -164,7 +165,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `EnvReachabilityInput` | interface | The three lists the audit compares: every key the product declares, the subset an environment variable can set, and the documented exemptions.  |
 | `ErrorCode` | type | Finite, machine-readable error codes for provider-originated errors (ADR D66).  |
 | `ErrorMetadata` | interface | Structured context for errors that originated from a provider HTTP call (ADR D65).  |
-| `estimateTokens` | function | Approximate token count from string length.  |
+| `estimateTokens` | function | Tokenizer-free token estimate via the conventional ~4-chars-per-token heuristic: `ceil(text.length / CHARS_PER_TOKEN)`.  |
 | `evaluateBlastRadius` | function | Decide one declared action against the scopes the operator granted.  |
 | `EventBus` | class | A typed publish/subscribe bus, parameterised by a map of event name to payload type.  |
 | `EvictReason` | type | Live-agent cache for production deploys (Production-Readiness #2, ADRs D307-D310).  |
@@ -226,6 +227,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `MemoryFact` | interface | A single memory fact returned by `recall` or `get`. |
 | `MemoryId` | type | Branded provider memory ID.  |
 | `MemoryProvider` | interface | The kernel-facing contract.  |
+| `MemoryProviderAgentRef` | interface | The agent identity a `MemoryProvider` is given — the whole of it.  |
 | `MemoryProviderFactory` | type | Memory provider factory shape (ADR D141).  |
 | `MemoryProviderHandle` | interface | Opaque handle returned by `init()`.  |
 | `MemoryProviderInitOptions` | interface | Options for `MemoryProvider.init(...)`. |
@@ -257,7 +259,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `PermissionGate` | type | SE1 — the enriched `canUseTool` gate (the Anthropic-parity shape).  |
 | `PermissionGateContext` | interface | SE1 — context passed to the {@link PermissionGate } .  |
 | `PermissionGateDecision` | type | SE1 — the resolution of an `"ask"` verdict by the host gate.  |
-| `PermissionMode` | type | SE1 — a per-run permission MODE that adjusts the rule-engine verdict globally.  |
+| `PermissionMode` | type | How the permission engine treats the UNMATCHED verdict.  |
 | `PermissionPlugin` | class | SE36 — `PermissionPlugin.create` replaces `createPermissionPlugin` (ADR 0015). |
 | `PermissionPluginOptions` | interface | Options for {@link createPermissionPlugin } . |
 | `PermissionRule` | interface | One entry in a {@link PermissionEngine } 's ordered rule list.  |
@@ -265,6 +267,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `planReaping` | function | Sort artifacts into keep, reap, and undetermined — and delete nothing.  |
 | `Plugin` | type | SE36 — `Plugin.create` replaces `definePlugin` (ADR 0015).  |
 | `PluginContext` | interface | The registration surface passed to a `"general"` plugin's `register(ctx)`, and the plugin's only route into the agent.  |
+| `PluginHookDisposer` | type | Detaches a hook handler attached with {@link PluginContext.on } .  |
 | `PluginsSettings` | interface | Plugins configuration accepted by `Agent.create()` via {@link AgentOptions.plugins } . |
 | `PostAssistantReplyContext` | interface | Context passed to `post_assistant_reply` hook handlers (ADR D145).  |
 | `PostToolCallContext` | interface | #65 — context for the `post_tool_call` hook (fired after a tool runs). |
@@ -278,7 +281,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `ProcessorTripwire` | interface | The tripwire detail attached to {@link RunResult.tripwire } when a processor aborts, and carried by the `tripwire` run-event. |
 | `ProcessorViolation` | interface | A policy violation surfaced to a processor's {@link Processor.onViolation } callback — on `abort()` (blocking) AND on `warn()` (non-blocking). |
 | `Provider` | class | SE36 — uniform namespace API.  |
-| `ProviderCapability` | type | Capability slot a provider can fulfill. |
+| `ProviderCapability` | type | Owner: `src/` (4 of 9 importers).  |
 | `ProviderProfile` | interface | A data-only declaration of an LLM provider: its name, HTTP dialect, auth style, base URL and fallback models.  |
 | `ProviderRoute` | interface | A single user-declared routing rule.  |
 | `ProviderRoutingSettings` | interface | Provider routing configuration accepted by `Agent.create()` via {@link AgentOptions.providers } . |
@@ -298,10 +301,11 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `RunCompactBoundaryEvent` | interface | The conversation crossed a compaction boundary (history was summarized). |
 | `RunCompletionCheckEvent` | interface | SE34 — the per-send completion check (`isTaskComplete`) produced a verdict.  |
 | `RunErrorDetail` | interface | Structured error attached to a {@link RunResult } when the underlying run transitioned to `"error"` status.  |
-| `RunEvent` | type | SE2 — typed runtime EVENT stream, ADDITIVE to the `SDKMessage` content stream.  |
-| `RunEventSink` | type | SE2 — the opt-in sink for {@link RunEvent } s.  |
+| `RunEvent` | type | Owner: `internal/agent-loop/` (3 of 11 importers).  |
+| `RunEventSink` | type | Receives every {@link RunEvent } a run emits, in emission order.  |
 | `RunGitInfo` | interface | Git metadata attached to cloud runs. |
 | `runGoalLoop` | function | Run the goal-driven loop (`send → judge → continuation`) over ANY `send → wait` surface.  |
+| `RunMemoryDegradedEvent` | interface | A memory stage failed and the run continued without it.  |
 | `RunOperation` | type | Operations that may or may not be supported on a given {@link Run } , or on its parent agent.  |
 | `RunPermissionDeniedEvent` | interface | A tool call was DENIED before dispatch — by the permission gate/plugin (SE1), an operator file-hook `preToolUse`, or the fork tool-whitelist.  |
 | `RunRateLimitEvent` | interface | The provider returned a rate-limit (HTTP 429); the loop will back off + retry. |
@@ -340,12 +344,12 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `SDKTaskMessage` | interface | Task-level milestones and summaries. |
 | `SDKThinkingMessage` | interface | Reasoning content. |
 | `SDKToolUseMessage` | interface | Tool invocation lifecycle event.  |
-| `SDKUser` | interface | Account-level user info returned by `Theokit.me()`. |
+| `SDKUser` | interface | Owner: `internal/catalog/` (2 of 3 importers).  |
 | `SDKUserMessage` | interface | Structured form of `agent.send()`'s message argument.  |
 | `SDKUserMessageEvent` | interface | Echo of the user prompt for this run. |
 | `Security` | class | Public security namespace (T2.1, ADR D68).  |
 | `SecurityFloorInput` | interface | The vocabulary, the layer names, and the values to resolve.  |
-| `SendOptions` | interface | Per-send overrides and callbacks. |
+| `SendOptions` | interface | Per-send overrides and callbacks.  |
 | `SessionLifecycleContext` | interface | #65 — context for the `on_session_start` / `on_session_end` hooks. |
 | `SessionMessage` | interface | One turn of a session.  |
 | `SessionMessagePart` | type | One structured element of a {@link SessionMessage } .  |
@@ -441,7 +445,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `UsageAccumulator` | class | Sums the per-step token counts of a multi-step run into one `TokenUsage`.  |
 | `UserMessage` | interface | User-authored message in a conversation history. |
 | `UserMessageAppendedUpdate` | interface | User message appended to the conversation. |
-| `Verdict` | type | M80 — the terminal verdicts a judge can return.  |
+| `Verdict` | type | Owner: `internal/judge/` (3 of 8 importers).  |
 | `verifyLayerOrdering` | function | Assert that each layer strictly outranks the one before it.  |
 | `WiredEntity` | interface | What one capability asked for, and what it got. |
 | `WiringRecordInput` | interface | The two halves of the observation: the gate that was applied, and what was handed to the builder.  |
@@ -618,7 +622,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `memoryMdPath` | function | Path to `MEMORY.md`, the index that points at the per-memory files — and, in stores written before #389, the flat `## Facts` list itself.  |
 | `MemoryReadResult` | interface | Result of `reader.readFile`.  |
 | `memoryReadRoots` | function | Every directory a read must cover, deduplicated and in precedence order.  |
-| `MemoryRoot` | type | A path that {@link resolveMemoryRoot } produced — the only thing the subsystem's path helpers accept.  |
+| `MemoryRoot` | type | A directory that has been RESOLVED as a memory root, distinguished from a bare `cwd`.  |
 | `MemorySearchHit` | interface | Memory index manager contract — leaf types shared by `index-manager.ts` (orchestrator), `index-manager-dispatch.ts` (backend dispatch), `lance-memory-adapter.ts` (Lance backend), and `memory-index.... |
 | `MemorySearchToolOptions` | interface | Options for {@link createMemorySearchTool } . |
 | `MemoryTool` | interface | A memory tool ready to hand to the agent loop: the JSON-serialisable description an LLM sees, plus the `execute` that runs it.  |
@@ -800,6 +804,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | Symbol | Kind | Summary |
 |---|---|---|
 | `A2AMessage` | interface | One message as a handler receives it.  |
+| `A2APeerNotRegisteredError` | class | Thrown by {@link MessageBus.send } and {@link MessageBus.request } when `to` has no registered handler.  |
 | `A2ARequestTimeoutError` | class | A peer did not answer a {@link MessageBus.request } within its timeout.  |
 | `AgentMailbox` | class | One agent's endpoint on a {@link MessageBus } : registers `agentId` on construction and forwards inbound messages to the handler installed by `onMessage`.  |
 | `DelegationCompleteContext` | interface | Context passed to {@link SubAgentSpec.onDelegationComplete } after the child settles. |
@@ -868,6 +873,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 |---|---|---|
 | `ABSOLUTE_CONTEXT_WINDOW_CAP` | const | Absolute cap on a declared context window, applied when no catalog entry exists to compare against.  |
 | `buildCheckpoint` | function | Build a checkpoint marker turn (a `system` turn whose content starts with `marker`, default {@link CHECKPOINT_MARKER } ).  |
+| `CHARS_PER_TOKEN` | const | Characters per token in the tokenizer-free estimate below.  |
 | `CHECKPOINT_MARKER` | const | Sentinel prefix marking a conversation checkpoint turn.  |
 | `compactTranscript` | function | Compact a transcript.  |
 | `CompactTranscriptOptions` | interface | Options for {@link compactTranscript } . |
@@ -878,7 +884,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `ContextWindowSource` | type | Where the effective window came from — carried into the M77 structured event. |
 | `EffectiveContextWindow` | interface | Result of {@link resolveEffectiveContextWindow } . |
 | `EffectiveContextWindowInput` | interface | Input to {@link resolveEffectiveContextWindow } . |
-| `estimateTokens` | function | Tokenizer-free token estimate via the conventional ~4-chars-per-token heuristic: `ceil(text.length / 4)`.  |
+| `estimateTokens` | function | Tokenizer-free token estimate via the conventional ~4-chars-per-token heuristic: `ceil(text.length / CHARS_PER_TOKEN)`.  |
 | `FilterCheckpointOptions` | interface | Options for {@link filterFromLatestCheckpoint } . |
 | `filterFromLatestCheckpoint` | function | Return the turns relative to the most recent checkpoint marker (all turns if none).  |
 | `isContextOverflowError` | function | True iff `err` is a {@link TheokitAgentError } (or subclass) reporting a context-window-exceeded condition (the typed `context_too_long` code).  |
@@ -938,6 +944,8 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `MemoryAdapterErrorCode` | type | Finite error codes specific to memory adapter operations (ADR D141). |
 | `NetworkError` | class | Service unavailable, timeout, transport-level failure. |
 | `RateLimitError` | class | Too many requests or usage limits exceeded. |
+| `StructuredOutputError` | class |  |
+| `StructuredOutputErrorCode` | type | Why a structured-output call failed.  |
 | `TaskNotFoundError` | class | Thrown when `Task.subscribe(id)` is called for a task that has been evicted, never submitted, or evicted after retention (D373). |
 | `TheokitAgentError` | class | Base class for all errors thrown by `@theokit/sdk`.  |
 | `UnknownAgentError` | class | Catch-all for unclassified server or runtime errors. |
@@ -999,7 +1007,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `InteractiveBackend` | class | Pluggable interactive-session backend.  |
 | `InteractiveProvider` | type | A backend OR a per-request resolver of one — mirrors {@link FilesystemProvider } .  |
 | `InteractiveUnavailableError` | class | Thrown when the interactive path is requested but no backend can provide it (no provider injected, or a local backend whose native module / spawn failed).  |
-| `NoSuchSessionError` | class | Thrown (typed) when a write/kill targets an unknown or already-exited session, so callers branch on the type instead of string-matching a message. |
+| `NoSuchSessionError` | class | Thrown (typed) when a write/kill targets an unknown or already-exited session, so callers branch on the type instead of string-matching a message.  |
 | `resolveInteractive` | function | Resolve an {@link InteractiveProvider } to a concrete backend for `ctx`. |
 | `StartInteractiveOptions` | interface | Bounds a start call.  |
 | `StartInteractiveResult` | interface | Result of starting a session: its id + whatever the program printed on startup. |
@@ -1041,7 +1049,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `MemoryLocationConfig` | type | Only `directory` is read; the full config is accepted so callers pass what they already hold. |
 | `memoryMdPath` | function | Path to `MEMORY.md`, the index that points at the per-memory files — and, in stores written before #389, the flat `## Facts` list itself.  |
 | `memoryReadRoots` | function | Every directory a read must cover, deduplicated and in precedence order.  |
-| `MemoryRoot` | type | A path that {@link resolveMemoryRoot } produced — the only thing the subsystem's path helpers accept.  |
+| `MemoryRoot` | type | A directory that has been RESOLVED as a memory root, distinguished from a bare `cwd`.  |
 | `notesDir` | function | Path to `<memory root>/notes`, where per-topic notes and the consolidated notes a dreaming sweep writes live.  |
 | `persistActiveMemoryTranscript` | function | Write one active-memory recall transcript under `<memory root>/transcripts/active-memory`.  |
 | `projectMemoryDir` | function | The project store: `<cwd>/.theokit/memory`.  |
@@ -1184,6 +1192,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `isCorruptionError` | function | True when an open error indicates an unreadable / corrupt database file. |
 | `JsonlParseError` | class | Raised when a JSONL line is not valid JSON or is not a JSON object.  |
 | `LiveSessionError` | class | M81 — the target is a protected session (live pointer / most-recent transcript / active entry).  |
+| `LiveTranscriptError` | class | M81 — the target is a protected session (live pointer / most-recent transcript / active entry).  |
 | `loadJsonl` | function | Parse a JSONL file into rows.  |
 | `openSqliteResilient` | function | Open a SQLite file with WAL (+ DELETE fallback) and corruption recovery. |
 | `OpenSqliteResilientOptions` | interface | Input to {@link openSqliteResilient } .  |
@@ -1229,7 +1238,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 
 | Symbol | Kind | Summary |
 |---|---|---|
-| `Retry` | class | SE36 — `Retry.create` replaces `withRetry` (ADR 0015 / ADR-P2).  |
+| `Retry` | class | SE36 — replaces `withRetry` (ADR 0015 / ADR-P2).  |
 | `RetryOptions` | interface | Options for {@link withRetry } .  |
 
 ## `@theokit/sdk/sandbox`
@@ -1256,9 +1265,9 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `realProbeCount` | function | How many real probes ran.  |
 | `realProbes` | const | Real probes used in production. |
 | `RepoProvisionError` | class | Raised when cloning or checking out a repo fails.  |
-| `resetBwrapMemo` | function | TEST seam — clears the memo.  |
-| `resetInteractiveWarnLatch` | function | Reset for tests — the latch is module state and tests need isolation. |
-| `resetSandboxWarnLatch` | function | Test seam: reset the WARN-once latch. |
+| `resetBwrapMemo` | function | Clears the `detectBwrapMemoized` memo.  |
+| `resetInteractiveWarnLatch` | function | Reset for tests — the latch is module state and tests need isolation.  |
+| `resetSandboxWarnLatch` | function | Test seam: reset the WARN-once latch.  |
 | `resolveSandbox` | function | Resolve a {@link SandboxProvider } to a concrete backend for `ctx`. |
 | `resolveSandboxPosture` | function | MEDIUM-2: compute the posture so a surface (TUI footer) can show enforcement DURABLY instead of a one-shot warn.  |
 | `restrictedSeccompPath` | function | M57 — exported so the interactive PTY backend reuses the SAME memoized x64-gated seccomp program. |
@@ -1399,7 +1408,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `WorkflowNotSerializableError` | class | EC-4 absorbed — JSON.stringify failed on snapshot payload. |
 | `WorkflowOptions` | interface | Configuration for `Workflow.create()`, validated by Zod before the builder is handed back: a `name` outside 1..128 characters, or `persistence.backend: "json"` without a `dir`, throws there rather ... |
 | `WorkflowOutputError` | class | SE27 — the whole-workflow `outputSchema` rejected the final output (on `completed`).  |
-| `WorkflowParallelError` | class | Aggregate failure from parallel branches. |
+| `WorkflowParallelError` | class | Aggregate failure from parallel branches.  |
 | `WorkflowPersistenceOptions` | interface | Where suspend snapshots are kept.  |
 | `WorkflowResumeOptions` | interface | Arguments for `Workflow.resume()`.  |
 | `WorkflowResumeStepNotFoundError` | class | EC-8 absorbed — `currentStepId` from snapshot not found in resumed workflow. |

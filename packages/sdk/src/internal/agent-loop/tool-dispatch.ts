@@ -54,22 +54,6 @@ export async function dispatchTools(
 type ToolSpan = ReturnType<NonNullable<AgentLoopInputs["telemetry"]>["startSpan"]> | undefined;
 
 /**
- * T10.4 / PV#2 — `dispatchSingleCall` orchestrator split into named sub-steps.
- * Each step is a private function with a single concern; the orchestrator
- * sequences them. The previous complexity-suppression directive (over a
- * 158 LOC body with 5 origin branches inline) is no longer required after
- * the split.
- *
- * Step taxonomy:
- *  1. `applyRepairAndExtractCall` — ADRs D86-D88 repair middleware.
- *  2. `enforceForkWhitelist`      — ADR D111 fork tool-whitelist veto.
- *  3. `startToolCallSpan`         — OTel span init + repairs annotation.
- *  4. `runPluginPreToolVeto`      — ADR D101 plugin veto.
- *  5. `runFileHookPreToolVeto`    — operator-policy hook veto.
- *  6. `runToolWithLifecycle`      — exec + onToolStart/End/Error hooks.
- *  7. `finalizeSpanAndPostHook`   — span end + postToolUse + return shape.
- */
-/**
  * What every step of one tool call already needed.
  *
  * The seven-step decomposition below is what a previous audit's PV#2 produced by splitting a
@@ -89,6 +73,22 @@ interface DispatchContext {
   readonly parentSpan?: ToolSpan | undefined;
 }
 
+/**
+ * T10.4 / PV#2 — `dispatchSingleCall` orchestrator split into named sub-steps.
+ * Each step is a private function with a single concern; the orchestrator
+ * sequences them. The previous complexity-suppression directive (over a
+ * 158 LOC body with 5 origin branches inline) is no longer required after
+ * the split.
+ *
+ * Step taxonomy:
+ *  1. `applyRepairAndExtractCall` — ADRs D86-D88 repair middleware.
+ *  2. `enforceForkWhitelist`      — ADR D111 fork tool-whitelist veto.
+ *  3. `startToolCallSpan`         — OTel span init + repairs annotation.
+ *  4. `runPluginPreToolVeto`      — ADR D101 plugin veto.
+ *  5. `runFileHookPreToolVeto`    — operator-policy hook veto.
+ *  6. `runToolWithLifecycle`      — exec + onToolStart/End/Error hooks.
+ *  7. `finalizeSpanAndPostHook`   — span end + postToolUse + return shape.
+ */
 async function dispatchSingleCall(
   inputs: AgentLoopInputs,
   tools: ResolvedTool[],

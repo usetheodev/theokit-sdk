@@ -10,6 +10,3 @@ logging a progress line every iteration. `NaN` — which `Number("abc")` produce
 made it migrate nothing and report "Validation FAILED. SQLite preserved.",
 blaming the migration for a typo. Both now raise a `ConfigurationError` with code
 `invalid_batch_size`, naming the value received.
-
-The `theokit-migrate-memory --batch-size` flag validates at the CLI boundary too,
-with a message naming the flag and exiting non-zero before any work starts.

@@ -91,7 +91,8 @@ export class PluginsManager {
       if (!existsSync(mdPath) && existsSync(jsonPath)) {
         warnOnce(
           "plugin-json-deprecated",
-          "[theokit-sdk] plugin.json manifests are deprecated; migrate to PLUGIN.md via theokit-migrate-config",
+          // Same reason as the context.json warning: the CLI it used to name is no longer published.
+          "[theokit-sdk] plugin.json manifests are deprecated; replace each with a PLUGIN.md",
         );
       }
       if (this.enabled === undefined || this.enabled.includes(metadata.name)) {
