@@ -1,24 +1,4 @@
 {
   "mode": "pre",
-  "tag": "next",
-  "initialVersions": {
-    "@theokit/acp": "4.0.0",
-    "@theokit/cli": "4.0.1",
-    "@theokit/codemod-sdk-2-0": "1.0.1",
-    "@theokit/codemod-sdk-3-0": "1.0.0",
-    "@theokit/memory-honcho": "3.0.3",
-    "@theokit/memory-mem0": "3.0.3",
-    "@theokit/memory-supermemory": "3.0.3",
-    "@theokit/sdk": "4.63.3",
-    "@theokit/sdk-budget": "0.3.4",
-    "@theokit/sdk-cache": "1.0.1",
-    "@theokit/sdk-handoff": "0.1.4",
-    "@theokit/sdk-memory": "0.5.1",
-    "@theokit/sdk-peer-integration-tests": "0.0.0",
-    "@theokit/sdk-pty": "0.3.5",
-    "@theokit/sdk-tools": "0.27.3"
-  },
-  "changesets": [
-    "plugin-vocabulary-readme"
-  ]
+  "tag": "next"
 }
