@@ -47,3 +47,17 @@ export function localAgentDownloadArtifact(): Promise<Buffer> {
     ),
   );
 }
+
+/**
+ * The four answers as one object, so a consumer imports one name.
+ *
+ * Not decoration: `local-agent.ts` sits against a 400-line budget and a four-name import block costs
+ * five lines there. It is also the shape this package already uses for a namespace of related
+ * functions — see the static-namespace convention in `tests/lint/static-namespace-names-its-product.test.ts`.
+ */
+export const localAgentCapabilities = {
+  supports: localAgentSupports,
+  unsupportedReason: localAgentUnsupportedReason,
+  listArtifacts: localAgentListArtifacts,
+  downloadArtifact: localAgentDownloadArtifact,
+} as const;

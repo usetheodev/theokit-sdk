@@ -3,7 +3,7 @@ import {
   type GenerateOptions,
   type GenerateRunResult,
 } from "../../agent-generate.js";
-import { ConfigurationError, UnsupportedRunOperationError } from "../../errors.js";
+import { ConfigurationError } from "../../errors.js";
 import type {
   AgentDefinition,
   AgentOptions,
@@ -50,6 +50,7 @@ import { hydrateSession } from "../session/index.js";
 import { SPAN_NAMES } from "../telemetry/span-names.js";
 import { createTelemetry, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
+import { localAgentCapabilities } from "./local-agent-capabilities.js";
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { invalidateCacheImpl } from "./local-agent-invalidate.js";
 import {
@@ -93,19 +94,12 @@ export class LocalAgent implements SDKAgent {
    * `listArtifacts` returns `[]` for every state, so its empty array cannot be read as "this run
    * produced none".
    */
-  private static readonly UNSUPPORTED_OPS: ReadonlySet<AgentOperation> = new Set([
-    "downloadArtifact",
-    "listArtifacts",
-  ]);
-
   supports(operation: AgentOperation): boolean {
-    return !LocalAgent.UNSUPPORTED_OPS.has(operation);
+    return localAgentCapabilities.supports(operation);
   }
 
   unsupportedReason(operation: AgentOperation): string | undefined {
-    return this.supports(operation)
-      ? undefined
-      : `Operation "${operation}" is not available on a local agent.`;
+    return localAgentCapabilities.unsupportedReason(operation);
   }
   readonly agentId: string;
   model: ModelSelection | undefined;
@@ -546,10 +540,15 @@ export class LocalAgent implements SDKAgent {
     return localAgentUsePersonality(this, name, opts);
   }
 
-  // biome-ignore format: G8 budget — artifact stubs (local agents have no artifacts); kept 1-line each.
-  listArtifacts(): Promise<SDKArtifact[]> { return Promise.resolve([]); }
-  // biome-ignore format: G8 budget — see listArtifacts.
-  downloadArtifact(_path: string): Promise<Buffer> { return Promise.reject(new UnsupportedRunOperationError("Artifacts are not supported for local agents", "downloadArtifact")); }
+  // The two operations `local-agent-capabilities.ts` is ABOUT: their runtime answers live beside the
+  // static answer `supports()` gives, so a change to one cannot drift from the other.
+  listArtifacts(): Promise<SDKArtifact[]> {
+    return localAgentCapabilities.listArtifacts();
+  }
+
+  downloadArtifact(_path: string): Promise<Buffer> {
+    return localAgentCapabilities.downloadArtifact();
+  }
 
   // biome-ignore format: G8 budget — delegates to `local-agent-runtime-extensions.ts`; kept 1-line.
   runUntil(goal?: string, options?: import("../../types/goal-events.js").GoalOptions): import("../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options); }
