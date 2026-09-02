@@ -97,6 +97,30 @@ One case earns the prefix and is exempt where it appears: a name whose first tok
 from the issue that produced the test (`test_B1_…`, `test_M2_…`). That id is the traceability the
 prose form has nowhere to put, and losing it costs more than the consistency gains.
 
+## File size
+
+`pnpm quality:loc` counts **statements**, from the TypeScript AST. Not lines.
+
+The difference is the whole point. It counted logical lines until 2026-09-02, and a line count is
+moved by the formatter, so the cheapest way under it was to reformat. `local-agent.ts` had nine
+`biome-ignore format` directives saying exactly that — *"one-liner to stay under G8 LoC budget"*,
+*"multi-line layout would push file past G8 LoC cap"* — and one of them produced a 332-character
+method on a single line. Removing all nine and letting the formatter run took the file from 381 to
+**436** logical lines while changing nothing it does: the same 185 statements, the same
+responsibilities.
+
+A file that games its way under a cap is worse than one over it, because the number now says "fine"
+about a file nobody has split. Whitespace cannot move a statement count, so the only way past this
+gate is to have less in the file.
+
+The limit is **250**, a pinned measurement rather than a target: the largest file in the package is
+239 (`internal/mcp/client.ts`), and 8 of 546 are above 200. Re-pin it downward when the maximum
+drops — the same ratchet `tools/check-duplication.mjs` and the complexity and parameter budgets use.
+
+**What it does not measure**, since the old wording implied otherwise: a statement count is not a
+responsibility count. A 100-statement file doing two unrelated jobs is worse than a 240-statement
+file doing one, and this gate prefers the first. It bounds growth; it does not certify design.
+
 ## What a wait must be
 
 A test that waits — for a state, a frame, a file — must wait on a signal **the intermediate state
@@ -453,7 +477,7 @@ The push is gated locally by `.githooks/pre-push`, and again in CI. Every gate i
 | Cycles | `pnpm quality:cycles` | any import cycle (threshold 0) |
 | Layering | `pnpm quality:depcruise` | a dependency pointing the wrong way |
 | Cluster boundary | `pnpm quality:cross-cluster` | importing an extracted sibling repo |
-| File size | `pnpm quality:loc` | a source file over 400 LoC |
+| File size | `pnpm quality:loc` | a source file over 250 **statements** (not lines — see § File size) |
 | Duplication | `pnpm quality:duplication` | a copied block in `packages/sdk/src` |
 | Docs drift | `pnpm quality:doc-api` | a documented import that no longer resolves |
 | Declaration typecheck | `pnpm quality:dts-typechecks` | a published `.d.ts`/`.d.cts` that does not compile without `skipLibCheck` |

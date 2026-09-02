@@ -142,8 +142,12 @@ export async function executeSendLocked(
   options: SendOptions,
 ): Promise<Run> {
   if (inputs.disposed) throw new AgentDisposedError(inputs.agentId);
-  // biome-ignore format: keep one-liner to stay under G8 LoC.
-  await consumePending(inputs.agentId, inputs.invalidationPending, inputs.clearInvalidation, inputs.reload);
+  await consumePending(
+    inputs.agentId,
+    inputs.invalidationPending,
+    inputs.clearInvalidation,
+    inputs.reload,
+  );
   // SE8 — normalize a bare-string send-model override to `{ id }`.
   const sendModel = normalizeModel(options.model);
   inputs.applyModelOverride(sendModel);

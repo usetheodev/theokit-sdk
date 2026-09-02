@@ -330,7 +330,6 @@ export class LocalAgent implements SDKAgent {
       return;
     }
     // T3.2: opt-in Task wrapping (ADRs D363/D374).
-    // biome-ignore format: one-liner to stay under G8 LoC budget.
     if (options.task !== undefined) registerRunAsTask(run, this.agentId, options.task, userText);
     resolve(run);
     try {
@@ -377,7 +376,6 @@ export class LocalAgent implements SDKAgent {
         telemetry: this._telemetry,
         lifecycleAbortController: this.lifecycleAbortController,
         runPreHook: (ut) => this.runPreHook(ut),
-        // biome-ignore format: G8 budget — callbacks wire to private methods.
         resolveSystemPromptForSend: (ut, o, mf) => this.resolveSystemPrompt(ut, o, mf),
         assembleSystemPromptForSend: (request) =>
           assembleSystemPromptForSendHelper({ ...request, inputs: this.assemblyInputs() }),
@@ -388,8 +386,18 @@ export class LocalAgent implements SDKAgent {
     );
   }
 
-  // biome-ignore format: G8 budget — thin accessor for the assembly inputs.
-  private assemblyInputs(): LocalAssemblyInputs { return { agentId: this.agentId, workspaceCwd: this.workspaceCwd, model: this.model, options: this.options, context: this.context, skillsManager: this.skillsManager, settingSourcesIncludeProject: this.settingSourcesIncludeProject, systemPromptPipeline: this.systemPromptPipeline }; }
+  private assemblyInputs(): LocalAssemblyInputs {
+    return {
+      agentId: this.agentId,
+      workspaceCwd: this.workspaceCwd,
+      model: this.model,
+      options: this.options,
+      context: this.context,
+      skillsManager: this.skillsManager,
+      settingSourcesIncludeProject: this.settingSourcesIncludeProject,
+      systemPromptPipeline: this.systemPromptPipeline,
+    };
+  }
 
   private async resolveSystemPrompt(
     userText: string,
@@ -411,8 +419,13 @@ export class LocalAgent implements SDKAgent {
   }
 
   /** @internal — read-only personality lookup (composes the helper, honors fork ALS). */
-  // biome-ignore format: keep one-liner so the personality lookup stays under G8.
-  private activePreset(): PersonalityPreset | undefined { return resolveActivePersonalityPreset({ agentId: this.agentId, personalityStore: this.personalityStore, personalityRegistry: this.personalityRegistry }); }
+  private activePreset(): PersonalityPreset | undefined {
+    return resolveActivePersonalityPreset({
+      agentId: this.agentId,
+      personalityStore: this.personalityStore,
+      personalityRegistry: this.personalityRegistry,
+    });
+  }
 
   private applyModelOverride(overrideModel: ModelSelection | undefined): void {
     if (overrideModel === undefined) return;
@@ -493,10 +506,18 @@ export class LocalAgent implements SDKAgent {
     return this.dispose();
   }
 
-  // biome-ignore format: multi-line layout would push file past G8 LoC cap.
   /** T3.2 / ADR D94 — public `invalidateCache` API. @internal */
   invalidateCache = (reason: string, opts: { applyNow?: boolean } = {}): Promise<void> =>
-    invalidateCacheImpl(this.agentId, reason, opts, this.disposed, () => this.dispose(), (p) => { this.invalidationPending = p; });
+    invalidateCacheImpl(
+      this.agentId,
+      reason,
+      opts,
+      this.disposed,
+      () => this.dispose(),
+      (p) => {
+        this.invalidationPending = p;
+      },
+    );
 
   /**
    * Activate a personality preset (Hermes #26, ADRs D160-D164).
@@ -529,14 +550,39 @@ export class LocalAgent implements SDKAgent {
     return localAgentCapabilities.downloadArtifact();
   }
 
-  // biome-ignore format: G8 budget — delegates to `local-agent-runtime-extensions.ts`; kept 1-line.
-  runUntil(goal?: string, options?: import("../../types/goal-events.js").GoalOptions): import("../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options); }
-  // biome-ignore format: G8 budget — see runUntil comment above.
-  fork(options: import("../runtime/lifecycle/fork-agent.js").ForkOptions): Promise<import("../runtime/lifecycle/fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options, personalitySlugSnapshot: this.personalityStore.active(this.agentId) }, options); }
-  // biome-ignore format: G8 budget — see runUntil comment above.
-  runToCompletion(message: string, options?: import("../../types/run.js").RunToCompletionOptions): Promise<import("../../types/run.js").RunToCompletionResult> { return localAgentRunToCompletion(this, message, options); }
-  // biome-ignore format: G8 budget — see runUntil comment above.
-  streamToCompletion(message: string, options?: import("../../types/run.js").RunToCompletionOptions): AsyncGenerator<import("../../types/messages.js").SDKMessage, import("../../types/run.js").StreamToCompletionResult> { return localAgentStreamToCompletion(this, message, options); }
+  runUntil(
+    goal?: string,
+    options?: import("../../types/goal-events.js").GoalOptions,
+  ): import("../../types/goal-events.js").RunUntilIterator {
+    return localAgentRunUntil(this, goal, options);
+  }
+  fork(
+    options: import("../runtime/lifecycle/fork-agent.js").ForkOptions,
+  ): Promise<import("../runtime/lifecycle/fork-agent.js").ForkResult> {
+    return localAgentFork(
+      {
+        agentId: this.agentId,
+        options: this.options,
+        personalitySlugSnapshot: this.personalityStore.active(this.agentId),
+      },
+      options,
+    );
+  }
+  runToCompletion(
+    message: string,
+    options?: import("../../types/run.js").RunToCompletionOptions,
+  ): Promise<import("../../types/run.js").RunToCompletionResult> {
+    return localAgentRunToCompletion(this, message, options);
+  }
+  streamToCompletion(
+    message: string,
+    options?: import("../../types/run.js").RunToCompletionOptions,
+  ): AsyncGenerator<
+    import("../../types/messages.js").SDKMessage,
+    import("../../types/run.js").StreamToCompletionResult
+  > {
+    return localAgentStreamToCompletion(this, message, options);
+  }
 }
 
 function resolveCwd(cwd: string | string[] | undefined): string {
