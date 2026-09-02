@@ -61,10 +61,11 @@ export interface DiscoveredFile {
 }
 
 /**
- * Every `*.md` in `dir` as a discovered memory file, minus `skip`. A directory that does not exist
- * yet contributes nothing — the store is created lazily, and its absence is not an error.
+ * Every `*.md` in `dir` as a discovered memory file, minus `skip`, tagged for the memory bucket.
+ *
+ * A directory that does not exist yet contributes nothing — the store is created lazily, and its
+ * absence is not an error. The listing itself lives in `storage/list-markdown.ts`; this adds the tag.
  */
-/** The memory bucket's markdown, tagged. The listing itself lives in `storage/list-markdown.ts`. */
 async function markdownFilesIn(
   dir: string,
   root: string,

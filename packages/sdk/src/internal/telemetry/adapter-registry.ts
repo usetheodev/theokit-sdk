@@ -1,3 +1,14 @@
+/**
+ * Auto-instrumentation adapter registry (ADR D42).
+ *
+ * Each adapter feature-detects a vendor lib (`@langfuse/node`, `@sentry/node`,
+ * `posthog-node`) via `createRequire` and wires it into the active OTel
+ * tracer provider. Errors in any adapter are caught — they never propagate
+ * to `agent.send`.
+ *
+ * @internal
+ */
+
 import type { TelemetrySettings } from "../../types/agent.js";
 import { diag } from "../diagnostics.js";
 import { arizeAdapter } from "./adapters/arize.js";
@@ -13,17 +24,6 @@ import type { TelemetryAdapter, TelemetryWiring } from "./safe-require.js";
 // types directly. Implementation lives in `safe-require.ts` to keep the
 // adapter modules acyclic (depcruise enforces no-circular).
 export type { TelemetryAdapter, TelemetryWiring };
-
-/**
- * Auto-instrumentation adapter registry (ADR D42).
- *
- * Each adapter feature-detects a vendor lib (`@langfuse/node`, `@sentry/node`,
- * `posthog-node`) via `createRequire` and wires it into the active OTel
- * tracer provider. Errors in any adapter are caught — they never propagate
- * to `agent.send`.
- *
- * @internal
- */
 
 /**
  * The diagnostic sentence per outcome. Braintrust and LangSmith used to print

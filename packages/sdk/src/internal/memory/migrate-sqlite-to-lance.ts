@@ -103,13 +103,6 @@ function nfcEqual(a: string, b: string): boolean {
 }
 
 /**
- * Run the migration. Writes Lance to `<cwd>/.theokit/memory/lance-new/`
- * first, validates round-trip, then renames to `lance/` on success.
- * SQLite db is preserved (CLI prompts user to delete).
- *
- * @internal
- */
-/**
  * Refuse a `batchSize` the loop below cannot make progress with, before anything is migrated.
  *
  * The loop is `for (let i = 0; i < facts.length; i += batchSize)`, so the three ways this goes wrong
@@ -138,6 +131,14 @@ function assertUsableBatchSize(batchSize: number | undefined): void {
     );
   }
 }
+
+/**
+ * Run the migration. Writes Lance to `<cwd>/.theokit/memory/lance-new/`
+ * first, validates round-trip, then renames to `lance/` on success.
+ * SQLite db is preserved (CLI prompts user to delete).
+ *
+ * @internal
+ */
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: migration is a single transaction (read → write → validate → commit-or-rollback); splitting harms atomicity reasoning.
 export async function migrateSqliteToLance(opts: MigrateOptions): Promise<MigrateResult> {

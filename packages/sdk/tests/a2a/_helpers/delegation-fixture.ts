@@ -9,12 +9,10 @@
  * `useTempCwd()` is NOT called here: it registers vitest hooks and must run in the file that owns
  * the suite, so each split file calls it itself.
  */
-import type { vi } from "vitest";
 import {
   type InheritedCredentials,
   withInheritedSubAgentCredentials,
 } from "../../../src/internal/concurrency/subagent-credentials.js";
-import type { AgentFacadePort } from "../../../src/internal/runtime/registry/agent-factory-registry.js";
 import type { CustomTool } from "../../../src/types/agent.js";
 
 /**
@@ -30,9 +28,4 @@ export async function delegateWithParent(
   input: string,
 ): Promise<unknown> {
   return withInheritedSubAgentCredentials(credentials, async () => tool.handler({ input }));
-}
-
-/** The stubbed facade shape every file builds by hand: `{ create }` cast to the port. */
-export function facadeWith(create: ReturnType<typeof vi.fn>): AgentFacadePort {
-  return { create } as unknown as AgentFacadePort;
 }

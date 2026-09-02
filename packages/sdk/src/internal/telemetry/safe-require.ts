@@ -18,12 +18,6 @@ export function safeRequire<T = unknown>(moduleName: string): T | undefined {
 }
 
 /**
- * Shared adapter interface. Each adapter (langfuse, sentry, posthog) imports
- * this from `safe-require.ts` rather than `adapter-registry.ts`.
- *
- * @internal
- */
-/**
  * What an adapter's `register()` actually DID — not merely that it returned.
  *
  * Five of the seven adapters install something concrete (an OTel span processor,

@@ -186,11 +186,6 @@ export interface RunCompactionFallbackEvent {
 }
 
 /**
- * SE2 — the opt-in sink for {@link RunEvent}s. Supplied via `SendOptions.onRunEvent`.
- * Synchronous + best-effort: a throwing sink must never break the run (the emitter
- * try-catches it), so keep it fast (push to a queue, don't await).
- */
-/**
  * A memory stage failed and the run continued without it.
  *
  * The same shape of gap {@link RunMcpServerFailedEvent} closed for MCP, in the module next door.

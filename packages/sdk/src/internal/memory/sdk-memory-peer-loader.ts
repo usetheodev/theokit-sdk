@@ -1,4 +1,3 @@
-import { diag } from "../diagnostics.js";
 /**
  * SDK 2.0 Phase 4 (Stage 4) — Optional peer loader for
  * `@theokit/sdk-memory`.
@@ -20,6 +19,7 @@ import { diag } from "../diagnostics.js";
  * @internal
  */
 
+import { diag } from "../diagnostics.js";
 /**
  * Minimal structural mirror of the sdk-memory surface this loader
  * exposes to Memory class methods. Keeps the contract pinned even

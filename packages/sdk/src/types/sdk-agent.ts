@@ -169,7 +169,6 @@ export interface SDKAgent {
    * idempotent across both surfaces.
    */
   [Symbol.asyncDispose](): Promise<void>;
-  /** Cloud-only. Local returns an empty array. */
   /**
    * Which operations this agent's runtime actually performs.
    *
@@ -190,6 +189,7 @@ export interface SDKAgent {
    * @public
    */
   supports(operation: AgentOperation): boolean;
+
   /**
    * Human-readable reason `supports(operation)` returned `false`, or `undefined` when it returned
    * `true`. The message names the runtime, so an operator reading a log knows which half of the
@@ -198,6 +198,7 @@ export interface SDKAgent {
    * @public
    */
   unsupportedReason(operation: AgentOperation): string | undefined;
+  /** Cloud-only. Local returns an empty array. */
   listArtifacts(): Promise<SDKArtifact[]>;
   /** Cloud-only. Local throws `UnsupportedRunOperationError`. */
   downloadArtifact(path: string): Promise<Buffer>;

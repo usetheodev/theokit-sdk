@@ -9,11 +9,6 @@
  */
 
 /**
- * Scope of a budget — where the charge is attributed. v1 supports
- * `process` (shared global) only; `agent` and `call` reserved for
- * v0.2 multi-tenant scenarios.
- */
-/**
  * Accounting scope for a budget.
  *
  * ONLY `"process"` is implemented, and `Budget.create` now REFUSES the other two with

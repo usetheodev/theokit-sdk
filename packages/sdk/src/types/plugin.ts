@@ -246,21 +246,6 @@ export interface CommandOptions {
 }
 
 /**
- * The registration surface passed to a `"general"` plugin's `register(ctx)`, and the plugin's only
- * route into the agent. Outside production it is a sealed Proxy that throws when a plugin assigns a
- * property of its own, so smuggling state onto the context fails loudly in development.
- *
- * `register` runs ONCE, when the plugin is registered — never per run. Anything the plugin wants to
- * do during a turn has to be attached here as a hook; there is no later entry point. Each plugin gets
- * its own context, so registrations stay attributable to the plugin that made them.
- *
- * Two things worth knowing before writing one. Commands registered here are consumed by CLI and bot
- * wrappers only — the agent loop never dispatches them, so a plugin that ships nothing but commands
- * has no effect on a programmatic run. And `on` drops a handler that is not a function, with a
- * warning on stderr rather than an error at registration: the gentler failure, and the easier one to
- * miss.
- */
-/**
  * Detaches a hook handler attached with {@link PluginContext.on}. Idempotent.
  *
  * @public

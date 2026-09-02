@@ -342,7 +342,6 @@ class ResponsesStreamAccumulator {
     return undefined;
   }
 
-  /** The event kinds that only move accumulator state. */
   /** The event kinds that only move accumulator state. Routing only — each arm is its own method. */
   private applyStructural(event: ResponsesEvent): LlmEvent[] | undefined {
     const t = event.type;

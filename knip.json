@@ -2,7 +2,6 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignoreExportsUsedInFile": true,
   "ignoreDependencies": ["@arethetypeswrong/cli", "publint", "madge", "tsx", "jscpd"],
-  "ignoreBinaries": ["turbo"],
   "tags": ["-knipignore"],
   "workspaces": {
     ".": {
@@ -10,7 +9,7 @@
       "project": ["e2e/**/*.ts", "tools/**/*.mjs"]
     },
     "packages/sdk": {
-      "entry": ["src/agent.ts", "tests/**/*.test.ts", "tests/helpers/**/*.ts", "bin/*.mjs"],
+      "entry": ["src/agent.ts", "tests/**/*.test.ts", "tests/helpers/**/*.ts"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],
       "ignoreDependencies": ["jsonrepair"]
     },

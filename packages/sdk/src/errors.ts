@@ -581,6 +581,26 @@ export class UnsupportedBudgetOperationError extends TheokitAgentError {
 }
 
 /**
+ * Why a structured-output call failed.
+ *
+ * A named union rather than a repeated inline one: the narrow form was written out at the class AND
+ * in `agent-generate.ts`'s local type, so widening it meant finding both. One name, one edit.
+ *
+ * @public
+ */
+export type StructuredOutputErrorCode =
+  /** The model did not call the forced output tool. The original meaning, unchanged. */
+  | "no_tool_call"
+  /** The tool was called and its arguments did not parse against the schema. */
+  | "parse_failed"
+  /** The agent run errored before there was an answer to structure. */
+  | "upstream_run_failed"
+  /** The agent run was cancelled before there was an answer to structure. */
+  | "run_cancelled"
+  /** The loop finished with tools only and produced no text to structure. */
+  | "no_text_answer";
+
+/**
  * The failure contract shared by `generateObject` and `streamObject`.
  *
  * Both entry points run the same rule — up to `maxRetries` attempts; if the model never called the
@@ -608,25 +628,6 @@ export class UnsupportedBudgetOperationError extends TheokitAgentError {
  *
  * @public
  */
-/**
- * Why a structured-output call failed.
- *
- * A named union rather than a repeated inline one: the narrow form was written out at the class AND
- * in `agent-generate.ts`'s local type, so widening it meant finding both. One name, one edit.
- *
- * @public
- */
-export type StructuredOutputErrorCode =
-  /** The model did not call the forced output tool. The original meaning, unchanged. */
-  | "no_tool_call"
-  /** The tool was called and its arguments did not parse against the schema. */
-  | "parse_failed"
-  /** The agent run errored before there was an answer to structure. */
-  | "upstream_run_failed"
-  /** The agent run was cancelled before there was an answer to structure. */
-  | "run_cancelled"
-  /** The loop finished with tools only and produced no text to structure. */
-  | "no_text_answer";
 
 export class StructuredOutputError extends TheokitAgentError {
   override readonly name: string = "StructuredOutputError";

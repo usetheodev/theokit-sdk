@@ -1,3 +1,21 @@
+/**
+ * `.toThrow()` with no argument passes on ANY failure — including a TypeError from the test's own
+ * setup, which two files in this suite call out by name (`internal/llm/responses.test.ts:138`, "ironic
+ * given the test's own name", and `squad-agent-definition.test.ts:80`). It is a green that says
+ * "something went wrong", which is the one thing a test asserting an error already knows.
+ *
+ * B-079 replaced these across the suite and left ~30 comments recording the typed error at each site
+ * — genuinely good work that stopped 17 sites short, because nothing stopped the next one. This is
+ * the ratchet. The campaign's own comments are the proof it was worth having.
+ *
+ * `.not.toThrow()` is a different assertion and is untouched: it says a call completes, which is a
+ * real claim about behaviour.
+ *
+ * WHAT THIS CANNOT CHECK: whether the matcher someone passes is a good one. `.toThrow(/./)` satisfies
+ * it. The rule is that the site names SOMETHING about the failure, which is what makes a wrong guess
+ * visible when the test runs — it does not make the guess right.
+ */
+
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
@@ -20,23 +38,6 @@ async function walk(dir: string, out: string[] = []): Promise<string[]> {
   return out;
 }
 
-/**
- * `.toThrow()` with no argument passes on ANY failure — including a TypeError from the test's own
- * setup, which two files in this suite call out by name (`internal/llm/responses.test.ts:138`, "ironic
- * given the test's own name", and `squad-agent-definition.test.ts:80`). It is a green that says
- * "something went wrong", which is the one thing a test asserting an error already knows.
- *
- * B-079 replaced these across the suite and left ~30 comments recording the typed error at each site
- * — genuinely good work that stopped 17 sites short, because nothing stopped the next one. This is
- * the ratchet. The campaign's own comments are the proof it was worth having.
- *
- * `.not.toThrow()` is a different assertion and is untouched: it says a call completes, which is a
- * real claim about behaviour.
- *
- * WHAT THIS CANNOT CHECK: whether the matcher someone passes is a good one. `.toThrow(/./)` satisfies
- * it. The rule is that the site names SOMETHING about the failure, which is what makes a wrong guess
- * visible when the test runs — it does not make the guess right.
- */
 /** A line that ASSERTS a throw without naming anything about it. Comments do not count. */
 function isBareThrowAssertion(line: string): boolean {
   const code = line.trim();

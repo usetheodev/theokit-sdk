@@ -87,17 +87,6 @@ export function applyPersonalityOverlay(
 }
 
 /**
- * Full `Agent.usePersonality(...)` implementation extracted from
- * `LocalAgent`. Loads the registry lazily, then delegates to
- * `performPersonalitySwitch` under the per-agent send mutex (EC-E).
- *
- * Returns the resolved preset (or null when cleared). Mutates the
- * `registryRef` callback when the registry was lazy-loaded so the agent
- * can cache it.
- *
- * @internal
- */
-/**
  * What `localAgentUsePersonality` needs from the agent — the narrow-target shape
  * `LocalAgentDisposeTarget` established in `local-agent-lifecycle.ts`.
  *
@@ -120,6 +109,18 @@ export interface LocalAgentPersonalityTarget {
   personalityRegistry: PersonalityRegistry | undefined;
   invalidateCache(reason: string): Promise<void>;
 }
+
+/**
+ * Full `Agent.usePersonality(...)` implementation extracted from
+ * `LocalAgent`. Loads the registry lazily, then delegates to
+ * `performPersonalitySwitch` under the per-agent send mutex (EC-E).
+ *
+ * Returns the resolved preset (or null when cleared). Mutates the
+ * `registryRef` callback when the registry was lazy-loaded so the agent
+ * can cache it.
+ *
+ * @internal
+ */
 
 export async function localAgentUsePersonality(
   agent: LocalAgentPersonalityTarget,

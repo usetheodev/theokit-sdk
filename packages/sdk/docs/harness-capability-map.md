@@ -944,7 +944,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `MemoryAdapterErrorCode` | type | Finite error codes specific to memory adapter operations (ADR D141). |
 | `NetworkError` | class | Service unavailable, timeout, transport-level failure. |
 | `RateLimitError` | class | Too many requests or usage limits exceeded. |
-| `StructuredOutputError` | class |  |
+| `StructuredOutputError` | class | The failure contract shared by `generateObject` and `streamObject`.  |
 | `StructuredOutputErrorCode` | type | Why a structured-output call failed.  |
 | `TaskNotFoundError` | class | Thrown when `Task.subscribe(id)` is called for a task that has been evicted, never submitted, or evicted after retention (D373). |
 | `TheokitAgentError` | class | Base class for all errors thrown by `@theokit/sdk`.  |

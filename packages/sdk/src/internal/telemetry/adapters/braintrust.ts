@@ -1,11 +1,11 @@
-import { safeRequire, type TelemetryAdapter, type TelemetryWiring } from "../safe-require.js";
-
 /**
  * Braintrust adapter (T10.2, ADR D449). Detects `braintrust` and
  * configures its eval tracing.
  *
  * @internal
  */
+
+import { safeRequire, type TelemetryAdapter, type TelemetryWiring } from "../safe-require.js";
 
 /**
  * What this adapter needs from the vendor module: nothing at all.

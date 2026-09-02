@@ -1,4 +1,3 @@
-import { TheokitAgentError } from "../errors.js";
 /**
  * Filesystem backend protocol — a pluggable file *storage* provider for agent
  * tools, the storage-side twin of {@link SandboxBackend} (execution-side).
@@ -19,6 +18,7 @@ import { TheokitAgentError } from "../errors.js";
  * @public
  */
 
+import { TheokitAgentError } from "../errors.js";
 /** Structured file metadata. `mtimeMs` is the read-before-write oracle (SE32). */
 export interface FileStat {
   readonly size: number;

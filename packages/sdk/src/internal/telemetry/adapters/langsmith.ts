@@ -1,11 +1,11 @@
-import { safeRequire, type TelemetryAdapter, type TelemetryWiring } from "../safe-require.js";
-
 /**
  * LangSmith adapter (T10.2, ADR D449). Detects `langsmith` and
  * configures its tracing client for span export.
  *
  * @internal
  */
+
+import { safeRequire, type TelemetryAdapter, type TelemetryWiring } from "../safe-require.js";
 
 /**
  * What this adapter needs from the vendor module: nothing at all.
