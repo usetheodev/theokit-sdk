@@ -29,7 +29,15 @@
  * reads the right variable. Both could have been written to pass vacuously, so both were
  * verified to FAIL against a reverted source rather than merely to pass against the current one.
  */
-import { chmodSync, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -42,8 +50,12 @@ let originalHome: string | undefined;
 
 beforeEach(() => {
   originalHome = process.env.HOME;
-  home = join(tmpdir(), `theokit-mcp-tokens-${String(process.hrtime.bigint())}`);
-  mkdirSync(home, { recursive: true, mode: 0o700 });
+  // `mkdtempSync` rather than a name built from `hrtime`: it creates the directory ATOMICALLY
+  // with a random suffix and mode 0700, so no other local user can predict the path and win the
+  // race to create it first. A predictable name under a world-writable `/tmp` is the shape CodeQL
+  // reports as an insecure temporary file, and it is a real hazard on a shared machine even when
+  // the mode that follows is restrictive — the check happens after the name is already claimed.
+  home = mkdtempSync(join(tmpdir(), "theokit-mcp-tokens-"));
   process.env.HOME = home;
   // B-090 — `vitest.setup.ts` points `THEOKIT_HOME` at a per-test tmpdir for EVERY test in this
   // package, and since B-090 that variable WINS over the home. The cases below pin the
@@ -140,8 +152,7 @@ describe("MCP OAuth token store — the store path follows the CURRENT home, not
     const store = await loadStore();
     await store.setTokens("srv", TOKENS);
 
-    const laterHome = join(tmpdir(), `theokit-mcp-tokens-later-${String(process.hrtime.bigint())}`);
-    mkdirSync(laterHome, { recursive: true, mode: 0o700 });
+    const laterHome = mkdtempSync(join(tmpdir(), "theokit-mcp-tokens-later-"));
     process.env.HOME = laterHome;
 
     try {
@@ -170,8 +181,7 @@ describe("MCP OAuth token store — the environment wins over os.homedir()", () 
   // is the only pool CI runs. Without this, the entire env-first change ships with no gate able to
   // fail on its removal.
   it.skipIf(!POSIX)("test_the_store_follows_the_env_even_when_homedir_disagrees", async () => {
-    const decoy = join(tmpdir(), `theokit-mcp-decoy-${String(process.hrtime.bigint())}`);
-    mkdirSync(decoy, { recursive: true, mode: 0o700 });
+    const decoy = mkdtempSync(join(tmpdir(), "theokit-mcp-decoy-"));
     vi.doMock("node:os", async () => {
       const actual = await vi.importActual<typeof import("node:os")>("node:os");
       return { ...actual, homedir: () => decoy };
@@ -209,10 +219,8 @@ describe("MCP OAuth token store — the environment variable read is per platfor
   // source says so. The BRANCH SELECTION can: `process.platform` is spy-able, and this file already
   // uses that technique for the win32 mode gate below.
   it("test_the_store_reads_USERPROFILE_and_not_HOME_on_win32", async () => {
-    const profile = join(tmpdir(), `theokit-mcp-profile-${String(process.hrtime.bigint())}`);
-    const decoy = join(tmpdir(), `theokit-mcp-decoy-${String(process.hrtime.bigint())}`);
-    mkdirSync(profile, { recursive: true, mode: 0o700 });
-    mkdirSync(decoy, { recursive: true, mode: 0o700 });
+    const profile = mkdtempSync(join(tmpdir(), "theokit-mcp-profile-"));
+    const decoy = mkdtempSync(join(tmpdir(), "theokit-mcp-decoy-"));
     const originalProfile = process.env.USERPROFILE;
 
     try {
@@ -261,9 +269,16 @@ describe("assertSecureModes — a platform without POSIX modes is not an insecur
     // the honest answer here; a mode check that cannot see them must not pretend to have run.
     const dir = join(home, "store");
     const file = join(dir, "creds.json");
-    mkdirSync(dir, { recursive: true, mode: 0o777 });
+    // The loose modes ARE the fixture — this case exists to prove the gate refuses them — but they
+    // are applied AFTER creation rather than passed to it. Creating a world-writable directory and
+    // then populating it leaves a window in which any local user can plant a file at a path this
+    // test is about to trust; `chmod` closes that window while leaving the state under test
+    // identical. CodeQL reports the first shape and not the second, and it is right to.
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
     const { writeFileSync } = await import("node:fs");
-    writeFileSync(file, "{}", { mode: 0o666 });
+    writeFileSync(file, "{}", { mode: 0o600 });
+    chmodSync(file, 0o666);
+    chmodSync(dir, 0o777);
 
     const { assertSecureModes, CredentialError } = await import("../../src/auth/index.js");
     // Sanity: on POSIX this same input IS refused, which is what makes the win32 case a platform
