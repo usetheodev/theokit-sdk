@@ -19,6 +19,24 @@ export interface SessionManager<TSession> {
   createSession(res: ServerResponse, data: TSession): Promise<void>;
   destroySession(res: ServerResponse): void;
   rotateSession(req: IncomingMessage, res: ServerResponse): Promise<TSession | null>;
+  /**
+   * The secret used to encrypt the OAuth transaction cookie, when this manager has one to share.
+   *
+   * OPTIONAL and additive: a manager without it makes `defineAuth` fall back to
+   * `THEOKIT_OAUTH_TX_SECRET`, which is the behaviour that already existed.
+   *
+   * It exists because the orchestrator was reading `session.secret` through
+   * `as unknown as { secret?: string | string[] }` — asserting a shape this contract did not offer,
+   * so no conforming caller could reach the branch and nothing in `src/` supplied it. The branch was
+   * green only because a test double carried the field. `orchestrator.ts` said in a comment that it
+   * WANTED this member ("may refactor to share the SessionManager's actual secret rotation chain via
+   * a `getCookieSecret()` method"); declaring it is what makes the branch reachable through the port
+   * and the double conform instead of the reverse.
+   *
+   * An array is accepted for rotation: the first entry encrypts, and the rest are for verifying
+   * cookies written before the last rotation.
+   */
+  getCookieSecret?(): string | string[] | undefined;
 }
 
 /**

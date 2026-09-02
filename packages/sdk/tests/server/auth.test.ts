@@ -50,9 +50,14 @@ function mockSession<T>(): SessionManager<T> & { _state: MockSessionState<T> } {
       state.rotated = true;
       return state.created;
     },
+    // Through the PORT. This was a bare `secret: state.secret` field with the comment "include
+    // secret prop so orchestrator txCookieSecret() finds it" — the double shaped to fit a cast the
+    // orchestrator was making past its own contract, rather than the contract declaring the member.
+    // `SessionManager.getCookieSecret?()` exists now, so this conforms instead of compensating.
+    getCookieSecret(): string {
+      return state.secret;
+    },
     _state: state,
-    // include secret prop so orchestrator txCookieSecret() finds it
-    secret: state.secret,
   } as unknown as SessionManager<T> & { _state: MockSessionState<T> };
 }
 
@@ -253,5 +258,64 @@ describe("finishSignIn — state mismatch + expired tx", () => {
       name: "AuthCallbackError",
       code: "oauth_transaction_expired",
     });
+  });
+});
+
+describe("the transaction-cookie secret comes through the SessionManager port", () => {
+  /**
+   * `txCookieSecret` read `opts.session as unknown as { secret?: string | string[] }`. The
+   * `as unknown as` is the tell: TypeScript would have refused the property access, so the code
+   * asserted a shape `SessionManager` does not declare. No conforming caller could reach that branch
+   * — a grep of `src/` for anything supplying `session.secret` returned nothing — and it was green
+   * only because the mock above carried the field, with a comment saying it existed to satisfy the
+   * cast.
+   *
+   * `SessionManager.getCookieSecret?()` is declared now, so these use a manager that satisfies the
+   * INTERFACE with no cast at all. That is the difference: the double conforms to the contract
+   * instead of the code conforming to the double.
+   */
+  function managerWith(secret: string | string[] | undefined): SessionManager<{ id: string }> {
+    return {
+      async getSession() {
+        return null;
+      },
+      async createSession() {},
+      destroySession() {},
+      async rotateSession() {
+        return null;
+      },
+      getCookieSecret: () => secret,
+    };
+  }
+
+  it("a manager that offers a secret supplies it", async () => {
+    const { _txCookieSecretForTests } = await import("../../src/server/auth/orchestrator.js");
+    expect(
+      _txCookieSecretForTests({ session: managerWith("manager-secret-32-chars-abcdefghijK") }),
+    ).toBe("manager-secret-32-chars-abcdefghijK");
+  });
+
+  it("a rotation array encrypts with the first entry", async () => {
+    const { _txCookieSecretForTests } = await import("../../src/server/auth/orchestrator.js");
+    expect(
+      _txCookieSecretForTests({
+        session: managerWith(["newest-secret-32-chars-abcdefghijK", "older-one"]),
+      }),
+    ).toBe("newest-secret-32-chars-abcdefghijK");
+  });
+
+  it("a manager without the optional member falls through to the environment", async () => {
+    const { _txCookieSecretForTests } = await import("../../src/server/auth/orchestrator.js");
+    const previous = process.env.THEOKIT_OAUTH_TX_SECRET;
+    process.env.THEOKIT_OAUTH_TX_SECRET = "env-secret-32-chars-abcdefghijKLM";
+    try {
+      // `getCookieSecret` is optional; a manager predating it is still a conforming manager.
+      expect(_txCookieSecretForTests({ session: managerWith(undefined) })).toBe(
+        "env-secret-32-chars-abcdefghijKLM",
+      );
+    } finally {
+      if (previous === undefined) delete process.env.THEOKIT_OAUTH_TX_SECRET;
+      else process.env.THEOKIT_OAUTH_TX_SECRET = previous;
+    }
   });
 });
