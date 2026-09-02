@@ -61,7 +61,10 @@ function createSkill(spec: CreateSkillSpec): InlineSkill {
   };
 }
 
-/** SE36 — `Skill.create` replaces `createSkill` (ADR 0015). @public */
+/** SE36 — `Skill.create` replaces `createSkill` (ADR 0015). @public  *
+ * `Skill.create` returns an **`InlineSkill`**, not a `Skill`. The class is the namespace;
+ * the inline skill descriptor is the product.
+ */
 export class Skill {
   private constructor() {}
   static create(spec: CreateSkillSpec): InlineSkill {

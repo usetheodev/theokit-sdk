@@ -93,7 +93,10 @@ function defineSkillReadTool(skills: ReadonlyArray<InlineSkill>): CustomTool {
   };
 }
 
-/** SE36 — `SkillReadTool.create` replaces `defineSkillReadTool` (ADR 0015). @public */
+/** SE36 — `SkillReadTool.create` replaces `defineSkillReadTool` (ADR 0015). @public  *
+ * `SkillReadTool.create` returns a **`CustomTool`** — a skill-reading tool, not a
+ * `SkillReadTool` instance.
+ */
 export class SkillReadTool {
   private constructor() {}
   static create(skills: ReadonlyArray<InlineSkill>): CustomTool {

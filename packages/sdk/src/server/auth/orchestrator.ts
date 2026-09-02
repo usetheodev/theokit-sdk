@@ -269,7 +269,10 @@ function defineAuth<TSession>(opts: DefineAuthOptions<TSession>): AuthOrchestrat
   return { startSignIn, finishSignIn, signIn, signOut, getSession };
 }
 
-/** SE36 — `Auth.create` replaces `defineAuth` (ADR 0015). @public */
+/** SE36 — `Auth.create` replaces `defineAuth` (ADR 0015). @public  *
+ * `Auth.create` returns an **`AuthOrchestrator<TSession>`**, not an `Auth`. The class is
+ * the namespace; the orchestrator is the product.
+ */
 export class Auth {
   private constructor() {}
   static create<TSession>(opts: DefineAuthOptions<TSession>): AuthOrchestrator<TSession> {

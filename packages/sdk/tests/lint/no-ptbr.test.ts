@@ -437,8 +437,30 @@ async function scanFile(file: string): Promise<Offender[]> {
   if (FILE_ALLOWLIST.has(rel)) return [];
 
   const named = scanFilename(rel);
-  const inside = scanText(rel, await readFile(file, "utf8"));
+  // The file list comes from the git index, and the index can name a path the
+  // working tree no longer has — mid-`git rm`, mid-rebase, or a deletion that
+  // is staged but not committed. That is an ordinary state of a repository and
+  // not a finding, so it is skipped rather than crashing the sweep with ENOENT.
+  //
+  // Skipping is safe here for a reason worth naming: a file that does not exist
+  // cannot carry Portuguese, and the scope sentinel below still proves the
+  // sweep reached the tree. A blanket try/catch would not be safe — it would
+  // also swallow a permissions error and report the file as clean.
+  const source = await readFileIfPresent(file);
+  if (source === undefined) return named === undefined ? [] : [named];
+
+  const inside = scanText(rel, source);
   return named === undefined ? inside : [named, ...inside];
+}
+
+/** `undefined` when the path is absent; any other error is the caller's problem. */
+async function readFileIfPresent(file: string): Promise<string | undefined> {
+  try {
+    return await readFile(file, "utf8");
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw cause;
+  }
 }
 
 async function collectOffenders(): Promise<Offender[]> {

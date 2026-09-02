@@ -106,14 +106,20 @@ export function createTokenLimiter(opts: TokenLimiterOptions): Processor {
   };
 }
 
-/** SE36 — `TokenLimiter.create` replaces `createTokenLimiter` (ADR 0015). @public */
+/** SE36 — `TokenLimiter.create` replaces `createTokenLimiter` (ADR 0015). @public  *
+ * `TokenLimiter.create` returns a **`Processor`**, not a `TokenLimiter`. The class is
+ * the namespace; the processor is the product.
+ */
 export class TokenLimiter {
   private constructor() {}
   static create(opts: TokenLimiterOptions): Processor {
     return createTokenLimiter(opts);
   }
 }
-/** SE36 — `UnicodeNormalizer.create` replaces `createUnicodeNormalizer` (ADR 0015). @public */
+/** SE36 — `UnicodeNormalizer.create` replaces `createUnicodeNormalizer` (ADR 0015). @public  *
+ * `UnicodeNormalizer.create` returns a **`Processor`**, not a `UnicodeNormalizer`. The
+ * class is the namespace; the processor is the product.
+ */
 export class UnicodeNormalizer {
   private constructor() {}
   static create(opts: UnicodeNormalizerOptions = {}): Processor {

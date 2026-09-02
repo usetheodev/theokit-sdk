@@ -513,7 +513,10 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
   return tool;
 }
 
-/** SE36 — `SubAgent.create` replaces `defineSubAgent` (ADR 0015). @public */
+/** SE36 — `SubAgent.create` replaces `defineSubAgent` (ADR 0015). @public  *
+ * `SubAgent.create` returns a **`CustomTool`** — the sub-agent is exposed to the
+ * parent as a callable tool, not as a `SubAgent` instance.
+ */
 export class SubAgent {
   private constructor() {}
   static create(spec: SubAgentSpec, parentDepth = 0): CustomTool {

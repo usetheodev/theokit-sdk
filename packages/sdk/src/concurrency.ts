@@ -14,7 +14,10 @@ import { type AsyncSemaphore, createSemaphore } from "./internal/concurrency/asy
 
 export type { AsyncSemaphore };
 
-/** SE36 — `Semaphore.create` replaces `createSemaphore` (ADR 0015). @public */
+/** SE36 — `Semaphore.create` replaces `createSemaphore` (ADR 0015). @public  *
+ * `Semaphore.create` returns an **`AsyncSemaphore`** — the class is the namespace and
+ * `AsyncSemaphore` is the type callers hold.
+ */
 export class Semaphore {
   private constructor() {}
   static create(permits: number): AsyncSemaphore {
