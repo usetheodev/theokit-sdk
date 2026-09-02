@@ -91,8 +91,8 @@ describe("LanceMemoryAdapter.search is hybrid, as the header now says", () => {
       "both query terms appear in the text, so overlap is 1 — not undefined, which is what " +
         "the header claimed",
     ).toBe(1);
-    // 0.7 * 0.5 + 0.3 * 1
-    expect(result?.score).toBeCloseTo(0.65, 10);
+    // The CONTRACT's defaults, 0.6 / 0.4 from resolveWeights: 0.6 * 0.5 + 0.4 * 1.
+    expect(result?.score).toBeCloseTo(0.7, 10);
     expect(result?.score, "score === vectorScore is exactly the retired claim").not.toBe(
       result?.vectorScore,
     );
@@ -102,7 +102,36 @@ describe("LanceMemoryAdapter.search is hybrid, as the header now says", () => {
     const [result] = await new LanceMemoryAdapter(scoringInner).search("kubernetes helm");
 
     expect(result?.textScore).toBe(0);
-    // 0.7 * 0.5 + 0.3 * 0 — lexically absent, so below the overlapping query above.
-    expect(result?.score).toBeCloseTo(0.35, 10);
+    // 0.6 * 0.5 + 0.4 * 0 — lexically absent, so below the overlapping query above.
+    expect(result?.score).toBeCloseTo(0.3, 10);
+  });
+
+  /**
+   * `SearchOptions.vectorWeight` / `textWeight` are the shared contract, read by `IndexManager`
+   * through `resolveWeights`. This adapter blended with the literals 0.7 and 0.3 and never looked at
+   * them, so a caller that tuned the weights had its tuning applied on one backend and silently
+   * dropped on the other — no error, no warning, and a swap-in backend that cannot be trusted.
+   */
+  it("honours the caller's weights instead of blending with its own literals", async () => {
+    const adapter = new LanceMemoryAdapter(scoringInner);
+
+    // All weight on the vector half: the blend must collapse to the vector distance.
+    const [vectorOnly] = await adapter.search("typescript programming", {
+      vectorWeight: 1,
+      textWeight: 0,
+    });
+    expect(vectorOnly?.score).toBeCloseTo(0.5, 10);
+
+    // All weight on the lexical half: both query terms are present, so overlap is 1.
+    const [textOnly] = await adapter.search("typescript programming", {
+      vectorWeight: 0,
+      textWeight: 1,
+    });
+    expect(textOnly?.score).toBeCloseTo(1, 10);
+
+    expect(
+      vectorOnly?.score,
+      "identical weights on both calls would mean the options were ignored, which is the defect",
+    ).not.toBeCloseTo(textOnly?.score ?? Number.NaN, 10);
   });
 });

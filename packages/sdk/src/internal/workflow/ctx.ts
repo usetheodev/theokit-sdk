@@ -7,6 +7,8 @@
  */
 
 import type { StepContext } from "../../types/workflow.js";
+import { diag } from "../diagnostics.js";
+import { redactSecrets } from "../security/index.js";
 
 /** Sentinel thrown by `ctx.suspend()`; only the executor catches it. */
 export class WorkflowSuspendedSentinel extends Error {
@@ -47,20 +49,31 @@ export function makeStepContext(
   };
 }
 
+/**
+ * The logging surface every workflow step gets, on the interceptable channel.
+ *
+ * These were direct `console.warn` / `console.log` calls — the exact path theokit#147 exists to
+ * close, in the words of `internal/diagnostics.ts`: "those writes interleave with the render and
+ * CORRUPT THE FRAME" in a TUI host. `step-branch.ts`, in this same folder, was converted in that
+ * sweep and routes its predicate warning through `diag`.
+ *
+ * `diagnostics.ts` allowlists "the Workflow logger" as a seam whose destination the CALLER chooses.
+ * Measured before changing this: it does not. `types/workflow.ts` declares no logger option, and
+ * `StepContext.log` is constructed here with no injection point, so a consumer had no way to
+ * redirect it. The exemption described something that was never built.
+ *
+ * The level is formatted into the message rather than becoming a channel, matching the other
+ * converted sites — `diag` is deliberately not a logger with levels, and inventing one here would be
+ * the requirement nobody asked for that its own docblock warns against.
+ */
 function emit(
   level: "debug" | "info" | "warn",
   runId: string,
   msg: string,
   attrs?: Record<string, unknown>,
 ): void {
-  const tag = `[workflow ${runId}]`;
-  if (attrs !== undefined) {
-    if (level === "warn") console.warn(tag, msg, attrs);
-    else console.log(tag, msg, attrs);
-  } else {
-    if (level === "warn") console.warn(tag, msg);
-    else console.log(tag, msg);
-  }
+  const suffix = attrs === undefined ? "" : ` ${JSON.stringify(attrs)}`;
+  diag(redactSecrets(`[workflow ${runId}] ${level}: ${msg}${suffix}\n`));
 }
 
 /**

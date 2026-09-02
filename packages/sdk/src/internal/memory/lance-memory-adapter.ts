@@ -31,6 +31,7 @@
  */
 
 import type { IndexStatus, MemorySearchHit, SearchOptions } from "./index-manager-contract.js";
+import { type HybridWeights, resolveWeights } from "./index-manager-helpers.js";
 import type { LanceIndex } from "./lance-index.js";
 import { type MemoryIndex, parseSearchOptions, type SyncResult } from "./memory-index.js";
 
@@ -88,7 +89,7 @@ export class LanceMemoryAdapter implements MemoryIndex {
     return lanceHits
       .filter((h) => h.score >= minScore)
       .slice(0, maxResults)
-      .map((h) => translateLanceHit(h, query));
+      .map((h) => translateLanceHit(h, query, resolveWeights(options)));
   }
 
   status(): IndexStatus {
@@ -130,12 +131,19 @@ export class LanceMemoryAdapter implements MemoryIndex {
  */
 function translateLanceHit(
   hit: { id: string; text: string; source: "memory" | "sessions" | "wiki"; score: number },
-  query?: string,
+  query: string | undefined,
+  weights: HybridWeights,
 ): MemorySearchHit {
   const textScore = query !== undefined ? computeTermOverlapScore(query, hit.text) : 0;
   const vectorScore = hit.score;
-  // Hybrid combination: 70% vector (semantic) + 30% text (lexical).
-  const combined = 0.7 * vectorScore + 0.3 * textScore;
+  // The CALLER's weights, through the same `resolveWeights` the SQLite path uses. These were the
+  // literals 0.7 and 0.3, so a caller that tuned `vectorWeight` / `textWeight` had its tuning applied
+  // on one backend and silently dropped on the other — the shape of failure that makes a swap-in
+  // backend untrustworthy. The defaults differ between the two (0.6/0.4 from resolveWeights, versus
+  // the 0.7/0.3 written here), so unweighted results move slightly; that is the point, since one of
+  // the two numbers was not the contract's.
+  const combined =
+    (vectorScore * weights.vectorWeight + textScore * weights.textWeight) / weights.total;
   return {
     path: hit.id,
     startLine: 0,
