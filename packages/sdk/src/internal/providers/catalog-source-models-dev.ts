@@ -168,7 +168,7 @@ function resolvePatchKeys(externalId: string): string[] | undefined {
 // sweeping these files (a nested root under refactor/). It is not new code and was not touched
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
 // risky. Tracked in usetheodev/theokit-sdk#151.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: validates and merges an UNTRUSTED upstream payload (models.dev api.json) shape by shape, dropping a single bad model rather than the file. Each branch is a distinct malformed input; merging them loses which one was seen.
 function patchIndexFromApiJson(raw: unknown): number {
   if (typeof raw !== "object" || raw === null) return 0;
   let patched = 0;
@@ -241,7 +241,7 @@ export function loadCacheIntoIndex(url: string = DEFAULT_URL): number {
 // sweeping these files (a nested root under refactor/). It is not new code and was not touched
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
 // risky. Tracked in usetheodev/theokit-sdk#151.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the refresh sequence — kill-switch, URL resolve, TTL cache, fetch, patch, persist — where each step's failure has a DIFFERENT fallback (skip, use stale, keep vendored). Splitting it separates a step from the fallback it owns; see the SRP finding on this function for the split that would be honest.
 export async function refreshModelCatalog(
   opts: RefreshModelCatalogOptions = {},
 ): Promise<RefreshModelCatalogResult> {

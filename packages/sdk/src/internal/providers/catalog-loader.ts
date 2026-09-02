@@ -133,7 +133,7 @@ function ensureModelIndexLoaded(): void {
 // sweeping these files (a nested root under refactor/). It is not new code and was not touched
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
 // risky. Tracked in usetheodev/theokit-sdk#151.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one pass over a vendored data file, branching per OPTIONAL field the upstream schema may or may not carry (models, cost, modalities, limits). Splitting it produces N helpers that each re-check the same entry — the branches are field presence, not decisions.
 function indexEntryModels(entry: CatalogEntry): void {
   if (entry.models === undefined || typeof entry.models !== "object") return;
   for (const [modelId, raw] of Object.entries(entry.models)) {
@@ -205,7 +205,7 @@ let _capabilitiesCache: Record<string, ProviderCapabilities> | null = null;
 // sweeping these files (a nested root under refactor/). It is not new code and was not touched
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
 // risky. Tracked in usetheodev/theokit-sdk#151.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: a lazily-built cache with three states (unbuilt, built-and-hit, built-and-miss) folded into one read. The branch count is the state machine; extracting the build makes the miss path re-enter the same check.
 export function getCatalogCapabilities(providerId: string): ProviderCapabilities | undefined {
   if (_capabilitiesCache === null) {
     const catalog = loadProviderCatalog();
