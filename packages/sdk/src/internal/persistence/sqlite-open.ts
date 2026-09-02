@@ -128,6 +128,9 @@ function adaptNodeSqlite(db: {
   return new Proxy(db as unknown as ResilientSqliteDb, {
     get(target, prop, receiver) {
       if (prop === "pragma") return pragma;
+      // Reached by `sqlite-vec`'s own `load()`, not by anything in this package — see the member's
+      // docblock on `MemoryDb`. `loadSqliteVecExtension` catches this and re-throws it as a
+      // ConfigurationError with code `sqlite_vec_unavailable`, so a bare Error never escapes.
       if (prop === "loadExtension" && typeof db.loadExtension !== "function") {
         return () => {
           throw new Error(
