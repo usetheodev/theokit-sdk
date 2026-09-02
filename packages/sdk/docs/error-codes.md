@@ -14,15 +14,15 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `a2a_request_timeout` | domain | A2ARequestTimeoutError | `packages/sdk/src/a2a/message-bus.ts:62` +1 |
 | `aborted` | domain | TheokitAgentError | `packages/sdk/src/internal/agent/batch.ts:358` +1 |
 | `agent_disposed` | domain | — | `packages/sdk/src/errors.ts:544` |
-| `agent_id_already_exists` | domain | ConfigurationError | `packages/sdk/src/internal/agent/helpers.ts:54` |
+| `agent_id_already_exists` | domain | ConfigurationError | `packages/sdk/src/internal/agent/helpers.ts:52` |
 | `agent_not_registered` | domain | UnknownAgentError | `packages/sdk/src/internal/cron/run-job.ts:61` |
-| `agent_rehydration_failed` | domain | UnknownAgentError | `packages/sdk/src/internal/agent/helpers.ts:336` +1 |
+| `agent_rehydration_failed` | domain | UnknownAgentError | `packages/sdk/src/internal/agent/helpers.ts:334` +1 |
 | `anthropic_auth_failed` | domain | AuthenticationError | `packages/sdk/src/internal/error-mappers/anthropic.ts:56` |
 | `anthropic_rate_limit` | domain | RateLimitError | `packages/sdk/src/internal/error-mappers/anthropic.ts:59` |
 | `anthropic_server_error` | domain | NetworkError | `packages/sdk/src/internal/error-mappers/anthropic.ts:71` |
 | `anthropic_timeout` | domain | NetworkError | `packages/sdk/src/internal/error-mappers/anthropic.ts:68` |
 | `anthropic_unknown` | domain | UnknownAgentError | `packages/sdk/src/internal/error-mappers/anthropic.ts:73` |
-| `artifact_path_traversal` | domain | ConfigurationError | `packages/sdk/src/internal/cloud-agent/cloud-agent.ts:286` |
+| `artifact_path_traversal` | domain | ConfigurationError | `packages/sdk/src/internal/cloud-agent/cloud-agent.ts:287` |
 | `auth_failed` | domain | ConfigurationError, MemoryAdapterError | `packages/memory-honcho/src/adapter.ts:237` +10 |
 | `auth_permission` | domain | — | `packages/sdk/src/internal/error-mappers/vertex.ts:49` |
 | `auth_provider_not_found` | domain | — | `packages/sdk/src/server/auth/errors.ts:34` |
@@ -37,7 +37,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `budget_op_unsupported` | domain | — | `packages/sdk/src/errors.ts:571` +1 |
 | `catastrophic_command` | domain | — | `packages/sdk-tools/src/internal/shell-guard.ts:32` |
 | `circuit_open` | domain | NetworkError | `packages/sdk/src/internal/llm/pool-aware-client.ts:106` |
-| `cloud_custom_tools_rejected` | domain | ConfigurationError | `packages/sdk/src/internal/cloud-agent/cloud-agent.ts:149` +1 |
+| `cloud_custom_tools_rejected` | domain | ConfigurationError | `packages/sdk/src/internal/cloud-agent/cloud-agent.ts:150` +1 |
 | `cloud_incompatible_function_resolver` | domain | ConfigurationError | `packages/sdk/src/internal/cloud-agent/cloud-tool-parity.ts:43` +2 |
 | `cloud_incompatible_mcp_stdio_local` | domain | ConfigurationError | `packages/sdk/src/internal/cloud-agent/cloud-tool-parity.ts:74` |
 | `cloud_plugin_path_rejected` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/plugin-loader/plugins-manager.ts:146` +1 |
@@ -61,9 +61,9 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `duplicate_skill_name` | domain | ConfigurationError | `packages/sdk/src/define-skill-read-tool.ts:72` |
 | `duplicate_tool_name` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/validate-agent-options.ts:201` |
 | `embedding_dimension_mismatch` | domain | ConfigurationError | `packages/sdk/src/internal/memory/lance-index.ts:146` +1 |
-| `embedding_invalid_response` | domain | NetworkError | `packages/sdk/src/internal/memory/adapters/openai-compatible.ts:370` |
-| `embedding_missing_api_key` | domain | AuthenticationError | `packages/sdk/src/internal/memory/adapters/openai-compatible.ts:129` |
-| `embedding_unknown_model` | domain | ConfigurationError | `packages/sdk/src/internal/memory/adapters/openai-compatible.ts:141` |
+| `embedding_invalid_response` | domain | NetworkError | `packages/sdk/src/internal/memory/adapters/openai-compatible.ts:399` |
+| `embedding_missing_api_key` | domain | AuthenticationError | `packages/sdk/src/internal/memory/adapters/openai-compatible.ts:141` |
+| `embedding_unknown_model` | domain | ConfigurationError | `packages/sdk/src/internal/memory/adapters/openai-compatible.ts:153` |
 | `eval_already_running` | domain | — | `packages/sdk/src/internal/eval/single-flight.ts:19` |
 | `eval_threshold_failed` | domain | — | `packages/sdk/src/internal/eval/assert.ts:33` |
 | `fallback_empty_chain` | domain | NetworkError | `packages/sdk/src/internal/llm/fallback-client.ts:44` |
@@ -73,11 +73,11 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `filesystem_security` | domain | FilesystemSecurityError | `packages/sdk/src/filesystem/types.ts:61` +1 |
 | `filesystem_stale` | domain | StaleFileError | `packages/sdk/src/filesystem/types.ts:115` +2 |
 | `forbidden_path` | domain | — | `packages/sdk/src/internal/security/path-guard.ts:57` +1 |
-| `handoff_package_missing` | domain | ConfigurationError | `packages/sdk/src/internal/agent/helpers.ts:104` +1 |
+| `handoff_package_missing` | domain | ConfigurationError | `packages/sdk/src/internal/agent/helpers.ts:102` +1 |
 | `handoff_target_invalid` | domain | ConfigurationError | `packages/sdk-handoff/src/handoff.ts:116` |
 | `handoff_target_required` | domain | ConfigurationError | `packages/sdk-handoff/src/handoff.ts:111` |
 | `hitl_timeout` | domain | HitlTimeoutError | `packages/sdk/src/internal/runtime/tools/hitl-middleware.ts:42` +1 |
-| `hook_denied` | domain | ConfigurationError | `packages/sdk/src/internal/local-agent/local-agent.ts:450` |
+| `hook_denied` | domain | ConfigurationError | `packages/sdk/src/internal/local-agent/local-agent.ts:443` |
 | `hooks_invalid_command` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/hooks/hooks-source.ts:234` |
 | `hooks_json_invalid` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/hooks/hooks-source.ts:152` +2 |
 | `hooks_read_error` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/hooks/hooks-source.ts:143` |
@@ -96,7 +96,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `invalid_filename_id` | domain | ConfigurationError | `packages/sdk/src/internal/security/path-guard.ts:486` |
 | `invalid_identifier` | domain | ConfigurationError | `packages/sdk/src/internal/security/path-guard.ts:434` +2 |
 | `invalid_input` | domain | MemoryAdapterError | `packages/memory-honcho/src/adapter.ts:98` +9 |
-| `invalid_max_iterations` | domain | ConfigurationError | `packages/sdk/src/internal/local-agent/real-local-run.ts:215` |
+| `invalid_max_iterations` | domain | ConfigurationError | `packages/sdk/src/internal/local-agent/real-local-run.ts:71` |
 | `invalid_memory_backend` | domain | ConfigurationError | `packages/sdk/src/internal/memory/index-manager-dispatch.ts:24` +1 |
 | `invalid_memory_directory` | domain | ConfigurationError | `packages/sdk/src/internal/memory/storage/memory-root.ts:124` |
 | `invalid_memory_kind` | domain | ConfigurationError | `packages/sdk/src/internal/memory/storage/markdown-store.ts:206` |
@@ -118,7 +118,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `live_session_protected` | domain | — | `packages/sdk/src/internal/persistence/transcript-ops.ts:48` +1 |
 | `local_provider_http_error` | domain | ConfigurationError | `packages/sdk/src/internal/catalog/local-models.ts:61` |
 | `local_provider_unreachable` | domain | ConfigurationError | `packages/sdk/src/internal/catalog/local-models.ts:46` |
-| `malformed_api_key` | domain | AuthenticationError | `packages/sdk/src/internal/agent/helpers.ts:226` +1 |
+| `malformed_api_key` | domain | AuthenticationError | `packages/sdk/src/internal/agent/helpers.ts:224` +1 |
 | `max_delegation_depth` | domain | MaxDelegationDepthError | `packages/sdk/src/a2a/subagent.ts:220` +1 |
 | `mcp_buffer_overflow` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:356` |
 | `mcp_closed` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:331` |
@@ -133,7 +133,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `memory_threat_rejected` | domain | ConfigurationError | `packages/sdk/src/internal/memory/storage/markdown-store.ts:223` |
 | `memory_tool_bad_args` | domain | ConfigurationError | `packages/sdk/src/internal/memory/tools.ts:138` +1 |
 | `migration_destination_exists` | domain | ConfigurationError | `packages/sdk/src/internal/memory/migrate-sqlite-to-lance.ts:158` +1 |
-| `missing_api_key` | domain | AuthenticationError, ConfigurationError | `packages/sdk/src/internal/agent/helpers.ts:217` +2 |
+| `missing_api_key` | domain | AuthenticationError, ConfigurationError | `packages/sdk/src/internal/agent/helpers.ts:215` +2 |
 | `missing_credential` | domain | AuthenticationError | `packages/sdk/src/internal/providers/builtin/openai-chatgpt.ts:72` |
 | `missing_frontmatter` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/skills/skill-frontmatter.ts:66` |
 | `missing_model` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/validate-agent-options.ts:35` |
@@ -225,7 +225,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `unimplemented_budget_scope` | domain | ConfigurationError | `packages/sdk/src/internal/budget/registry.ts:58` +1 |
 | `unknown` | domain | AgentRunError, MemoryAdapterError, TheokitAgentError | `packages/memory-honcho/src/adapter.ts:264` +5 |
 | `unknown_agent` | domain | UnknownAgentError | `packages/sdk/src/agent.ts:207` +1 |
-| `unknown_artifact` | domain | UnknownAgentError | `packages/sdk/src/internal/cloud-agent/cloud-agent.ts:305` |
+| `unknown_artifact` | domain | UnknownAgentError | `packages/sdk/src/internal/cloud-agent/cloud-agent.ts:306` |
 | `unknown_category` | domain | ConfigurationError | `packages/sdk-memory/src/internal/categorized-memory.ts:76` |
 | `unknown_cron_job` | domain | UnknownAgentError | `packages/sdk/src/cron.ts:80` +2 |
 | `unsafe_filename` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/context/project-instructions.ts:120` |
