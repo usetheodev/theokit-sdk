@@ -2,8 +2,11 @@ import type { AgentDefinition, AgentOptions, ModelSelection } from "../../../typ
 import type { ConversationTurn } from "../../../types/conversation.js";
 import type { SDKMessage } from "../../../types/messages.js";
 import type { MessageOrigin, RunStatus, SendOptions } from "../../../types/run.js";
+// From the declaring module, not the `internal/session/` barrel. That barrel reaches into local-agent
+// through `compact-session.ts`, and the identical import in two other files was the return edge of two
+// madge cycles this session.
+import type { SessionMessage } from "../../../types/session-message.js";
 import type { CostBreakdown, TokenUsage } from "../../../types/usage.js";
-import type { SessionMessage } from "../../session/index.js";
 import type { MemoryFact } from "../memory-glue/memory-store.js";
 
 /**

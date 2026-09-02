@@ -1,6 +1,9 @@
 import type { SDKMessage } from "../../../types/messages.js";
 import type { RunResult } from "../../../types/run.js";
-import { redactSecrets } from "../../security/index.js";
+// From the declaring module, not the `internal/security/` barrel: the barrel re-exports twenty-odd
+// names and pulls their transitive deps into anything that wants one function. `redact.ts` imports
+// `diagnostics` and `env` and nothing else.
+import { redactSecrets } from "../../security/redact.js";
 import {
   buildCloudScript,
   contextAwareScript,

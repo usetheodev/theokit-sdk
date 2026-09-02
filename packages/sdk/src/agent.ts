@@ -478,18 +478,7 @@ export class Agent {
       ) => Promise<string>;
     } = {},
   ): Promise<import("./internal/session/compact-session.js").CompactResult> {
-    let reg = getRegisteredAgent(agentId);
-    if (reg === undefined) {
-      // Fresh process (e.g. a TUI /compact before any turn): hydrate the per-cwd registry from disk,
-      // exactly like Agent.resume does (D21).
-      await hydrateRegistryFromDisk(process.cwd());
-      reg = getRegisteredAgent(agentId);
-    }
-    if (reg === undefined || reg.runtime !== "local") {
-      throw new UnknownAgentError(
-        `No local agent "${agentId}" registered — compact targets local sessions.`,
-      );
-    }
+    const reg = await requireLocalAgent(agentId, "compact");
     const { compactSessionTranscript, buildDefaultSummarizer } = await import(
       "./internal/session/compact-session.js"
     );
@@ -524,16 +513,7 @@ export class Agent {
     agentId: string,
     turn: { userText: string; assistantText: string },
   ): Promise<void> {
-    let reg = getRegisteredAgent(agentId);
-    if (reg === undefined) {
-      await hydrateRegistryFromDisk(process.cwd());
-      reg = getRegisteredAgent(agentId);
-    }
-    if (reg === undefined || reg.runtime !== "local") {
-      throw new UnknownAgentError(
-        `No local agent "${agentId}" registered — injectSessionTurn targets local sessions.`,
-      );
-    }
+    const reg = await requireLocalAgent(agentId, "injectSessionTurn");
     const { injectSessionTurn } = await import("./internal/session/inject-session.js");
     const { cwd, model, store } = await openLocalStore(reg);
     await injectSessionTurn({
@@ -564,18 +544,7 @@ export class Agent {
    * @public
    */
   static async transcript(agentId: string): Promise<readonly SessionMessage[]> {
-    let reg = getRegisteredAgent(agentId);
-    if (reg === undefined) {
-      // Fresh process (e.g. a TUI restoring its scrollback before any turn): hydrate the per-cwd
-      // registry from disk, exactly like Agent.resume does (D21).
-      await hydrateRegistryFromDisk(process.cwd());
-      reg = getRegisteredAgent(agentId);
-    }
-    if (reg === undefined || reg.runtime !== "local") {
-      throw new UnknownAgentError(
-        `No local agent "${agentId}" registered — transcript targets local sessions.`,
-      );
-    }
+    const reg = await requireLocalAgent(agentId, "transcript");
     const { readSessionMessages } = await import("./internal/session/agent-session-store.js");
     const { store } = await openLocalStore(reg);
     return readSessionMessages(store, agentId);
@@ -676,6 +645,37 @@ setAgentFacade({
   resume: (agentId, options) => Agent.resume(agentId, options),
   batch: (prompts, options) => Agent.batch(prompts, options),
 });
+
+/**
+ * Resolve a registered LOCAL agent, hydrating the per-cwd registry first when this process has not
+ * seen it yet.
+ *
+ * The three session methods — `compact`, `injectSessionTurn`, `transcript` — opened with the same
+ * eight lines: look up, hydrate from disk on a miss (the case a fresh TUI hits before its first
+ * turn, D21), look up again, then refuse anything that is not local. Same duplicated KNOWLEDGE the
+ * docblock below records for `openLocalStore`, in the step above it: "how to find a registered local
+ * agent" is one rule, and a change to the hydration path applied to two of three copies is a method
+ * that silently stops working in a fresh process.
+ *
+ * `operation` only shapes the message — the refusal names what the caller was trying to do, which is
+ * what the three hand-written strings were for.
+ */
+async function requireLocalAgent(
+  agentId: string,
+  operation: string,
+): Promise<NonNullable<ReturnType<typeof getRegisteredAgent>>> {
+  let reg = getRegisteredAgent(agentId);
+  if (reg === undefined) {
+    await hydrateRegistryFromDisk(process.cwd());
+    reg = getRegisteredAgent(agentId);
+  }
+  if (reg === undefined || reg.runtime !== "local") {
+    throw new UnknownAgentError(
+      `No local agent "${agentId}" registered — ${operation} targets local sessions.`,
+    );
+  }
+  return reg;
+}
 
 /**
  * Opens the local session store of a registered agent.
