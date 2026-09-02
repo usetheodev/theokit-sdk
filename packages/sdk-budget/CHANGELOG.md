@@ -1,5 +1,56 @@
 # Changelog — @theokit/sdk-budget
 
+## 0.3.5-next.1
+
+### Patch Changes
+
+- Updated dependencies [667bd3d]
+- Updated dependencies [edfa59c]
+- Updated dependencies [4415f83]
+- Updated dependencies [9181434]
+- Updated dependencies [edfa59c]
+- Updated dependencies [edfa59c]
+- Updated dependencies [4be7411]
+- Updated dependencies [24fb692]
+- Updated dependencies [edfa59c]
+- Updated dependencies [912e3b9]
+- Updated dependencies [374dd5f]
+- Updated dependencies [16a996f]
+- Updated dependencies [667bd3d]
+- Updated dependencies [63617cd]
+- Updated dependencies [edfa59c]
+- Updated dependencies [edfa59c]
+- Updated dependencies [926cb81]
+- Updated dependencies [7f91326]
+- Updated dependencies [edfa59c]
+- Updated dependencies [243bd2c]
+- Updated dependencies [edfa59c]
+- Updated dependencies [ba6549f]
+- Updated dependencies [edfa59c]
+- Updated dependencies [374dd5f]
+- Updated dependencies [374dd5f]
+- Updated dependencies [21be5cb]
+- Updated dependencies [edfa59c]
+- Updated dependencies [5d174f2]
+- Updated dependencies [0c4df84]
+- Updated dependencies [618cd02]
+- Updated dependencies [edfa59c]
+- Updated dependencies [d1182ae]
+- Updated dependencies [31fea8f]
+- Updated dependencies [691d8e6]
+- Updated dependencies [1499923]
+- Updated dependencies [0ceeddc]
+- Updated dependencies [f64ab2b]
+- Updated dependencies [558dd30]
+- Updated dependencies [94722e8]
+- Updated dependencies [6aeeadb]
+- Updated dependencies [7f2bce4]
+- Updated dependencies [edfa59c]
+- Updated dependencies [266ffc8]
+- Updated dependencies [e0a1ab9]
+- Updated dependencies [edfa59c]
+  - @theokit/sdk@5.0.0-next.1
+
 ## 0.3.5-next.0
 
 ### Patch Changes
