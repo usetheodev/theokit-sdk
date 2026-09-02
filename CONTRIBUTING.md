@@ -433,6 +433,51 @@ The counterpart failure is in [A measurement that confirms you gets no second
 reading](#a-measurement-that-confirms-you-gets-no-second-reading) — a silent gate is that trap built
 into the tooling, where it fires on everyone rather than on whoever ran the command.
 
+## "No consumer" is a claim about your search, not about the world
+
+This package is published. Its callers are mostly not in this repository, so a question of the form
+*does anything use this?* cannot be answered by searching this repository — and the search will
+answer anyway, with a number, confidently.
+
+Measured 2026-09-02 (usetheokit/theokit-sdk#521). An audit reported **nine public primitives with
+zero consumers**, having grepped `packages/` and `apps/` across all 16 packages here. The grep was
+correct. The conclusion was false for five of the nine:
+
+| What the audit found | What was actually true |
+|---|---|
+| `applySecurityFloor`, `auditEnvReachability`, `foldLayers`, `verifyLayerOrdering` — 0 callers | re-exported in production by `@theokit/agents` (`usetheokit/theokit`), which **raised its dependency floor to `^4.49.0`** specifically to get them |
+| `loadProjectEnv` — 0 callers | called from a shipped `create-theokit` template, so **every scaffolded project** calls it |
+| the remaining four — 0 callers | true, and each already carries a recorded downstream verdict with an owner or a policy |
+
+**Seven repositories in the organisation depend on `@theokit/sdk`** — `theokit`, `theokit-di`,
+`theokit-gateways`, `theokit-plugins`, `theokit-skills`, `theokit-studio`, `theokit-tui`. The audit
+measured none of them, and nothing about its output said so.
+
+The template case has no tool that can see it at all. [A blanket suppression is a claim about the
+tool](#a-blanket-suppression-is-a-claim-about-the-tool) records that *"knip counts an export as used
+only when another file imports it"* — and a `.tmpl` is a string until someone scaffolds it, so no
+import graph contains it. That is not a setting anyone forgot; it is outside what an import graph can
+represent.
+
+So before writing "no consumer" about anything on a published surface:
+
+- **Search the seven, not the one.** `gh api -X GET search/code -f q='<symbol> org:usetheokit'` costs
+  one request and is the whole difference. Code search sees public repositories only — say so when
+  the answer is zero, because private and unpublished callers stay invisible.
+- **Read the downstream verdict table before forming one of your own.**
+  `usetheokit/theokit` maintains `packages/agents/tests/unit/root-bar-coverage.test.ts`, which
+  demands an explicit verdict for **every value on this SDK's root bar** and proves the `in` ones by
+  referential identity. It distinguishes "nobody decided yet" from "we decided it stays out", which
+  is the distinction an upstream guess destroys.
+- **Grep the templates too.** `packages/*/templates/**` in the consumer repos ships code that no
+  import graph contains.
+- **A zero here is a scope report, not a finding.** Write what was searched next to it, so the next
+  reader can see the boundary of the claim instead of inheriting the number.
+
+The wider version of this is [A claim about A does not transfer to
+B](#a-claim-about-a-does-not-transfer-to-b): a measurement over one tree says nothing about a tree it
+never opened, however carefully it was run.
+
 ## The gate you run is not the gate that decides
 
 A green `pnpm validate` says the gates passed **in your working tree**. CI says they passed in a
