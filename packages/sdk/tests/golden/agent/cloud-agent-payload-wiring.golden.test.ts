@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { Agent } from "../../../src/index.js";
 import type { CloudAgent } from "../../../src/internal/cloud-agent/cloud-agent.js";
 import { removeTempDirRobust, useTempCwd } from "../../helpers/temp-workspace.js";
@@ -70,11 +70,10 @@ describe("CloudAgent — cloudPayload field is the serialized contract", () => {
 });
 
 describe("CloudAgent — reload re-serializes (EC-6)", () => {
+  // `cwd` is declared here and assigned inside the test below. The `afterEach(async () => { void cwd; })`
+  // that stood here was not a teardown: its only statement existed to silence an unused-variable
+  // lint, and an async hook that awaits nothing reads as cleanup that is not there.
   let cwd: string;
-
-  afterEach(async () => {
-    void cwd;
-  });
 
   it("reload() rebuilds cloudPayload from current options", async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-cloud-reload-"));
