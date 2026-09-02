@@ -9,6 +9,7 @@ import type {
 } from "../../types/mcp.js";
 import { resolveChildEnv } from "../runtime/lifecycle/env-policy.js";
 import { safePathJoin } from "../security/path-guard.js";
+import { DEFAULT_MCP_TIMEOUT_MS, handshakeAwareTimeout } from "./handshake-timeout.js";
 
 /**
  * Real MCP client implementing the subset of the 2024-11-05 spec used by the
@@ -46,17 +47,6 @@ export function createMcpClient(
   if (isStdio(config)) return new StdioMcpClient(name, config);
   return new HttpMcpClient(name, config as McpHttpServerConfig, fetchImpl);
 }
-
-/** Default per-request MCP timeout (#59). */
-const DEFAULT_MCP_TIMEOUT_MS = 30_000;
-
-/**
- * Floor for the `initialize` handshake, whatever `requestTimeoutMs` says.
- *
- * Sized against what the handshake actually pays for — spawning a child process and waiting for a
- * server to come up — rather than against a steady-state RPC. See `timeoutFor`.
- */
-const HANDSHAKE_FLOOR_MS = 10_000;
 
 /** Max buffered stdout bytes before a flooding stdio server is torn down (SEC-M0-04). */
 const MAX_STDIO_BUFFER_BYTES = 8 * 1024 * 1024;
@@ -193,31 +183,17 @@ class StdioMcpClient extends BaseMcpClient {
   }
 
   /**
-   * The deadline for one RPC. The handshake gets a floor; everything else gets `requestTimeoutMs`.
-   *
-   * `requestTimeoutMs` sizes a STEADY-STATE request. `initialize` is not one — it is preceded by a
-   * process spawn and the server's own startup, and the caller who set a tight request budget was
-   * sizing latency, not process creation. Binding both to that number made a tight budget silently
-   * unable to CONNECT, and worse, unable to RECONNECT: `reconnect()` spawns a fresh child and calls
-   * `initialize()`, so every one of its MAX_RECONNECT_ATTEMPTS tries to fit a spawn into a
-   * steady-state budget, exhausts the loop and surfaces `mcp_disconnected` — precisely the wedge the
-   * bounded-retry loop exists to prevent.
-   *
-   * A FLOOR, not a replacement: a caller who deliberately sets a LARGER request timeout keeps it.
-   *
-   * SCOPED TO THE RECONNECT HANDSHAKE, not to the first connect, and the difference is which failure
-   * is visible. A caller whose `requestTimeoutMs` is too small to connect at ALL finds out
-   * immediately, at the call they made, and that is their explicit choice to correct — an existing
-   * test pins it (`client-timeout.test.ts`: a silent server rejects within 2s at 150ms, and a floor
-   * on first connect would make it wait the floor instead). The reconnect is the SDK's own recovery,
-   * which the caller never sized and never sees until a drop happens.
-   *
-   * A floor on every METHOD would also be wrong for a third reason: it would turn `requestTimeoutMs`
-   * into a suggestion, which is a worse defect than the one it fixes.
+   * The deadline for one RPC. The rule itself — and the reasoning behind it — lives in
+   * `handshake-timeout.ts`, where it is a pure function of three values and can be interrogated
+   * without spawning a process. It was private here, which is why the clause "a caller who sets a
+   * LARGER timeout keeps it" went four months with no test.
    */
   private timeoutFor(method: string): number {
-    const isReconnectHandshake = method === "initialize" && this.reconnecting;
-    return isReconnectHandshake ? Math.max(this.timeoutMs, HANDSHAKE_FLOOR_MS) : this.timeoutMs;
+    return handshakeAwareTimeout({
+      method,
+      reconnecting: this.reconnecting,
+      requestTimeoutMs: this.timeoutMs,
+    });
   }
 
   /** Spawn the server child and wire stdout/stderr/error/exit handlers.

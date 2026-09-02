@@ -120,13 +120,13 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `local_provider_unreachable` | domain | ConfigurationError | `packages/sdk/src/internal/catalog/local-models.ts:46` |
 | `malformed_api_key` | domain | AuthenticationError | `packages/sdk/src/internal/agent/helpers.ts:224` +1 |
 | `max_delegation_depth` | domain | MaxDelegationDepthError | `packages/sdk/src/a2a/subagent.ts:220` +1 |
-| `mcp_buffer_overflow` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:356` |
-| `mcp_closed` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:331` |
-| `mcp_crashed` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:246` |
-| `mcp_disconnected` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:259` +2 |
-| `mcp_http_error` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:521` +1 |
-| `mcp_not_init` | domain | ConfigurationError | `packages/sdk/src/internal/mcp/client.ts:289` +2 |
-| `mcp_timeout` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:79` |
+| `mcp_buffer_overflow` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:332` |
+| `mcp_closed` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:307` |
+| `mcp_crashed` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:222` |
+| `mcp_disconnected` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:235` +2 |
+| `mcp_http_error` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:497` +1 |
+| `mcp_not_init` | domain | ConfigurationError | `packages/sdk/src/internal/mcp/client.ts:265` +2 |
+| `mcp_timeout` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:69` |
 | `memory_context_missing_user_id` | domain | ConfigurationError | `packages/sdk/src/internal/local-agent/local-agent-memory-direct.ts:128` |
 | `memory_path_escapes_root` | domain | ConfigurationError | `packages/sdk/src/internal/memory/tools.ts:115` +1 |
 | `memory_path_traversal` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/validate-agent-options.ts:280` |
