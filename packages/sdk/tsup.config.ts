@@ -46,10 +46,11 @@ export default defineConfig({
     "sandbox/index": "src/sandbox/index.ts",
     "filesystem/index": "src/filesystem/index.ts",
     "interactive/index": "src/interactive/index.ts",
-    // B-103 — the sanctioned public barrel for context assembly. Its DTS goes through the
-    // `tsc` path below, NOT `dts.entry`: rollup-plugin-dts trips on the
-    // `types/agent.ts <-> fork-agent.ts` cycle whenever a sub-entry reaches into
-    // `internal/runtime`, which this barrel does by construction.
+    // B-103 — the sanctioned public barrel for context assembly. Its DTS goes through the `tsc`
+    // path below, NOT `dts.entry`. The reason recorded here was a `types/agent.ts <-> fork-agent.ts`
+    // cycle; that file has never existed and madge reports zero cycles — see the measurement on the
+    // `dts:` block below. The real constraint is the double-emit and the bundled-vs-per-module shape
+    // difference documented there.
     "context/index": "src/context/index.ts",
     // internal/persistence is a publicly accessible sub-path used by extracted
     // packages (sdk-memory, sdk-cache) for shared persistence primitives.
@@ -76,10 +77,30 @@ export default defineConfig({
     "internal/memory/storage/index": "src/internal/memory/storage/index.ts",
   },
   format: ["esm", "cjs"],
-  // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)
-  // because rollup-plugin-dts trips on the `types/agent.ts ↔ fork-agent.ts`
-  // import cycle whenever a sub-entry reaches into `internal/runtime` —
-  // surfaces as a spurious "ForkOptions not exported" error.
+  // DTS for 26 of the 34 sub-entries is generated via `tsc` (see onSuccess) rather than
+  // rollup-plugin-dts.
+  //
+  // THE STATED REASON WAS FALSE AND IS NOW MEASURED. This comment said, in the present tense and in
+  // three places in this file, that rollup-plugin-dts "trips on the `types/agent.ts ↔
+  // fork-agent.ts` import cycle whenever a sub-entry reaches into `internal/runtime`", surfacing as
+  // a spurious "ForkOptions not exported". That cycle does not exist: `src/types/fork-agent.ts` has
+  // never existed in this repository (`git log --diff-filter=D` finds no deletion), madge reports
+  // zero cycles, and `tests/architecture/type-cycles-closed.test.ts` asserts the same.
+  //
+  // Tested rather than reasoned about, on 2026-09-01: moving `concurrency` — one of the two entries
+  // the comments name as blocked — into `dts.entry` and running `tsup` emitted
+  // `dist/concurrency.d.cts` (2.96 KB) with no error. The blocker is not there.
+  //
+  // THE SPLIT NEVERTHELESS STAYS, for a reason the old comment did not give. `concurrency` is also
+  // listed in `tsconfig.tools-dts.json`'s include, so putting it on both paths makes two producers
+  // write the same `.d.ts` and the later one wins — a silent double-emit. Moving an entry across
+  // therefore means removing it from that include as well, and the two producers do not emit the
+  // same SHAPE: rollup-plugin-dts bundles, `tsc` emits file-per-module. That is a change to a
+  // published artifact and needs its own verification pass against consumer type resolution, not a
+  // config edit made in passing.
+  //
+  // What is settled: the split is a build-shape decision, NOT a workaround for a type cycle. Anyone
+  // revisiting it should start from the double-emit and the shape difference above.
   dts: {
     entry: {
       index: "src/index.ts",

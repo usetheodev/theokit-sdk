@@ -1,7 +1,7 @@
 import { resolve as resolvePath } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
-import { atOrInsideRoot } from "../runtime/context/path-containment.js";
+import { atOrInsideRoot } from "../security/path-containment.js";
 import type { MemorySearchHit } from "./index-manager.js";
 import type { MemoryIndex } from "./memory-index.js";
 import type { MemoryRoot } from "./storage/memory-root.js";

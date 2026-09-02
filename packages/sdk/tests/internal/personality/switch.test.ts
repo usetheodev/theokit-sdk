@@ -194,30 +194,34 @@ describe("performPersonalitySwitch (T5.1)", () => {
       coder: "Be a coder",
       poet: "Be poetic",
     });
-    // Two concurrent switches — both must complete; final store state reflects
-    // the second (last-wins serial completion).
-    await Promise.all([
+    // Two concurrent switches — both must complete, and the store must end holding whichever one
+    // COMPLETED LAST. That is what "last writer wins" means, and it is the claim the old assertion
+    // could not make: `expect(["coder", "poet"]).toContain(...)` accepts the outcome the test's own
+    // name says must not happen, so it would pass if the switches did not serialize at all.
+    //
+    // Which of the two finishes last is genuinely scheduler-dependent, so the completion ORDER is
+    // observed rather than assumed. That makes the oracle exact without making it flaky.
+    const completed: string[] = [];
+    const run = (requestedName: string, prevSlug: string | undefined): Promise<unknown> =>
       performPersonalitySwitch({
         agentId: "a1",
-        prevSlug: undefined,
-        requestedName: "coder",
+        prevSlug,
+        requestedName,
         registry,
         store,
         invalidateCache: vi.fn().mockResolvedValue(undefined),
         appendSessionMessage: () => undefined,
         opts: {},
-      }),
-      performPersonalitySwitch({
-        agentId: "a1",
-        prevSlug: "coder",
-        requestedName: "poet",
-        registry,
-        store,
-        invalidateCache: vi.fn().mockResolvedValue(undefined),
-        appendSessionMessage: () => undefined,
-        opts: {},
-      }),
-    ]);
-    expect(["coder", "poet"]).toContain(store.active("a1"));
+      }).then((r) => {
+        completed.push(requestedName);
+        return r;
+      });
+
+    await Promise.all([run("coder", undefined), run("poet", "coder")]);
+
+    expect(completed, "both switches must complete — neither may be dropped").toHaveLength(2);
+    expect(store.active("a1"), "the store holds the last writer, not an arbitrary one").toBe(
+      completed[completed.length - 1],
+    );
   });
 });

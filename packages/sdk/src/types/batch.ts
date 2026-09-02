@@ -1,4 +1,7 @@
 /**
+ * Owner: `src/` (2 of 5 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Public types for `Agent.batch` (ADRs D134-D140).
  *
  * Run N prompts in parallel with bounded concurrency. Each prompt gets

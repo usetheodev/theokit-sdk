@@ -1,4 +1,6 @@
 /**
+ * Published as `@theokit/sdk/path-safety`.
+ *
  * Public path-safety primitives.
  *
  * Thin re-export of the canonical implementation in

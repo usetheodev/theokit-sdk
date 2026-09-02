@@ -1,4 +1,4 @@
-import { safeRequire, type TelemetryAdapter } from "../safe-require.js";
+import { safeRequire, type TelemetryAdapter, type TelemetryWiring } from "../safe-require.js";
 
 /**
  * Datadog dd-trace adapter (T10.2, ADR D449). Detects `dd-trace` and
@@ -18,11 +18,12 @@ export const datadogAdapter: TelemetryAdapter = {
   moduleName: "dd-trace",
   displayName: "Datadog",
   detect: () => safeRequire<DdTraceModule>("dd-trace") !== undefined,
-  register: () => {
-    if (registeredHere) return;
+  register: (): TelemetryWiring => {
+    if (registeredHere) return "instrumented";
     const dd = safeRequire<DdTraceModule>("dd-trace");
-    if (dd === undefined) return;
+    if (dd === undefined) return "not-wired";
     dd.init({ logInjection: true });
     registeredHere = true;
+    return "instrumented";
   },
 };

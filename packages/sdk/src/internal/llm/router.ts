@@ -105,7 +105,19 @@ function buildChain(options: ProviderRouterOptions): LlmClient[] {
   return clients;
 }
 
-function buildClient(
+/**
+ * Resolves the transport for `name` — every arm returns it RAW.
+ *
+ * Retry is applied ONCE, by {@link buildClient}, and that split is the point. Three arms wrapped
+ * themselves and a fourth did not: `maybeBuildNoAuthTransport` returned an unwrapped transport, so an
+ * Ollama / LM Studio / llama.cpp user passing a placeholder key got zero retries on a transient 5xx
+ * while every other configuration retried. The sweep that fixed the other three found them one at a
+ * time — its own comment records the third being discovered while testing the second — and a fourth
+ * was always going to be possible while each arm opted in for itself.
+ *
+ * A new return path added here cannot opt out of resilience by omission.
+ */
+function buildTransport(
   name: string,
   routerOptions: ProviderRouterOptions,
   perCallBaseUrl?: string,
@@ -128,19 +140,27 @@ function buildClient(
     // M93 — the THIRD arm. Found while writing the second one's test: the ambient pool also returned
     // the client without the decorator, and leaving it out would create the same asymmetry the milestone removes,
     // only on a less visible path.
-    return new RetryingLlmClient(
-      new PoolAwareLlmClient(
-        ambient,
-        (apiKey) => selectTransport(profile, apiKey, perCallBaseUrl),
-        undefined,
-        resilience,
-      ),
+    return new PoolAwareLlmClient(
+      ambient,
+      (apiKey) => selectTransport(profile, apiKey, perCallBaseUrl),
+      undefined,
+      resilience,
     );
   }
   const poolKeys = filterPoolKeys(routerOptions.apiKeys?.[name]);
   const noAuthOverride = maybeBuildNoAuthTransport(profile, poolKeys, perCallBaseUrl);
   if (noAuthOverride !== undefined) return noAuthOverride;
   return buildPoolOrSingle({ name, profile, poolKeys, routerOptions, perCallBaseUrl });
+}
+
+/** Resolves the transport and applies retry — the one place resilience is attached. */
+function buildClient(
+  name: string,
+  routerOptions: ProviderRouterOptions,
+  perCallBaseUrl?: string,
+): LlmClient | undefined {
+  const transport = buildTransport(name, routerOptions, perCallBaseUrl);
+  return transport === undefined ? undefined : new RetryingLlmClient(transport);
 }
 
 /**
@@ -183,13 +203,11 @@ function buildPoolOrSingle(args: {
     // M93 — the pool ALREADY had retry inside; the outer decorator covers what it propagates (5xx and
     // network, which `classifyAndDecide` tells it to propagate because "the pool does not help"). Additive: rotation
     // behavior does not change.
-    return new RetryingLlmClient(
-      new PoolAwareLlmClient(
-        pool,
-        (apiKey) => selectTransport(profile, apiKey, perCallBaseUrl),
-        undefined,
-        resilience,
-      ),
+    return new PoolAwareLlmClient(
+      pool,
+      (apiKey) => selectTransport(profile, apiKey, perCallBaseUrl),
+      undefined,
+      resilience,
     );
   }
   // 1-entry pool / single-key fast path: prefer explicit apiKeys[name] over env.
@@ -206,7 +224,7 @@ function buildPoolOrSingle(args: {
   // M93 — the ONE-key arm returned the RAW transport, with no retry at all. A pool of 1 key is a
   // pool of size 1: what changes between 1 and 2 keys is whether there is somewhere to rotate to, not
   // whether resilience exists. The typical consumer resolves exactly one credential and always landed here.
-  return new RetryingLlmClient(selectTransport(profile, apiKey, perCallBaseUrl));
+  return selectTransport(profile, apiKey, perCallBaseUrl);
 }
 
 /**
@@ -303,6 +321,22 @@ export function _resetCredentialPoolWarnings(): void {
 }
 
 /**
+ * Test seam for {@link resolveApiKey}. NOT re-exported from any barrel — `_...ForTests` is this
+ * repo's convention for reaching a private function from a test rather than copying it.
+ *
+ * It exists because the ordering this function implements had no test that could fail. The one named
+ * for it set a single env var and asserted the chain had length 1, which proves the fallback is
+ * consulted and would survive the profile's list being reversed. The only other place the choice is
+ * observable is the Authorization header at stream time, and reaching it for a BUILTIN profile means
+ * a real request — measured: the first attempt at that test sent one to openrouter and came back 401.
+ *
+ * @internal
+ */
+export function _resolveApiKeyForTests(envVars: ReadonlyArray<string>): string | undefined {
+  return resolveApiKey(envVars);
+}
+
+/**
  * EC-10: resolve API key from ordered envVars list; first non-empty wins.
  */
 function resolveApiKey(envVars: ReadonlyArray<string>): string | undefined {
@@ -346,7 +380,7 @@ function selectTransport(
    * (`ConstructorParameters<typeof OpenAIClient>[0]` vs Anthropic's) — that is why a
    * the first attempt with a non-generic helper, declared before the `if`s, did not compile.
    */
-  const comTransform = <
+  const withTransform = <
     O extends { fetch?: typeof fetch; extraHeaders?: Record<string, string> },
     C,
   >(
@@ -422,7 +456,7 @@ function selectTransport(
     // M41 — feed the provider transform: `fetch` (refresh-aware transport) + `headers` merged over the
     // profile's static `extraHeaders`. OpenAIClient now honors `extraHeaders` (was ignored) — additive-safe:
     // no builtin sets it on chat_completions.
-    return comTransform(opts, (o) => new OpenAIClient(o));
+    return withTransform(opts, (o) => new OpenAIClient(o));
   }
   if (profile.apiMode === "anthropic_messages") {
     // Vertex sub-dispatch (D301): when profile.name === "vertex", route to
@@ -442,7 +476,7 @@ function selectTransport(
     opts.baseUrl = baseUrl ?? process.env.ANTHROPIC_API_BASE_URL ?? profile.baseUrl;
     // M45 — feed the provider transform + static extraHeaders (mirror of the M41 chat_completions wiring),
     // so anthropic_messages providers can carry headers (anthropic-beta) and refresh-aware fetches (M46).
-    return comTransform(opts, (o) => new AnthropicClient(o));
+    return withTransform(opts, (o) => new AnthropicClient(o));
   }
   if (profile.apiMode === "bedrock_anthropic") {
     // D301: dedicated Bedrock InvokeModel client. apiKey from env when set;
@@ -481,10 +515,19 @@ function selectTransport(
       providerName: profile.name,
     });
   }
+  // The message used to say: "Install a third-party transport plugin
+  // (@theokit-transport-${apiMode})". There is no plugin mechanism to install into —
+  // `registerTransport` and `transportRegistry` have zero hits in this package, and the only other
+  // occurrence of the string `theokit-transport` was a docblock describing this line. A reader would
+  // have searched for the package, then for the plugin API, before concluding the SDK was wrong
+  // rather than their configuration. Transports are a closed set; the message now says so and names
+  // the whole set, which is a smaller promise and the true one.
   throw new ConfigurationError(
-    `Provider "${profile.name}" requires apiMode "${profile.apiMode}" but no transport is registered. ` +
-      `Install a third-party transport plugin (@theokit-transport-${profile.apiMode}) ` +
-      `or use a provider with apiMode "chat_completions" or "anthropic_messages".`,
+    `Provider "${profile.name}" declares apiMode "${profile.apiMode}", which this SDK has no ` +
+      `transport for. Transports are built in and cannot be extended by a plugin; the supported ` +
+      `modes are "chat_completions", "anthropic_messages", "bedrock_anthropic" and ` +
+      `"responses_api". Change the provider's apiMode to one of those, or open an issue if the ` +
+      `provider genuinely speaks a fifth protocol.`,
     { code: "transport_unavailable" },
   );
 }

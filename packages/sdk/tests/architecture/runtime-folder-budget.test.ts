@@ -52,9 +52,13 @@ describe("Architecture — T5.1 runtime/ folder budget (FO#1)", () => {
     );
   });
 
-  it("`plugins/` sub-folder exists with the promoted plugin-* cluster (iter-18, completes T5.1)", () => {
-    const pluginsDir = resolve(RUNTIME_DIR, "plugins");
-    expect(safeIsDirectory(pluginsDir), "Expected internal/runtime/plugins/ to exist").toBe(true);
+  it("`plugin-loader/` sub-folder exists with the promoted plugin-* cluster (iter-18, completes T5.1)", () => {
+    // Renamed from `plugins/`: `internal/plugins/` is the subsystem and this is the loader glue, and
+    // two directories with one name in one tree is a name that answers the wrong question.
+    const pluginsDir = resolve(RUNTIME_DIR, "plugin-loader");
+    expect(safeIsDirectory(pluginsDir), "Expected internal/runtime/plugin-loader/ to exist").toBe(
+      true,
+    );
     expect(readdirSync(pluginsDir).filter((n) => n.endsWith(".ts")).length).toBeGreaterThanOrEqual(
       2,
     );

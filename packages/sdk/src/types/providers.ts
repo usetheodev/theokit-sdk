@@ -1,4 +1,7 @@
 /**
+ * Owner: `src/` (4 of 9 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Capability slot a provider can fulfill.
  *
  * @public

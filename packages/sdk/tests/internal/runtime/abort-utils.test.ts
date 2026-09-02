@@ -8,7 +8,7 @@ import {
   abortReasonAsError,
   anySignal,
   isAborted,
-} from "../../../src/internal/runtime/concurrency/abort-utils.js";
+} from "../../../src/internal/concurrency/abort-utils.js";
 
 describe("anySignal — native path", () => {
   // B-126: was `if (typeof AbortSignal.any !== "function") return;` inside the body, so a legacy

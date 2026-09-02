@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/eval/` (5 of 8 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Public type contract for `Eval.create / .run` and the `Scorers` namespace
  * (Adoption Roadmap #2; ADRs D202-D213).
  *

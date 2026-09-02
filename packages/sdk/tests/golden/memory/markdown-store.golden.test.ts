@@ -14,7 +14,7 @@ import {
   appendMemoryFact,
   type MemoryConfig,
   readMemoryFacts,
-} from "../../../src/internal/runtime/memory/memory-store.js";
+} from "../../../src/internal/runtime/memory-glue/memory-store.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**

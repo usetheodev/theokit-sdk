@@ -19,6 +19,12 @@ import {
 } from "../../../src/internal/providers/builtin/index.js";
 import { _resetProvidersForTests } from "../../../src/internal/providers/registry.js";
 import type { ModelSelection } from "../../../src/types/agent-prims.js";
+import { useTempCwd } from "../../helpers/temp-workspace.js";
+
+// Agent.create defaults its workspace to process.cwd(), which during a test run is the
+// package itself — this file created agents without saying where, and the state landed in
+// packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 async function requestedUrl(options: { primary: string; baseUrl?: string }): Promise<string> {
   let url = "";

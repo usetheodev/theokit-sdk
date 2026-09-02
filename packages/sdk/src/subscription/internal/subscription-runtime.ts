@@ -7,6 +7,7 @@
  * @internal
  */
 
+import { TheokitAgentError } from "../../errors.js";
 import {
   isTrackedEnvelope,
   tracked as makeTracked,
@@ -30,6 +31,24 @@ export interface WireFrame {
   readonly id?: string;
   readonly data?: unknown;
   readonly error?: { message: string; code?: string };
+}
+
+/**
+ * Build an error frame that carries the cause's CODE, not only its sentence.
+ *
+ * `WireFrame.error.code` was declared here and written by nobody: all three producers sent
+ * `{ message }`, and the WS client turned every inbound error into one `ws_server_error`. So a
+ * subsystem that defines coded errors on purpose — `subscription_input_invalid`,
+ * `subscription_disconnected` — collapsed all of them to a single code at the wire, and the real
+ * reason survived only as interpolated English inside a message.
+ *
+ * A shared builder rather than three literals, because a declared-and-never-written field is exactly
+ * what happens when each site decides for itself.
+ */
+export function errorFrame(cause: unknown): WireFrame {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  const code = cause instanceof TheokitAgentError ? cause.code : undefined;
+  return { type: "error", error: { message, ...(code === undefined ? {} : { code }) } };
 }
 
 /**
@@ -197,8 +216,7 @@ async function* encodeWsIterable(
     }
     yield { type: "end" };
   } catch (cause) {
-    const msg = cause instanceof Error ? cause.message : String(cause);
-    yield { type: "error", error: { message: msg } };
+    yield errorFrame(cause);
   } finally {
     release();
   }

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import {
   appendFact,
   appendFactToMarkdown,
@@ -12,6 +12,7 @@ import {
   projectMemoryDir,
   resolveMemoryRoot,
 } from "../src/internal/memory/storage/memory-root.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 /*
  * Writing where the Claude Code CLI reads.
@@ -53,7 +54,13 @@ describe("a fact written for the CLI", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "mw-cwd-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
     cliStore = mkdtempSync(join(tmpdir(), "mw-cli-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cliStore);
+    });
   });
 
   it("test_it_lands_where_the_cli_looks", async () => {

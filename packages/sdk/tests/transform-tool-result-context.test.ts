@@ -29,7 +29,7 @@
 import { describe, expect, it } from "vitest";
 
 import { runAgentLoop } from "../src/internal/agent-loop/loop.js";
-import type { AgentLoopInputs } from "../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../src/internal/agent-loop/types.js";
 import type { LlmClient, LlmEvent, LlmFinish, LlmToolCallPart } from "../src/internal/llm/types.js";
 import { PluginManager } from "../src/internal/plugins/manager.js";
 import type { Plugin } from "../src/internal/plugins/types.js";
@@ -110,7 +110,11 @@ function pluginTransform(fn: (results: unknown, ctx: unknown) => unknown): Plugi
     name: "p-transform",
     version: "1.0",
     kind: "general",
-    register: (ctx) => ctx.on("transform_tool_result" as never, fn as never),
+    register: (ctx) => {
+      // Braces on purpose: `on` returns a disposer now, and a concise arrow body would make
+      // `register` return it — which the Plugin contract types as void | Promise<void>.
+      ctx.on("transform_tool_result" as never, fn as never);
+    },
   };
 }
 

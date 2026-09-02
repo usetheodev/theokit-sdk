@@ -107,9 +107,9 @@ describe.skipIf(!LANCE_ENABLED)("Lance end-to-end (env-gated LANCE_E2E=1)", () =
     }
   });
 
-  it("requires @lancedb/lancedb peer dep to run", () => {
-    expect(isLanceAvailable()).toBe(true);
-  });
+  // `it("requires @lancedb/lancedb peer dep to run", () => expect(isLanceAvailable()).toBe(true))`
+  // lived here, inside `describe.skipIf(!LANCE_ENABLED)` where LANCE_ENABLED IS isLanceAvailable().
+  // It could not fail in either state, and printed a green line implying the peer had been verified.
 
   // 1. addFacts then recall returns semantic match.
   it("addFacts then recall returns semantic match", async () => {

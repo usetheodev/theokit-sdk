@@ -1,11 +1,17 @@
+import { mkdtempSync } from "node:fs";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import type { IncomingMessage } from "node:http";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { Agent } from "../../../src/index.js";
-import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
+import { sseFrame } from "../../helpers/anthropic-sse.js";
+import {
+  removeTempDirRobust,
+  removeTempDirRobustSync,
+  useTempCwd,
+} from "../../helpers/temp-workspace.js";
 
 /**
  * Behaviour gate for `AgentOptions.systemPrompt` and
@@ -46,7 +52,7 @@ async function startStubAnthropic(): Promise<{ server: Server; url: string; capt
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
     const sse = (e: string, d: string): void => {
-      res.write(`event: ${e}\ndata: ${d}\n\n`);
+      res.write(sseFrame(e, d));
     };
     sse("message_start", "{}");
     sse(
@@ -94,7 +100,7 @@ async function startStubPaaS(): Promise<{ server: Server; url: string; captured:
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
     const send = (e: string, d: Record<string, unknown>): void => {
-      res.write(`event: ${e}\ndata: ${JSON.stringify(d)}\n\n`);
+      res.write(sseFrame(e, JSON.stringify(d)));
     };
     send("status", { status: "CREATING" });
     send("assistant", { text: "ok" });
@@ -104,11 +110,37 @@ async function startStubPaaS(): Promise<{ server: Server; url: string; captured:
   return { server, url: await listen(server), captured };
 }
 
+/**
+ * A temp cwd, not `process.cwd()`.
+ *
+ * Two of the cases below pass `memory: { enabled: true }`, and with the process cwd that wrote five
+ * real session files into `packages/sdk/.theokit/memory/sessions/` on every run. Nothing here reads
+ * from the repository — the agent talks to a local http server started in this file — so the
+ * process cwd bought nothing and cost residue that `.gitignore` kept out of every diff and every CI
+ * log. Measured before the fix: 540 MB across the checkout. `vitest.global-setup.ts` now fails the
+ * run if it comes back.
+ */
+const LOCAL_CWD = mkdtempSync(join(tmpdir(), "theokit-systemprompt-"));
+afterAll(() => {
+  removeTempDirRobustSync(LOCAL_CWD);
+});
+
 const localBase = {
   apiKey: "user-real-systemprompt",
   model: { id: "claude-sonnet-4-6" },
-  local: { cwd: process.cwd() },
+  local: { cwd: LOCAL_CWD },
 } as const;
+
+/**
+ * A cloud agent has no local working directory, so these cases pass no `local.cwd` — but the agent
+ * REGISTRY still lands under `process.cwd()`, which during a test run is `packages/sdk/` itself.
+ * Measured 2026-09-01: this file wrote a real `.theokit/agents/registry.json` into the package tree
+ * on every run, invisible to `git status` because `.gitignore` hides it.
+ *
+ * Passing a `local.cwd` to a cloud agent would be a lie about what the agent is; redirecting
+ * `process.cwd()` for the file is the honest fix, and is why this helper exists.
+ */
+useTempCwd();
 
 describe("systemPrompt routing", () => {
   let server: Server | undefined;

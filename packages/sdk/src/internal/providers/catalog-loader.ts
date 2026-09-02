@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { diag } from "../diagnostics.js";
 import { globalSingleton } from "../global-singleton.js";
-import { type CatalogModel, catalogModelSchema } from "./catalog-schema.js";
+import { type CatalogModel, catalogEntrySchema, catalogModelSchema } from "./catalog-schema.js";
 import { getProviderProfile, registerProvider } from "./registry.js";
 import type { ApiMode, AuthType, ProviderProfile } from "./types.js";
 
@@ -133,7 +133,7 @@ function ensureModelIndexLoaded(): void {
 // sweeping these files (a nested root under refactor/). It is not new code and was not touched
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
 // risky. Tracked in usetheodev/theokit-sdk#151.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one pass over a vendored data file, branching per OPTIONAL field the upstream schema may or may not carry (models, cost, modalities, limits). Splitting it produces N helpers that each re-check the same entry — the branches are field presence, not decisions.
 function indexEntryModels(entry: CatalogEntry): void {
   if (entry.models === undefined || typeof entry.models !== "object") return;
   for (const [modelId, raw] of Object.entries(entry.models)) {
@@ -168,20 +168,9 @@ interface LoadOptions {
 }
 
 function validateEntry(raw: Record<string, unknown>): CatalogEntry | null {
-  if (
-    typeof raw.id !== "string" ||
-    typeof raw.displayName !== "string" ||
-    typeof raw.apiMode !== "string" ||
-    typeof raw.authType !== "string" ||
-    typeof raw.baseUrl !== "string" ||
-    !Array.isArray(raw.envVars) ||
-    !Array.isArray(raw.fallbackModels) ||
-    raw.capabilities == null ||
-    typeof raw.capabilities !== "object"
-  ) {
-    return null;
-  }
-  return raw as unknown as CatalogEntry;
+  const parsed = catalogEntrySchema.safeParse(raw);
+  // The WARN-and-skip behaviour at the call site is unchanged; only what counts as valid is.
+  return parsed.success ? (parsed.data as CatalogEntry) : null;
 }
 
 export function loadProviderCatalog(opts?: LoadOptions): Record<string, CatalogEntry> {
@@ -216,7 +205,7 @@ let _capabilitiesCache: Record<string, ProviderCapabilities> | null = null;
 // sweeping these files (a nested root under refactor/). It is not new code and was not touched
 // by M75; refactoring SDK internals without review would trade a visible problem for a diff
 // risky. Tracked in usetheodev/theokit-sdk#151.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: a lazily-built cache with three states (unbuilt, built-and-hit, built-and-miss) folded into one read. The branch count is the state machine; extracting the build makes the miss path re-enter the same check.
 export function getCatalogCapabilities(providerId: string): ProviderCapabilities | undefined {
   if (_capabilitiesCache === null) {
     const catalog = loadProviderCatalog();

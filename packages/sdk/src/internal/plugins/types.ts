@@ -35,6 +35,7 @@ export type {
   // its literal spelling is deliberately absent from this comment too.
   MemoryProviderFactory,
   PluginContext,
+  PluginHookDisposer,
   PostAssistantReplyContext,
   PostToolCallContext,
   PreToolCallContext,

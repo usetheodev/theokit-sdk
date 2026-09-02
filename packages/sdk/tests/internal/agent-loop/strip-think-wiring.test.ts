@@ -11,43 +11,21 @@
 import { describe, expect, it } from "vitest";
 
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
-import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
-import type { LlmClient, LlmEvent, LlmFinish } from "../../../src/internal/llm/types.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
+import type { AgentLoopInputs } from "../../../src/internal/agent-loop/types.js";
+import type { LlmClient } from "../../../src/internal/llm/types.js";
+import { makeTextLlm } from "../../helpers/llm-stubs.js";
+import { makeLoopInputs } from "./_helpers/make-inputs.js";
 
-function makeMockLlm(content: string): LlmClient {
-  return {
-    name: "mock",
-    async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
-      yield { type: "text_delta", text: content };
-      return {
-        stopReason: "end_turn",
-        text: content,
-        toolCalls: [],
-        inputTokens: 0,
-        outputTokens: content.length,
-      };
-    },
-  };
-}
+/** The envelope these two files assert on: the stub reports token counts. */
+const makeTextLlmWithTokens = (content: string) =>
+  makeTextLlm(content, { inputTokens: 0, outputTokens: content.length });
 
-function makeInputs(llm: LlmClient): AgentLoopInputs {
-  return {
-    agentId: "strip-think-wiring-test",
-    runId: "run-1",
-    userMessage: "hi",
-    model: { id: "mock-model" },
-    llm,
-    mcp: new Map(),
-    hooks: new HooksExecutor(process.cwd()),
-    shellCwd: process.cwd(),
-    shellSandbox: false,
-  };
-}
+const makeInputs = (llm: LlmClient): AgentLoopInputs =>
+  makeLoopInputs({ agentId: "strip-think-wiring-test", llm });
 
 describe("strip-think wiring (T7.2 / EC-2)", () => {
   it("strips single <think> block before returning text", async () => {
-    const llm = makeMockLlm("<think>internal reasoning here</think>Final answer.");
+    const llm = makeTextLlmWithTokens("<think>internal reasoning here</think>Final answer.");
     const inputs = makeInputs(llm);
     const output = await runAgentLoop(inputs);
     expect(output.result).toBe("Final answer.");
@@ -56,7 +34,9 @@ describe("strip-think wiring (T7.2 / EC-2)", () => {
   });
 
   it("strips multiple <think> blocks", async () => {
-    const llm = makeMockLlm("<think>step 1</think>visible part<think>step 2</think> end.");
+    const llm = makeTextLlmWithTokens(
+      "<think>step 1</think>visible part<think>step 2</think> end.",
+    );
     const inputs = makeInputs(llm);
     const output = await runAgentLoop(inputs);
     expect(output.result).not.toContain("<think>");
@@ -65,14 +45,14 @@ describe("strip-think wiring (T7.2 / EC-2)", () => {
   });
 
   it("plain content (no think) passes through unchanged", async () => {
-    const llm = makeMockLlm("Plain response without thinking.");
+    const llm = makeTextLlmWithTokens("Plain response without thinking.");
     const inputs = makeInputs(llm);
     const output = await runAgentLoop(inputs);
     expect(output.result).toBe("Plain response without thinking.");
   });
 
   it("unclosed <think> preserved (fail-open)", async () => {
-    const llm = makeMockLlm("<think>incomplete reasoning");
+    const llm = makeTextLlmWithTokens("<think>incomplete reasoning");
     const inputs = makeInputs(llm);
     const output = await runAgentLoop(inputs);
     // Preserved — strip-think doesn't strip unclosed blocks.

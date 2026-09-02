@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/providers/` (1 of 1 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * ProviderProfile + ApiMode + AuthType contract types (T3.1, ADR D105).
  *
  * Profile is **data-only** — no methods. Adding a provider is declaring an

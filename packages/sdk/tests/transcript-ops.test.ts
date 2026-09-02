@@ -34,16 +34,17 @@ import { afterAll, describe, expect, it } from "vitest";
 import { JsonlParseError, loadJsonl } from "../src/internal/persistence/jsonl.js";
 import {
   forkTranscript,
-  LiveSessionError,
+  LiveTranscriptError,
   readJsonlTail,
 } from "../src/internal/persistence/transcript-ops.js";
+import { withUmask } from "./helpers/with-umask.js";
 
 const dir = mkdtempSync(join(tmpdir(), "m81-transcript-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 /** Writes a transcript of N records and returns the path. */
-function writeTranscriptFile(nome: string, n: number): string {
-  const p = join(dir, nome);
+function writeTranscriptFile(name: string, n: number): string {
+  const p = join(dir, name);
   writeFileSync(p, `${Array.from({ length: n }, (_, i) => JSON.stringify({ i })).join("\n")}\n`);
   return p;
 }
@@ -76,7 +77,7 @@ describe("M81 T1.1 — transcript operations", () => {
     const dst = writeTranscriptFile("already-exists.jsonl", 3);
 
     // B-079 — was bare `.toThrow()`. Reclassified during triage: `dst` is not in
-    // `liveSessionPaths` here, so this does NOT hit `LiveSessionError` — it hits
+    // `liveSessionPaths` here, so this does NOT hit `LiveTranscriptError` — it hits
     // `openSync(dst, "wx", …)`, which is Node's own EEXIST `SystemError`. Not our
     // code; pinning `.code` on a raw Node errno buys nothing (same rationale as
     // the item's own stdlib carve-out).
@@ -92,7 +93,7 @@ describe("M81 T1.1 — transcript operations", () => {
 
     expect(() =>
       forkTranscript(src, live, { beforeRecordIndex: 2, liveSessionPaths: [live] }),
-    ).toThrow(LiveSessionError);
+    ).toThrow(LiveTranscriptError);
   });
 
   it("test_readJsonlTail_returns_the_LAST_records", () => {
@@ -194,8 +195,8 @@ describe("M81 T1.1 — transcript operations", () => {
  *
  * ## Why there is NO mode reassertion here, unlike `atomicWriteJson`
  *
- * Under `umask 0o200` the destination comes out `0o400` instead of `0o600` — the `umask` cleared the owner's
- * owner. That is accepted on purpose: the invariant this item buys is *"neither group nor other"*, and
+ * Under `umask 0o200` the destination comes out `0o400` instead of `0o600` — the `umask` cleared the
+ * owner's WRITE bit. That is accepted on purpose: the invariant this item buys is *"neither group nor other"*, and
  * `0o400` satisfies it **with room to spare**. Reasserting with `fchmod` would hand back a bit the operator asked
  * to remove them, i.e. the SDK would be loosening the `umask` — the wrong direction in a security
  * fix. In `atomicWriteJson` the reassertion exists because there the mode is an EXPLICIT request
@@ -222,16 +223,6 @@ describe("M107 T1.2 — the fork destination is born private", () => {
   /** Permission bits, without the node type. */
   const mode = (p: string): number => statSync(p).mode & 0o777;
 
-  /** Runs `fn` under a `umask` and restores the previous one — `umask` is PROCESS state. */
-  function sobUmask<T>(mask: number, fn: () => T): T {
-    const previous = process.umask(mask);
-    try {
-      return fn();
-    } finally {
-      process.umask(previous);
-    }
-  }
-
   function source(name: string): string {
     const p = join(dirMode, name);
     writeFileSync(p, '{"i":0}\n{"i":1}\n');
@@ -244,7 +235,7 @@ describe("M107 T1.2 — the fork destination is born private", () => {
     const dst = join(dirMode, "born-0600.jsonl");
 
     // Act
-    sobUmask(0o002, () => forkTranscript(src, dst));
+    withUmask(0o002, () => forkTranscript(src, dst));
 
     // Assert
     expect(mode(dst)).toBe(0o600);
@@ -259,7 +250,7 @@ describe("M107 T1.2 — the fork destination is born private", () => {
       const dst = join(dirMode, `mask-${mask.toString(8)}.jsonl`);
 
       // Act
-      sobUmask(mask, () => forkTranscript(src, dst));
+      withUmask(mask, () => forkTranscript(src, dst));
 
       // Assert — zero bits for group and for others, under any umask.
       expect(mode(dst) & 0o077, `umask 0o${mask.toString(8)} leaked permission`).toBe(0);
@@ -275,7 +266,7 @@ describe("M107 T1.2 — the fork destination is born private", () => {
     const dst = join(dirMode, "explicit.jsonl");
 
     // Act
-    sobUmask(0o002, () => forkTranscript(src, dst, { mode: 0o640 }));
+    withUmask(0o002, () => forkTranscript(src, dst, { mode: 0o640 }));
 
     // Assert
     expect(mode(dst)).toBe(0o640);
@@ -288,7 +279,7 @@ describe("M107 T1.2 — the fork destination is born private", () => {
     const dst = join(dirMode, "contended-mode.jsonl");
 
     // Act
-    const r = await sobUmask(0o002, async () =>
+    const r = await withUmask(0o002, async () =>
       Promise.allSettled([
         Promise.resolve().then(() => forkTranscript(src, dst)),
         Promise.resolve().then(() => forkTranscript(src, dst)),

@@ -11,6 +11,7 @@ import {
   type TrackedEnvelope,
   tracked,
 } from "../../src/subscription/types.js";
+import { expectPublicError } from "../helpers/assert-public-error.js";
 
 describe("tracked() envelope", () => {
   it("returns [id, payload] tuple", () => {
@@ -65,9 +66,10 @@ describe("Subscription error hierarchy", () => {
     const e = new SubscriptionInputError("bad input", {
       issues: { fieldErrors: { x: ["required"] } },
     });
-    expect(e).toBeInstanceOf(SubscriptionError);
-    expect(e.name).toBe("SubscriptionInputError");
-    expect(e.code).toBe("subscription_input_invalid");
+    expectPublicError(e, {
+      ctor: SubscriptionError,
+      code: "subscription_input_invalid",
+    });
     expect(e.issues).toEqual({ fieldErrors: { x: ["required"] } });
   });
 

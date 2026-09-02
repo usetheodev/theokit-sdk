@@ -139,14 +139,20 @@ describe("router pool wiring (T4.1)", () => {
     warn.mockRestore();
   });
 
-  it("strategy defaults to fill_first when omitted", () => {
+  // Named for what it checks. It was "strategy defaults to fill_first when omitted" and closed with
+  // `// Default strategy used — we verify behavior by selecting and getting "a" twice`, describing a
+  // verification in the present tense that is not in the file: no selection happens, nothing observes
+  // the strategy, and a pool built with round_robin passes identically. The pool is a private field,
+  // so observing it from here would mean casting past the encapsulation — and the strategy's actual
+  // behaviour already has a home: `credential-pool.test.ts` ("fill_first: returns entries[0] until
+  // exhausted").
+  it("three keys for one provider produce a pooled client, with no strategy specified", () => {
     const chain = resolveProviderChain({
       primary: "openrouter",
       apiKeys: { openrouter: ["a", "b", "c"] },
       // no credentialPoolStrategy
     });
     expect(unwrapFaultInjection(chain[0]!)).toBeInstanceOf(PoolAwareLlmClient);
-    // Default strategy used — we verify behavior by selecting and getting "a" twice.
   });
 
   it("validateAgentOptions throws on apiKey + apiKeys[provider] ambiguity (EC-J)", () => {

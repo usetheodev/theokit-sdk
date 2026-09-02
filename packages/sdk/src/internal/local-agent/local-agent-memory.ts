@@ -1,6 +1,7 @@
 import type { AgentOptions } from "../../types/agent.js";
-import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import type { MemoryToolSpec } from "../agent-loop/types.js";
 import { diag } from "../diagnostics.js";
+import { globalSingleton } from "../global-singleton.js";
 import { runActiveMemory } from "../memory/active-memory.js";
 import { ActiveMemoryCache } from "../memory/active-memory-cache.js";
 import { MEMORY_EMBEDDING_ADAPTERS } from "../memory/adapters/catalog.js";
@@ -9,7 +10,7 @@ import { IndexManager } from "../memory/index-manager.js";
 import type { MemoryIndex } from "../memory/memory-index.js";
 import { type MemoryRoot, resolveMemoryRoot } from "../memory/storage/memory-root.js";
 import { createMemoryGetTool, createMemorySearchTool } from "../memory/tools.js";
-import { CircuitBreaker } from "../resilience/circuit-breaker.js";
+import { CircuitBreaker } from "../retry/circuit-breaker.js";
 import type { TelemetryHandle } from "../telemetry/tracer.js";
 
 /**
@@ -78,10 +79,7 @@ export class LocalAgentMemory {
       // TURN), so an unconditional WARN repeated every turn; raw stderr mid-frame also corrupts
       // Ink-style renderers. Warn ONCE per process per distinct message (globalThis — M44 B1
       // pattern, shared across bundle copies).
-      const g = globalThis as unknown as Record<symbol, Set<string>>;
-      const sym = Symbol.for("theokit-sdk.memory.warned");
-      g[sym] ??= new Set<string>();
-      const warned = g[sym];
+      const warned = globalSingleton("theokit-sdk.memory.warned", () => new Set<string>());
       if (!warned.has(message)) {
         warned.add(message);
         diag(`[theokit-sdk] memory tools unavailable: ${message}\n`);

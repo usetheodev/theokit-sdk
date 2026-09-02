@@ -58,12 +58,16 @@ describe("SE23 — SkillReadTool", () => {
 
   it("throws on malformed input (missing name) — trust-boundary validation", () => {
     const tool = SkillReadTool.create(skills);
-    expect(() => tool.handler({} as Record<string, unknown>)).toThrow();
+    // Measured: ZodError — the `name` field is absent, so the issue names the expected type.
+    expect(() => tool.handler({} as Record<string, unknown>)).toThrow(/"expected": "string"/);
   });
 
   it("throws on malformed input (empty name) — the min(1) boundary", () => {
     const tool = SkillReadTool.create(skills);
-    expect(() => tool.handler({ name: "" })).toThrow();
+    // Measured: ZodError again, and a DIFFERENT issue shape — the value is present and empty, so the
+    // issue reports the origin rather than the expected type. Getting these two the wrong way round
+    // is exactly what a bare `toThrow()` cannot tell you.
+    expect(() => tool.handler({ name: "" })).toThrow(/"origin": "string"/);
   });
 
   it("fails fast at construction on a duplicate skill name (Rule 8)", () => {

@@ -1,3 +1,8 @@
+/**
+ * Owner: `internal/agent-loop/` (4 of 16 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
+ */
 // T4.1 / D438 — import from leaf to break the 3-node agent->run->messages cycle (#7).
 import type { ModelSelection } from "./agent-prims.js";
 // TextBlock / ImageBlock / ToolResultContentBlock live in the import-free leaf

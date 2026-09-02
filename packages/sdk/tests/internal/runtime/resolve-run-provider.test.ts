@@ -15,7 +15,7 @@ import {
   _resetPluginProviderAnnounce,
   mergeExplicitApiKey,
   resolveRunProvider,
-} from "../../../src/internal/local-agent/real-local-run.js";
+} from "../../../src/internal/local-agent/real-local-run-provider.js";
 import { PluginManager } from "../../../src/internal/plugins/manager.js";
 import {
   _resetBuiltinsRegistered,

@@ -17,11 +17,13 @@ import type {
   SystemPromptContext,
 } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
+import type { AgentOperation } from "../../types/sdk-agent.js";
+import { getConfiguredBaseUrl } from "../base-url.js";
 import { resolveApiKey } from "../env.js";
 import { generateCloudAgentId } from "../ids.js";
 import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import { DEFAULT_AGENTIC_MODEL_ID } from "../runtime/config/default-model.js";
-import { getConfiguredBaseUrl, isFixtureApiKey } from "../runtime/fixtures/fixture-mode.js";
+import { isFixtureApiKey } from "../runtime/fixtures/fixture-mode.js";
 import { normalizeModel } from "../runtime/model-selection.js";
 import {
   flushRegistrySaves,
@@ -31,9 +33,9 @@ import {
 import { resolveSystemPromptForSend } from "../runtime/system-prompt/system-prompt.js";
 import { PathTraversalError, validateArtifactPath } from "../security/path-guard.js";
 import { serializeCloudAgentConfig } from "./cloud-config-serializer.js";
-import type { CloudAgentPayload } from "./cloud-payload-types.js";
 import { createCloudRun } from "./cloud-run.js";
 import { createRealCloudRun } from "./real-cloud-run.js";
+import type { CloudAgentPayload } from "./types.js";
 
 /**
  * Cloud SDKAgent implementation. Holds the cloud configuration and routes
@@ -43,6 +45,31 @@ import { createRealCloudRun } from "./real-cloud-run.js";
  * @internal
  */
 export class CloudAgent implements SDKAgent {
+  /**
+   * Operations this runtime does not perform. See {@link SDKAgent.supports} for why asking beats
+   * catching: the members below are present on the type — some REQUIRED — and answering them by
+   * throwing is what makes a caller unable to branch without a try/catch.
+   *
+   * The cloud runtime manages continuation, forking and personality server-side, so these throw `UnsupportedRunOperationError` — except `invalidateCache`, which is a documented no-op and is the more dangerous of the two shapes: it returns as if it worked.
+   */
+  private static readonly UNSUPPORTED_OPS: ReadonlySet<AgentOperation> = new Set([
+    "fork",
+    "invalidateCache",
+    "runToCompletion",
+    "runUntil",
+    "streamToCompletion",
+    "usePersonality",
+  ]);
+
+  supports(operation: AgentOperation): boolean {
+    return !CloudAgent.UNSUPPORTED_OPS.has(operation);
+  }
+
+  unsupportedReason(operation: AgentOperation): string | undefined {
+    return this.supports(operation)
+      ? undefined
+      : `Operation "${operation}" is not available on a cloud agent.`;
+  }
   readonly agentId: string;
   model: ModelSelection | undefined;
   /**

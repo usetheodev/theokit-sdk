@@ -181,10 +181,14 @@ describe("agent-helpers.ts — validateRehydratedAgent (Agent.resume)", () => {
       clearAgentRegistry();
       invalidateRegistryHydration();
 
+      // The message names THIS case. It used to say "missing or inaccessible" — the wording of the
+      // stat-failed branch — because the not-a-directory check threw inside that branch's own try
+      // and was caught by its catch. A path that is present and merely a file was reported as
+      // missing, and the assertion pinned the inaccurate half.
       await expect(Agent.resume(agentId, { local: { cwd: siblingCwd } })).rejects.toMatchObject({
         name: "UnknownAgentError",
         code: "agent_rehydration_failed",
-        message: expect.stringContaining("missing or inaccessible"),
+        message: expect.stringContaining("exists but is not a directory"),
       });
     } finally {
       await rm(siblingCwd, { recursive: true, force: true });

@@ -1,8 +1,17 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { loadSubagents } from "../src/internal/runtime/skills/subagents-loader.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
+
+/*
+ * #524 — these suites declare `claude-code` explicitly, because the SDK no longer reads `.claude/`
+ * unless a project asks for it. What they assert is unchanged: the formats are understood, and the
+ * capability is intact. Only the trigger moved, from "the directory exists" to "the consumer said
+ * so" — which is what makes this a default change rather than a removal.
+ */
+const CLAUDE_CODE = ["claude-code"] as const;
 
 /*
  * Compatibility with agents authored for the Claude Code CLI.
@@ -32,23 +41,26 @@ describe("agents written for the Claude Code CLI", () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(join(tmpdir(), "cc-agent-compat-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(cwd);
+    });
   });
 
   it("test_an_agent_carrying_the_cli_colour_field_loads", async () => {
     writeAgent("name: probe\ndescription: a probe.\ntools: Read, Grep\ncolor: blue");
-    const loaded = await loadSubagents(cwd, true, undefined);
+    const loaded = await loadSubagents(cwd, true, undefined, CLAUDE_CODE);
     expect(Object.keys(loaded)).toEqual(["probe"]);
   });
 
   it("test_the_colour_is_ignored_rather_than_carried_into_the_definition", async () => {
     writeAgent("name: probe\ndescription: a probe.\ncolor: blue");
-    const loaded = await loadSubagents(cwd, true, undefined);
+    const loaded = await loadSubagents(cwd, true, undefined, CLAUDE_CODE);
     expect(loaded.probe).not.toHaveProperty("color");
   });
 
   it("test_every_field_the_cli_writes_loads_together", async () => {
     writeAgent("name: probe\ndescription: a probe.\ntools: Read, Grep\nmodel: sonnet\ncolor: blue");
-    const loaded = await loadSubagents(cwd, true, undefined);
+    const loaded = await loadSubagents(cwd, true, undefined, CLAUDE_CODE);
     expect(loaded.probe?.description).toBe("a probe.");
     expect(loaded.probe?.tools).toEqual(["Read", "Grep"]);
   });
@@ -59,7 +71,7 @@ describe("agents written for the Claude Code CLI", () => {
   it("test_documentation_beside_the_agents_does_not_stop_every_agent_from_loading", async () => {
     writeAgent("name: probe\ndescription: a probe.");
     writeFileSync(join(cwd, ".theokit", "agents", "README.md"), "# Os especialistas\n\nProsa.\n");
-    const loaded = await loadSubagents(cwd, true, undefined);
+    const loaded = await loadSubagents(cwd, true, undefined, CLAUDE_CODE);
     expect(Object.keys(loaded)).toEqual(["probe"]);
   });
 
@@ -68,7 +80,7 @@ describe("agents written for the Claude Code CLI", () => {
   // through the other door.
   it("test_an_agent_whose_frontmatter_is_present_but_wrong_still_fails", async () => {
     writeAgent("name: probe\ndescription: a probe.\nbogus_field: 1");
-    await expect(loadSubagents(cwd, true, undefined)).rejects.toMatchObject({
+    await expect(loadSubagents(cwd, true, undefined, CLAUDE_CODE)).rejects.toMatchObject({
       code: "subagent_unknown_field",
     });
   });
@@ -77,14 +89,14 @@ describe("agents written for the Claude Code CLI", () => {
   // these, accepting every field would pass the three above and the silent-gate class would be back.
   it("test_a_genuinely_unknown_field_is_still_a_typed_load_error", async () => {
     writeAgent("name: probe\ndescription: a probe.\nescalate_privileges: true");
-    await expect(loadSubagents(cwd, true, undefined)).rejects.toMatchObject({
+    await expect(loadSubagents(cwd, true, undefined, CLAUDE_CODE)).rejects.toMatchObject({
       code: "subagent_unknown_field",
     });
   });
 
   it("test_a_misspelt_sandbox_is_still_refused_rather_than_dropped", async () => {
     writeAgent("name: probe\ndescription: a probe.\nsandboxed: false");
-    await expect(loadSubagents(cwd, true, undefined)).rejects.toMatchObject({
+    await expect(loadSubagents(cwd, true, undefined, CLAUDE_CODE)).rejects.toMatchObject({
       code: "subagent_unknown_field",
     });
   });
@@ -96,7 +108,7 @@ describe("agents written for the Claude Code CLI", () => {
       join(cwd, ".claude", "agents", "cli-agent.md"),
       "---\nname: cli-agent\ndescription: from .claude.\ncolor: green\n---\nBody.\n",
     );
-    const loaded = await loadSubagents(cwd, true, undefined);
+    const loaded = await loadSubagents(cwd, true, undefined, CLAUDE_CODE);
     expect(Object.keys(loaded)).toEqual(["cli-agent"]);
   });
 
@@ -107,7 +119,7 @@ describe("agents written for the Claude Code CLI", () => {
       join(cwd, ".claude", "agents", "cli-agent.md"),
       "---\nname: cli-agent\ndescription: from .claude.\n---\nBody.\n",
     );
-    const loaded = await loadSubagents(cwd, true, undefined);
+    const loaded = await loadSubagents(cwd, true, undefined, CLAUDE_CODE);
     expect(Object.keys(loaded).sort()).toEqual(["cli-agent", "theokit-agent"]);
   });
 
@@ -118,7 +130,7 @@ describe("agents written for the Claude Code CLI", () => {
       join(cwd, ".claude", "agents", "shared.md"),
       "---\nname: shared\ndescription: from claude.\n---\nBody.\n",
     );
-    const loaded = await loadSubagents(cwd, true, undefined);
+    const loaded = await loadSubagents(cwd, true, undefined, CLAUDE_CODE);
     expect(loaded.shared?.description).toBe("FROM THEOKIT.");
   });
 });

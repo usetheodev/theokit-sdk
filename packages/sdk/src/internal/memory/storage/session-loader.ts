@@ -1,6 +1,4 @@
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
-
+import { listMarkdownIn } from "./list-markdown.js";
 import type { MemoryRoot } from "./memory-root.js";
 import { sessionsDir } from "./session-summary-writer.js";
 
@@ -40,24 +38,5 @@ export interface SessionFile {
  * `memory_search({ corpus: "sessions" })` filters on.
  */
 export async function discoverSessionFiles(root: MemoryRoot): Promise<SessionFile[]> {
-  let entries: string[];
-  try {
-    entries = await readdir(sessionsDir(root));
-  } catch {
-    return [];
-  }
-  return entries
-    .filter((entry) => entry.endsWith(".md"))
-    .map((entry) => {
-      const absolutePath = join(sessionsDir(root), entry);
-      return {
-        absolutePath,
-        relPath: relativeToRoot(root, absolutePath),
-      };
-    });
-}
-
-function relativeToRoot(root: string, absolutePath: string): string {
-  if (absolutePath.startsWith(`${root}/`)) return absolutePath.slice(root.length + 1);
-  return absolutePath;
+  return await listMarkdownIn(sessionsDir(root), root);
 }

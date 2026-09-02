@@ -31,9 +31,18 @@ import { TheokitAgentError } from "../../errors.js";
  *
  * Typed rather than a bare `Error` because the caller must distinguish "this session is protected"
  * from "the disk is full": the first is a correct refusal, the second is an incident.
+ *
+ * RENAMED from `LiveSessionError` (2026-09-01). `session-guard.ts` exports a DIFFERENT class of that
+ * name from the root barrel, with an incompatible shape — `(sessionId, reason)` and a `reason`
+ * field, against this one's `(path)` and `code: "live_session_protected"` — and `.` and
+ * `./persistence` are both declared subpaths, so one consumer can hold both. `instanceof` never
+ * crossed the pair, so a `catch` checking the root import silently missed this one and ran its
+ * fallback for a condition it believed it handled; `err.name` matched BOTH, so a name check looked
+ * right and then read `err.reason`, which only the other one has. The names now say what each
+ * refusal is about: destroying a SESSION, versus overwriting a TRANSCRIPT file.
  */
-export class LiveSessionError extends TheokitAgentError {
-  override readonly name = "LiveSessionError";
+export class LiveTranscriptError extends TheokitAgentError {
+  override readonly name = "LiveTranscriptError";
 
   constructor(readonly path: string) {
     super(
@@ -84,7 +93,7 @@ export function forkTranscript(
   options: ForkTranscriptOptions = {},
 ): void {
   for (const live of options.liveSessionPaths ?? []) {
-    if (live === dst) throw new LiveSessionError(dst);
+    if (live === dst) throw new LiveTranscriptError(dst);
   }
 
   const lines = readFileSync(src, "utf8")

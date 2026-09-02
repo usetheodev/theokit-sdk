@@ -1,4 +1,7 @@
 /**
+ * Owner: `src/` (1 of 1 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Public types for ShareGPT trajectory export (ADR D139).
  *
  * Output format for fine-tuning datasets — consumed by HuggingFace, Axolotl,

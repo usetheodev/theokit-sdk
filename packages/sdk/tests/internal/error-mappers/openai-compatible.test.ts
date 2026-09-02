@@ -1,6 +1,6 @@
 /**
  * RED tests for T1.2 — `mapOpenAICompatibleError` HTTP error mapper.
- * Includes EC-3 (body sem .error field) + EC-5 (HTTP-date retry-after).
+ * Includes EC-3 (body WITHOUT an .error field) + EC-5 (HTTP-date retry-after).
  */
 
 import { describe, expect, it } from "vitest";
@@ -129,7 +129,7 @@ describe("mapOpenAICompatibleError", () => {
   });
 
   // EC-3: body without .error field (DeepInfra, Together quirks)
-  it("EC-3: body sem .error field + 429 → RateLimitError via status fallback", () => {
+  it("EC-3: body without an .error field + 429 → RateLimitError via status fallback", () => {
     const err = mapOpenAICompatibleError({
       providerId: "deepinfra",
       status: 429,

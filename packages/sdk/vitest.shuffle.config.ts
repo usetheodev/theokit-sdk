@@ -25,14 +25,36 @@ import { ROADMAP_ONLY_SUITES, SHARED_TEST_OPTIONS } from "./vitest.config.js";
 // carries another test's `probe-N` text. Reproduced 3 times out of 3 concurrent+
 // shuffled runs (varying which of the 3 non-`jina` cases lost the race each time —
 // the `jina` case is not always among them, consistent with a genuine race rather
-// than a fixed ordering bug). A second, rarer signal (`ENOTEMPTY` on a temp-dir
-// `rmdir` in `tests/golden/runtime/memory-auto-write.golden.test.ts`) appeared once
-// in three concurrent+shuffled runs and did not reproduce in the other two — flagged
-// here as unconfirmed, not fixed.
+// than a fixed ordering bug).
 //
-// This file intentionally does NOT fix either leak — per this item's DoD, the job is
-// to surface them periodically, not to silently work around them in the config that
-// decides what merges.
+// THAT RACE IS FIXED. The shared counter was removed; `vitest.config.ts` (see the
+// note beside `maxConcurrency`) records the fix and the re-measurement — 3/3 clean at
+// maxConcurrency 5 + shuffle, 5/5 on the file alone — and the test file's own
+// doc-comment says the counter is gone. This paragraph is kept in the past tense
+// rather than deleted: it is the record of what this probe caught, which is the
+// argument for running it. What it must NOT do is read as an open race, which it did.
+//
+// THE SECOND SIGNAL WAS REAL, and its follow-up took four months. `ENOTEMPTY` on a
+// temp-dir `rmdir` in `tests/golden/runtime/memory-auto-write.golden.test.ts` appeared
+// once in three shuffled runs here and was flagged unconfirmed. It reproduced on
+// 2026-09-01 in an ORDINARY full run — every test passing, the run failing at close —
+// and the cause is one the shuffle axis did not need: the SDK's fire-and-forget
+// session-summary and registry writes land after the call a test awaited, so `rm`
+// walks the directory, the writer creates a file, and `rmdir` fails. The global
+// teardown in `vitest.setup.ts` removed each test's HOME sandbox with a bare
+// `rmSync`, while `tests/helpers/temp-workspace.ts` documented at length why
+// `maxRetries` is load-bearing for exactly that call. It now uses the same helper.
+//
+// Stated honestly: that fix is not PROVEN to close this signal. The race could not be
+// reproduced synthetically — 22 trials with an in-process and then a separate writer
+// process failed to make a bare `rmSync` fail. What is certain is that two removers
+// of the same kind of directory disagreed, and the one without the documented policy
+// is the one that failed. If this probe surfaces ENOTEMPTY again, that is the thread.
+//
+// This file intentionally does NOT fix a leak it surfaces — per this item's DoD, the
+// job is to surface them periodically, not to silently work around them in the config
+// that decides what merges. Recording their fate here is a different thing, and is
+// what stops the probe's own comment from mis-stating the tree.
 export default defineConfig({
   test: {
     ...SHARED_TEST_OPTIONS,

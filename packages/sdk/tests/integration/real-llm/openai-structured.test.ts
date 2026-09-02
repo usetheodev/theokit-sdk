@@ -12,7 +12,13 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { Agent } from "../../../src/index.js";
+import { useTempCwd } from "../../helpers/temp-workspace.js";
 import { resolveRealLlmEnv } from "./_helpers/real-llm-env.js";
+
+// This file passed `cwd: process.cwd()`, which during a test run is the package itself, so
+// every agent it created persisted a real session into packages/sdk/.theokit/. The helper
+// makes process.cwd() report a throwaway directory for this file only.
+useTempCwd();
 
 const env = resolveRealLlmEnv("openai");
 

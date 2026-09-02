@@ -5,4 +5,4 @@
 
 export * from "./agent-session.js";
 export * from "./agent-session-store.js";
-export * from "./session-types.js";
+export * from "./types.js";

@@ -17,9 +17,14 @@
 import { describe, expect, it } from "vitest";
 import { AuthenticationError } from "../../../src/errors.js";
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
-import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../../src/internal/agent-loop/types.js";
 import type { LlmClient, LlmEvent, LlmFinish } from "../../../src/internal/llm/types.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
+import { makeTextLlm } from "../../helpers/llm-stubs.js";
+import { makeLoopInputs } from "./_helpers/make-inputs.js";
+
+/** The envelope these two files assert on: the stub reports token counts. */
+const makeTextLlmWithTokens = (content: string) =>
+  makeTextLlm(content, { inputTokens: 0, outputTokens: content.length });
 
 function makeThrowingLlm(err: Error): LlmClient {
   return {
@@ -31,36 +36,8 @@ function makeThrowingLlm(err: Error): LlmClient {
   };
 }
 
-function makeMockLlm(content: string): LlmClient {
-  return {
-    name: "mock",
-    async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
-      yield { type: "text_delta", text: content };
-      return {
-        stopReason: "end_turn",
-        text: content,
-        toolCalls: [],
-        inputTokens: 0,
-        outputTokens: content.length,
-      };
-    },
-  };
-}
-
-function makeInputs(llm: LlmClient, opts: Partial<AgentLoopInputs> = {}): AgentLoopInputs {
-  return {
-    agentId: "error-packaging-test",
-    runId: "run-1",
-    userMessage: "hi",
-    model: { id: "mock-model" },
-    llm,
-    mcp: new Map(),
-    hooks: new HooksExecutor(process.cwd()),
-    shellCwd: process.cwd(),
-    shellSandbox: false,
-    ...opts,
-  };
-}
+const makeInputs = (llm: LlmClient, opts: Partial<AgentLoopInputs> = {}): AgentLoopInputs =>
+  makeLoopInputs({ agentId: "error-packaging-test", llm, ...opts });
 
 // Filter assistant events that contain error-shaped content (leak detection)
 function findLeakedErrorAssistant(events: ReadonlyArray<unknown>): unknown | undefined {
@@ -175,7 +152,7 @@ describe("agent-loop error packaging (Finding B)", () => {
 
   // Sanity: happy path STILL works (no regression)
   it("sanity: successful LLM call → finalStatus=finished, no error field", async () => {
-    const llm = makeMockLlm("Hello world");
+    const llm = makeTextLlmWithTokens("Hello world");
     const output = await runAgentLoop(makeInputs(llm));
     expect(output.finalStatus).toBe("finished");
     expect(output.result).toBe("Hello world");

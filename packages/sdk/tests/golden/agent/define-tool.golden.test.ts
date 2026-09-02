@@ -2,6 +2,12 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
 
 import { Tool } from "../../../src/index.js";
+import { useTempCwd } from "../../helpers/temp-workspace.js";
+
+// This file creates agents without naming a cwd — `local: {}` and an omitted `local` both fall
+// back to process.cwd(), which during a test run is the package itself, so the sessions landed
+// in packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 /**
  * Golden tests for {@link Tool} — Phase 3 of the agent construction DX
@@ -40,7 +46,8 @@ describe("Tool", () => {
     expect(receivedRaw).toEqual({ n: 7 });
     // Invalid input — Zod parse throws; tool-dispatch upstream converts to
     // tool_result(isError). Here we just assert the throw surfaces.
-    await expect(tool.handler({ n: "not-a-number" })).rejects.toThrow();
+    // Measured: ZodError naming the expected type — the point of the case is the COERCION refusal.
+    await expect(tool.handler({ n: "not-a-number" })).rejects.toThrow(/"expected": "number"/);
   });
 
   it("propagates handler throws unchanged", async () => {
@@ -92,7 +99,9 @@ describe("Tool", () => {
         local: { cwd },
         tools: [tool],
       }),
-    ).rejects.toThrow();
+      // Measured: the ConfigurationError naming the offending tool, not any throw. A bare toThrow
+      // here would also pass on a credential failure from Agent.create, which is a different bug.
+    ).rejects.toThrow(/Custom tool "bad_schema_root" inputSc/);
   });
 
   it("handler receives Zod transform output type (EC-3)", async () => {

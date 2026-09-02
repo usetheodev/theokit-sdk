@@ -31,9 +31,9 @@
 // nothing and this becomes a no-op — it cannot mask a regression it is not triggered by.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -165,6 +165,47 @@ function bindExternalName(source, name, pkgDir) {
 }
 
 /**
+ * The THIRD shape, measured 2026-09-01 on `@theokit/sdk`: the unresolved name lives in a SIBLING
+ * declaration in the same `dist/`, and the emitted file names no module at all.
+ *
+ * `internal/eval/single-flight.d.ts` declares `class EvalAlreadyRunningError extends
+ * TheokitAgentError` and imports nothing, because `src/errors.ts` is not in that tsc pass's `include`
+ * — it is produced by the rollup path instead — so the compiler elided the import while keeping the
+ * declaration that needs it. Adding `errors.ts` to the include list would give one declaration two
+ * producers, which `tsup.config.ts` documents at length as the hazard to avoid.
+ *
+ * The comment on {@link bindExternalName} declined this case for want of a measured instance. This
+ * is that instance, and it carries the same proof obligation, satisfiable the same way: the import
+ * is written ONLY when a sibling declaration in this dist actually exports the name. Nothing is
+ * guessed — if no sibling exports it, the diagnostic stands.
+ */
+function bindSiblingName(source, name, filePath, distDir) {
+  if (new RegExp(String.raw`\bimport\s*\{[^}]*\b${escapeRegExp(name)}\b`).test(source)) {
+    return undefined; // already bound — not this defect
+  }
+  const candidates = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".d.ts")) candidates.push(full);
+    }
+  };
+  walk(distDir);
+
+  for (const candidate of candidates) {
+    if (candidate === filePath) continue;
+    if (!exportNamesOf(candidate).has(name)) continue;
+    let specifier = relative(dirname(filePath), candidate)
+      .replace(/\\/g, "/")
+      .replace(/\.d\.ts$/, ".js");
+    if (!specifier.startsWith(".")) specifier = `./${specifier}`;
+    return `import { ${name} } from "${specifier}";\n${source}`;
+  }
+  return undefined;
+}
+
+/**
  * Does `specifier`'s published declaration EXPORT `name`, resolved from `pkgDir`?
  *
  * Asked of the compiler. The previous regex required only that the token sit between whitespace or
@@ -211,6 +252,53 @@ function exportNamesOf(declPath) {
   );
   exportNameCache.set(declPath, names);
   return names;
+}
+
+/**
+ * The FOURTH shape, measured 2026-09-02 on `@theokit/sdk`: the name IS imported — under an ALIAS the
+ * rollup minted for the chunk (`d as RunEventSink$1`) — and a declaration it hoisted into the same
+ * file still refers to the BARE name. The compiler's own message says so: TS2552, "Cannot find name
+ * 'RunEventSink'. Did you mean 'RunEventSink$1'?".
+ *
+ * It appeared the moment `emitRunEvent` moved out of `src/types/run-events.ts` into a runtime module
+ * — `src/types/*` is the pure-type layer and a value there can only reach a consumer through the DTS
+ * rollup, which is the #279 defect. With the function and the interface in one source file they
+ * landed in one chunk and the reference needed no renaming; split across two, rollup renamed the
+ * import and left the use site alone.
+ *
+ * Same proof obligation as the three above, and the cheapest one to satisfy: the alias is only
+ * substituted when THIS file's own import clause binds `<chunk-local> as <name>$<n>`. Nothing is
+ * inferred from the diagnostic text, so a TS2552 whose suggestion does not correspond to a real
+ * alias in this file is left to stand.
+ */
+function bindAliasedName(source, name) {
+  const alias = new RegExp(
+    String.raw`import\s*\{[^}]*?\b\w+\s+as\s+(${escapeRegExp(name)}\$\d+)\b[^}]*?\}\s*from`,
+  ).exec(source);
+  if (alias === null) return undefined;
+
+  // The spans this must NOT touch. Both are places the bare name is a BINDING rather than a use.
+  //
+  //  - the import clause that introduced the alias, obviously;
+  //  - every `export { … }` clause, which is the one that was missed. `rollup-plugin-dts` emits the
+  //    public surface as `export { …, RunEventSink$1 as RunEventSink, … }`, and rewriting the bare
+  //    name there produced `RunEventSink$1 as RunEventSink$1` — the PUBLIC NAME DISAPPEARED from the
+  //    package. The declaration still compiled, so nothing downstream complained; the break landed
+  //    in a consumer's `import type { RunEventSink } from "@theokit/sdk"`. Caught by
+  //    `pnpm quality:dts-parity`, whose entire job is that class of silent removal.
+  const offLimits = [{ start: alias.index, end: alias.index + alias[0].length }];
+  for (const clause of source.matchAll(/export\s*\{[^}]*\}/g)) {
+    offLimits.push({ start: clause.index ?? 0, end: (clause.index ?? 0) + clause[0].length });
+  }
+
+  const bare = new RegExp(String.raw`(?<![\w$.])${escapeRegExp(name)}(?![\w$])`, "g");
+  let touched = false;
+  const next = source.replace(bare, (match, offset) => {
+    if (offLimits.some((span) => offset >= span.start && offset < span.end)) return match;
+    touched = true;
+    return alias[1];
+  });
+  return touched ? next : undefined;
 }
 
 function bindReExportedName(source, name) {
@@ -405,7 +493,11 @@ for (const [file, names] of unresolved) {
   let source = readFileSync(filePath, "utf8");
   let touched = false;
   for (const name of names) {
-    const next = bindReExportedName(source, name) ?? bindExternalName(source, name, pkgDir);
+    const next =
+      bindReExportedName(source, name) ??
+      bindExternalName(source, name, pkgDir) ??
+      bindSiblingName(source, name, filePath, join(pkgDir, "dist")) ??
+      bindAliasedName(source, name);
     if (next === undefined) continue;
     source = next;
     touched = true;

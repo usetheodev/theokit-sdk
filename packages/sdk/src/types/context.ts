@@ -1,4 +1,7 @@
 /**
+ * Owner: `src/` (1 of 2 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Context manager backend.
  *
  * - `"file"` — Read `.theokit/context.json` from the workspace (local) or the

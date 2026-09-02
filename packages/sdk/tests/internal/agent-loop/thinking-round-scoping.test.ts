@@ -15,25 +15,17 @@
  *
  * These tests pin the shape that makes B1 unrepresentable: the block is a per-ROUND value.
  */
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it } from "vitest";
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
 import { buildAssistantTurn } from "../../../src/internal/agent-loop/message-builders.js";
 import { toAnthropicWireMessage } from "../../../src/internal/llm/anthropic-shared.js";
-import type {
-  LlmClient,
-  LlmEvent,
-  LlmFinish,
-  LlmThinkingPart,
-} from "../../../src/internal/llm/types.js";
+import type { LlmThinkingPart } from "../../../src/internal/llm/types.js";
 import {
   reconstructMessages,
   SessionTranscript,
 } from "../../../src/internal/persistence/session-transcript.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
-import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
+import { scriptedClient } from "../../helpers/scripted-client.js";
+import { makeLoopInputs, makeLoopWorkspace } from "./_helpers/make-inputs.js";
 
 const SIGNATURE = "ErUBCkYIBBgCIkAxyz+/opaque==";
 
@@ -58,60 +50,46 @@ describe("theokit#122 — the thinking block is scoped to its own round", () => 
     // The sibling golden (`golden/agent-loop/thinking-two-round.golden.test.ts`) drives a round 2
     // that HAS its own block, so a leak there is masked by the overwrite. This one leaves round 2
     // empty, which is the only arrangement where a leaked block has nowhere to hide.
-    const cwd = await mkdtemp(join(tmpdir(), "theokit-thinking-scope-"));
-    const __cwdCleanup1 = cwd;
-    onTestFinished(async () => {
-      await removeTempDirRobust(__cwdCleanup1);
-    });
-    const hooks = new HooksExecutor(cwd);
-    await hooks.initialize(false);
+    const { cwd, hooks } = await makeLoopWorkspace("theokit-thinking-scope-");
 
-    let round = 0;
-    const client: LlmClient = {
-      name: "stub",
-      async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
-        round += 1;
-        if (round === 1) {
-          yield { type: "reasoning_delta", text: "I should call the tool." };
-          return {
-            stopReason: "tool_use",
-            text: "",
-            toolCalls: [{ type: "tool_use", id: "call_1", name: "echo", input: {} }],
-            thinking: {
-              type: "thinking",
-              text: "I should call the tool.",
-              signature: SIGNATURE,
-            },
-          };
-        }
-        yield { type: "text_delta", text: "done" };
-        // Round 2 thinks about nothing. Any block on its turn came from somewhere else.
-        return { stopReason: "end_turn", text: "done", toolCalls: [] };
-      },
-    };
-
-    const result = await runAgentLoop({
-      agentId: "agent-122-scope",
-      runId: "run-122-scope",
-      model: { id: "stub-model" },
-      userMessage: "go",
-      llm: client,
-      mcp: new Map(),
-      hooks,
-      shellCwd: cwd,
-      shellSandbox: false,
-      customTools: [
-        {
-          name: "echo",
-          description: "returns a constant",
-          inputSchema: { type: "object", properties: {} },
-          handler: async () => "ok",
+    const { client, roundsAsked } = scriptedClient([
+      {
+        events: [{ type: "reasoning_delta", text: "I should call the tool." }],
+        finish: {
+          stopReason: "tool_use",
+          text: "",
+          toolCalls: [{ type: "tool_use", id: "call_1", name: "echo", input: {} }],
+          thinking: { type: "thinking", text: "I should call the tool.", signature: SIGNATURE },
         },
-      ],
-    });
+      },
+      {
+        // Round 2 thinks about nothing. Any block on its turn came from somewhere else.
+        events: [{ type: "text_delta", text: "done" }],
+        finish: { stopReason: "end_turn", text: "done", toolCalls: [] },
+      },
+    ]);
+
+    const result = await runAgentLoop(
+      makeLoopInputs({
+        agentId: "agent-122-scope",
+        runId: "run-122-scope",
+        userMessage: "go",
+        llm: client,
+        hooks,
+        shellCwd: cwd,
+        customTools: [
+          {
+            name: "echo",
+            description: "returns a constant",
+            inputSchema: { type: "object", properties: {} },
+            handler: async () => "ok",
+          },
+        ],
+      }),
+    );
 
     expect(result.finalStatus).toBe("finished");
-    expect(round, "the stub must have been asked for two rounds").toBe(2);
+    expect(roundsAsked(), "the stub must have been asked for two rounds").toBe(2);
 
     const turns = result.conversation.filter((t) => t.type === "agentConversationTurn");
     const carryingSignature = turns.filter((t) =>

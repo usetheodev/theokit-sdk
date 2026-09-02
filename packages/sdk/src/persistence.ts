@@ -1,4 +1,6 @@
 /**
+ * Published as `@theokit/sdk/persistence`.
+ *
  * Public persistence primitives (V2-3 — Theo Harness Capability Map, Theme G).
  *
  * Promotes the consumer-grade persistence helpers from `internal/persistence`
@@ -47,6 +49,13 @@ export {
 // the path helpers a consumer reuses to locate a session file under
 // `<baseDir>/projects/<encoded-cwd>/<sessionId>.jsonl`. Supersedes the SE39
 // read-only `ClaudeCodeTranscriptWriter` (removed in v4.0).
+//
+// Publishing a path helper looks like a storage detail escaping the `SessionStore`
+// port, and an audit read it that way. It is not: the port speaks the native
+// record shape by design and never claimed to hide the layout — see
+// `types/session-store.ts`, which says so in the same words. These helpers
+// describe where the DEFAULT `FsSessionStore` writes; a consumer supplying
+// `local.sessionStore` is not bound by them.
 export {
   encodeProjectDir,
   transcriptPath,
@@ -76,10 +85,17 @@ export { applyWalWithFallback } from "./internal/persistence/sqlite-wal.js";
 // The rule that protects these operations travels with them: `forkTranscript` refuses to write over
 // a live session — moving the operation without the rule would ship an API able to erase exactly
 // what the rule exists to protect.
+/**
+ * @deprecated Renamed to {@link LiveTranscriptError}. The root barrel exports a DIFFERENT class
+ * under this name (`session-guard.ts`, about refusing to destroy a session), and a consumer holding
+ * both got two classes `instanceof` could not tell apart while `err.name` matched both. This alias
+ * keeps existing imports working; it will be removed in the next major.
+ */
 export {
   type ForkTranscriptOptions,
   forkTranscript,
-  LiveSessionError,
+  LiveTranscriptError,
+  LiveTranscriptError as LiveSessionError,
   type ReadJsonlTailOptions,
   readJsonlTail,
 } from "./internal/persistence/transcript-ops.js";

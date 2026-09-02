@@ -79,7 +79,7 @@ export class JudgeCredentialError extends TheokitAgentError {
 }
 
 /** Extracts the HTTP status from a provider error, when it carries one. */
-function statusHttpDe(err: unknown): number | undefined {
+function httpStatusOf(err: unknown): number | undefined {
   const s =
     (err as { status?: unknown; statusCode?: unknown }).status ??
     (err as { statusCode?: unknown }).statusCode;
@@ -138,7 +138,7 @@ export async function judgeCallImpl(
     // M80 — 401/403/404 are credential/model errors: unrecoverable, failing fast and typed. Everything
     // else (network, timeout, 5xx) stays folded, because it IS recoverable and the loop already decides on
     // in a row.
-    const status = statusHttpDe(err);
+    const status = httpStatusOf(err);
     if (status === 401 || status === 403 || status === 404) {
       throw new JudgeCredentialError(status, judgeModel, err);
     }

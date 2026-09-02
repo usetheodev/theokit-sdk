@@ -8,7 +8,7 @@ import { diag } from "../../diagnostics.js";
 import { projectConfigRoots } from "../../persistence/paths.js";
 import { readWorkspaceDir } from "../config/workspace-dir.js";
 import { type FrontmatterValue, parseSimpleYaml } from "../context/yaml-frontmatter.js";
-import { pluginBundleDirs } from "../plugins/plugin-bundles.js";
+import { pluginBundleDirs } from "../plugin-loader/plugin-bundles.js";
 
 /**
  * Load file-based subagents from `.theokit/agents/*.md` and merge with
@@ -23,10 +23,12 @@ export async function loadSubagents(
   cwd: string,
   settingSourcesIncludeProject: boolean,
   inline: Record<string, AgentDefinition> | undefined,
+  /** Declared foreign dialects (#524). Empty reads `.theokit/` only. */
+  compatSources: readonly string[] = [],
 ): Promise<Record<string, AgentDefinition>> {
   const result: Record<string, AgentDefinition> = {};
   if (settingSourcesIncludeProject) {
-    const projectAgents = await readProjectSubagents(cwd);
+    const projectAgents = await readProjectSubagents(cwd, compatSources);
     for (const [name, definition] of Object.entries(projectAgents)) {
       result[name] = definition;
     }
@@ -45,14 +47,17 @@ export async function loadSubagents(
  * FIRST occurrence of a name wins, which is what makes `projectConfigRoots`' order a contract rather
  * than a detail: a project declaring the same agent in both means the explicit namespace.
  */
-async function readProjectSubagents(cwd: string): Promise<Record<string, AgentDefinition>> {
+async function readProjectSubagents(
+  cwd: string,
+  compatSources: readonly string[],
+): Promise<Record<string, AgentDefinition>> {
   const subagents: Record<string, AgentDefinition> = {};
-  for (const configRoot of projectConfigRoots(cwd)) {
+  for (const configRoot of projectConfigRoots(cwd, compatSources)) {
     await readSubagentsFrom(join(configRoot, "agents"), subagents);
   }
   // A Claude Code plugin is a BUNDLE, and its `agents/` is what it exists to contribute. Read after
   // the project's own, so a project can shadow an agent a plugin ships without editing the plugin.
-  for (const bundle of await pluginBundleDirs(cwd)) {
+  for (const bundle of await pluginBundleDirs(cwd, compatSources)) {
     await readSubagentsFrom(join(bundle, "agents"), subagents);
   }
   return subagents;

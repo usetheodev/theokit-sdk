@@ -64,13 +64,33 @@ function sanitizeString(key: string, value: string, ctx: Ctx): unknown {
   return out;
 }
 
+/**
+ * Sanitize one value, whatever shape it has.
+ *
+ * Arrays used to fall through to "assign as-is", so `{ tags: ["  a  " ] }` came back untouched while
+ * `{ tag: "  a  " }` was trimmed — even though trim is on by default and the `@public` docblock on
+ * `deep` promised recursion into "objects/arrays". Nothing in the type distinguished the two cases.
+ *
+ * The element rules are the SAME rules, deliberately: a string element is sanitized like a string
+ * field, and an object element is descended only under `deep`, so a caller does not have to learn a
+ * second set of semantics for values that happen to sit in a list. `map` rather than the object
+ * walker, because reusing that would return `{ "0": … }` and a handler doing `Array.isArray` would
+ * reject it.
+ */
+function walkValue(key: string, value: unknown, ctx: Ctx, depth: number): unknown {
+  if (typeof value === "string") return sanitizeString(key, value, ctx);
+  if (Array.isArray(value)) {
+    if (depth >= ctx.maxDepth) return value;
+    return value.map((element) => walkValue(key, element, ctx, depth + 1));
+  }
+  if (ctx.deep && depth < ctx.maxDepth && isPlainObject(value)) return walk(value, ctx, depth + 1);
+  return value;
+}
+
 function walk(input: Record<string, unknown>, ctx: Ctx, depth: number): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
-    if (typeof value === "string") out[key] = sanitizeString(key, value, ctx);
-    else if (ctx.deep && depth < ctx.maxDepth && isPlainObject(value))
-      out[key] = walk(value, ctx, depth + 1);
-    else out[key] = value;
+    out[key] = walkValue(key, value, ctx, depth);
   }
   return out;
 }

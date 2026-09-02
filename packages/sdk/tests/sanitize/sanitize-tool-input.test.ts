@@ -243,3 +243,48 @@ describe("sanitizeToolInput — review-hardening (Finding 1 + coverage gaps)", (
     expect(r.changed).toBe(true);
   });
 });
+
+describe("sanitizeToolInput — arrays", () => {
+  // The @public docblock on SanitizeOptions.deep said "Recurse into nested objects/arrays" and arrays
+  // were never descended, by ANY rung — including trim, which is on by default. A model that emitted
+  // `{ tags: ["  a  "] }` got it back untouched while `{ tag: "  a  " }` was trimmed, and nothing in
+  // the type or the docs distinguished the two.
+
+  it("trims string elements of a top-level array, with trim on by default", () => {
+    const result = sanitizeToolInput({ tags: ["  a  ", "b\n"] });
+    expect(result.value).toEqual({ tags: ["a", "b"] });
+    expect(result.changed).toBe(true);
+  });
+
+  it("leaves non-string elements alone", () => {
+    const result = sanitizeToolInput({ mixed: [1, true, null, "  x  "] });
+    expect(result.value).toEqual({ mixed: [1, true, null, "x"] });
+  });
+
+  it("descends into objects inside arrays only under deep, like objects elsewhere", () => {
+    const input = { items: [{ name: "  padded  " }] };
+    expect(
+      sanitizeToolInput(input).value,
+      "shallow: the object inside the array is untouched",
+    ).toEqual({
+      items: [{ name: "  padded  " }],
+    });
+    expect(sanitizeToolInput(input, { deep: true }).value).toEqual({ items: [{ name: "padded" }] });
+  });
+
+  it("respects maxDepth through arrays, so a deep structure cannot recurse without bound", () => {
+    const input = { a: [{ b: [{ c: { d: "  deep  " } }] }] };
+    // Each array hop and each object hop costs a level, so depth 2 stops before `d`.
+    expect(sanitizeToolInput(input, { deep: true, maxDepth: 2 }).value).toEqual(input);
+    expect(sanitizeToolInput(input, { deep: true, maxDepth: 8 }).value).toEqual({
+      a: [{ b: [{ c: { d: "deep" } }] }],
+    });
+  });
+
+  it("does not turn an array into an object", () => {
+    // The obvious way to implement this — reuse the object walker — silently converts `[…]` into
+    // `{ "0": … }`, which a tool handler doing `Array.isArray` would then reject.
+    const result = sanitizeToolInput({ tags: ["  a  "] });
+    expect(Array.isArray((result.value as { tags: unknown }).tags)).toBe(true);
+  });
+});

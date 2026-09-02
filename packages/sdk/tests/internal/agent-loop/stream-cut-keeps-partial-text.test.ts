@@ -1,13 +1,14 @@
 import { expect, it } from "vitest";
 import type { LoopContext } from "../../../src/internal/agent-loop/loop-context-init.js";
 import { streamLlmTurn } from "../../../src/internal/agent-loop/loop-llm-stream.js";
-import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../../src/internal/agent-loop/types.js";
 import type {
   LlmClient,
   LlmEvent,
   LlmFinish,
   LlmRequest,
 } from "../../../src/internal/llm/types.js";
+import { makeLoopInputs } from "./_helpers/make-inputs.js";
 
 /*
  * #371 — a stream cut mid-flight discarded every token that had already arrived.
@@ -43,14 +44,13 @@ function llmThatFinishes(events: LlmEvent[]): LlmClient {
 }
 
 const makeInputs = (llm: LlmClient, signal?: AbortSignal): AgentLoopInputs =>
-  ({
+  makeLoopInputs({
     agentId: "agent-test",
     runId: "run-test",
     model: { id: "openai/gpt-4o-mini" },
-    userMessage: "hi",
     llm,
     ...(signal !== undefined ? { signal } : {}),
-  }) as unknown as AgentLoopInputs;
+  } as Partial<AgentLoopInputs>);
 
 const makeCtx = (): LoopContext =>
   ({

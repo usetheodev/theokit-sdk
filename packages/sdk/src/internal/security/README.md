@@ -8,7 +8,6 @@ Security primitives shared across the SDK: secret redaction at output boundaries
 |---|---|
 | `redact.ts` | `redactSecrets` — canonical credential masking with built-in pattern set + extensible `addPattern` API (ADRs D68-D73) |
 | `path-guard.ts` | `safePathJoin`, `sanitizeIdentifier`, `createExclusive`, `casUpdate` — path traversal + race protection (ADRs D79-D85) |
-| `secret-redactor.ts` | `SecretRedactor` interface — stable abstraction for redaction consumers (ADR D437, type-only) |
 | `test-reset.ts` | Test seam — resets internal redact state between tests (NOT public API) |
 | `index.ts` | Barrel — re-exports the public surface |
 
@@ -38,28 +37,23 @@ Per ADRs D68, D69, D70, D71, D72, D73, security primitives — particularly `red
 
 Splitting these concerns across a flexible abstraction would **regress 6 explicit ADRs** for a marginal coupling-metric improvement. The Zone of Pain measurement is acknowledged as a real metric, but the action it suggests (raise A) is rejected per the ADR record.
 
-## What we DID change (T9.1 of `arch-review-fixes-2026-06-06`)
+## What we DID change (T9.1 of `arch-review-fixes-2026-06-06`), and what was later removed
 
-Added `secret-redactor.ts` exposing a **types-only** `SecretRedactor` interface:
+T9.1 added `secret-redactor.ts`, a types-only `SecretRedactor` interface that `redactSecrets` was
+structurally compatible with. **It was removed on 2026-09-01, and the reason is the same one the
+section above gives for rejecting the abstraction in the first place.**
 
-```ts
-export interface SecretRedactor {
-  redact(value: unknown): string;
-}
-```
+It had zero implementers and zero consumers for its whole life. Nothing in `src/` referenced it, the
+barrel never exported it, and the only mentions anywhere were its own docstring and this README. Its
+stated purpose was to raise abstractness so the module would leave Martin's Zone of Pain — but an
+interface nobody holds does not change what any module depends on, so the metric it was added to move
+did not move either. What remained was a file to keep in sync with a function it did not constrain.
 
-The canonical `redactSecrets` function is **structurally compatible** with this interface (TypeScript structural typing — no class wrapper, no runtime cost). Consumers may hold a `SecretRedactor`-typed reference:
-
-```ts
-import { redactSecrets } from "./redact.js";
-import type { SecretRedactor } from "./secret-redactor.js";
-
-const redactor: SecretRedactor = { redact: redactSecrets };
-```
-
-**Effect on coupling metrics:** modules that previously imported `redactSecrets` directly now have the OPTION to depend on the `SecretRedactor` interface instead. This bumps abstractness marginally (A ≈ 0.000 → ~0.05 — minimal because TypeScript erases the interface at build time and the rest of the surface stays concrete). The change does NOT mandate switching imports; it adds an option.
-
-**Effect on the Zone of Pain finding:** the audit DB row `architectural_findings.id=16` should re-emit at a lower severity on the next audit run (`status='resolved-by-documentation'` per `rules/cycle-rule-schema.md`). The metric value itself (`D=0.923`) will stay near-identical because the implementation is unchanged.
+The paragraph above stands: the action the Zone of Pain measurement suggests (raise A) is rejected on
+the ADR record, and adding an unused interface is not a way to satisfy a metric without paying the
+design cost it is measuring. If a second redaction implementation ever appears — a no-op for a browser
+build, a stricter one for regulated deployments — the interface comes back then, driven by the second
+implementer rather than by the number.
 
 ## Auditor record
 
@@ -81,4 +75,4 @@ const redactor: SecretRedactor = { redact: redactSecrets };
 - D82 — `createExclusive` via `O_EXCL` with default mode `0o600`
 - D83 — `casUpdate` SQLite optimistic compare-and-swap helper
 - D85 — CI lint gate uses grep regex (not AST) — same pattern as `no-unredacted-sink`
-- **D437 (NEW, this plan)** — `SecretRedactor` interface + Zone of Pain documentation
+- **D437** — `SecretRedactor` interface (REMOVED 2026-09-01, zero implementers; see above) + Zone of Pain documentation, which stands

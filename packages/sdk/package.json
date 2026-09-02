@@ -362,16 +362,11 @@
   },
   "files": [
     "dist",
-    "bin",
     "docs",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
-  "bin": {
-    "theokit-migrate-config": "./bin/theokit-migrate-config.mjs",
-    "theokit-migrate-memory": "./bin/theokit-migrate-memory.mjs"
-  },
   "sideEffects": [
     "**/agent.ts",
     "**/agent.js",
@@ -447,6 +442,7 @@
   "devDependencies": {
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/sdk-trace-base": "^2.10.0",
+    "@theokit/sdk-budget": "workspace:*",
     "@types/better-sqlite3": "^7.6.13",
     "@types/proper-lockfile": "^4.1.4",
     "@types/ws": "^8.18.0",

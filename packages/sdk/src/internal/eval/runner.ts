@@ -224,16 +224,31 @@ function makeAgentForBatch(
  */
 type AgentSpec = SDKAgent | ((entry: DatasetEntry) => SDKAgent | Promise<SDKAgent>);
 
+/**
+ * Everything a run of the dataset holds fixed, whichever strategy executes it.
+ *
+ * The two strategies below took the SAME seven-item list with one substitution — `spec: AgentSpec`
+ * against `agentOptions: BatchOptions`, in the second position — which is precisely the axis
+ * `runEval` switches on. Six of seven parameters were loop-invariant state, and `runManualSlot`
+ * re-declared six of them again to vary one index.
+ */
+interface EvalRunContext {
+  readonly entries: ReadonlyArray<DatasetEntry>;
+  readonly scorers: ReadonlyArray<NormalizedScorer>;
+  readonly concurrency: number;
+  readonly signal: AbortSignal | undefined;
+  readonly onRow: (row: EvalRowResult, index: number) => void;
+  readonly sink: RowSink;
+}
+
 /** Run a single manual-path slot: skip if resumed, else execute + finalize + record. */
 async function runManualSlot(
-  idx: number,
-  entries: ReadonlyArray<DatasetEntry>,
+  ctx: EvalRunContext,
   spec: AgentSpec,
-  scorers: ReadonlyArray<NormalizedScorer>,
-  sink: RowSink,
+  idx: number,
   rows: EvalRowResult[],
-  onRow: (row: EvalRowResult, index: number) => void,
 ): Promise<void> {
+  const { entries, scorers, sink, onRow } = ctx;
   const entry = entries[idx];
   if (entry === undefined) return;
   if (sink.isResumed(entry, idx)) return; // M6-1: already persisted successfully
@@ -247,15 +262,8 @@ async function runManualSlot(
  * (which requires AgentOptions to create fresh agents). Run a hand-rolled
  * bounded loop instead.
  */
-async function runRowsManually(
-  entries: ReadonlyArray<DatasetEntry>,
-  spec: AgentSpec,
-  scorers: ReadonlyArray<NormalizedScorer>,
-  concurrency: number,
-  signal: AbortSignal | undefined,
-  onRow: (row: EvalRowResult, index: number) => void,
-  sink: RowSink,
-): Promise<EvalRowResult[]> {
+async function runRowsManually(ctx: EvalRunContext, spec: AgentSpec): Promise<EvalRowResult[]> {
+  const { entries, concurrency, signal } = ctx;
   const rows: EvalRowResult[] = new Array(entries.length);
   const state = { cursor: 0 };
 
@@ -264,7 +272,7 @@ async function runRowsManually(
       if (signal?.aborted === true) return;
       const idx = state.cursor;
       state.cursor += 1;
-      await runManualSlot(idx, entries, spec, scorers, sink, rows, onRow);
+      await runManualSlot(ctx, spec, idx, rows);
     }
   };
 
@@ -338,14 +346,10 @@ async function scoreBatchOutput(
 }
 
 async function runRowsViaBatch(
-  entries: ReadonlyArray<DatasetEntry>,
+  ctx: EvalRunContext,
   agentOptions: BatchOptions,
-  scorers: ReadonlyArray<NormalizedScorer>,
-  concurrency: number,
-  signal: AbortSignal | undefined,
-  onRow: (row: EvalRowResult, index: number) => void,
-  sink: RowSink,
 ): Promise<EvalRowResult[]> {
+  const { entries, scorers, concurrency, signal, onRow, sink } = ctx;
   // M6-1: resumed rows are filtered out BEFORE the batch so they cost nothing.
   const pending: Array<{ entry: DatasetEntry; index: number }> = [];
   for (let i = 0; i < entries.length; i += 1) {
@@ -408,21 +412,16 @@ export async function runEval(
     // M6-1: durable per-row persist + resume + classify (no-op when unset).
     const sink = makeRowSink(runOpts?.persist, runOpts?.classify);
 
-    let rows: EvalRowResult[];
-    if (isAgentInstance(options.agent) || typeof options.agent === "function") {
-      rows = await runRowsManually(
-        indexed,
-        options.agent as SDKAgent | ((entry: DatasetEntry) => SDKAgent | Promise<SDKAgent>),
-        scorers,
-        concurrency,
-        signal,
-        onRow,
-        sink,
-      );
-    } else {
-      const batchOpts = makeAgentForBatch(options.agent, indexed);
-      rows = await runRowsViaBatch(indexed, batchOpts, scorers, concurrency, signal, onRow, sink);
-    }
+    const runCtx: EvalRunContext = { entries: indexed, scorers, concurrency, signal, onRow, sink };
+    // The ONE axis the two strategies differ on: an Agent instance or factory cannot go through
+    // `Agent.batch` (which needs `AgentOptions` to create fresh agents), so it takes the hand-rolled
+    // bounded loop. Everything else about the run is the same context.
+    const rows = await (isAgentInstance(options.agent) || typeof options.agent === "function"
+      ? runRowsManually(
+          runCtx,
+          options.agent as SDKAgent | ((entry: DatasetEntry) => SDKAgent | Promise<SDKAgent>),
+        )
+      : runRowsViaBatch(runCtx, makeAgentForBatch(options.agent, indexed)));
 
     // SE41: collapse per-trial rows back to one row per dataset entry.
     const finalRows = trials > 1 ? collapseTrials(rows, trials) : rows;

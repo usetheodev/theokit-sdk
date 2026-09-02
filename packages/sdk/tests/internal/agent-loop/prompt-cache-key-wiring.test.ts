@@ -17,7 +17,7 @@
 import { describe, expect, it } from "vitest";
 
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
-import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../../src/internal/agent-loop/types.js";
 import { derivePromptCacheKey } from "../../../src/internal/llm/prompt-cache-key.js";
 import type {
   LlmClient,
@@ -25,7 +25,7 @@ import type {
   LlmFinish,
   LlmRequest,
 } from "../../../src/internal/llm/types.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
+import { makeLoopInputs } from "./_helpers/make-inputs.js";
 
 /**
  * A stub whose round 1 calls a tool it knows nothing about and round 2 answers with text — two
@@ -59,20 +59,15 @@ function twoRoundRecordingClient(seen: Array<string | undefined>): LlmClient {
  */
 let runCounter = 0;
 
-function makeInputs(agentId: string, llm: LlmClient): AgentLoopInputs {
+const makeInputs = (agentId: string, llm: LlmClient): AgentLoopInputs => {
   runCounter += 1;
-  return {
+  return makeLoopInputs({
     agentId,
     runId: `run-${String(runCounter)}`,
-    userMessage: "hi",
     model: { id: "stub-model" },
     llm,
-    mcp: new Map(),
-    hooks: new HooksExecutor(process.cwd()),
-    shellCwd: process.cwd(),
-    shellSandbox: false,
-  };
-}
+  });
+};
 
 describe("usetheokit/theokit-sdk#383 — prompt cache key is session-scoped", () => {
   it("test_both_rounds_of_one_turn_carry_the_same_key", async () => {

@@ -4,6 +4,12 @@ import { Cron } from "../../../src/cron.js";
 import { UnknownAgentError } from "../../../src/errors.js";
 import { type CronFireHandler, setCronFireHandler } from "../../../src/internal/cron/scheduler.js";
 import { clearJobs } from "../../../src/internal/cron/store.js";
+import { useTempCwd } from "../../helpers/temp-workspace.js";
+
+// This file passed `cwd: process.cwd()`, which during a test run is the package itself, so
+// every agent it created persisted a real session into packages/sdk/.theokit/. The helper
+// makes process.cwd() report a throwaway directory for this file only.
+useTempCwd();
 
 /**
  * Behaviour gate for the real cron scheduler. Verifies wiring without

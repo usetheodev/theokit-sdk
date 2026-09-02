@@ -7,8 +7,9 @@
  */
 
 import { TaskNotFoundError } from "../../errors.js";
-import { isValidTaskId, type TaskEvent } from "../../types/task.js";
+import type { TaskEvent } from "../../types/task.js";
 import type { RingBuffer } from "./ring-buffer.js";
+import { isValidTaskId } from "./task-id.js";
 
 export interface SubscribeDeps {
   getBuffer(id: string): RingBuffer<TaskEvent> | undefined;

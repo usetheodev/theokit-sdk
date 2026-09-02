@@ -17,14 +17,15 @@
  * `.d.ts`, leaving the types it binds unresolvable for any consumer running type-aware lint
  * (usetheodev/theokit-sdk#283 records the same trap on a declaration).
  */
+
+import { authFilePath, readAuthFile } from "./credential-store.js";
+import { ensureFreshCredential } from "./oauth-engine.js";
 import type {
   CredentialStoreConfig,
   HttpDeps,
   OAuthProviderConfig,
   ResolvedCredential,
-} from "./auth-types.js";
-import { authFilePath, readAuthFile } from "./credential-store.js";
-import { ensureFreshCredential } from "./oauth-engine.js";
+} from "./types.js";
 
 /**
  * Input to `resolveCredential`: which provider, which store, and what to inject.

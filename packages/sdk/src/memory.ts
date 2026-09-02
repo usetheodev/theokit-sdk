@@ -17,6 +17,12 @@ export interface MemoryIndexHandle {
     filesUpdated: number;
     chunksWritten: number;
     chunksEmbedded: number;
+    /**
+     * Whether this backend actually walked a corpus. `false` on the Lance backend, which is a
+     * vector store fed by explicit writes and has no corpus — its zero counts mean "not applicable",
+     * not "nothing to reindex". Read this before treating the counts as a measurement.
+     */
+    supported: boolean;
   }>;
   search(
     query: string,
@@ -43,6 +49,12 @@ export interface MemoryIndexHandle {
     filesIndexed: number;
     chunksIndexed: number;
     lastSyncMs?: number;
+    /**
+     * Whether `filesIndexed` / `chunksIndexed` were measured. `false` on the Lance backend, whose
+     * store is async while `status()` is not — the zeros there are placeholders, so
+     * `chunksIndexed > 0` is not a valid test for "is the index populated".
+     */
+    countsExact: boolean;
   };
   close(): Promise<void> | void;
 }

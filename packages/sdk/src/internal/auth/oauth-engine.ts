@@ -13,15 +13,14 @@
  * @internal
  */
 import { AuthCallbackError } from "../../server/auth/errors.js";
-
+import { authFilePath, readStoredOAuth, writeCredential } from "./credential-store.js";
 import type {
   CredentialStoreConfig,
   HttpDeps,
   OAuthProviderConfig,
   OAuthTokens,
   ResolvedCredential,
-} from "./auth-types.js";
-import { authFilePath, readStoredOAuth, writeCredential } from "./credential-store.js";
+} from "./types.js";
 
 /** Refresh a token this many ms BEFORE it actually expires (avoid a last-second, mid-request expiry). */
 const REFRESH_SKEW_MS = 60_000;

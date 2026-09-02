@@ -27,6 +27,8 @@
  * @internal
  */
 
+import { TheokitAgentError } from "../../../errors.js";
+
 export interface HitlConfig {
   tools: string[];
   approve: (toolName: string, input: Record<string, unknown>) => Promise<boolean>;
@@ -35,11 +37,16 @@ export interface HitlConfig {
 
 const DEFAULT_TIMEOUT_MS = 300_000; // 5 minutes
 
-export class HitlTimeoutError extends Error {
-  readonly code = "hitl_timeout" as const;
+export class HitlTimeoutError extends TheokitAgentError {
+  override readonly name = "HitlTimeoutError";
+  override readonly code = "hitl_timeout" as const;
   constructor(toolName: string, timeoutMs: number) {
-    super(`HITL approval timed out for tool "${toolName}" after ${timeoutMs}ms`);
-    this.name = "HitlTimeoutError";
+    // Not retryable automatically: a human did not answer in time, and re-asking without a human
+    // deciding to is how an approval gate becomes a formality.
+    super(`HITL approval timed out for tool "${toolName}" after ${timeoutMs}ms`, {
+      code: "hitl_timeout",
+      isRetryable: false,
+    });
   }
 }
 

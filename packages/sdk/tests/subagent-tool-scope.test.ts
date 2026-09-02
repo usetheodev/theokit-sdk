@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { checkToolWhitelist } from "../src/internal/runtime/concurrency/async-local-storage.js";
+import { checkToolWhitelist } from "../src/internal/concurrency/async-local-storage.js";
 import {
   subagentToolWhitelist,
   withSubagentToolScope,

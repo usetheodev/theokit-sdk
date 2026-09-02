@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/workflow/` (15 of 19 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Public type contract for `Workflow.create / .run / .resume` (Adoption
  * Roadmap #5; ADRs D230-D248).
  *
@@ -48,7 +51,16 @@ export interface FnStep {
   readonly inputSchema?: ZodType;
   readonly outputSchema?: ZodType;
   readonly retry?: RetryPolicy;
-  /** D238 — slot reserved; runtime throws if engine not yet implemented. */
+  /**
+   * @deprecated NOT IMPLEMENTED. Setting this does not enable saga rollback — it arms
+   * `WorkflowCompensateNotImplementedError`, so the step FAILS at run time and the message tells you
+   * to remove it. A field whose only effect is to make the step fail is worse than an absent field,
+   * because the type invites it and the cost is discovered in production.
+   *
+   * Kept rather than removed because `FnStep` is published and dropping a member is a major-version
+   * decision. The deprecation is the part that reaches a caller at the point of use: an editor
+   * strikes it through, which the D238 comment that stood here ("slot reserved") did not.
+   */
   readonly compensate?: (input: unknown, output: unknown, error: Error) => Promise<void> | void;
 }
 
@@ -436,199 +448,4 @@ export interface WorkflowResumeOptions<TI = unknown> {
   readonly workflow: { run: (input: TI, opts?: WorkflowRunOptions) => Promise<WorkflowRun> };
   readonly payload?: unknown;
   readonly signal?: AbortSignal;
-}
-
-/* ─── Error classes ─── */
-
-/**
- * Thrown by `.commit()` when one step id appears twice anywhere in the workflow — including inside a
- * parallel branch, a branch predicate, the fallback, and the inner step of a `foreach` or `dowhile`.
- *
- * Ids address steps in snapshots and on resume, so this is refused at build time rather than
- * discovered mid-run. Workflows nested with `workflowStep()` are exempt: the child runs in its own
- * executor with its own id-space, so its ids cannot collide with the parent's.
- */
-export class WorkflowDuplicateStepIdError extends Error {
-  override readonly name = "WorkflowDuplicateStepIdError";
-  constructor(public readonly stepId: string) {
-    super(`Duplicate step id "${stepId}" in workflow.`);
-  }
-}
-
-/**
- * SE27 — the whole-workflow `inputSchema` rejected `run(input)` (before step 1).
- * `detail` is a pre-formatted issues summary (a string, NOT Zod's `ZodIssue[]`).
- */
-export class WorkflowInputError extends Error {
-  override readonly name = "WorkflowInputError";
-  constructor(
-    public readonly workflowName: string,
-    public readonly detail: string,
-  ) {
-    super(`Workflow "${workflowName}" input failed schema validation: ${detail}`);
-  }
-}
-
-/**
- * SE27 — the whole-workflow `outputSchema` rejected the final output (on `completed`).
- * `detail` is a pre-formatted issues summary (a string, NOT Zod's `ZodIssue[]`).
- */
-export class WorkflowOutputError extends Error {
-  override readonly name = "WorkflowOutputError";
-  constructor(
-    public readonly workflowName: string,
-    public readonly detail: string,
-  ) {
-    super(`Workflow "${workflowName}" output failed schema validation: ${detail}`);
-  }
-}
-
-/**
- * SE29 — `WorkflowOptions.stateSchema` rejected an `initialState` or a
- * `setState(next)` call. `detail` is a pre-formatted issues summary.
- */
-export class WorkflowStateError extends Error {
-  override readonly name = "WorkflowStateError";
-  constructor(
-    public readonly workflowName: string,
-    public readonly detail: string,
-  ) {
-    super(`Workflow "${workflowName}" state failed schema validation: ${detail}`);
-  }
-}
-
-/**
- * SE30 — a nested workflow (via `workflowStep`) did not `complete`. A nested
- * `suspended` is NOT resumable in v1 (resume continues AFTER the step, so the
- * child would be skipped) — restructure with a top-level suspend. A nested
- * `failed`/`cancelled` fails the parent step with the child's error attached.
- */
-export class WorkflowNestedError extends Error {
-  override readonly name = "WorkflowNestedError";
-  constructor(
-    public readonly stepId: string,
-    public readonly childName: string,
-    public readonly childStatus: Exclude<WorkflowRun["status"], "completed">,
-    public readonly childError?: { name: string; message: string },
-  ) {
-    super(
-      `Nested workflow "${childName}" (step "${stepId}") ended with status "${childStatus}"${
-        childStatus === "suspended"
-          ? " — nested suspend/resume is not supported in v1 (use a top-level suspend)"
-          : ""
-      }${childError ? `: ${childError.name}: ${childError.message}` : ""}`,
-      // Reconstruct a synthetic Error from the serialized child-error shape so
-      // debuggers surface the nested cause chain — the original Error instance is
-      // lost at the WorkflowRun serialization boundary, so this is the best
-      // achievable without changing the run protocol.
-      childError
-        ? { cause: Object.assign(new Error(childError.message), { name: childError.name }) }
-        : undefined,
-    );
-  }
-}
-
-/**
- * Thrown out of `Workflow.run()` — one of the few workflow failures that rejects instead of arriving
- * as `run.status === "failed"` — when the committed workflow already has a run in flight under the
- * same run id.
- *
- * The lock key pairs the id minted at `.commit()` with the run id, not `WorkflowOptions.name`, so
- * two workflows sharing a name are independent and concurrent runs with distinct minted ids never
- * collide. In practice this only fires when a caller pins `WorkflowRunOptions.runId`, or resumes a
- * run id that is still executing. The registry is an in-process map: a crash releases every lock, and
- * it says nothing about runs in other processes.
- */
-export class WorkflowAlreadyRunningError extends Error {
-  override readonly name = "WorkflowAlreadyRunningError";
-  constructor(
-    public readonly workflowName: string,
-    public readonly runId: string,
-  ) {
-    super(`Workflow "${workflowName}" run "${runId}" already in-flight.`);
-  }
-}
-
-/**
- * Thrown by `Workflow.resume()` when no snapshot exists for the given run id.
- *
- * The message suggests configuring persistence, which is the common cause but not the only one. The
- * run may never have suspended; it may have suspended under the default memory backend in a process
- * that has since exited; or the snapshot may already have been consumed, since resume deletes it
- * before re-entering the executor and a second resume of the same run id lands here.
- */
-export class WorkflowSnapshotNotFoundError extends Error {
-  override readonly name = "WorkflowSnapshotNotFoundError";
-  constructor(public readonly runId: string) {
-    super(`No snapshot found for runId "${runId}". Configure persistence to enable resume.`);
-  }
-}
-
-/**
- * Raised when a `dowhile` step's condition kept returning true past `maxIterations` (default 100).
- *
- * It does not escape `run()`: the step fails, the run ends `status: "failed"`, and the error reaches
- * the caller flattened as `run.error` with `name: "WorkflowMaxIterationsExceededError"` — match on
- * the name, the instance does not survive. The guard is evaluated before each iteration, so the inner
- * step runs at most `maxIterations` times; raising the ceiling is a `maxIterations` on the step, and
- * there is no global default to change.
- */
-export class WorkflowMaxIterationsExceededError extends Error {
-  override readonly name = "WorkflowMaxIterationsExceededError";
-  constructor(
-    public readonly stepId: string,
-    public readonly maxIterations: number,
-  ) {
-    super(`Step "${stepId}" exceeded max iterations (${maxIterations}).`);
-  }
-}
-
-/** EC-4 absorbed — JSON.stringify failed on snapshot payload. */
-export class WorkflowNotSerializableError extends Error {
-  override readonly name = "WorkflowNotSerializableError";
-  constructor(
-    public readonly stepId: string,
-    public readonly underlying: Error,
-  ) {
-    super(
-      `Workflow snapshot at step "${stepId}" failed to serialize as JSON: ${underlying.message}. ` +
-        `Persisted snapshots support only JSON-serializable values (no BigInt, no circular refs, no class instances with cycles).`,
-    );
-  }
-}
-
-/** EC-8 absorbed — `currentStepId` from snapshot not found in resumed workflow. */
-export class WorkflowResumeStepNotFoundError extends Error {
-  override readonly name = "WorkflowResumeStepNotFoundError";
-  constructor(
-    public readonly stepId: string,
-    public readonly workflowName: string,
-  ) {
-    super(
-      `Cannot resume: step "${stepId}" not found in workflow "${workflowName}". ` +
-        `The Workflow definition diverged from the snapshot.`,
-    );
-  }
-}
-
-/** Aggregate failure from parallel branches. */
-export class WorkflowParallelError extends AggregateError {
-  override readonly name = "WorkflowParallelError";
-  constructor(
-    errors: ReadonlyArray<Error>,
-    public readonly stepId: string,
-  ) {
-    super(errors, `${errors.length} branch(es) failed in parallel step "${stepId}".`);
-  }
-}
-
-/** D238 — saga engine not yet implemented. */
-export class WorkflowCompensateNotImplementedError extends Error {
-  override readonly name = "WorkflowCompensateNotImplementedError";
-  constructor(public readonly stepId: string) {
-    super(
-      `Step "${stepId}" defines compensate, but saga engine is deferred to v1.2. ` +
-        `Remove compensate or implement rollback manually.`,
-    );
-  }
 }

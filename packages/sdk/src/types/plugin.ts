@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/plugins/` (3 of 3 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Plugin contract types (T1.1, ADRs D97-D101).
  *
  * Discriminated union by `kind`:
@@ -21,7 +24,7 @@
 // Import `CustomTool` from the leaf `agent-prims.ts` where it is DEFINED (not via
 // the `agent.ts` re-export) so this module does not close a type-only import
 // cycle `agent → plugin → agent`.
-import type { CustomTool } from "./agent-prims.js";
+import type { CustomTool, PermissionMode } from "./agent-prims.js";
 import type { MemoryAdapter } from "./memory-adapter.js";
 import type { ProviderProfile } from "./provider-profile.js";
 
@@ -85,7 +88,7 @@ export interface PreToolCallContext {
    * gate per-run rather than at construction time. Absent ⇒ the plugin's own
    * default applies. Ignored by non-permission plugins.
    */
-  permissionMode?: import("../permission-engine.js").PermissionMode;
+  permissionMode?: PermissionMode;
 }
 
 /**
@@ -243,6 +246,13 @@ export interface CommandOptions {
 }
 
 /**
+ * Detaches a hook handler attached with {@link PluginContext.on}. Idempotent.
+ *
+ * @public
+ */
+export type PluginHookDisposer = () => void;
+
+/**
  * The registration surface passed to a `"general"` plugin's `register(ctx)`, and the plugin's only
  * route into the agent. Outside production it is a sealed Proxy that throws when a plugin assigns a
  * property of its own, so smuggling state onto the context fails loudly in development.
@@ -256,14 +266,33 @@ export interface CommandOptions {
  * has no effect on a programmatic run. And `on` drops a handler that is not a function, with a
  * warning on stderr rather than an error at registration: the gentler failure, and the easier one to
  * miss.
+ *
+ * `on` returns a {@link PluginHookDisposer}: calling it detaches that one handler, and calling it
+ * again is a no-op. A plugin that registers a hook per run and never detaches is the leak this
+ * exists to make fixable.
+ *
+ * @public
  */
 export interface PluginContext {
   /** Register a custom tool. Equivalent to passing in `AgentOptions.tools`. */
   registerTool(tool: CustomTool): void;
   /** Register a slash-command-style handler. Consumed by CLI/bot wrappers; NOT used by the agent loop. */
   registerCommand(name: string, handler: CommandHandler, opts?: CommandOptions): void;
-  /** Attach a hook handler. `pre_tool_call` supports veto via `PreToolCallDecision`. */
-  on(hook: HookName, handler: HookHandler): void;
+  /**
+   * Attach a hook handler. `pre_tool_call` supports veto via `PreToolCallDecision`.
+   *
+   * Returns a disposer that detaches THIS handler. Calling it twice is a no-op, and a handler the
+   * SDK refused (a non-function, which is warned and ignored) returns a disposer that does nothing —
+   * so the caller never has to branch on whether the registration took.
+   *
+   * It used to return `void`, which made this a one-way door: a plugin registered through
+   * `initialize()` had no removal path and its handlers ran for the life of the process. The one
+   * documented dynamic case — the ACP permission plugin, re-installed on every prompt — worked only
+   * because `#byName` keys the replacement, so re-registering the WHOLE plugin was the only way to
+   * detach one hook. Two observers in this package already return their own disposer
+   * (`FixtureRunBase.onDidChangeStatus`) or offer an explicit removal (`MessageBus.unregister`).
+   */
+  on(hook: HookName, handler: HookHandler): PluginHookDisposer;
   /** Inject a user/system message into the next agent turn. v1 supports only `on_session_start` context. */
   injectMessage(content: string, role?: "user" | "system"): void;
 }

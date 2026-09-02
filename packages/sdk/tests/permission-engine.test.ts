@@ -42,3 +42,51 @@ describe("PermissionEngine", () => {
     expect(engine.evaluate("write_file")).toBe("ask");
   });
 });
+
+describe("PermissionEngine — a rule about an argument the call did not supply (#367)", () => {
+  // The guard these three cases protect is one line in argMatches, and NOTHING covered it: deleting
+  // `if (value === undefined) return false;` left the whole suite green. The public docblock on
+  // PermissionRule described the pre-fix behaviour for months after the fix, telling consumers to
+  // guard every predicate by hand. Correcting the docblock without adding these would swap one
+  // unverified claim for another.
+
+  it("an allow rule whose predicate would accept undefined does NOT authorize an argument-less call", () => {
+    // The unsafe direction. `(v) => v !== "prod"` is written to NARROW, and returns true for
+    // undefined — so invoking it on a missing argument turned a narrowing rule into a widening one.
+    const engine = new PermissionEngine(
+      [{ tool: "shell", args: { command: (v: unknown) => v !== "prod" }, action: "allow" }],
+      { defaultAction: "ask" },
+    );
+    expect(engine.evaluate("shell", {})).toBe("ask");
+    expect(engine.evaluate("shell", { command: "ls" })).toBe("allow");
+  });
+
+  it("a deny rule whose predicate would throw on undefined does not throw out of the gate", () => {
+    // The other direction, and worse: an unhandled TypeError on the path that decides authorization
+    // is not a denial — it is a crash where a verdict was expected.
+    const engine = new PermissionEngine(
+      [
+        {
+          tool: "shell",
+          args: { command: (v: unknown) => (v as string).includes("rm") },
+          action: "deny",
+        },
+      ],
+      { defaultAction: "allow" },
+    );
+    expect(() => engine.evaluate("shell", {})).not.toThrow();
+    expect(engine.evaluate("shell", {})).toBe("allow");
+    expect(engine.evaluate("shell", { command: "rm -rf /" })).toBe("deny");
+  });
+
+  it("holds for string and RegExp matchers too, so the rule is uniform", () => {
+    const engine = new PermissionEngine(
+      [
+        { tool: "shell", args: { command: "ls" }, action: "allow" },
+        { tool: "shell", args: { command: /^rm/ }, action: "deny" },
+      ],
+      { defaultAction: "ask" },
+    );
+    expect(engine.evaluate("shell", {})).toBe("ask");
+  });
+});

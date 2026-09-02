@@ -8,6 +8,12 @@ import { Agent } from "../../../src/index.js";
 import * as guards from "../../../src/internal/plugins/plugin-guards.js";
 import { extractCodePlugins, isCodePlugin } from "../../../src/internal/plugins/plugin-guards.js";
 import { Plugin } from "../../../src/internal/plugins/types.js";
+import { useTempCwd } from "../../helpers/temp-workspace.js";
+
+// Agent.create defaults its workspace to process.cwd(), which during a test run is the
+// package itself — this file created agents without saying where, and the state landed in
+// packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 const FIXTURE_KEY = "theo_test_fixture_plugin_wiring";
 

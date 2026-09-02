@@ -106,8 +106,8 @@ export type { ToolResultGuardOptions } from "./internal/agent-loop/tool-result-g
 // BudgetTracker interface (SDK 2.0 Phase 2 / T2.1 foundation — ADR D1).
 // Kernel-facing contract for budget/usage tracking. Default impl lives in
 // internal/budget/ today; will move to @theokit/sdk-budget in Phase 2.
-// Consumers can supply a custom impl via `Agent.create({ budgetTracker })`
-// (wiring lands in subsequent iteration).
+// Consumers can supply a custom impl via `Agent.create({ budgetTracker })`;
+// the loop gates and tracks against it (internal/agent-loop/loop.ts:78, :110, :390).
 export type {
   BudgetCheck,
   BudgetTotal,
@@ -131,6 +131,8 @@ export {
   type DiagnosticsSink,
   setDiagnosticsSink,
 } from "./internal/diagnostics.js";
+// SE2 — typed runtime event stream (opt-in via SendOptions.onRunEvent).
+export { emitRunEvent } from "./internal/emit-run-event.js";
 export { JudgeCredentialError } from "./internal/judge/judge-call.js";
 // Handoffs — EXTRACTED to `@theokit/sdk-handoff` (SDK 2.0 split, Phase 4 / T4.1).
 // Consumers: `import { Handoff, handoffTo, ... } from "@theokit/sdk-handoff"`.
@@ -158,6 +160,7 @@ export {
   type MemoryProviderFactory,
   Plugin,
   type PluginContext,
+  type PluginHookDisposer,
   type PostAssistantReplyContext,
   type PostToolCallContext,
   type PreToolCallContext,
@@ -182,20 +185,22 @@ export type {
 // MemoryProvider port (SDK 2.0 Phase 1 / T1.1 foundation — Hexagonal
 // Architecture). Kernel-facing contract for the memory subsystem.
 // Default no-op impl ships with sdk; rich impl will ship in
-// @theokit/sdk-memory. Consumers opt-in via Agent.create({ memoryProvider })
-// (wiring lands in subsequent iteration). Mirrors BudgetTracker pattern.
+// @theokit/sdk-memory. Consumers opt-in via Agent.create({ memoryProvider });
+// the loop drives its full lifecycle (internal/agent-loop/loop-context-init.ts:95,
+// :129, :166 and loop.ts:176, :204). Mirrors BudgetTracker pattern.
 export type {
   ActiveMemoryPassArgs,
   ActiveMemoryPassResult,
   MemoryProvider,
+  MemoryProviderAgentRef,
   MemoryProviderHandle,
   MemoryProviderInitOptions,
   RecordSessionSummaryArgs,
-} from "./internal/runtime/memory/memory-provider.js";
+} from "./internal/runtime/memory-glue/memory-provider.js";
 // Reference impl — pure no-op, no recall, no tools. Consumers can use
 // as fallback before @theokit/sdk-memory ships or as a worked example
 // when authoring custom providers.
-export { NoopMemoryProvider } from "./internal/runtime/memory/memory-provider-noop.js";
+export { NoopMemoryProvider } from "./internal/runtime/memory-glue/memory-provider-noop.js";
 // Live-agent registry (Production-Readiness #2; ADRs D307-D310) — type exports only,
 // the runtime singleton is reached via `Agent.registry`.
 export type {
@@ -203,6 +208,13 @@ export type {
   EvictReason,
   LiveAgentRegistry,
 } from "./internal/runtime/registry/live-agent-registry.js";
+// The bundled root `.d.ts` has always declared these two as VALUES, because the
+// DTS rollup hoists them out of `types/task.ts` along with the task types. The
+// runtime bundle emitted neither, so `import { isValidTaskId } from "@theokit/sdk"`
+// typechecked and was `undefined` at the call site (#279). Exported here so the
+// implementation keeps the promise the types were already making — validating a
+// task id before submitting one is a reasonable thing for a consumer to want.
+export { isValidTaskId, TASK_RESERVED_PREFIXES } from "./internal/task/task-id.js";
 // Telemetry contract (#295). `internal/telemetry/` was not public, so
 // @theokit/sdk-memory inlined structural mirrors of these two types with a note
 // that they "MUST be replaced with the canonical imports" once sdk exposed them.
@@ -329,6 +341,7 @@ export {
 // theokit#123 — the shape `Agent.describe()` returns, so a reflection endpoint can name it.
 export type {
   AgentDescription,
+  AgentOperation,
   AgentSubagentDescription,
   AgentToolDescription,
   CustomTool,
@@ -363,32 +376,24 @@ export type {
 // reason as `CustomTool` above).
 // SE34 — per-send completion check (`isTaskComplete`) public types.
 export type { CompletionCheck, CompletionCheckResult, MessageOrigin } from "./types/run.js";
-// SE2 — typed runtime event stream (opt-in via SendOptions.onRunEvent).
-export {
-  emitRunEvent,
-  type RunCompactBoundaryEvent,
-  type RunCompletionCheckEvent,
-  type RunEvent,
-  type RunEventSink,
-  type RunPermissionDeniedEvent,
-  type RunRateLimitEvent,
-  type RunTaskCompletedEvent,
-  type RunTaskStartedEvent,
-  type RunTaskUpdatedEvent,
-  type RunToolProgressEvent,
-  type RunTripwireEvent,
+export type {
+  RunCompactBoundaryEvent,
+  RunCompletionCheckEvent,
+  RunEvent,
+  RunEventSink,
+  RunMemoryDegradedEvent,
+  RunPermissionDeniedEvent,
+  RunRateLimitEvent,
+  RunTaskCompletedEvent,
+  RunTaskStartedEvent,
+  RunTaskUpdatedEvent,
+  RunToolProgressEvent,
+  RunTripwireEvent,
 } from "./types/run-events.js";
 // theokit#146 — the shape `Agent.transcript()` returns. A host rendering tool cards from a resumed
 // session needs to name these types; without them the method's return would only be reachable
 // through an inline `import(...)` in the emitted .d.ts.
 export type { SessionMessage, SessionMessagePart } from "./types/session-message.js";
-// The bundled root `.d.ts` has always declared these two as VALUES, because the
-// DTS rollup hoists them out of `types/task.ts` along with the task types. The
-// runtime bundle emitted neither, so `import { isValidTaskId } from "@theokit/sdk"`
-// typechecked and was `undefined` at the call site (#279). Exported here so the
-// implementation keeps the promise the types were already making — validating a
-// task id before submitting one is a reasonable thing for a consumer to want.
-export { isValidTaskId, TASK_RESERVED_PREFIXES } from "./types/task.js";
 export {
   recordWiring,
   UngatedCapabilityError,

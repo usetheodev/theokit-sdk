@@ -2,12 +2,12 @@ import { NetworkError } from "../../errors.js";
 import type { AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { SDKAssistantMessage, SDKMessage, SDKStatusMessage } from "../../types/messages.js";
 import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
+import { getConfiguredBaseUrl } from "../base-url.js";
 import { resolveApiKey } from "../env.js";
 import { parseSseStream } from "../llm/sse.js";
-import { getConfiguredBaseUrl } from "../runtime/fixtures/fixture-mode.js";
 import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-run-base.js";
-import type { FixtureScript } from "../runtime/fixtures/fixture-types.js";
-import type { CloudAgentPayload } from "./cloud-payload-types.js";
+import type { FixtureScript } from "../runtime/fixtures/types.js";
+import type { CloudAgentPayload } from "./types.js";
 
 /**
  * Real cloud Run. When `THEOKIT_API_BASE_URL` is set + the API key is not

@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/budget/tracker/` (1 of 1 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * `BudgetTracker` — runtime contract for budget/usage tracking in the
  * agent loop (SDK 2.0 Phase 2 / T2.1 — ADR D1 interface inversion).
  *

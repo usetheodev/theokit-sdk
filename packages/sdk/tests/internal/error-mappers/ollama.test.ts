@@ -15,6 +15,7 @@ import {
   mapOllamaHttpError,
   mapOllamaTransportError,
 } from "../../../src/internal/error-mappers/ollama.js";
+import { expectPublicError } from "../../helpers/assert-public-error.js";
 
 function headers(record: Record<string, string> = {}): Headers {
   return new Headers(record);
@@ -33,9 +34,11 @@ describe("mapOllamaTransportError — fetch-level failures (T1.1)", () => {
       endpoint: "/v1/chat/completions",
     });
 
-    expect(err).toBeInstanceOf(ConfigurationError);
-    expect(err?.code).toBe("ollama_unreachable");
-    expect(err?.message).toMatch(/ollama serve/i);
+    expectPublicError(err, {
+      ctor: ConfigurationError,
+      code: "ollama_unreachable",
+      message: /ollama serve/i,
+    });
   });
 
   it("ENOTFOUND (typo OLLAMA_HOST) → ConfigurationError ollama_unreachable", () => {
@@ -50,8 +53,10 @@ describe("mapOllamaTransportError — fetch-level failures (T1.1)", () => {
       endpoint: "/v1/chat/completions",
     });
 
-    expect(err).toBeInstanceOf(ConfigurationError);
-    expect(err?.code).toBe("ollama_unreachable");
+    expectPublicError(err, {
+      ctor: ConfigurationError,
+      code: "ollama_unreachable",
+    });
   });
 
   it("Other transport errors → undefined (fallthrough)", () => {
@@ -87,9 +92,11 @@ describe("mapOllamaHttpError — HTTP response failures (T1.1)", () => {
       endpoint: "/v1/chat/completions",
     });
 
-    expect(err).toBeInstanceOf(ConfigurationError);
-    expect(err?.code).toBe("ollama_model_not_pulled");
-    expect(err?.message).toMatch(/ollama pull/i);
+    expectPublicError(err, {
+      ctor: ConfigurationError,
+      code: "ollama_model_not_pulled",
+      message: /ollama pull/i,
+    });
   });
 
   it("503 + body 'model is loading' → ollama_model_loading (RETRYABLE)", () => {
@@ -101,9 +108,11 @@ describe("mapOllamaHttpError — HTTP response failures (T1.1)", () => {
       endpoint: "/v1/chat/completions",
     });
 
-    expect(err).toBeInstanceOf(NetworkError);
-    expect(err?.code).toBe("ollama_model_loading");
-    expect(err?.isRetryable).toBe(true);
+    expectPublicError(err, {
+      ctor: NetworkError,
+      code: "ollama_model_loading",
+      isRetryable: true,
+    });
   });
 
   it("Other Ollama HTTP errors → undefined (caller uses generic mapper)", () => {

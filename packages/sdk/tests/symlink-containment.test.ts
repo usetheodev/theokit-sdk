@@ -12,7 +12,7 @@
  * guards accept, while `realpathSync` of it lands outside. Both guards are reachable —
  * `safePathJoin` from the plugin manager and the MCP client, `isPathInside` from `memory_get`.
  *
- * The fix consumes `internal/runtime/context/path-containment.ts` rather than making a third copy.
+ * The fix consumes `internal/security/path-containment.ts` rather than making a third copy.
  * That is DRY about the RULE, which is the point: three copies at three strengths is how the first
  * two drifted apart.
  */

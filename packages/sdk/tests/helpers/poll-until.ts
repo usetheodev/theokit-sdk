@@ -42,3 +42,39 @@ export async function pollUntil(
     await new Promise((r) => setTimeout(r, intervalMs));
   }
 }
+
+/**
+ * Await a task's terminal event on the stream `Task.subscribe` already exposes.
+ *
+ * B-054 wrote this inside `tests/integration/task-user-side-wrap.test.ts`, replacing five
+ * `await new Promise(r => setTimeout(r, N))` sites whose N had been picked by guess (50, 100, 20, 30,
+ * 10). Its own docblock states the reason: "the runtime announces every transition — waiting on the
+ * clock instead was ignoring the signal being waited for". It lives here because that reason is not
+ * local to one file, and because leaving it file-local is what made the next twenty sleep-as-sync
+ * sites re-invent a number instead of adopting it.
+ *
+ * `Promise.race` supplies the deadline rather than the poll loop: an event stream that never yields
+ * cannot be polled, so the bound has to come from outside it.
+ *
+ * `subscribe` is passed in rather than imported so this module does not depend on the SDK's task
+ * surface — `tests/helpers/` is imported by tests of every subsystem.
+ */
+export async function awaitTerminalTaskEvent(
+  taskId: string,
+  subscribe: (id: string) => AsyncIterable<{ type: string }>,
+  deadlineMs = 3_000,
+): Promise<void> {
+  const timer = new Promise<never>((_, reject) => {
+    setTimeout(
+      () =>
+        reject(new Error(`timed out after ${deadlineMs}ms waiting for: task ${taskId} to finish`)),
+      deadlineMs,
+    ).unref?.();
+  });
+  const stream = (async () => {
+    for await (const ev of subscribe(taskId)) {
+      if (ev.type === "finished" || ev.type === "cancelled" || ev.type === "errored") return;
+    }
+  })();
+  await Promise.race([stream, timer]);
+}

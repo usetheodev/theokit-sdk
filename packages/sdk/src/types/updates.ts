@@ -1,3 +1,8 @@
+/**
+ * Owner: `internal/agent-loop/` (1 of 1 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
+ */
 // T4.1 / D438 — import from leaf to break the conversation<->updates cycle (#6).
 import type { UserMessage } from "./messages-base.js";
 

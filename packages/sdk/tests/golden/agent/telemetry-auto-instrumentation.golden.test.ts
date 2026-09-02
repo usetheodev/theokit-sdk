@@ -4,6 +4,9 @@ import {
   _getAllAdapters,
   _isRegistered,
   _resetAdapterRegistry,
+  _wiringOf,
+  registerOne,
+  type TelemetryAdapter,
   tryAutoRegisterAdapters,
 } from "../../../src/internal/telemetry/adapter-registry.js";
 
@@ -93,5 +96,63 @@ describe("telemetry auto-instrumentation registry", () => {
     for (const adapter of _getAllAdapters()) {
       expect(() => adapter.register()).not.toThrow();
     }
+  });
+});
+
+describe("the registry reports what an adapter wired, not that it ran", () => {
+  beforeEach(() => {
+    _resetAdapterRegistry();
+  });
+  afterEach(() => {
+    _resetAdapterRegistry();
+  });
+
+  /**
+   * The Braintrust and LangSmith adapters load a module and install nothing —
+   * their vendors auto-instrument from an env var. That is a legitimate
+   * outcome; the defect was that the registry called it "auto-instrumented",
+   * the same word it used for an adapter that had installed a span processor.
+   * `_isRegistered` cannot tell them apart, and never could: it answers
+   * "did register() run", which is true in both cases.
+   */
+  it("distinguishes an adapter that wired something from one that only loaded a module", () => {
+    const byName = new Map(_getAllAdapters().map((a) => [a.moduleName, a]));
+    const braintrust = byName.get("braintrust");
+    const langfuse = byName.get("@langfuse/node") ?? byName.get("langfuse");
+
+    expect(braintrust, "the hollow adapter under test must still be in the registry").toBeDefined();
+    expect(
+      langfuse,
+      "an adapter that installs a real processor must be in the registry",
+    ).toBeDefined();
+
+    // Called directly: detect() gates the registry loop on the vendor actually
+    // being installed, and neither package is a dependency of this repo.
+    expect(braintrust?.register()).not.toBe("instrumented");
+  });
+
+  it("_wiringOf answers what _isRegistered structurally cannot", () => {
+    const sawNothing: TelemetryAdapter = {
+      moduleName: "fixture-env-var-vendor",
+      displayName: "FixtureEnvVarVendor",
+      detect: () => true,
+      register: () => "vendor-auto-instruments",
+    };
+    const wiredSomething: TelemetryAdapter = {
+      moduleName: "fixture-real-vendor",
+      displayName: "FixtureRealVendor",
+      detect: () => true,
+      register: () => "instrumented",
+    };
+    registerOne(sawNothing);
+    registerOne(wiredSomething);
+
+    // Both are "registered" — that is precisely why the flag was the wrong signal.
+    expect(_isRegistered("fixture-env-var-vendor")).toBe(true);
+    expect(_isRegistered("fixture-real-vendor")).toBe(true);
+
+    expect(_wiringOf("fixture-env-var-vendor")).toBe("vendor-auto-instruments");
+    expect(_wiringOf("fixture-real-vendor")).toBe("instrumented");
+    expect(_wiringOf("never-ran")).toBeUndefined();
   });
 });

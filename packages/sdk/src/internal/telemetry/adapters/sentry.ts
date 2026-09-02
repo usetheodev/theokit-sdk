@@ -1,4 +1,4 @@
-import { safeRequire, type TelemetryAdapter } from "../safe-require.js";
+import { safeRequire, type TelemetryAdapter, type TelemetryWiring } from "../safe-require.js";
 
 /**
  * Sentry OTel adapter (ADR D42). Detects `@sentry/node` and attaches an
@@ -23,13 +23,13 @@ export const sentryAdapter: TelemetryAdapter = {
   moduleName: "@sentry/node",
   displayName: "Sentry",
   detect: () => safeRequire<SentryModule>("@sentry/node") !== undefined,
-  register: () => {
-    if (registeredHere) return;
+  register: (): TelemetryWiring => {
+    if (registeredHere) return "instrumented";
     const sentry = safeRequire<SentryModule>("@sentry/node");
-    if (sentry === undefined) return;
+    if (sentry === undefined) return "not-wired";
     // Some Sentry versions only expose addEventProcessor after Sentry.init().
     if (typeof sentry.addEventProcessor !== "function") {
-      return;
+      return "not-wired";
     }
     // EC-12: only register once.
     sentry.addEventProcessor((event: unknown) => {
@@ -51,5 +51,6 @@ export const sentryAdapter: TelemetryAdapter = {
       return event;
     });
     registeredHere = true;
+    return "instrumented";
   },
 };

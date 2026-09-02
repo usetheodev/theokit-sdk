@@ -49,13 +49,19 @@
  * ## Why this file is NOT `tests/contract/agent-management.contract.test.ts`
  *
  * The plan names that file, and the acceptance criterion says to run `npx vitest run
- * packages/sdk/tests/contract/agent-management.contract.test.ts` returning 0. **Measured: that command
- * returns 1** — `vitest.config.ts` lists `tests/contract/**` under `exclude`, and the output is
- * literally `No test files found, exiting with code 1`. That directory only runs under
- * `pnpm test:roadmap`. Writing the lock there would produce a gate that never runs at the real
- * checkpoint (`pnpm test`) with an acceptance criterion impossible to satisfy — vacuity of the kind
- * `.claude/rules/anti-forgetting-mechanism.md` § 5.4 says to avoid. Here, the file is collected by
- * the default `include`.
+ * packages/sdk/tests/contract/agent-management.contract.test.ts` returning 0. When this file was
+ * written that command returned 1: `vitest.config.ts` excluded `tests/contract/**` wholesale, so the
+ * output was literally `No test files found, exiting with code 1`, and writing the lock there would
+ * have produced a gate that never runs at the real checkpoint.
+ *
+ * **The MECHANISM changed and the conclusion did not, which is why this paragraph is worth keeping
+ * accurate rather than deleting.** There is no longer a blanket `tests/contract/**` exclusion — it
+ * was replaced by `ROADMAP_ONLY_SUITES`, a named list of three files, so most of that directory now
+ * runs in the default gate. `agent-management.contract.test.ts` is one of the three, so the command
+ * the acceptance criterion names still returns 1, for a narrower reason than the one first recorded.
+ *
+ * This file stays where it is. It is collected by the default `include` either way, and the lock it
+ * carries has to run at `pnpm test` to be worth anything.
  *
  * ## The race this file FOUND (did not predict)
  *
@@ -92,6 +98,20 @@ import {
   removeRegisteredAgent,
 } from "../src/internal/runtime/registry/agent-registry.js";
 import type { RegisteredAgent } from "../src/internal/runtime/registry/agent-registry-contract.js";
+import { useTempCwd } from "./helpers/temp-workspace.js";
+
+/**
+ * This file's subject is an entry with NO `cwd`, which by contract belongs to `process.cwd()` — so
+ * it necessarily writes a registry there. Its `afterEach` removed the ENTRY and the comment below
+ * said that was enough; measured 2026-09-01, it was not. The flush still materialised
+ * `packages/sdk/.theokit/agents/registry.json` with `data: {}`, and `vitest.global-setup.ts` failed
+ * the whole suite for it. An empty file is a smaller lie than a populated one, not a different one.
+ *
+ * The claim under test — "no cwd means the process cwd" — is about a RELATIONSHIP, so it holds just
+ * as well when the process cwd is a throwaway directory. Redirecting it keeps the subject intact and
+ * takes the package tree out of the blast radius.
+ */
+useTempCwd();
 
 /** A minimal registry entry — `agent-*` is the prefix that marks it local. */
 function entry(agentId: string, cwd?: string): RegisteredAgent {
@@ -127,10 +147,11 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  // `agent-without-cwd` is routed to `process.cwd()`, that is, to THIS repository's own registry
-  // (`packages/sdk/.theokit/agents/registry.json`, gitignored). Leaving it there would contaminate any
-  // a future test listing the process cwd — the kind of shared state the EC-7 note in
-  // `vitest.config.ts` requires each test to clean up after itself.
+  // `agent-without-cwd` is routed to `process.cwd()`, which `useTempCwd` above points at a throwaway
+  // directory for this file. Removing the entry is still required: the in-memory registry is shared
+  // across tests in the process, and leaving it would contaminate any later test listing the process
+  // cwd — the shared state the EC-7 note in `vitest.config.ts` requires each test to clean up. What
+  // it does NOT do is prevent the file: the flush writes one even when the map is empty.
   removeRegisteredAgent("agent-without-cwd");
   await flushRegistrySaves();
   clearAgentRegistry();

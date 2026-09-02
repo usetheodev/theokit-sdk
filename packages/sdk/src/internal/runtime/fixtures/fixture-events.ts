@@ -11,7 +11,7 @@ import type {
 } from "../../../types/messages.js";
 import { generateRequestId } from "../../ids.js";
 import { enabledPluginNames } from "../../plugins/enabled-names.js";
-import type { FixtureRequest } from "./fixture-types.js";
+import type { FixtureRequest } from "./types.js";
 
 /**
  * Low-level event builders + tool-list helper used by the fixture script

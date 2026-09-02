@@ -3,7 +3,7 @@ import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "
 import { DEFAULT_AGENTIC_MODEL_ID } from "../runtime/config/default-model.js";
 import { buildFixtureScript } from "../runtime/fixtures/fixture-responder.js";
 import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-run-base.js";
-import type { MemoryFact } from "../runtime/memory/memory-store.js";
+import type { MemoryFact } from "../runtime/memory-glue/memory-store.js";
 import { registerRun } from "../runtime/registry/run-registry.js";
 import type { SessionMessage } from "../session/index.js";
 

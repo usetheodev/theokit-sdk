@@ -148,7 +148,15 @@ const _extraPatterns: RegExp[] = [];
  */
 export function addPattern(re: RegExp): void {
   if (!re.global) {
-    throw new Error("Security.addPattern: regex must have /g flag for replace-all semantics");
+    // A BARE Error here, deliberately, and this is the one place in the package where that is the
+    // right answer. `errors.ts` imports `redactSecrets` from this module for the anti-leak invariant
+    // on `providerError`, so this module must stay below it — importing ConfigurationError closes a
+    // cycle (measured: `madge --circular` reports `errors.ts > internal/security/redact.ts`).
+    //
+    // The typed error lives at the surface a consumer touches: `Security.addPattern` in
+    // `src/security.ts` validates first and throws ConfigurationError with a code. This throw is the
+    // backstop for the semver-exempt `@theokit/sdk/internal/security` sub-path.
+    throw new Error("addPattern: regex must have /g flag for replace-all semantics");
   }
   _extraPatterns.push(re);
 }

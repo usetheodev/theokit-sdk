@@ -6,14 +6,19 @@
  * @internal
  */
 
+import { TheokitAgentError } from "../../errors.js";
+
 const RUNNING = new Set<string>();
 
-export class EvalAlreadyRunningError extends Error {
+export class EvalAlreadyRunningError extends TheokitAgentError {
   override readonly name = "EvalAlreadyRunningError";
   readonly evalName: string;
   constructor(evalName: string) {
+    // Not retryable by the caller: the name collides until the other run finishes or the caller
+    // picks a different one, and a retry loop would spin against a live run.
     super(
       `Eval "${evalName}" is already running in this process. Use a unique name per concurrent run (D213).`,
+      { code: "eval_already_running", isRetryable: false },
     );
     this.evalName = evalName;
   }

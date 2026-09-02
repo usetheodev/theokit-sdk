@@ -22,6 +22,12 @@ import {
   validateToolCatalog,
 } from "../src/internal/runtime/validation/validate-agent-options.js";
 import type { AgentOptions, CustomTool } from "../src/types/agent.js";
+import { useTempCwd } from "./helpers/temp-workspace.js";
+
+// This file passed `cwd: process.cwd()`, which during a test run is the package itself, so
+// every agent it created persisted a real session into packages/sdk/.theokit/. The helper
+// makes process.cwd() report a throwaway directory for this file only.
+useTempCwd();
 
 function toolNamed(name: string): CustomTool {
   return {

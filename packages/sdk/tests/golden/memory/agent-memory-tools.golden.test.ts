@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { Agent } from "../../../src/index.js";
 import { resolveMemoryRoot } from "../../../src/internal/memory/storage/memory-root.js";
+import { sseFrame } from "../../helpers/anthropic-sse.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 /**
@@ -29,7 +30,7 @@ async function startStubAnthropic(): Promise<{ server: Server; url: string; capt
     res.statusCode = 200;
     res.setHeader("content-type", "text/event-stream");
     const sse = (event: string, data: string): void => {
-      res.write(`event: ${event}\ndata: ${data}\n\n`);
+      res.write(sseFrame(event, data));
     };
     sse("message_start", "{}");
     sse(

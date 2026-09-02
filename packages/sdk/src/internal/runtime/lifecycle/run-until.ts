@@ -28,7 +28,21 @@ export interface RunUntilDeps {
   judge: (ctx: JudgeContext, opts?: JudgeOptions) => Promise<JudgeResult>;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the goal-loop interleaves turn-start, send, judge, continuation, abort-check, and failure-bail — extracting helpers harms the linear narrative.
+/** The reason both in-loop abort checks report; the pre-loop one distinguishes itself. */
+const ABORTED_MID_RUN = "aborted via AbortSignal";
+
+/**
+ * The pause event, built in one place. Three sites emitted the same four-line literal with only the
+ * reason varying — the same duplicated-knowledge shape as `finish` below, at the event boundary
+ * instead of the result boundary.
+ */
+const pausedBy = (reason: string): GoalEvent => ({
+  type: "status_change",
+  status: "paused",
+  reason,
+});
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the goal-loop interleaves turn-start, send, judge, continuation, abort-check and failure-bail — extracting the CONTROL FLOW into helpers harms that linear narrative, and this defends only that. What it never covered were the nine hand-built result literals and the three pause events, which moved to `finish` and `pausedBy` above: neither removes a branch. Measured 2026-09-01: 43 -> 31 cognitive, 150 -> 117 lines.
 export async function* runUntilImpl(
   agent: SDKAgent,
   goal: string,
@@ -48,28 +62,36 @@ export async function* runUntilImpl(
   let consecutiveFailures = 0;
   let tokensUsed = 0; // M55 — the observed sum (0 when usage is absent — fail-open)
   let lastResponse = "";
+  /**
+   * The one place a `GoalResult` is built. Every exit went through the same four-field literal with
+   * only the status varying, nine times, each restating the convention that an empty final response
+   * collapses to `undefined` — duplicated KNOWLEDGE, so adding a field to `GoalResult` was a
+   * nine-site edit where missing one produces a result wrong on a single branch.
+   *
+   * It is a closure over `turn`, `tokensUsed` and `lastResponse` rather than a module function
+   * precisely so the call sites stay one word long: the biome-ignore below argues that the loop's
+   * narrative must read linearly, and this removes no branch and moves no decision.
+   */
+  const finish = (status: GoalResult["status"]): GoalResult => ({
+    status,
+    turnsUsed: turn,
+    tokensUsed,
+    finalResponse: lastResponse || undefined,
+  });
 
   // EC-C: signal already aborted BEFORE first event → emit only [paused].
   if (isAborted()) {
-    yield {
-      type: "status_change",
-      status: "paused",
-      reason: "aborted via AbortSignal before first turn",
-    };
-    return { status: "paused", turnsUsed: 0, tokensUsed, finalResponse: undefined };
+    yield pausedBy("aborted via AbortSignal before first turn");
+    // `turn` is 0 and `lastResponse` is "" at this point, so this is the literal it replaces.
+    return finish("paused");
   }
 
   yield { type: "status_change", status: "active", reason: "Goal started" };
 
   while (turn < maxTurns) {
     if (isAborted()) {
-      yield { type: "status_change", status: "paused", reason: "aborted via AbortSignal" };
-      return {
-        status: "paused",
-        turnsUsed: turn,
-        tokensUsed,
-        finalResponse: lastResponse || undefined,
-      };
+      yield pausedBy(ABORTED_MID_RUN);
+      return finish("paused");
     }
 
     turn += 1;
@@ -81,8 +103,13 @@ export async function* runUntilImpl(
     // M55 review HIGH — thread the abort INTO the in-flight run: without this, Esc mid-turn is
     // cosmetic (the turn keeps mutating the workspace until it finishes on its own). `run.cancel()`
     // aborts the stream + in-flight tool calls (types/run.ts contract).
+    // Called directly, not through a hand-written shape. `SDKAgent.send()` returns `Promise<Run>`
+    // and `Run.cancel(): Promise<void>` is declared in `types/run.ts` — the cast re-declared, less
+    // precisely, what the compiler already knew, and `cancel?.()` through it meant a rename would
+    // keep compiling while Esc mid-turn silently went back to being cosmetic. Which is the exact
+    // defect the comment above says this was added to fix.
     const cancelOnAbort = (): void => {
-      void (run as { cancel?: () => Promise<void> }).cancel?.();
+      void run.cancel();
     };
     if (signal !== undefined) {
       if (signal.aborted) cancelOnAbort();
@@ -92,17 +119,12 @@ export async function* runUntilImpl(
     if (signal !== undefined) signal.removeEventListener("abort", cancelOnAbort);
     lastResponse = result.result ?? "";
     // M55 — token accounting fails open: it only sums when the run reports usage.
-    const turnTokens = (result as { usage?: { totalTokens?: number } }).usage?.totalTokens;
+    const turnTokens = result.usage?.totalTokens;
     if (typeof turnTokens === "number") tokensUsed += turnTokens;
     // Re-check aborted right after the turn lands: a cancelled turn must NOT spend a judge call.
     if (isAborted()) {
-      yield { type: "status_change", status: "paused", reason: "aborted via AbortSignal" };
-      return {
-        status: "paused",
-        turnsUsed: turn,
-        tokensUsed,
-        finalResponse: lastResponse || undefined,
-      };
+      yield pausedBy(ABORTED_MID_RUN);
+      return finish("paused");
     }
     yield { type: "agent_response", turn, content: lastResponse };
 
@@ -130,12 +152,7 @@ export async function* runUntilImpl(
           status: "failed",
           reason: `judge model too unreliable (${consecutiveFailures} parse failures in a row)`,
         };
-        return {
-          status: "failed",
-          turnsUsed: turn,
-          tokensUsed,
-          finalResponse: lastResponse || undefined,
-        };
+        return finish("failed");
       }
     } else {
       consecutiveFailures = 0;
@@ -143,12 +160,7 @@ export async function* runUntilImpl(
 
     if (judgment.verdict === "done") {
       yield { type: "status_change", status: "completed", reason: judgment.reason };
-      return {
-        status: "completed",
-        turnsUsed: turn,
-        tokensUsed,
-        finalResponse: lastResponse || undefined,
-      };
+      return finish("completed");
     }
     // M80 — the missing arm. Without it, a judge recognizing impossibility could only say
     // "continue", and the loop repeated the same turn until it blew the budget — reporting `failed` on
@@ -156,12 +168,7 @@ export async function* runUntilImpl(
     // visible outcome, and the consumer had to reconcile after the loop to tell them apart.
     if (judgment.verdict === "blocked") {
       yield { type: "status_change", status: "blocked", reason: judgment.reason };
-      return {
-        status: "blocked",
-        turnsUsed: turn,
-        tokensUsed,
-        finalResponse: lastResponse || undefined,
-      };
+      return finish("blocked");
     }
     if (judgment.verdict === "skipped") {
       yield {
@@ -169,12 +176,7 @@ export async function* runUntilImpl(
         status: "completed",
         reason: `skipped: ${judgment.reason}`,
       };
-      return {
-        status: "completed",
-        turnsUsed: turn,
-        tokensUsed,
-        finalResponse: lastResponse || undefined,
-      };
+      return finish("completed");
     }
 
     // M55 — token-budget check AFTER the turn (Codex: gentle wind-down, stops the loop).
@@ -184,12 +186,7 @@ export async function* runUntilImpl(
         status: "budget_limited",
         reason: `token budget (${tokenBudget}) reached: ${tokensUsed} used`,
       };
-      return {
-        status: "budget_limited",
-        turnsUsed: turn,
-        tokensUsed,
-        finalResponse: lastResponse || undefined,
-      };
+      return finish("budget_limited");
     }
 
     yield { type: "continuation", turn, prompt: continuationPrompt };
@@ -200,12 +197,7 @@ export async function* runUntilImpl(
     status: "failed",
     reason: `max turns (${maxTurns}) exhausted`,
   };
-  return {
-    status: "failed",
-    turnsUsed: turn,
-    tokensUsed,
-    finalResponse: lastResponse || undefined,
-  };
+  return finish("failed");
 }
 
 /**

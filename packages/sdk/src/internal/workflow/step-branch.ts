@@ -7,25 +7,16 @@
  * @internal
  */
 
-import type {
-  BranchStep,
-  Step,
-  StepContext,
-  StepResult,
-  WorkflowOptions,
-} from "../../types/workflow.js";
+import type { BranchStep, Step, StepResult } from "../../types/workflow.js";
 import { diag } from "../diagnostics.js";
 import { redactSecrets } from "../security/redact.js";
 import { errToShape } from "./error-shape.js";
-import type { DispatchFn } from "./step-parallel.js";
+import type { StepExecution } from "./step-execution.js";
 
 export async function runBranchStep(
   step: BranchStep,
   input: unknown,
-  ctx: StepContext,
-  options: WorkflowOptions,
-  prevStepResults: ReadonlyArray<StepResult>,
-  dispatch: DispatchFn,
+  exec: StepExecution,
 ): Promise<StepResult> {
   const startedAt = Date.now();
 
@@ -47,7 +38,7 @@ export async function runBranchStep(
       );
     }
     if (matched) {
-      const r = await runInnerSequence(branch, input, ctx, options, prevStepResults, dispatch);
+      const r = await runInnerSequence(branch, input, exec);
       return {
         ...r,
         stepId: step.id,
@@ -58,7 +49,7 @@ export async function runBranchStep(
   }
 
   if (step.fallback !== undefined) {
-    const r = await runInnerSequence(step.fallback, input, ctx, options, prevStepResults, dispatch);
+    const r = await runInnerSequence(step.fallback, input, exec);
     return {
       ...r,
       stepId: step.id,
@@ -81,15 +72,13 @@ export async function runBranchStep(
 async function runInnerSequence(
   branch: ReadonlyArray<Step>,
   input: unknown,
-  ctx: StepContext,
-  options: WorkflowOptions,
-  prevStepResults: ReadonlyArray<StepResult>,
-  dispatch: DispatchFn,
+  exec: StepExecution,
 ): Promise<StepResult> {
+  const { dispatch } = exec;
   let acc: unknown = input;
   let lastAttempts = 1;
   for (const inner of branch) {
-    const r = await dispatch(inner, acc, ctx, options, prevStepResults);
+    const r = await dispatch(inner, acc, exec);
     lastAttempts = r.attempts;
     if (r.status === "failed") {
       return {

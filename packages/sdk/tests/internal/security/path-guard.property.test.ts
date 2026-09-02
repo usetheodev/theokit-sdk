@@ -65,7 +65,9 @@ describe("safePathJoin — property invariants (T4.2)", () => {
             // /abs/${s} is absolute → must throw (unless somehow resolves back to base)
             return false;
           } catch (err) {
-            return err instanceof PathTraversalError || err instanceof Error;
+            // The `|| err instanceof Error` disjunct that used to sit here made the property hold
+            // for ANY throw, so the type its own name promises was never required.
+            return err instanceof PathTraversalError;
           }
         },
       ),
@@ -73,12 +75,17 @@ describe("safePathJoin — property invariants (T4.2)", () => {
     );
   });
 
-  it("invariant: null byte handled (throw any error type)", () => {
+  it("invariant: a NUL byte in a segment is always rejected", () => {
+    // This property used to return `true` when safePathJoin did not throw and `err instanceof Error`
+    // when it did. Both branches are unconditionally true, so it held for all 200 generated inputs
+    // and for EVERY possible implementation — including one that returns the attacker's path
+    // verbatim. Its comment hedged on "very old node"; every supported release rejects NUL in a path
+    // argument with ERR_INVALID_ARG_VALUE, so there is a contract to assert and this asserts it.
     fc.assert(
       fc.property(fc.string({ minLength: 0, maxLength: 8 }), (s) => {
         try {
           safePathJoin(BASE, `${s}\0bar`);
-          return true; // some runtimes accept (very old node); skip strict
+          return false;
         } catch (err) {
           return err instanceof Error;
         }

@@ -112,7 +112,7 @@ describe("mapWithConcurrency", () => {
   it("test_mapWithConcurrency_throws_on_invalid_concurrency", async () => {
     // B-079 — was a bare `.rejects.toThrow()`. `createSemaphore` (the actual
     // validator behind `mapWithConcurrency`) throws `ConfigurationError` with
-    // `code: "invalid_concurrency"` (src/internal/runtime/concurrency/async-semaphore.ts).
+    // `code: "invalid_concurrency"` (src/internal/concurrency/async-semaphore.ts).
     await expect(mapWithConcurrency([1], 0, async (n) => n)).rejects.toThrow(ConfigurationError);
     await expect(mapWithConcurrency([1], 0, async (n) => n)).rejects.toMatchObject({
       code: "invalid_concurrency",

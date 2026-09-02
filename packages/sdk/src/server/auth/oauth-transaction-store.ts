@@ -20,6 +20,7 @@
 import { Buffer } from "node:buffer";
 import { webcrypto } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { TheokitAgentError } from "../../errors.js";
 import type { OAuthTransaction } from "./types.js";
 
 // T5.3 — `__Host-` prefix per RFC 6265bis. Browsers enforce that any
@@ -93,12 +94,14 @@ async function deriveKey(secret: string): Promise<webcrypto.CryptoKey> {
  *
  * @public
  */
-export class AuthSecretTooShortError extends Error {
+export class AuthSecretTooShortError extends TheokitAgentError {
   override readonly name = "AuthSecretTooShortError";
   constructor(actualBytes: number) {
+    // Not retryable: the secret is what it is until an operator changes it.
     super(
       `OAuth transaction secret must be at least 32 bytes (got ${actualBytes}). ` +
         "Generate a fresh value with: openssl rand -base64 33",
+      { code: "auth_secret_too_short", isRetryable: false },
     );
   }
 }

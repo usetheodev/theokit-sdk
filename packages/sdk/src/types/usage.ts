@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/budget/` (3 of 8 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Public type contract for token usage + cost tracking (ADRs D376-D379).
  *
  * Surfaces via `RunResult.usage` + `RunResult.cost` after every Run.
@@ -50,7 +53,7 @@ export type CostSource =
 /**
  * Cost breakdown attached to `RunResult.cost`. When `status === "unknown"`,
  * `amountUsd` is `undefined` — DO NOT default to 0 (a lie). The UI shows
- * `n/a` para unknown, `~$1.23` para estimated, `$1.23` para actual.
+ * `n/a` for unknown, `~$1.23` for estimated, `$1.23` for actual.
  */
 export interface CostBreakdown {
   readonly amountUsd: number | undefined;

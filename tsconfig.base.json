@@ -12,6 +12,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": true,
+    // A function that falls off the end returns `undefined` silently, and the
+    // caller cannot tell that from a deliberate `return undefined`. Measured
+    // across all 13 packages on 2026-09-01: exactly one function relied on it.
+    "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,

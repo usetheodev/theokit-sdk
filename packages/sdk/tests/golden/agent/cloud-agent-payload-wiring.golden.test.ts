@@ -1,10 +1,10 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { Agent } from "../../../src/index.js";
 import type { CloudAgent } from "../../../src/internal/cloud-agent/cloud-agent.js";
-import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
+import { removeTempDirRobust, useTempCwd } from "../../helpers/temp-workspace.js";
 
 /**
  * ADR D15 + EC-6 — CloudAgent threads cloudPayload through `send()` AND
@@ -13,6 +13,17 @@ import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
 
 const FIXTURE_KEY = "theo_test_payload_wiring";
 const MODEL = { id: "google/gemini-2.0-flash-001" };
+
+/**
+ * A cloud agent has no local working directory, so these cases pass no `local.cwd` — but the agent
+ * REGISTRY still lands under `process.cwd()`, which during a test run is `packages/sdk/` itself.
+ * Measured 2026-09-01: this file wrote a real `.theokit/agents/registry.json` into the package tree
+ * on every run, invisible to `git status` because `.gitignore` hides it.
+ *
+ * Passing a `local.cwd` to a cloud agent would be a lie about what the agent is; redirecting
+ * `process.cwd()` for the file is the honest fix, and is why this helper exists.
+ */
+useTempCwd();
 
 describe("CloudAgent — cloudPayload field is the serialized contract", () => {
   it("cloudPayload is built at construct-time and matches AgentOptions shape", async () => {
@@ -59,11 +70,10 @@ describe("CloudAgent — cloudPayload field is the serialized contract", () => {
 });
 
 describe("CloudAgent — reload re-serializes (EC-6)", () => {
+  // `cwd` is declared here and assigned inside the test below. The `afterEach(async () => { void cwd; })`
+  // that stood here was not a teardown: its only statement existed to silence an unused-variable
+  // lint, and an async hook that awaits nothing reads as cleanup that is not there.
   let cwd: string;
-
-  afterEach(async () => {
-    void cwd;
-  });
 
   it("reload() rebuilds cloudPayload from current options", async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-cloud-reload-"));

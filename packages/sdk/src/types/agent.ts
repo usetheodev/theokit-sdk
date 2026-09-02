@@ -1,3 +1,8 @@
+/**
+ * Owner: `src/` (13 of 65 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
+ */
 import type { BudgetTracker } from "./budget-tracker.js";
 import type { ContextSettings } from "./context.js";
 import type { McpServerConfig } from "./mcp.js";
@@ -16,7 +21,7 @@ export type {
   ToolContextMessage,
 } from "./agent-prims.js";
 
-import type { CustomTool, ModelSelection } from "./agent-prims.js";
+import type { CustomTool, ModelSelection, PermissionMode } from "./agent-prims.js";
 // Code `Plugin` objects (the array form of `AgentOptions.plugins`) are the
 // public discriminated union. SE45/SE46 — sourced from the sibling `./plugin.ts`
 // contract module so no `types/*.ts` file reaches into `internal/`.
@@ -33,6 +38,7 @@ import type {
 } from "./sdk-agent.js";
 
 export type {
+  AgentOperation,
   SDKAgentPlugins,
   SDKAgentSkillDetail,
   SDKAgentSkills,
@@ -47,6 +53,18 @@ export type { InvalidateCacheOptions, PersonalityPreset, SDKAgent, SystemPromptS
  * @public
  */
 export type SettingSource = "project" | "user" | "team" | "mdm" | "plugins" | "all";
+
+/**
+ * A foreign configuration dialect this SDK can read.
+ *
+ * A DIFFERENT axis from {@link SettingSource}, and collapsing the two would be wrong: that one is
+ * about SCOPE (user vs project, and the trust posture behind it), this one about which product's
+ * format a project wants imported. A project can legitimately want project scope with `.theokit/`
+ * only — which is now the default.
+ *
+ * @public
+ */
+export type CompatSource = "claude-code";
 
 /**
  * A tool the SDK declares to the model on its own initiative — not one the consumer passed in
@@ -93,6 +111,27 @@ export interface LocalOptions {
    */
   cwd?: string | string[];
   settingSources?: SettingSource[];
+  /**
+   * Foreign configuration dialects to import. Default: none — `.theokit/` only.
+   *
+   * `.claude/` used to be read unconditionally across hooks, plugins, skills and subagents, so a
+   * repository that merely had Claude Code set up had its hooks executed, its skills folded into
+   * the system prompt and its subagents registered, having configured nothing for this SDK
+   * (usetheokit/theokit-sdk#524). One consequence was every turn being denied, because those hook
+   * commands are written against a runtime that defines `$CLAUDE_PROJECT_DIR` and this one did not
+   * (#522).
+   *
+   * A trust gate answers "do I trust the code in this directory?". That is a different question
+   * from "do I want another product's configuration imported into this one?", and they come apart
+   * in the ordinary case: a repository you trust completely is exactly where `.claude/` is
+   * populated — for a different tool, by a different contract, often by a teammate who never heard
+   * of this SDK.
+   *
+   * Listing a dialect is all-or-nothing for that dialect, and restores exactly the previous
+   * behaviour. On a name collision `.theokit/` wins: the native definition is the one the project
+   * wrote for this runtime.
+   */
+  compatSources?: CompatSource[];
   sandboxOptions?: { enabled: boolean };
   /**
    * Directory for the native Claude-shaped session transcript
@@ -489,7 +528,7 @@ export interface AgentOptions {
    * `SendOptions.permissionMode` overrides it. Absent ⇒ the plugin's own
    * construction-time mode applies. Local runtime.
    */
-  permissionMode?: import("../permission-engine.js").PermissionMode;
+  permissionMode?: PermissionMode;
   /**
    * Skills configuration. Either a static {@link SkillsSettings} object or —
    * SE22 — a {@link SkillsResolver} evaluated per `send()` to pick skills from
@@ -691,12 +730,18 @@ export interface AgentOptions {
    * inversion). When provided, the agent loop calls `tracker.track(...)`
    * after each LLM completion and `tracker.check()` before each iteration.
    *
-   * **Status (Phase 2 incremental):** the option is wired to the type
-   * surface only. Agent-loop runtime wiring is additive and lands in a
-   * subsequent iteration — for now, the kernel still uses the legacy
-   * `UsageAccumulator` + `IterationBudget` from `internal/budget/`.
-   * Consumers passing a custom tracker today get the type guarantee but
-   * NOT runtime enforcement.
+   * **Runtime enforcement is live.** Verified against the call graph on
+   * 2026-09-01: `internal/agent-loop/loop.ts:78-81` reads the tracker and
+   * gates the iteration through `evaluateBudgetGate`, `:110` calls
+   * `nextIteration()`, and `:390`/`:397` call `track(...)` per completion;
+   * the option reaches the loop from `AgentOptions` at
+   * `internal/local-agent/real-local-run.ts:342`.
+   *
+   * This paragraph previously said the opposite — "wired to the type surface
+   * only ... NOT runtime enforcement" — and it was wrong in the expensive stale-claim-ok: verbatim quote of the corrected text
+   * direction: a consumer reading the published `.d.ts` was told the SDK would
+   * not enforce their cost ceiling, so the rational response was to build a
+   * second control outside it, or to stop trusting the option.
    *
    * Default impls available today via `@theokit/sdk`:
    *   - `createCounterBudgetTracker({ maxTokens, maxIterations })`
@@ -716,12 +761,17 @@ export interface AgentOptions {
    * pre-LLM to inject recalled facts, and `provider.dispose(...)` on
    * Agent shutdown.
    *
-   * **Status (Phase 1 incremental):** the option is wired to the type
-   * surface only. Agent-loop runtime wiring is additive and lands in
-   * subsequent iterations (T1.4 plumbing, T1.5 runtime hooks). For now,
-   * the kernel still uses the legacy `Memory` class + `internal/memory/*`
-   * runtime files. Consumers passing a custom provider today get the type
-   * guarantee but NOT runtime enforcement.
+   * **Runtime enforcement is live.** Verified against the call graph on
+   * 2026-09-01: `internal/agent-loop/loop-context-init.ts:95` calls
+   * `provider.init(...)`, `:129` surfaces `provider.buildTools(...)` to the
+   * model, `:166` runs `provider.runActivePass(...)`, and
+   * `internal/agent-loop/loop.ts:176`/`:204` call `sync` and `dispose`.
+   *
+   * This paragraph previously said the opposite — "wired to the type surface
+   * only ... NOT runtime enforcement". A stale "not implemented yet" note on a stale-claim-ok: verbatim quote of the corrected text
+   * `@public` symbol is worse than no note: it is believed, it survives the
+   * work it describes, and nothing in this repo compares such a claim against
+   * the call graph.
    *
    * Default impls available today via `@theokit/sdk`:
    *   - `createNoopMemoryProvider()` — degenerate fallback / worked example

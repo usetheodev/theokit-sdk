@@ -25,32 +25,12 @@
  * Cycles #1, #2 are D428-acknowledged (rollup-dts forced subscribe at
  * sub-path) and remain by design.
  */
-import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-
-function runMadge(): string {
-  // Walk up 4 levels (architecture → tests → sdk → packages → theokit-sdk root).
-  // 5 ups would land in the meta-repo (`theokit-tools`) which has no pnpm
-  // workspace, causing `pnpm exec madge` to ERR_PNPM_RECURSIVE_EXEC_NO_PACKAGE
-  // — empty stdout → tests pass vacuously instead of asserting madge output.
-  const repoRoot = resolve(__dirname, "../../../..");
-  const target = "packages/sdk/src";
-  const result = spawnSync(
-    "pnpm",
-    ["exec", "madge", "--circular", "--extensions", "ts,tsx", target],
-    { cwd: repoRoot, encoding: "utf8", timeout: 60_000 },
-  );
-  return (result.stdout ?? "") + (result.stderr ?? "");
-}
-
-function cycleLines(output: string): string[] {
-  return output.split("\n").filter((line) => /^\d+\)/.test(line.trim()));
-}
+import { cycleLines, madgeCircularReport } from "./madge-report.js";
 
 describe("Architecture — T4.1 type-only cycles closed (D438)", () => {
   it("madge reports NO self-cycle on types/agent.ts (audit #3)", () => {
-    const lines = cycleLines(runMadge());
+    const lines = cycleLines(madgeCircularReport());
     const offending = lines.filter((line) => {
       const trimmed = line.replace(/^\d+\)\s*/, "").trim();
       // A self-cycle in madge output is a single-node line: `types/agent.ts`
@@ -63,7 +43,7 @@ describe("Architecture — T4.1 type-only cycles closed (D438)", () => {
   }, 90_000);
 
   it("madge reports NO cycle containing types/agent.ts AND types/run.ts (audit #5 + #7)", () => {
-    const lines = cycleLines(runMadge());
+    const lines = cycleLines(madgeCircularReport());
     const offending = lines.filter(
       (line) =>
         line.includes("types/agent.ts") &&
@@ -74,7 +54,7 @@ describe("Architecture — T4.1 type-only cycles closed (D438)", () => {
   }, 90_000);
 
   it("madge reports NO cycle containing types/agent.ts AND types/messages.ts (audit #7)", () => {
-    const lines = cycleLines(runMadge());
+    const lines = cycleLines(madgeCircularReport());
     const offending = lines.filter(
       (line) => line.includes("types/agent.ts") && line.includes("types/messages.ts"),
     );
@@ -82,7 +62,7 @@ describe("Architecture — T4.1 type-only cycles closed (D438)", () => {
   }, 90_000);
 
   it("madge reports NO cycle containing types/conversation.ts AND types/updates.ts (audit #6)", () => {
-    const lines = cycleLines(runMadge());
+    const lines = cycleLines(madgeCircularReport());
     const offending = lines.filter(
       (line) => line.includes("types/conversation.ts") && line.includes("types/updates.ts"),
     );
@@ -90,7 +70,7 @@ describe("Architecture — T4.1 type-only cycles closed (D438)", () => {
   }, 90_000);
 
   it("madge reports NO cycle in internal/memory/active-memory cluster (audit #10)", () => {
-    const lines = cycleLines(runMadge());
+    const lines = cycleLines(madgeCircularReport());
     const offending = lines.filter(
       (line) =>
         line.includes("internal/memory/active-memory-cache.ts") &&

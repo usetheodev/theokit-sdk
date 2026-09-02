@@ -1,20 +1,44 @@
 #!/usr/bin/env node
-// File LoC budget checker — enforces Quality Gate G8.
+// File size budget checker — Quality Gate G8.
 //
-// Walks packages/sdk/src/**/*.ts (excluding tests) and counts logical lines
-// of code: non-empty, non-pure-comment lines. Block comments (/* ... */) are
-// skipped entirely; line comments (//) and JSDoc lines (*) are skipped.
+// Counts STATEMENTS, not lines, and the difference is the whole point.
 //
-// Threshold: defined in .claude/quality-gates.md G8. Currently 400.
+// It counted logical lines until 2026-09-02, and a line count is moved by the
+// formatter. `local-agent.ts` carried NINE `biome-ignore format` directives whose
+// stated reasons were "one-liner to stay under G8 LoC budget", "multi-line layout
+// would push file past G8 LoC cap", "G8 budget — see runUntil comment above" — and
+// one of them produced a 332-character method on a single line. Removing all nine
+// and letting the formatter run took the file from 381 to 436 logical lines while
+// changing nothing about what it does: the same 185 statements, the same
+// responsibilities, the same everything the cap was trying to measure.
+//
+// So the gate was rewarding the one action that cannot help: reformatting. A file
+// that games its way under the cap is strictly worse than one over it, because the
+// number now says "fine" about a file nobody has split.
+//
+// Statements come from the TypeScript AST, so they cannot be moved by whitespace.
+// One `if`, one `return`, one property declaration is one unit however it is laid
+// out. A file cannot pass this gate except by having less in it.
+//
+// THE LIMIT IS A PINNED MEASUREMENT, not a target: 250, against a measured maximum
+// of 239 (`internal/mcp/client.ts`) across 546 files, of which 8 are above 200.
+// Re-pin it downward when the maximum drops — the same ratchet
+// `tools/check-duplication.mjs` and the complexity/parameter budgets use.
+//
+// WHAT IT STILL DOES NOT MEASURE, stated because the previous version implied
+// otherwise: a statement count is not a responsibility count. A 100-statement file
+// doing two unrelated jobs is worse than a 240-statement file doing one, and this
+// gate prefers the first. It bounds growth; it does not certify design.
 
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 
-const LOC_LIMIT = 400;
+const STATEMENT_LIMIT = 250;
 const SCAN_ROOTS = ["packages/sdk/src"];
 const EXCLUDE_BASENAMES = new Set(["node_modules", "dist", "coverage", ".git"]);
 const EXCLUDE_FILE_PATTERNS = [/\.test\.ts$/, /\.test-d\.ts$/, /\.spec\.ts$/, /\.d\.ts$/];
@@ -41,32 +65,28 @@ async function walk(dir) {
 }
 
 /**
- * Per-line classification for LoC counting.
- * Returns { isCode, blockCommentDelta } where blockCommentDelta is:
- *  +1 → enter block comment, -1 → exit block comment, 0 → no change.
+ * Executable and declarative units in one file.
+ *
+ * A `Block` is not counted — it is the container of the statements inside it, and counting both
+ * would double every `if` body. Interface members and class properties ARE counted: a 200-field
+ * interface is 200 things to maintain even though none of them executes.
  */
-function classifyLine(line, inBlockComment) {
-  if (line.length === 0) return { isCode: false, blockCommentDelta: 0 };
-  if (inBlockComment) {
-    return { isCode: false, blockCommentDelta: line.includes("*/") ? -1 : 0 };
-  }
-  if (line.startsWith("/*")) {
-    return { isCode: false, blockCommentDelta: line.includes("*/") ? 0 : 1 };
-  }
-  if (line.startsWith("//")) return { isCode: false, blockCommentDelta: 0 };
-  if (line.startsWith("*") || line === "*/") return { isCode: false, blockCommentDelta: 0 };
-  return { isCode: true, blockCommentDelta: 0 };
-}
-
-function countLogicalLoc(text) {
+function countStatements(file, text) {
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, /* setParentNodes */ true);
   let count = 0;
-  let inBlockComment = false;
-  for (const rawLine of text.split("\n")) {
-    const { isCode, blockCommentDelta } = classifyLine(rawLine.trim(), inBlockComment);
-    if (blockCommentDelta === 1) inBlockComment = true;
-    else if (blockCommentDelta === -1) inBlockComment = false;
-    if (isCode) count++;
-  }
+  const visit = (node) => {
+    if (ts.isStatement(node) && !ts.isBlock(node)) count += 1;
+    else if (
+      ts.isPropertyDeclaration(node) ||
+      ts.isPropertySignature(node) ||
+      ts.isMethodSignature(node) ||
+      ts.isEnumMember(node)
+    ) {
+      count += 1;
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(source, visit);
   return count;
 }
 
@@ -80,24 +100,31 @@ async function main() {
     for (const file of files) {
       scanned++;
       const text = await readFile(file, "utf8");
-      const loc = countLogicalLoc(text);
-      if (loc > LOC_LIMIT) {
-        violations.push({ file: relative(ROOT, file), loc });
+      const statements = countStatements(file, text);
+      if (statements > STATEMENT_LIMIT) {
+        violations.push({ file: relative(ROOT, file), statements });
       }
     }
   }
 
   if (violations.length > 0) {
-    console.error(`✗ G8 violated: ${violations.length} file(s) exceed ${LOC_LIMIT} LoC`);
-    for (const { file, loc } of violations.sort((a, b) => b.loc - a.loc)) {
-      console.error(`  ${file}: ${loc} LoC (over by ${loc - LOC_LIMIT})`);
+    console.error(
+      `✗ G8 violated: ${violations.length} file(s) exceed ${STATEMENT_LIMIT} statements`,
+    );
+    for (const { file, statements } of violations.sort((a, b) => b.statements - a.statements)) {
+      console.error(
+        `  ${file}: ${statements} statements (over by ${statements - STATEMENT_LIMIT})`,
+      );
     }
     console.error("");
-    console.error("Fix: split the file into focused modules. See .claude/quality-gates.md G8.");
+    console.error(
+      "Fix: split the file into focused modules. Reformatting will NOT help — that is why this " +
+        "gate counts statements. See .claude/quality-gates.md G8.",
+    );
     process.exit(1);
   }
 
-  console.log(`✓ G8 passed: ${scanned} file(s) scanned, all ≤ ${LOC_LIMIT} LoC`);
+  console.log(`✓ G8 passed: ${scanned} file(s) scanned, all ≤ ${STATEMENT_LIMIT} statements`);
 }
 
 main().catch((error) => {

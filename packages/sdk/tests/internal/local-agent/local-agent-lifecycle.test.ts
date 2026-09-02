@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const hoisted = vi.hoisted(() => ({ order: [] as string[] }));
 
-vi.mock("../../../src/internal/local-agent/real-local-run.js", () => ({
+vi.mock("../../../src/internal/local-agent/real-local-run-mcp.js", () => ({
   disposeSessionMcpClients: (agentId: string) => {
     hoisted.order.push(`disposeSessionMcpClients:${agentId}`);
   },
@@ -80,15 +80,33 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+/**
+ * A minimal complete `SessionStore`, with the optional lifecycle members left off.
+ *
+ * The cases below used to pass partial object literals, which typechecked only because the probes
+ * took `unknown`. `acquire` / `release` / `dispose` are DECLARED optional members now, so the
+ * parameter is `SessionStore` and a partial literal no longer compiles — which is the improvement,
+ * not an obstacle: the SDK never receives a store missing `readRecords`.
+ */
+function storeWith(extra: Partial<SessionStore> = {}): SessionStore {
+  return {
+    readRecords: () => Promise.resolve([]),
+    appendRecords: () => Promise.resolve(),
+    ...extra,
+  };
+}
+
 describe("acquireLeaseIfPossible", () => {
   it("takes the lease for the agent id when the store can take one", async () => {
     const taken: string[] = [];
-    const store = {
-      acquire: (id: string) => {
-        taken.push(id);
-        return Promise.resolve();
-      },
-    };
+    const store = storeWith(
+      storeWith({
+        acquire: (id: string) => {
+          taken.push(id);
+          return Promise.resolve();
+        },
+      }),
+    );
 
     await acquireLeaseIfPossible(store, "agent-1");
 
@@ -101,7 +119,7 @@ describe("acquireLeaseIfPossible", () => {
     // it as a lease failure — so every external store with no lease would emit
     // "writer lease unavailable" on every init. Resolving is not the oracle; the
     // silent diagnostics channel is.
-    await expect(acquireLeaseIfPossible({}, "agent-1")).resolves.toBeUndefined();
+    await expect(acquireLeaseIfPossible(storeWith(), "agent-1")).resolves.toBeUndefined();
 
     expect(diagnostics).toEqual([]);
   });
@@ -111,13 +129,15 @@ describe("acquireLeaseIfPossible", () => {
     // rejects it on `typeof`; without the probe, `a.call(store, id)` invokes that
     // foreign function — the SDK calling arbitrary consumer code it never checked.
     let reached = 0;
-    const store = {
+    const store = storeWith({
+      // Deliberately not a function: the cast is the point of the case, and the probe must reject it
+      // on `typeof` rather than reaching for its `call`.
       acquire: {
         call: () => {
           reached += 1;
         },
-      },
-    };
+      } as never,
+    });
 
     await expect(acquireLeaseIfPossible(store, "agent-1")).resolves.toBeUndefined();
 
@@ -127,14 +147,14 @@ describe("acquireLeaseIfPossible", () => {
 
   it("PROPAGATES SessionBusyError — another process holds the session", async () => {
     const busy = new SessionBusyError("/tmp/x.jsonl held by pid 42");
-    const store = { acquire: () => Promise.reject(busy) };
+    const store = storeWith(storeWith({ acquire: () => Promise.reject(busy) }));
 
     await expect(acquireLeaseIfPossible(store, "agent-1")).rejects.toBeInstanceOf(SessionBusyError);
   });
 
   it("PROPAGATES any error merely NAMED SessionBusyError (cross-realm store impls)", async () => {
     const impostor = Object.assign(new Error("held"), { name: "SessionBusyError" });
-    const store = { acquire: () => Promise.reject(impostor) };
+    const store = storeWith(storeWith({ acquire: () => Promise.reject(impostor) }));
 
     await expect(acquireLeaseIfPossible(store, "agent-1")).rejects.toBe(impostor);
   });
@@ -142,10 +162,10 @@ describe("acquireLeaseIfPossible", () => {
   it("swallows a non-contention I/O failure and proceeds without the lease", async () => {
     // A read-only directory (EACCES) is not a second writer. Failing init here would
     // trade "no concurrency protection" for "the agent does not start".
-    const store = {
+    const store = storeWith({
       acquire: () =>
         Promise.reject(Object.assign(new Error("EACCES: permission denied"), { name: "Error" })),
-    };
+    });
 
     await expect(acquireLeaseIfPossible(store, "agent-1")).resolves.toBeUndefined();
 
@@ -155,7 +175,7 @@ describe("acquireLeaseIfPossible", () => {
   });
 
   it("swallows a non-Error rejection without crashing the diagnostic", async () => {
-    const store = { acquire: () => Promise.reject("plain string failure") };
+    const store = storeWith({ acquire: () => Promise.reject("plain string failure") });
 
     await expect(acquireLeaseIfPossible(store, "agent-1")).resolves.toBeUndefined();
 
@@ -166,12 +186,12 @@ describe("acquireLeaseIfPossible", () => {
 describe("releaseLeaseIfPossible", () => {
   it("releases the lease for the agent id when the store can release one", async () => {
     const released: string[] = [];
-    const store = {
+    const store = storeWith({
       release: (id: string) => {
         released.push(id);
         return Promise.resolve();
       },
-    };
+    });
 
     await releaseLeaseIfPossible(store, "agent-1");
 
@@ -179,12 +199,12 @@ describe("releaseLeaseIfPossible", () => {
   });
 
   it("is a no-op for a store that declares no release", async () => {
-    await expect(releaseLeaseIfPossible({}, "agent-1")).resolves.toBeUndefined();
+    await expect(releaseLeaseIfPossible(storeWith(), "agent-1")).resolves.toBeUndefined();
   });
 
   it("propagates a release failure rather than hiding it", async () => {
     const boom = new Error("release failed");
-    const store = { release: () => Promise.reject(boom) };
+    const store = storeWith({ release: () => Promise.reject(boom) });
 
     await expect(releaseLeaseIfPossible(store, "agent-1")).rejects.toBe(boom);
   });

@@ -11,6 +11,7 @@ import type { BwrapDetection, SandboxMode } from "./bwrap.js";
 import { buildBwrapArgv, detectBwrapMemoized } from "./bwrap.js";
 import { LocalSandbox } from "./local-sandbox.js";
 import { buildSeccompFilter } from "./seccomp.js";
+import { shellEscapePosix } from "./shell-escape.js";
 import type { SandboxBackend, SandboxConfig } from "./types.js";
 
 /*
@@ -21,11 +22,6 @@ import type { SandboxBackend, SandboxConfig } from "./types.js";
  * ops) is inherited — the SDK backend stays the single execution engine. Mirrors Codex's
  * `SandboxManager::transform` (argv prefixing before spawn, never in-process).
  */
-
-/** POSIX single-quote escaping — the inner command crosses ONE extra `/bin/sh -c` boundary. */
-function shellQuote(s: string): string {
-  return `'${s.replaceAll("'", `'\\''`)}'`;
-}
 
 /**
  * M57 — the single source of truth for the sandbox command wrap. Turns `command` into
@@ -49,8 +45,8 @@ export function wrapCommandForSandbox(
   if (argv === null) return null; // danger-full-access: bwrap skipped
   const bin = opts.bin ?? "bwrap";
   const seccompArgv = opts.seccompPath !== undefined ? ["--seccomp", "3"] : [];
-  const base = `${shellQuote(bin)} ${[...argv.slice(0, -1), ...seccompArgv, "--"].map(shellQuote).join(" ")} /bin/sh -c ${shellQuote(command)}`;
-  return opts.seccompPath !== undefined ? `${base} 3< ${shellQuote(opts.seccompPath)}` : base;
+  const base = `${shellEscapePosix(bin)} ${[...argv.slice(0, -1), ...seccompArgv, "--"].map(shellEscapePosix).join(" ")} /bin/sh -c ${shellEscapePosix(command)}`;
+  return opts.seccompPath !== undefined ? `${base} 3< ${shellEscapePosix(opts.seccompPath)}` : base;
 }
 
 /**
@@ -180,7 +176,7 @@ export class LinuxSandbox extends LocalSandbox {
     // base64 on a single line: avoids any shell quoting over arbitrary content, which is exactly
     // where a "confined" write would turn into command injection.
     const r = await this.execute(
-      `mkdir -p ${shellQuote(dirname(target))} && printf %s ${shellQuote(b64)} | base64 -d > ${shellQuote(target)}`,
+      `mkdir -p ${shellEscapePosix(dirname(target))} && printf %s ${shellEscapePosix(b64)} | base64 -d > ${shellEscapePosix(target)}`,
     );
     if (r.exitCode !== 0) {
       throw new Error(
@@ -249,8 +245,19 @@ export function restrictedSeccompPath(): string | undefined {
 
 let warnedUnavailable = false;
 
-/** Test seam: reset the WARN-once latch. */
-export function resetSandboxWarnLatch(): void {
+/**
+ * Test seam: reset the WARN-once latch.
+ *
+ * Named for what it is. It was `resetSandboxWarnLatch`, plain camelCase, re-exported from the public
+ * `@theokit/sdk/sandbox` barrel — indistinguishable from ordinary API, while 22 sibling test seams in
+ * this package carry an unmistakable `__…ForTests` marker and stay out of their barrels.
+ *
+ * Deliberately NOT tagged internal-visibility: the barrel still re-exports it under the old name as a
+ * deprecated alias until the next major, so the symbol has to survive `stripInternal` into the
+ * emitted declarations. Tagging it removed it from the `.d.ts` and the declaration rollup failed —
+ * `tsc --noEmit` never sees that.
+ */
+export function __resetSandboxWarnLatchForTests(): void {
   warnedUnavailable = false;
 }
 
@@ -342,8 +349,13 @@ export function createSandboxBackend(opts: CreateSandboxBackendOptions): Sandbox
  */
 let interactiveWarned = false;
 
-/** Reset for tests — the latch is module state and tests need isolation. */
-export function resetInteractiveWarnLatch(): void {
+/**
+ * Reset for tests — the latch is module state and tests need isolation.
+ *
+ * See `__resetSandboxWarnLatchForTests` for why the name changed, and for why neither carries an
+ * internal-visibility tag while the deprecated public alias exists.
+ */
+export function __resetInteractiveWarnLatchForTests(): void {
   interactiveWarned = false;
 }
 

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-
 import {
   InteractiveBackend,
   type InteractiveProvider,
@@ -9,6 +8,7 @@ import {
   type StartInteractiveResult,
   type WriteStdinResult,
 } from "../src/interactive/index.js";
+import { expectPublicError } from "./helpers/assert-public-error.js";
 
 /** Minimal in-memory backend: each session echoes whatever is written to it. Proves the CONTRACT
  *  (start → id, write → echo + alive, kill → NoSuchSession) without a real PTY. */
@@ -85,9 +85,7 @@ describe("resolveInteractive (mirrors resolveFilesystem)", () => {
 describe("typed errors", () => {
   it("InteractiveUnavailableError carries a stable code + name", () => {
     const err = new InteractiveUnavailableError("no pty");
-    expect(err).toBeInstanceOf(Error);
-    expect(err.name).toBe("InteractiveUnavailableError");
-    expect(err.code).toBe("interactive_unavailable");
+    expectPublicError(err, { ctor: Error, code: "interactive_unavailable" });
   });
 
   it("NoSuchSessionError names the session + stable code", () => {

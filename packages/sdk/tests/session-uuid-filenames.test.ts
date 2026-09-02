@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { FsSessionStore } from "../src/internal/persistence/fs-session-store.js";
 import {
   isSessionUuid,
@@ -9,6 +9,7 @@ import {
   sessionUuidFor,
   transcriptPath,
 } from "../src/internal/persistence/session-transcript.js";
+import { removeTempDirRobustSync } from "./helpers/temp-workspace.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -65,6 +66,9 @@ describe("FsSessionStore legacy transcripts — #400", () => {
 
   beforeEach(() => {
     baseDir = mkdtempSync(join(tmpdir(), "session-uuid-"));
+    onTestFinished(() => {
+      removeTempDirRobustSync(baseDir);
+    });
   });
 
   it("test_a_new_session_is_written_under_the_uuid_name", async () => {

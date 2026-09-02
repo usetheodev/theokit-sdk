@@ -12,6 +12,11 @@
  * server wiring lands in a sibling theokit task (cross-repo follow-up
  * documented in EC-7 of the plan).
  *
+ * Claim written 2026-06-04 (f8df6284) and NOT re-verified since: whether the sibling task has
+ * landed is a fact about another repository, and nobody checked it from here. Re-read EC-7 before
+ * trusting this paragraph — a cross-repo "lands soon" is the shape most likely to outlive its own
+ * truth, because the person who lands it is not the person reading this.
+ *
  * @internal
  */
 
@@ -20,12 +25,13 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { type SubscriptionDescriptor, SubscriptionError } from "../types.js";
-import type { UpgradeContext } from "./adapter-types.js";
 import {
   type DispatchOptions,
+  errorFrame,
   SubscriptionRuntime,
   type WireFrame,
 } from "./subscription-runtime.js";
+import type { UpgradeContext } from "./types.js";
 import { createNodeWsAdapter } from "./ws-adapter-node.js";
 
 /**
@@ -305,7 +311,7 @@ async function handleSseRequest(
 
 function wireWsConnection(
   runtime: SubscriptionRuntime,
-  handle: import("./adapter-types.js").WebSocketHandle,
+  handle: import("./types.js").WebSocketHandle,
 ): void {
   const subs: Map<string, { ac: AbortController; iterable: AsyncIterable<WireFrame> }> = new Map();
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: onMessage callback multiplexes subscribe/abort/resume kinds + per-sub lifecycle — refactor candidate
@@ -335,20 +341,18 @@ function wireWsConnection(
       try {
         dispatched = runtime.dispatch(dispatchOpts);
       } catch (cause) {
-        handle.send(
-          JSON.stringify({
-            type: "error",
-            error: { message: (cause as Error).message },
-          } satisfies WireFrame),
-        );
+        handle.send(JSON.stringify(errorFrame(cause)));
         return;
       }
       if (dispatched.transport !== "ws") {
         handle.send(
-          JSON.stringify({
-            type: "error",
-            error: { message: "non-WS dispatch result for WS request" },
-          } satisfies WireFrame),
+          JSON.stringify(
+            errorFrame(
+              new SubscriptionError("non-WS dispatch result for WS request", {
+                code: "ws_transport_mismatch",
+              }),
+            ),
+          ),
         );
         return;
       }

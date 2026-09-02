@@ -1,25 +1,19 @@
 import { AgentDisposedError, ConfigurationError } from "../../errors.js";
 import type { AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
-import { emitRunEvent } from "../../types/run-events.js";
-import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import type { MemoryToolSpec } from "../agent-loop/types.js";
+import { anySignal } from "../concurrency/abort-utils.js";
 import { diagFailure } from "../diagnostics.js";
+import { emitRunEvent } from "../emit-run-event.js";
 import type { PluginManager } from "../plugins/manager.js";
-import { anySignal } from "../runtime/concurrency/abort-utils.js";
 import {
   type CompletionCheckDeps,
   wrapRunWithCompletionCheck,
 } from "../runtime/lifecycle/wrap-completion-check-run.js";
-import {
-  resolveActiveMemorySummaryForSend,
-  resolveMemoryProviderForLoop,
-  resolveMemoryToolsForLoop,
-  shouldUsePortMemoryPath,
-} from "../runtime/memory/memory-path-selector.js";
-import type { MemoryProvider } from "../runtime/memory/memory-provider.js";
-import type { MemoryFact } from "../runtime/memory/memory-store.js";
-import { readMemoryFacts } from "../runtime/memory/memory-store.js";
-import { selectFactsForInjection } from "../runtime/memory/select-facts.js";
+import type { MemoryProvider } from "../runtime/memory-glue/memory-provider.js";
+import type { MemoryFact } from "../runtime/memory-glue/memory-store.js";
+import { readMemoryFacts } from "../runtime/memory-glue/memory-store.js";
+import { selectFactsForInjection } from "../runtime/memory-glue/select-facts.js";
 import { normalizeModel } from "../runtime/model-selection.js";
 import { runInputProcessors } from "../runtime/processors/run-processors.js";
 import { createTripwireRun } from "../runtime/processors/tripwire-run.js";
@@ -28,7 +22,6 @@ import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { appendSessionMessage, getSessionMessages } from "../session/index.js";
 import type { TelemetryHandle } from "../telemetry/tracer.js";
 import { consumePending } from "./local-agent-invalidate.js";
-import type { LocalAgentMemory } from "./local-agent-memory.js";
 import { applyPreUserSendHook, wrapRunWithPostReplyHook } from "./local-agent-memory-hooks.js";
 import { persistMemoryFactIfWritePrompt } from "./local-agent-runtime-extensions.js";
 
@@ -47,7 +40,6 @@ export interface SendLockedInputs {
   applyModelOverride: (model: ModelSelection | undefined) => void;
   options: AgentOptions;
   pluginManagerCode: PluginManager;
-  memoryGlue: LocalAgentMemory;
   defaultMemoryProviderForLoop: ReturnType<
     typeof import("./local-agent-memory-provider.js").createLocalAgentMemoryProvider
   >;
@@ -60,24 +52,45 @@ export interface SendLockedInputs {
     options: SendOptions,
     memoryFacts: ReadonlyArray<MemoryFact>,
   ) => Promise<string | undefined>;
-  assembleSystemPromptForSend: (
-    userText: string,
-    baseSystemPrompt: string | undefined,
-    memoryFacts: ReadonlyArray<MemoryFact>,
-    activeMemorySummary: string | undefined,
-    contextPaths: readonly string[] | undefined,
-  ) => Promise<string | undefined>;
-  // jscpd:ignore-start — type contract mirrors LocalAgent.dispatchRun signature (not knowledge duplication)
-  dispatchRun: (
-    message: string | SDKUserMessage,
-    options: SendOptions,
-    systemPrompt: string | undefined,
-    memoryFacts: ReadonlyArray<MemoryFact>,
-    priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
-    memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
-    memoryProviderOverride?: MemoryProvider,
-  ) => Promise<Run>;
-  // jscpd:ignore-end
+  assembleSystemPromptForSend: (request: SendAssemblyRequest) => Promise<string | undefined>;
+  dispatchRun: (args: DispatchRunArgs) => Promise<Run>;
+}
+
+/**
+ * What one send needs assembled into a system prompt. The port took the same five values
+ * positionally, so the binding in `LocalAgent` read `(ut, bp, mf, ams, cp) => …` — five
+ * abbreviations relaying into a six-argument helper call.
+ */
+export interface SendAssemblyRequest {
+  readonly userText: string;
+  readonly baseSystemPrompt: string | undefined;
+  readonly memoryFacts: ReadonlyArray<MemoryFact>;
+  readonly activeMemorySummary: string | undefined;
+  readonly contextPaths: readonly string[] | undefined;
+}
+
+/**
+ * The arguments of one dispatch, as a record.
+ *
+ * They were seven positional parameters declared TWICE — here and on `LocalAgent.dispatchRun` — kept
+ * in step by hand behind a `jscpd:ignore` pair, and relayed by
+ * `(msg, o, sp, mf, pm, mt, mp) => this.dispatchRun(msg, o, sp, mf, pm, mt, mp)`. The abbreviations
+ * were not carelessness: the arrow is one line because of the 400-LoC file budget, and a one-line
+ * arrow has no room for real names. `pm` there is `priorMessages` while `pm` in a sibling lambda two
+ * declarations up is `pluginManager`.
+ *
+ * One named type: the relay becomes `(args) => this.dispatchRun(args)`, which fits on one line
+ * without abbreviating anything, and the duplicate declaration — with the suppression that hid it —
+ * is gone.
+ */
+export interface DispatchRunArgs {
+  readonly message: string | SDKUserMessage;
+  readonly options: SendOptions;
+  readonly systemPrompt: string | undefined;
+  readonly memoryFacts: ReadonlyArray<MemoryFact>;
+  readonly priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>;
+  readonly memoryTools: ReadonlyArray<MemoryToolSpec> | undefined;
+  readonly memoryProviderOverride?: MemoryProvider | undefined;
 }
 
 /**
@@ -129,8 +142,12 @@ export async function executeSendLocked(
   options: SendOptions,
 ): Promise<Run> {
   if (inputs.disposed) throw new AgentDisposedError(inputs.agentId);
-  // biome-ignore format: keep one-liner to stay under G8 LoC.
-  await consumePending(inputs.agentId, inputs.invalidationPending, inputs.clearInvalidation, inputs.reload);
+  await consumePending(
+    inputs.agentId,
+    inputs.invalidationPending,
+    inputs.clearInvalidation,
+    inputs.reload,
+  );
   // SE8 — normalize a bare-string send-model override to `{ id }`.
   const sendModel = normalizeModel(options.model);
   inputs.applyModelOverride(sendModel);
@@ -167,39 +184,38 @@ export async function executeSendLocked(
   // questions and only the writer heard the second answer (#463).
   await persistMemoryFactIfWritePrompt(inputs.workspaceCwd, inputs.options.memory, userText);
   const memoryFacts = await readMemoryForSend(inputs.workspaceCwd, inputs.options.memory, userText);
-  const portPathActive = shouldUsePortMemoryPath();
-  const legacyTools = portPathActive ? undefined : await inputs.memoryGlue.ensureTools();
-  const legacySummary = portPathActive
-    ? undefined
-    : await inputs.memoryGlue.runActiveMemoryIfEnabled(userText, priorMessages, inputs.telemetry);
-  const memoryTools = resolveMemoryToolsForLoop(legacyTools, portPathActive);
-  const activeMemorySummary = resolveActiveMemorySummaryForSend(legacySummary, portPathActive);
-  const effectiveMemoryProvider = resolveMemoryProviderForLoop(
-    inputs.options.memoryProvider,
-    inputs.defaultMemoryProviderForLoop,
-    portPathActive,
-  );
+  // The MemoryProvider port is the ONLY memory path now (kernel flip, 2026-09-02). Both of this
+  // send's memory jobs happen inside the agent loop: the tool catalog comes from
+  // `provider.buildTools()` and the recall summary from `provider.runActivePass()`, so nothing is
+  // resolved here and the two `undefined`s below say so rather than hiding it.
+  //
+  // A consumer-supplied provider always wins; otherwise the auto-installed adapter over
+  // `LocalAgentMemory` runs, which is what the legacy branch used to do inline.
+  const memoryTools = undefined;
+  const activeMemorySummary = undefined;
+  const effectiveMemoryProvider =
+    inputs.options.memoryProvider ?? inputs.defaultMemoryProviderForLoop;
   const baseSystemPrompt = await inputs.resolveSystemPromptForSend(userText, options, memoryFacts);
-  const assembledSystemPrompt = await inputs.assembleSystemPromptForSend(
+  const assembledSystemPrompt = await inputs.assembleSystemPromptForSend({
     userText,
     baseSystemPrompt,
     memoryFacts,
     activeMemorySummary,
-    options.contextPaths,
-  );
+    contextPaths: options.contextPaths,
+  });
   const composedOptions: SendOptions = {
     ...options,
     signal: anySignal([options.signal, inputs.lifecycleAbortController.signal]),
   };
-  const run = await inputs.dispatchRun(
-    adaptedMessage,
-    composedOptions,
-    assembledSystemPrompt,
+  const run = await inputs.dispatchRun({
+    message: adaptedMessage,
+    options: composedOptions,
+    systemPrompt: assembledSystemPrompt,
     memoryFacts,
     priorMessages,
     memoryTools,
-    effectiveMemoryProvider,
-  );
+    memoryProviderOverride: effectiveMemoryProvider,
+  });
   // SE24 — output processors wrap INNER (they redact/block the model text) so the
   // post_assistant_reply memory hook observes the FINAL (processed) reply.
   const outputProcessors = inputs.options.outputProcessors;

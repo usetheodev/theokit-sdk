@@ -1,7 +1,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { isLanceAvailable } from "../../../src/internal/memory/lance-index.js";
 import { migrateSqliteToLance } from "../../../src/internal/memory/migrate-sqlite-to-lance.js";
 import { removeTempDirRobust } from "../../helpers/temp-workspace.js";
@@ -26,9 +26,10 @@ describe("migrateSqliteToLance (ADR D44)", () => {
     });
     logs.length = 0;
   });
-  afterEach(() => {
-    // tmpdir cleanup happens lazily via OS.
-  });
+  // No afterEach. One stood here whose entire body was `// tmpdir cleanup happens lazily via OS.` —
+  // false in both halves: cleanup is NOT left to the OS (`onTestFinished` five lines above calls
+  // `removeTempDirRobust`), and the hook did nothing. A reader chasing a leftover temp directory was
+  // sent to the OS instead of to the cleanup that runs.
 
   it("returns 'nothing to migrate' for empty workspace", async () => {
     const result = await migrateSqliteToLance({

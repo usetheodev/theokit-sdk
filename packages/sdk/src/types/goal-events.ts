@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/judge/` (3 of 8 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * M80 — the terminal verdicts a judge can return.
  *
  * `"blocked"` was added here in this milestone. `GoalResult.status` already carried it, but the

@@ -12,8 +12,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-
-import type { CredentialStoreConfig } from "../../../src/internal/auth/auth-types.js";
 import {
   authFilePath,
   CredentialError,
@@ -21,6 +19,7 @@ import {
   readStoredOAuth,
   writeCredential,
 } from "../../../src/internal/auth/credential-store.js";
+import type { CredentialStoreConfig } from "../../../src/internal/auth/types.js";
 
 /**
  * M42 — ported from agent-builder `agents/lib/credentials.test.ts`. REAL tmp-dir fs (no fs mocks) so the

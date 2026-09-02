@@ -17,9 +17,8 @@
 
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
-
+import { insideRoot } from "../../security/path-containment.js";
 import { loadPlainMarkdown } from "./context-loaders.js";
-import { insideRoot } from "./path-containment.js";
 
 /** EC-Q: line-anchored. `@path` must be alone on its line. */
 const IMPORT_RE = /^@(\S+)\s*$/gm;

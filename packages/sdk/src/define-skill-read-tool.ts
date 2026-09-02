@@ -23,7 +23,8 @@
 
 import { z } from "zod";
 import type { InlineSkill } from "./create-skill.js";
-import { toJsonSchema } from "./internal/zod/to-json-schema.js";
+import { ConfigurationError } from "./errors.js";
+import { toJsonSchema } from "./internal/zod-to-json-schema.js";
 import type { CustomTool } from "./types/agent.js";
 
 const SkillReadInputSchema = z.object({
@@ -68,7 +69,9 @@ function defineSkillReadTool(skills: ReadonlyArray<InlineSkill>): CustomTool {
   const seen = new Set<string>();
   for (const skill of skills) {
     if (seen.has(skill.name)) {
-      throw new Error(`defineSkillReadTool: duplicate skill name "${skill.name}".`);
+      throw new ConfigurationError(`defineSkillReadTool: duplicate skill name "${skill.name}".`, {
+        code: "duplicate_skill_name",
+      });
     }
     seen.add(skill.name);
   }
@@ -90,7 +93,10 @@ function defineSkillReadTool(skills: ReadonlyArray<InlineSkill>): CustomTool {
   };
 }
 
-/** SE36 — `SkillReadTool.create` replaces `defineSkillReadTool` (ADR 0015). @public */
+/** SE36 — `SkillReadTool.create` replaces `defineSkillReadTool` (ADR 0015). @public  *
+ * `SkillReadTool.create` returns a **`CustomTool`** — a skill-reading tool, not a
+ * `SkillReadTool` instance.
+ */
 export class SkillReadTool {
   private constructor() {}
   static create(skills: ReadonlyArray<InlineSkill>): CustomTool {

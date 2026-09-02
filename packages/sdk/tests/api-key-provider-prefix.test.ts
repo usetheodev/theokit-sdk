@@ -82,11 +82,15 @@ describe("providerFromApiKeyPrefix", () => {
  * declares.
  */
 describe("auth entry — runtime exports are typed", () => {
-  it("every_runtime_export_appears_in_the_declaration", async () => {
+  it("every_runtime_export_appears_in_the_declaration", async (ctx) => {
     const dts = join(process.cwd(), "dist", "auth", "index.d.ts");
     if (!existsSync(dts)) {
-      // Reported, never a silent pass: an unbuilt dist means this guard verified nothing.
-      console.warn("[types-guard] dist/auth/index.d.ts absent — run the build first");
+      // Reported, never a silent pass: an unbuilt dist means this guard verified nothing. A warning
+      // on stdout is not that report — CI shows it as a green test. `ctx.skip` names the missing
+      // artefact in the line a reader actually looks at.
+      ctx.skip(
+        "dist/auth/index.d.ts absent — run `pnpm build` before this guard can verify anything",
+      );
       return;
     }
     const declared = readFileSync(dts, "utf8");

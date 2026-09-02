@@ -48,7 +48,8 @@ describe("T5.10a — readVersionedJson moves corrupt file aside", () => {
     expect(result).toEqual({ fresh: true });
 
     // Original path no longer exists (was renamed)
-    await expect(stat(path)).rejects.toThrow();
+    // Measured: ENOENT — the assertion IS that the file was moved aside, so the code is the claim.
+    await expect(stat(path)).rejects.toMatchObject({ code: "ENOENT" });
 
     // Corrupt file was moved aside with .corrupt.<epoch> suffix
     const { readdir } = await import("node:fs/promises");

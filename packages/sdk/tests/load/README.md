@@ -7,7 +7,7 @@ promises load coverage the suite does not have.
 | File | Status | Asserts | Placeholder for |
 |---|---|---|---|
 | `leaky-generators.test.ts` | **real SDK coverage** | that `Task.subscribe`'s iterator releases its subscriber on `break`, on `throw` and on explicit `return()`, and that a hand-driven iterator abandoned without `return()` leaks it | — |
-| `1000-concurrent-sse.test.ts` | scaffold (leak claim **withdrawn**, B-131) | the SSE driver harness sustains 100 connections against a fixture server, plus a harness-only smoke check (see below) | T6.2 — 1000 connections at p95 < 200ms against the SDK's SSE wire |
+| `concurrent-sse-1000.test.ts` | scaffold (leak claim **withdrawn**, B-131) | the SSE driver harness sustains 100 connections against a fixture server, plus a harness-only smoke check (see below) | T6.2 — 1000 connections at p95 < 200ms against the SDK's SSE wire |
 | `slow-consumer-backpressure.test.ts` | scaffold | a local generator drains fully and RSS stays under a generous ceiling | T6.2 — RSS bounds on the SDK stream wire under slow consumers |
 
 `leaky-generators.test.ts` graduated out of the scaffold class in B-105. It previously asked
@@ -20,7 +20,7 @@ Its old docblock also had the premise backwards. Breaking out of `for await` doe
 iteration protocol calls `.return()` for you, on `break` and on `throw` alike. Only a hand-driven
 iterator escapes cleanup.
 
-## B-131 — `1000-concurrent-sse.test.ts`'s "does not leak CLOSE_WAIT sockets" claim is WITHDRAWN
+## B-131 — `concurrent-sse-1000.test.ts`'s "does not leak CLOSE_WAIT sockets" claim is WITHDRAWN
 
 That assertion shelled `ss -tnp` against `_harness/sse-driver.ts`, a raw `node:http`/`node:net`
 driver with no `src/` production code in it at all. Measured: deleting the driver's own
@@ -39,7 +39,7 @@ response body stayed open on early exit. Fixed in `src/subscription/theokit-subs
 calling `reader.cancel()`. The WS transport already called `ws.close()` in its own `finally` and
 needed no fix; both are now mutation-verified (deleting either cleanup call turns its test RED).
 
-The CLOSE_WAIT check inside `1000-concurrent-sse.test.ts` is kept as a harness smoke check only —
+The CLOSE_WAIT check inside `concurrent-sse-1000.test.ts` is kept as a harness smoke check only —
 worth knowing if the driver or `socket-monitor.ts` itself breaks, proves nothing about SDK
 correctness, and must not be read as a regression guard.
 

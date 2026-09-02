@@ -81,6 +81,21 @@ async function callJudge(
   }
 }
 
+/**
+ * The parser, exposed for tests. NOT re-exported from any barrel — `_...ForTests` is this repo's
+ * convention for a seam that exists so a test can call production code instead of copying it
+ * (`_redactAttrValueForTests`, `__resetSnapshotStoresForTests`).
+ *
+ * It exists because the alternative was measured and was worse: the judge's only test file declared
+ * its own copy of `SCORE_REGEX` under the comment "Mirror the one in llm-judge.ts", and six of its
+ * eight cases exercised the copy. Byte-identical today, which is exactly why the drift would have
+ * been invisible — changing the production regex broke nothing there. Testing a mirror tests the
+ * mirror.
+ */
+export function _parseScoreForTests(text: string, rubric: "continuous" | "discrete"): Score {
+  return parseScore(text, rubric);
+}
+
 function parseScore(text: string, rubric: "continuous" | "discrete"): Score {
   const match = SCORE_REGEX.exec(text);
   if (match === null) return { score: 0, reason: "judge_parse_failed" };

@@ -10,8 +10,8 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { batchImpl, validateBatchInput } from "../src/batch.js";
 import { ConfigurationError } from "../src/errors.js";
+import { batchImpl, validateBatchInput } from "../src/internal/agent/batch.js";
 import { list as taskRegistryList } from "../src/internal/task/registry.js";
 import type { SDKAgent } from "../src/types/agent.js";
 import type { BatchOptions } from "../src/types/batch.js";

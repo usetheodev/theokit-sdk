@@ -20,9 +20,9 @@
 import { describe, expect, it } from "vitest";
 
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
-import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../../src/internal/agent-loop/types.js";
 import type { LlmClient, LlmEvent, LlmFinish } from "../../../src/internal/llm/types.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
+import { makeLoopInputs } from "./_helpers/make-inputs.js";
 
 interface SequencedFinish {
   text: string;
@@ -58,19 +58,8 @@ function makeSequencedLlm(sequence: SequencedFinish[]): {
   return { llm, callCount: () => callIdx };
 }
 
-function makeInputs(llm: LlmClient): AgentLoopInputs {
-  return {
-    agentId: "validate-response-nudge-test",
-    runId: "run-1",
-    userMessage: "hi",
-    model: { id: "mock-model" },
-    llm,
-    mcp: new Map(),
-    hooks: new HooksExecutor(process.cwd()),
-    shellCwd: process.cwd(),
-    shellSandbox: false,
-  };
-}
+const makeInputs = (llm: LlmClient): AgentLoopInputs =>
+  makeLoopInputs({ agentId: "validate-response-nudge-test", llm });
 
 describe("T2.1 — validateResponse D93 nudge wiring", () => {
   it("empty content + zero tool calls → loop injects nudge and re-runs LLM", async () => {

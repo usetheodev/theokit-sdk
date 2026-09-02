@@ -3,6 +3,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Agent } from "../src/index.js";
 import type { SDKAgent } from "../src/types/agent.js";
 import type { Processor } from "../src/types/processors.js";
+import { useTempCwd } from "./helpers/temp-workspace.js";
+
+// Agent.create defaults its workspace to process.cwd(), which during a test run is the
+// package itself — this file created agents without saying where, and the sessions landed in
+// packages/sdk/.theokit/. See useTempCwd's docblock for the 540 MB that bought.
+useTempCwd();
 
 /**
  * SE26 — evidence that the DELEGATED LLM-classifier pattern works on the SE24

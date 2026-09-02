@@ -1,82 +1,26 @@
 import { ConfigurationError } from "../../errors.js";
-import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { SDKMessage } from "../../types/messages.js";
-import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
-import { emitRunEvent } from "../../types/run-events.js";
+import type { Run, RunOperation, RunStatus } from "../../types/run.js";
 import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
-import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
-import { LOCAL_RUNTIME_MOCK_KEY } from "../auth/api-key-validator.js";
-import { diag } from "../diagnostics.js";
-import { FallbackLlmClient } from "../llm/fallback-client.js";
-import { parseModelId } from "../llm/model-identifier.js";
-import { resolveProviderChain } from "../llm/router.js";
-import { createMcpClient, type McpClient } from "../mcp/client.js";
-import { getProviderProfile, registerBuiltins } from "../providers/index.js";
-import { registerPluginProviderProfiles } from "../providers/register-plugin-providers.js";
-import { withToolWhitelist } from "../runtime/concurrency/async-local-storage.js";
+import { withToolWhitelist } from "../concurrency/async-local-storage.js";
 import {
   type InheritedCredentials,
   withInheritedSubAgentCredentials,
-} from "../runtime/concurrency/subagent-credentials.js";
-import { isFixtureApiKey } from "../runtime/fixtures/fixture-mode.js";
+} from "../concurrency/subagent-credentials.js";
+import { emitRunEvent } from "../emit-run-event.js";
+import { FallbackLlmClient } from "../llm/fallback-client.js";
+import { resolveProviderChain } from "../llm/router.js";
 import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-run-base.js";
-import type { FixtureScript } from "../runtime/fixtures/fixture-types.js";
-import type { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
+import type { FixtureScript } from "../runtime/fixtures/types.js";
 import { registerRun } from "../runtime/registry/run-registry.js";
-import type { SessionMessage } from "../session/index.js";
 import { createTelemetry } from "../telemetry/tracer.js";
-import { McpClientPool } from "./mcp-pool.js";
-import {
-  detectPrimaryProvider,
-  inferProviderFromApiKey,
-  warnProviderPrecedenceOnce,
-} from "./real-local-run-provider.js";
+import { buildMcpMap, runOwnsMcpClients } from "./real-local-run-mcp.js";
+
+export type { CreateRealLocalRunOptions } from "./real-local-run-options.js";
+
+import type { CreateRealLocalRunOptions } from "./real-local-run-options.js";
+import { mergeExplicitApiKey, resolveRunProvider } from "./real-local-run-provider.js";
 import { buildRunToolCatalogInput, resolveInheritedCredentials } from "./real-local-run-tools.js";
-
-/**
- * Real local Run. When the local agent has a non-fixture API key plus at
- * least one provider env credential, the agent loop drives a real LLM and
- * dispatches real tools. The output is materialized into the same
- * `FixtureScript` shape used by the fixture runtime so the `Run` surface
- * stays uniform.
- *
- * @internal
- */
-
-export interface CreateRealLocalRunOptions {
-  agentId: string;
-  model: ModelSelection | undefined;
-  message: string | SDKUserMessage;
-  agentOptions: AgentOptions;
-  /**
-   * File-based + inline subagents merged by `loadSubagents` (`.theokit/agents/*.md`
-   * plus `agentOptions.agents`). When present, these — not just the inline
-   * `agentOptions.agents` — become the delegation toolset, so a subagent defined
-   * only on disk is callable against a real model (not fixture-only).
-   */
-  subagents?: Record<string, AgentDefinition>;
-  sendOptions: SendOptions;
-  workspaceCwd: string;
-  hooks: HooksExecutor;
-  /** T4.1 — PluginManager threaded from LocalAgent for plugin tools + pre_tool_call hooks. */
-  pluginManager?: import("../plugins/manager.js").PluginManager;
-  /** Pre-resolved system prompt threaded by `LocalAgent.send`. */
-  systemPrompt?: string;
-  onStep?: SendOptions["onStep"];
-  onDelta?: SendOptions["onDelta"];
-  /** Prior conversation history (excluding the current user message). */
-  priorMessages?: ReadonlyArray<SessionMessage>;
-  /** Memory tools to register with the LLM (Phase 6 of memory-system-peer-project-parity). */
-  memoryTools?: ReadonlyArray<MemoryToolSpec>;
-  /**
-   * Active personality tool whitelist (T4.1, ADR D167). When defined,
-   * `customTools` are filtered to this subset; missing entries log a
-   * one-shot warn. Undefined = no filter.
-   */
-  personalityToolWhitelist?: ReadonlyArray<string>;
-  /** Active personality slug — used in personality-filter warnings. */
-  personalityName?: string;
-}
 
 export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
   const { userText, userImages, id, startTime } = prepareRunContext(options.message);
@@ -111,94 +55,6 @@ export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
   handle.bootstrap();
   registerRun(handle);
   return handle;
-}
-
-// Module-level one-shot: the observability line fires once per process, not
-// once per run, to avoid log spam when many agents are created.
-let pluginProvidersAnnounced = false;
-
-/** Test-only reset for the one-shot announcement. @internal */
-export function _resetPluginProviderAnnounce(): void {
-  pluginProvidersAnnounced = false;
-}
-
-/**
- * Resolve the run's primary provider + effective model id.
- *
- * Registers builtins AND any plugin-contributed `kind: "model-provider"`
- * profiles FIRST, so the prefix-inference lookup (`model: { id: "myprov/..." }`)
- * can see a plugin-supplied provider. The aggregated profiles were otherwise
- * never registered (half-wired path). Extracted from `buildLoopInputs` (SRP)
- * and exported `@internal` so the plugin-provider wiring is regression-covered.
- *
- * ADR D182 / T1.2: explicit `providers.routes[0].provider` wins, then prefix
- * inference, then env-var heuristics (`detectPrimaryProvider`).
- *
- * @internal
- */
-export function resolveRunProvider(options: CreateRealLocalRunOptions): {
-  primary: string;
-  effectiveModelId: string;
-} {
-  registerBuiltins();
-  const profiles = options.pluginManager?.aggregated.providerProfiles ?? [];
-  const registered = registerPluginProviderProfiles(profiles);
-  // Wiring-triad pillar (c): one-shot observability that plugin providers were
-  // wired this process. Silent on the zero-plugin happy path.
-  if (registered > 0 && !pluginProvidersAnnounced) {
-    pluginProvidersAnnounced = true;
-    const names = profiles.map((e) => e.profile.name).join(", ");
-    diag(`[theokit-sdk] registered ${registered} plugin provider profile(s): ${names}\n`);
-  }
-  const parsedModel = parseModelId(options.model?.id);
-  const modelInferredProvider =
-    parsedModel.provider !== undefined && getProviderProfile(parsedModel.provider) !== undefined
-      ? parsedModel.provider
-      : undefined;
-  // M4 (plan m4-provider-routing-apikey-fix): the explicitly-passed API key is
-  // the ground-truth credential of which endpoint will be called, so it outranks
-  // model-prefix inference for `primary` — a `sk-or-` key + an `openai/gpt-4o-mini`
-  // model MUST route to OpenRouter, not the OpenAI provider. An explicit
-  // `providers.routes[0].provider` still wins (user override).
-  const keyInferredProvider = inferProviderFromApiKey(options.agentOptions.apiKey);
-  const primary =
-    options.agentOptions.providers?.routes?.[0]?.provider ??
-    keyInferredProvider ??
-    modelInferredProvider ??
-    detectPrimaryProvider();
-  // The precedence above is deliberate, but it used to be silent: a caller writing
-  // `model: { id: "e2elocal/gpt-4o-mini" }` and receiving `openai API error: auth_failed` had no
-  // way to learn their prefix had been overruled, because the error names only the winner
-  // (B-156). `error-handling.md` § 2 asks that a substitution be visible.
-  warnProviderPrecedenceOnce(modelInferredProvider, primary);
-  // Strip the vendor prefix ONLY when the model's own prefix names the resolved
-  // primary (anthropic/claude → claude for the anthropic provider). When primary
-  // is an aggregator (openrouter) whose slug legitimately embeds a `vendor/`
-  // segment (openai/gpt-4o-mini), pass the id through unstripped.
-  const effectiveModelId =
-    modelInferredProvider !== undefined && modelInferredProvider === primary
-      ? parsedModel.name
-      : (options.model?.id ?? "claude-sonnet-4-6");
-  return { primary, effectiveModelId };
-}
-
-/**
- * M4: thread the single `Agent.create({ apiKey })` credential into the router's
- * per-provider pool for the resolved `primary`, so an explicitly-passed key is
- * used even when the matching env var is unset. An existing `providers.apiKeys`
- * pool for the provider wins (it is the more-specific config); fixture and
- * `local` sentinels are never threaded (they are not real credentials). @internal
- */
-export function mergeExplicitApiKey(
-  pools: Record<string, string[]> | undefined,
-  primary: string,
-  apiKey: string | undefined,
-): Record<string, string[]> | undefined {
-  if (apiKey === undefined || apiKey.length === 0) return pools;
-  if (isFixtureApiKey(apiKey) || apiKey === LOCAL_RUNTIME_MOCK_KEY) return pools;
-  const existing = pools?.[primary];
-  if (existing !== undefined && existing.length > 0) return pools;
-  return { ...(pools ?? {}), [primary]: [apiKey] };
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: spread-conditional builders for optional fields (systemPrompt, onStep, onDelta, priorMessages, memoryTools, customTools, pluginManager) are the canonical pattern for shaping AgentLoopInputs; splitting hurts readability.
@@ -288,16 +144,16 @@ function buildLoopInputs(
     ...(options.memoryTools !== undefined && options.memoryTools.length > 0
       ? { memoryTools: options.memoryTools }
       : {}),
-    ...buildRunToolCatalogInput(
-      options.agentOptions,
-      options.sendOptions,
-      options.pluginManager,
-      options.personalityToolWhitelist,
-      options.agentId,
-      options.personalityName,
-      options.subagents,
-      options.model,
-    ),
+    ...buildRunToolCatalogInput({
+      agentOptions: options.agentOptions,
+      sendOptions: options.sendOptions,
+      pluginManager: options.pluginManager,
+      personalityToolWhitelist: options.personalityToolWhitelist,
+      agentId: options.agentId,
+      personalityName: options.personalityName,
+      subagents: options.subagents,
+      effectiveModel: options.model,
+    }),
     ...(options.pluginManager !== undefined ? { pluginManager: options.pluginManager } : {}),
     // D318 — forward SendOptions.signal to the agent loop so streamLlmTurn
     // can attach it to the LLM `fetch({ signal })` call.
@@ -351,72 +207,6 @@ function buildLoopInputs(
       ? { memoryProvider: options.agentOptions.memoryProvider }
       : {}),
   };
-}
-
-/**
- * M77 — the process-wide pool backing `mcpLifecycle: 'session'`.
- *
- * Keyed by `(agentId, server, config)`, so it is session-scoped despite being a module-level object:
- * `agentId` IS the session identity here (it is what `getSessionMessages` keys the transcript cache
- * by), and `LocalAgent.dispose()` releases its own entries. Two agents never see each other's
- * clients.
- */
-const sessionMcpPool = new McpClientPool<McpClient>();
-
-/** M77 — release one session's pooled MCP clients. Called from `LocalAgent.dispose()`. */
-export function disposeSessionMcpClients(agentId: string): void {
-  sessionMcpPool.disposeSession(agentId, (client) => {
-    void client.close();
-  });
-}
-
-/**
- * M77 — the production seam, exported for the wiring test.
- *
- * Exported (`_` prefix, `@internal`) rather than left private because the pool is only worth having
- * if `buildMcpMap` actually reaches it. Testing the pool class alone would prove the CLASS reuses,
- * not that the SYSTEM does — the exact gap the M76 review found in the ask-bridge.
- *
- * @internal
- */
-export function _buildMcpMapForTests(options: CreateRealLocalRunOptions): Map<string, McpClient> {
-  return buildMcpMap(options);
-}
-
-/**
- * theokit#155 — does THIS RUN own the MCP clients it was handed?
- *
- * Under the default `'run'` lifecycle the client is built for this send and dies with it, so the
- * run closes it. Under `'session'` the pool owns it: closing it at the end of the turn SIGTERMs the
- * child process, and the next turn spawns a new one — which is exactly why the option measured
- * 0 ms of savings. Ownership is derived here, once, so `buildMcpMap` and the run's `finally` cannot
- * disagree about who releases the resource.
- */
-function runOwnsMcpClients(agentOptions: AgentOptions): boolean {
-  return agentOptions.mcpLifecycle !== "session";
-}
-
-function buildMcpMap(options: CreateRealLocalRunOptions): Map<string, McpClient> {
-  const map = new Map<string, McpClient>();
-  const inline = options.sendOptions.mcpServers ?? options.agentOptions.mcpServers;
-  if (inline === undefined) return map;
-
-  // M77 — `'run'` stays the default: a client per send, dropped with the run. Only an explicit
-  // `mcpLifecycle: 'session'` reaches the pool, because pooling changes the failure model (see the
-  // option's docblock). The reap runs on acquisition rather than on a timer: a timer would keep the
-  // process alive, and a pool nobody touches has nothing worth reaping.
-  const pooled = !runOwnsMcpClients(options.agentOptions);
-  if (pooled) sessionMcpPool.reapIdle((c) => void c.close());
-
-  for (const [name, config] of Object.entries(inline)) {
-    map.set(
-      name,
-      pooled
-        ? sessionMcpPool.acquire(options.agentId, name, config, () => createMcpClient(name, config))
-        : createMcpClient(name, config),
-    );
-  }
-  return map;
 }
 
 class RealLocalRun extends FixtureRunBase {

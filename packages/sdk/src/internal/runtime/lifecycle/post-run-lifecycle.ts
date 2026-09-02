@@ -7,10 +7,9 @@ import {
 import type { MemorySettings } from "../../../types/agent.js";
 import type { Run } from "../../../types/run.js";
 import type { RunEventSink } from "../../../types/run-events.js";
-import { emitRunEvent } from "../../../types/run-events.js";
 import type { SessionStore } from "../../../types/session-store.js";
 import { diag } from "../../diagnostics.js";
-import type { LocalAgentMemory } from "../../local-agent/local-agent-memory.js";
+import { emitRunEvent } from "../../emit-run-event.js";
 import { resolveMemoryRoot } from "../../memory/storage/memory-root.js";
 import { writeSessionSummary } from "../../memory/storage/session-summary-writer.js";
 import { getCatalogModelInfo } from "../../providers/catalog-loader.js";
@@ -21,8 +20,7 @@ import {
   persistTurnToTranscript,
 } from "../../session/index.js";
 import type { HooksExecutor } from "../hooks/hooks-executor.js";
-import { shouldUsePortMemoryPath } from "../memory/memory-path-selector.js";
-import type { MemoryProvider } from "../memory/memory-provider.js";
+import type { MemoryProvider } from "../memory-glue/memory-provider.js";
 import { buildContextBudgetEvent } from "./context-budget-event.js";
 
 /**
@@ -56,7 +54,6 @@ export interface PostRunLifecycleInputs {
   /** SE2 — surface a `compact_boundary` RunEvent when a persistence-side compaction fires. */
   onRunEvent?: RunEventSink;
   hooksExecutor: HooksExecutor;
-  memoryGlue: LocalAgentMemory;
   /**
    * SDK 2.0 Phase 1 physical Stage 3 prep — iter 27 (refined iter 28):
    * optional port-based session-summary recorder. When supplied AND the
@@ -153,7 +150,6 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
     contextWindow,
     onRunEvent,
     hooksExecutor,
-    memoryGlue,
     memoryProvider,
   } = inputs;
   let result: Awaited<ReturnType<Run["wait"]>>;
@@ -277,17 +273,11 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
       } else {
         await writeSessionSummary(summaryArgs);
       }
-      // EC-3: trigger sync so the next memory_search({corpus:"sessions"})
-      // sees the just-written summary. Fire-and-forget; the read path
-      // tolerates a missed sync because IndexManager re-scans on each call.
-      //
-      // SDK 2.0 Phase 1 physical Stage 2b — iter 26: under
-      // `THEOKIT_PORT_MEMORY_PATH=1` the agent-loop already fired
-      // `provider.sync()` post-finished-run. Calling syncIfReady() here
-      // would be redundant (double sync). Skip when flag is on.
-      if (!shouldUsePortMemoryPath()) {
-        void memoryGlue.syncIfReady();
-      }
+      // EC-3 used to be satisfied here by `memoryGlue.syncIfReady()`, so the next
+      // `memory_search({corpus:"sessions"})` would see the summary just written. The agent loop
+      // fires `provider.sync()` after a finished run, and since the kernel flip that is the only
+      // path — calling both was a double sync, which is why the call was gated on the env var
+      // rather than unconditional. The gate is gone with the flag; so is the call it guarded.
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       diag(`[theokit-sdk] session summary write failed (${result.id}): ${message}\n`);
@@ -314,7 +304,15 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
 async function safeConversation(run: Run): Promise<Awaited<ReturnType<Run["conversation"]>>> {
   try {
     return await run.conversation();
-  } catch {
+  } catch (cause) {
+    // The `[]` fallback stays — degrading to the user turn beats crashing the post-run lifecycle,
+    // which is what the docblock above promises. What was inconsistent is the silence: the two other
+    // failure paths in this same file (partial transcript write, session summary write) both diag
+    // the cause, so the file had already decided persistence failures deserve a diagnostic. This one
+    // silently TRUNCATES what gets persisted — the turn is written with the user message and no
+    // assistant or tool content — which is the least visible of the three and was the only quiet one.
+    const msg = cause instanceof Error ? cause.message : String(cause);
+    diag(`[theokit-sdk] conversation() failed; persisting the user turn only: ${msg}\n`);
     return [];
   }
 }

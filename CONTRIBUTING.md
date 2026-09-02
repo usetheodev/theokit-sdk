@@ -74,6 +74,53 @@ nothing a reader doesn't already have, and the churn isn't worth it. Write new t
 blank line between each part; comment markers are optional and add little once the blank line does
 the separating.
 
+## Test names
+
+Name a test after the behaviour, in prose, inside the `it()` that already says "it":
+
+```ts
+it("rejects a transfer when the balance is insufficient", () => { … });
+```
+
+Not `it("test_transfer_fails_when_balance_insufficient")`. Both forms describe behaviour, so this is
+a consistency rule rather than a quality one — but the redundant `test_` prefix inside a function
+named `it` reads as *"it test the fork destination is born 0600"*, and the split is large enough to
+be worth closing: measured 2026-09-02, **1323 of 5249 test names (25%) carry the prefix once the seven defect-id names are excluded, across 190
+of 807 files**, and some files mix both forms within one `describe`.
+
+Same treatment as the AAA section above: **the convention is declared, the rewrite is not demanded.**
+Existing names stay. `tests/lint/test-names-are-prose.test.ts` pins the count so the minority form
+cannot grow, and asks to be re-pinned downward whenever a file is renamed for other reasons — the
+ratchet `tools/check-duplication.mjs` and the complexity budget already use here.
+
+One case earns the prefix and is exempt where it appears: a name whose first token is a defect id
+from the issue that produced the test (`test_B1_…`, `test_M2_…`). That id is the traceability the
+prose form has nowhere to put, and losing it costs more than the consistency gains.
+
+## File size
+
+`pnpm quality:loc` counts **statements**, from the TypeScript AST. Not lines.
+
+The difference is the whole point. It counted logical lines until 2026-09-02, and a line count is
+moved by the formatter, so the cheapest way under it was to reformat. `local-agent.ts` had nine
+`biome-ignore format` directives saying exactly that — *"one-liner to stay under G8 LoC budget"*,
+*"multi-line layout would push file past G8 LoC cap"* — and one of them produced a 332-character
+method on a single line. Removing all nine and letting the formatter run took the file from 381 to
+**436** logical lines while changing nothing it does: the same 185 statements, the same
+responsibilities.
+
+A file that games its way under a cap is worse than one over it, because the number now says "fine"
+about a file nobody has split. Whitespace cannot move a statement count, so the only way past this
+gate is to have less in the file.
+
+The limit is **250**, a pinned measurement rather than a target: the largest file in the package is
+239 (`internal/mcp/client.ts`), and 8 of 546 are above 200. Re-pin it downward when the maximum
+drops — the same ratchet `tools/check-duplication.mjs` and the complexity and parameter budgets use.
+
+**What it does not measure**, since the old wording implied otherwise: a statement count is not a
+responsibility count. A 100-statement file doing two unrelated jobs is worse than a 240-statement
+file doing one, and this gate prefers the first. It bounds growth; it does not certify design.
+
 ## What a wait must be
 
 A test that waits — for a state, a frame, a file — must wait on a signal **the intermediate state
@@ -386,6 +433,51 @@ The counterpart failure is in [A measurement that confirms you gets no second
 reading](#a-measurement-that-confirms-you-gets-no-second-reading) — a silent gate is that trap built
 into the tooling, where it fires on everyone rather than on whoever ran the command.
 
+## "No consumer" is a claim about your search, not about the world
+
+This package is published. Its callers are mostly not in this repository, so a question of the form
+*does anything use this?* cannot be answered by searching this repository — and the search will
+answer anyway, with a number, confidently.
+
+Measured 2026-09-02 (usetheokit/theokit-sdk#521). An audit reported **nine public primitives with
+zero consumers**, having grepped `packages/` and `apps/` across all 16 packages here. The grep was
+correct. The conclusion was false for five of the nine:
+
+| What the audit found | What was actually true |
+|---|---|
+| `applySecurityFloor`, `auditEnvReachability`, `foldLayers`, `verifyLayerOrdering` — 0 callers | re-exported in production by `@theokit/agents` (`usetheokit/theokit`), which **raised its dependency floor to `^4.49.0`** specifically to get them |
+| `loadProjectEnv` — 0 callers | called from a shipped `create-theokit` template, so **every scaffolded project** calls it |
+| the remaining four — 0 callers | true, and each already carries a recorded downstream verdict with an owner or a policy |
+
+**Seven repositories in the organisation depend on `@theokit/sdk`** — `theokit`, `theokit-di`,
+`theokit-gateways`, `theokit-plugins`, `theokit-skills`, `theokit-studio`, `theokit-tui`. The audit
+measured none of them, and nothing about its output said so.
+
+The template case has no tool that can see it at all. [A blanket suppression is a claim about the
+tool](#a-blanket-suppression-is-a-claim-about-the-tool) records that *"knip counts an export as used
+only when another file imports it"* — and a `.tmpl` is a string until someone scaffolds it, so no
+import graph contains it. That is not a setting anyone forgot; it is outside what an import graph can
+represent.
+
+So before writing "no consumer" about anything on a published surface:
+
+- **Search the seven, not the one.** `gh api -X GET search/code -f q='<symbol> org:usetheokit'` costs
+  one request and is the whole difference. Code search sees public repositories only — say so when
+  the answer is zero, because private and unpublished callers stay invisible.
+- **Read the downstream verdict table before forming one of your own.**
+  `usetheokit/theokit` maintains `packages/agents/tests/unit/root-bar-coverage.test.ts`, which
+  demands an explicit verdict for **every value on this SDK's root bar** and proves the `in` ones by
+  referential identity. It distinguishes "nobody decided yet" from "we decided it stays out", which
+  is the distinction an upstream guess destroys.
+- **Grep the templates too.** `packages/*/templates/**` in the consumer repos ships code that no
+  import graph contains.
+- **A zero here is a scope report, not a finding.** Write what was searched next to it, so the next
+  reader can see the boundary of the claim instead of inheriting the number.
+
+The wider version of this is [A claim about A does not transfer to
+B](#a-claim-about-a-does-not-transfer-to-b): a measurement over one tree says nothing about a tree it
+never opened, however carefully it was run.
+
 ## The gate you run is not the gate that decides
 
 A green `pnpm validate` says the gates passed **in your working tree**. CI says they passed in a
@@ -430,7 +522,7 @@ The push is gated locally by `.githooks/pre-push`, and again in CI. Every gate i
 | Cycles | `pnpm quality:cycles` | any import cycle (threshold 0) |
 | Layering | `pnpm quality:depcruise` | a dependency pointing the wrong way |
 | Cluster boundary | `pnpm quality:cross-cluster` | importing an extracted sibling repo |
-| File size | `pnpm quality:loc` | a source file over 400 LoC |
+| File size | `pnpm quality:loc` | a source file over 250 **statements** (not lines — see § File size) |
 | Duplication | `pnpm quality:duplication` | a copied block in `packages/sdk/src` |
 | Docs drift | `pnpm quality:doc-api` | a documented import that no longer resolves |
 | Declaration typecheck | `pnpm quality:dts-typechecks` | a published `.d.ts`/`.d.cts` that does not compile without `skipLibCheck` |

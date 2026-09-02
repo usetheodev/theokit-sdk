@@ -17,7 +17,7 @@ import type { CostBreakdown, TokenUsage } from "../../types/usage.js";
 import { computeCost } from "../budget/compute-cost.js";
 import type { UsageAccumulator } from "../budget/usage-accumulator.js";
 import { parseModelId } from "../llm/model-identifier.js";
-import type { AgentLoopInputs } from "./loop-types.js";
+import type { AgentLoopInputs } from "./types.js";
 
 export interface LlmTurnUsage {
   inputTokens?: number;

@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/catalog/` (2 of 3 importers). Derived from the import graph, not declared —
+ * `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Account-level user info returned by `Theokit.me()`.
  *
  * @public

@@ -16,14 +16,14 @@ import type { SessionStore } from "../../types/session-store.js";
 import { diag } from "../diagnostics.js";
 import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import type { FileContextManager } from "../runtime/context/context-manager.js";
-import type { PluginsManager } from "../runtime/plugins/plugins-manager.js";
+import type { PluginsManager } from "../runtime/plugin-loader/plugins-manager.js";
 import { flushRegistrySaves } from "../runtime/registry/agent-registry.js";
 import { liveAgentRegistry } from "../runtime/registry/live-agent-registry.js";
 import type { SkillsManager } from "../runtime/skills/skills-manager.js";
 import { loadSubagents } from "../runtime/skills/subagents-loader.js";
 import { discardSession } from "../session/agent-session.js";
 import { flushSessionWrites } from "../session/index.js";
-import { disposeSessionMcpClients } from "./real-local-run.js";
+import { disposeSessionMcpClients } from "./real-local-run-mcp.js";
 
 /**
  * Takes the writer lease when the store knows how to take one.
@@ -34,11 +34,13 @@ import { disposeSessionMcpClients } from "./real-local-run.js";
  *
  * @internal
  */
-export async function acquireLeaseIfPossible(store: unknown, agentId: string): Promise<void> {
-  const a = (store as { acquire?: (id: string) => Promise<void> }).acquire;
-  if (typeof a !== "function") return;
+export async function acquireLeaseIfPossible(store: SessionStore, agentId: string): Promise<void> {
+  // `acquire` is a DECLARED optional member now, so this probes a contract instead of guessing at an
+  // undeclared one through a cast. The behaviour is unchanged; what changed is that a store author
+  // can read the hook in the interface they implement.
+  if (typeof store.acquire !== "function") return;
   try {
-    await a.call(store, agentId);
+    await store.acquire(agentId);
   } catch (err) {
     // `SessionBusyError` PROPAGATES — that is the whole point: another process holds the session, and whoever
     // called it needs to decide (`exec` forks to a new id).
@@ -62,21 +64,19 @@ export async function acquireLeaseIfPossible(store: unknown, agentId: string): P
 /**
  * Releases an agent's lease, when the store knows how to release one by id.
  *
- * `SessionStore` is a **two-method** port by contract (`types/session-store.ts`), and a store
- * injected by the consumer is not required to have a lifecycle. Testing for the capability rather
- * than requiring it in the interface keeps the port small — widening it would force every external
- * store to implement a method most do not need (ISP).
+ * A store injected by the consumer is not required to have a lifecycle, so the capability is tested
+ * rather than required. The previous wording said declaring it "would force every external store to
+ * implement a method most do not need (ISP)" — which conflates DECLARING with REQUIRING. An optional
+ * member forces nothing; what it does is let the author of a store see the hook exists.
  *
  * @internal
  */
-export async function releaseLeaseIfPossible(store: unknown, agentId: string): Promise<void> {
-  const r = (store as { release?: (id: string) => Promise<void> }).release;
-  if (typeof r === "function") await r.call(store, agentId);
+export async function releaseLeaseIfPossible(store: SessionStore, agentId: string): Promise<void> {
+  if (typeof store.release === "function") await store.release(agentId);
 }
 
-async function disposeSessionStore(store: unknown): Promise<void> {
-  const d = (store as { dispose?: () => Promise<void> }).dispose;
-  if (typeof d === "function") await d.call(store);
+async function disposeSessionStore(store: SessionStore): Promise<void> {
+  if (typeof store.dispose === "function") await store.dispose();
 }
 
 /**

@@ -7,15 +7,22 @@
  * Semantic deltas vs SQLite (documented so callers know what to expect):
  *
  *  - `sync()` is a NO-OP. Lance is a pure vector store — there is no
- *    markdown corpus to crawl. Returns zero counts. Consumers writing
- *    facts use `LanceIndex.addFacts` directly (exposed via the index
- *    object returned to advanced callers).
- *  - `search()` performs vector-only retrieval. `MemorySearchHit.textScore`
- *    is undefined (no FTS5 layer); `vectorScore === score`.
+ *    markdown corpus to crawl. It returns zero counts with `supported: false`
+ *    so the result is not mistaken for a sync that found nothing. Consumers
+ *    writing facts hold a `LanceIndex` and call `addFacts` on it; the adapter
+ *    does not hand its adaptee out.
+ *  - `search()` is HYBRID, not vector-only. Lance supplies the vector distance
+ *    and `translateLanceHit` adds a client-side term-overlap ratio (T4.5), so
+ *    `textScore` is a real number in 0..1 and `score` is `0.7 * vectorScore +
+ *    0.3 * textScore` — never `=== vectorScore`. This block said the opposite
+ *    for as long as T4.5 has been shipped, while the docblock 90 lines below
+ *    described the change correctly, so the two halves of one file disagreed
+ *    and the header is the half a caller reads.
  *  - `status()` reports `backend: "hybrid"` only when an embedding runtime
  *    is wired (always the case for Lance — embedding is required at open).
- *    `chunksIndexed` reflects total Lance row count; `filesIndexed` is 0
- *    because Lance does not track file provenance per-row.
+ *    Both counts are 0 with `countsExact: false`: the port declares `status()`
+ *    synchronous and Lance's row count is async, so nothing can be measured
+ *    here. The zeros are placeholders and the flag says which.
  *
  * Ships with the lancedb-backend-ship-v1-1 plan (close D12, supersede via
  * D43). v1.4.0 of `@theokit/sdk`.
@@ -24,6 +31,7 @@
  */
 
 import type { IndexStatus, MemorySearchHit, SearchOptions } from "./index-manager-contract.js";
+import { type HybridWeights, resolveWeights } from "./index-manager-helpers.js";
 import type { LanceIndex } from "./lance-index.js";
 import { type MemoryIndex, parseSearchOptions, type SyncResult } from "./memory-index.js";
 
@@ -38,23 +46,32 @@ import { type MemoryIndex, parseSearchOptions, type SyncResult } from "./memory-
  */
 const DEFAULT_NAMESPACE = "default";
 
-/** Empty sync result — Lance has no corpus to walk. */
-const EMPTY_SYNC_RESULT: SyncResult = Object.freeze({
+/**
+ * Lance has no corpus to walk, and the result now SAYS so.
+ *
+ * The counts stay zero — inventing numbers would trade one false claim for another. What changed is
+ * `supported: false`: an all-zeros result was previously indistinguishable from a real sync that
+ * found nothing to reindex, and the comment above this constant used to present that as the goal
+ * ("so callers' existing logging does not break"). A caller can now tell "nothing to do" from
+ * "this backend does not do this".
+ */
+const UNSUPPORTED_SYNC_RESULT: SyncResult = Object.freeze({
   filesScanned: 0,
   filesUpdated: 0,
   chunksWritten: 0,
   chunksEmbedded: 0,
+  supported: false,
 });
 
 export class LanceMemoryAdapter implements MemoryIndex {
   constructor(private readonly inner: LanceIndex) {}
 
   /**
-   * No-op for Lance — see file header. Returns zero counts so callers'
-   * existing logging (`filesScanned: X`) does not break.
+   * Not applicable to Lance — see file header. Returns zero counts with `supported: false` so a
+   * caller can distinguish this from a real sync that found nothing.
    */
   async sync(): Promise<SyncResult> {
-    return EMPTY_SYNC_RESULT;
+    return UNSUPPORTED_SYNC_RESULT;
   }
 
   // jscpd:ignore-start — search signature + early-out is idiomatic
@@ -72,30 +89,31 @@ export class LanceMemoryAdapter implements MemoryIndex {
     return lanceHits
       .filter((h) => h.score >= minScore)
       .slice(0, maxResults)
-      .map((h) => translateLanceHit(h, query));
+      .map((h) => translateLanceHit(h, query, resolveWeights(options)));
   }
 
   status(): IndexStatus {
-    // chunksIndexed via a synchronous best-effort — Lance API is async so
-    // we surface zero here and document that consumers needing exact counts
-    // should call `inner.countFacts()` directly.
+    // The Lance API is async and `status()` is not, so no count can be taken here. The zeros are
+    // placeholders and `countsExact: false` says so — previously they were indistinguishable from a
+    // measured empty index, so a caller testing `chunksIndexed > 0` got a false negative on every
+    // run regardless of how many rows the table held.
+    //
+    // There is deliberately no escape hatch. This class used to carry `unwrap(): LanceIndex`,
+    // documented as being for "the migration tool, benchmark script" — measured 2026-09-01, it had
+    // ZERO callers anywhere in the monorepo, including those two, which hold a `LanceIndex`
+    // directly and never open the adapter. What it did have was this comment pointing at it, which
+    // made the leak read as the supported way to work around the limitation. A caller that needs
+    // the real count needs `LanceIndex`, and the honest way to get one is to open one.
     return {
       backend: "hybrid",
       filesIndexed: 0,
       chunksIndexed: 0,
+      countsExact: false,
     };
   }
 
   async close(): Promise<void> {
     await this.inner.close();
-  }
-
-  /**
-   * Escape hatch for advanced callers (migration tool, benchmark script)
-   * that need direct access to addFacts/countFacts/removeFacts.
-   */
-  unwrap(): LanceIndex {
-    return this.inner;
   }
 }
 
@@ -113,12 +131,19 @@ export class LanceMemoryAdapter implements MemoryIndex {
  */
 function translateLanceHit(
   hit: { id: string; text: string; source: "memory" | "sessions" | "wiki"; score: number },
-  query?: string,
+  query: string | undefined,
+  weights: HybridWeights,
 ): MemorySearchHit {
   const textScore = query !== undefined ? computeTermOverlapScore(query, hit.text) : 0;
   const vectorScore = hit.score;
-  // Hybrid combination: 70% vector (semantic) + 30% text (lexical).
-  const combined = 0.7 * vectorScore + 0.3 * textScore;
+  // The CALLER's weights, through the same `resolveWeights` the SQLite path uses. These were the
+  // literals 0.7 and 0.3, so a caller that tuned `vectorWeight` / `textWeight` had its tuning applied
+  // on one backend and silently dropped on the other — the shape of failure that makes a swap-in
+  // backend untrustworthy. The defaults differ between the two (0.6/0.4 from resolveWeights, versus
+  // the 0.7/0.3 written here), so unweighted results move slightly; that is the point, since one of
+  // the two numbers was not the contract's.
+  const combined =
+    (vectorScore * weights.vectorWeight + textScore * weights.textWeight) / weights.total;
   return {
     path: hit.id,
     startLine: 0,

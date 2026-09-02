@@ -3,7 +3,7 @@ import {
   type GenerateOptions,
   type GenerateRunResult,
 } from "../../agent-generate.js";
-import { ConfigurationError, UnsupportedRunOperationError } from "../../errors.js";
+import { ConfigurationError } from "../../errors.js";
 import type {
   AgentDefinition,
   AgentOptions,
@@ -12,8 +12,8 @@ import type {
   SDKArtifact,
 } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
+import type { AgentOperation } from "../../types/sdk-agent.js";
 import type { SessionStore } from "../../types/session-store.js";
-import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
 import { generateLocalAgentId } from "../ids.js";
 import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import { FsSessionStore } from "../persistence/fs-session-store.js";
@@ -23,17 +23,14 @@ import { PersonalityStore } from "../personality/store.js";
 import type { PersonalityPreset } from "../personality/types.js";
 import { PluginManager } from "../plugins/manager.js";
 import { extractCodePlugins } from "../plugins/plugin-guards.js";
+import { reportUndeclaredSources } from "../runtime/compat/foreign-config-sources.js";
 import type { ProvidersManagerImpl } from "../runtime/config/providers-manager.js";
 import type { FileContextManager } from "../runtime/context/context-manager.js";
 import { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
 import { runPostRunLifecycle } from "../runtime/lifecycle/post-run-lifecycle.js";
-import {
-  resolveMemoryProviderForLoop,
-  shouldUsePortMemoryPath,
-} from "../runtime/memory/memory-path-selector.js";
-import type { MemoryFact } from "../runtime/memory/memory-store.js";
+import type { MemoryFact } from "../runtime/memory-glue/memory-store.js";
 import { normalizeModel } from "../runtime/model-selection.js";
-import type { PluginMetadata, PluginsManager } from "../runtime/plugins/plugins-manager.js";
+import type { PluginMetadata, PluginsManager } from "../runtime/plugin-loader/plugins-manager.js";
 import { updateRegisteredAgent } from "../runtime/registry/agent-registry.js";
 import type { SkillsHandle, SkillsManager } from "../runtime/skills/skills-manager.js";
 import { loadSubagents } from "../runtime/skills/subagents-loader.js";
@@ -49,6 +46,7 @@ import { hydrateSession } from "../session/index.js";
 import { SPAN_NAMES } from "../telemetry/span-names.js";
 import { createTelemetry, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
+import { localAgentCapabilities } from "./local-agent-capabilities.js";
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { invalidateCacheImpl } from "./local-agent-invalidate.js";
 import {
@@ -57,7 +55,6 @@ import {
   releaseLeaseIfPossible,
   reloadLocalAgent,
 } from "./local-agent-lifecycle.js";
-import { LocalAgentMemory } from "./local-agent-memory.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
 import { createLocalAgentMemoryProvider } from "./local-agent-memory-provider.js";
 import {
@@ -72,8 +69,9 @@ import {
   localAgentRunUntil,
   localAgentStreamToCompletion,
 } from "./local-agent-runtime-extensions.js";
-import { executeSendLocked } from "./local-agent-send.js";
+import { type DispatchRunArgs, executeSendLocked } from "./local-agent-send.js";
 import { registerRunAsTask } from "./local-agent-task-wrap.js";
+import { reportUnknownLocalOptions } from "./local-option-keys.js";
 
 /**
  * Local SDKAgent implementation. Owns the workspace cwd plus the file-based
@@ -83,6 +81,22 @@ import { registerRunAsTask } from "./local-agent-task-wrap.js";
  * @internal
  */
 export class LocalAgent implements SDKAgent {
+  /**
+   * Operations this runtime does not perform. See {@link SDKAgent.supports} for why asking beats
+   * catching: the members below are present on the type — `downloadArtifact` is REQUIRED — and
+   * answering them by throwing is what leaves a caller unable to branch without a try/catch.
+   *
+   * Artifacts are a cloud concept: `downloadArtifact` rejects unconditionally here, and
+   * `listArtifacts` returns `[]` for every state, so its empty array cannot be read as "this run
+   * produced none".
+   */
+  supports(operation: AgentOperation): boolean {
+    return localAgentCapabilities.supports(operation);
+  }
+
+  unsupportedReason(operation: AgentOperation): string | undefined {
+    return localAgentCapabilities.unsupportedReason(operation);
+  }
   readonly agentId: string;
   model: ModelSelection | undefined;
   context?: FileContextManager;
@@ -120,14 +134,14 @@ export class LocalAgent implements SDKAgent {
   readonly pluginsManager: PluginsManager | undefined;
   private readonly hooksExecutor: HooksExecutor;
   private readonly systemPromptPipeline: SystemPromptPipeline = SystemPromptPipeline.default();
-  private readonly memoryGlue: LocalAgentMemory;
   /**
-   * SDK 2.0 Phase 1 physical Stage 2b — iter 19+: pre-built adapter
-   * wrapping `memoryGlue` as a MemoryProvider impl. Constructed eagerly
-   * so future iters can flip `inputs.memoryProvider` to default to
-   * THIS adapter when consumer didn't supply one. NOT YET used by
-   * `send()` — the kernel flip lands in Stage 2b proper after equivalence
-   * regression coverage.
+   * The agent's memory, behind the `MemoryProvider` port — the only memory path since the kernel
+   * flip (2026-09-02). A consumer-supplied `options.memoryProvider` takes precedence; this is what
+   * runs otherwise.
+   *
+   * It used to be built ALONGSIDE a `LocalAgentMemory` this class held directly, "so future iters
+   * can flip", while `send()` used the direct one. The adapter constructs its own `LocalAgentMemory`
+   * inside `init()`, so that arrangement kept two of them per agent and the second was never read.
    *
    * Accessible to tests via `_defaultMemoryProviderForLoop()` helper.
    * @internal
@@ -136,8 +150,12 @@ export class LocalAgent implements SDKAgent {
   /** T4.1 — PluginManager for code plugins (kind: general/model-provider/memory). @internal */
   private readonly pluginManagerCode: PluginManager = new PluginManager();
   /** Personality presets — lazy-loaded on first `usePersonality` call (ADRs D160-D164). @internal */
-  private personalityRegistry: PersonalityRegistry | undefined;
-  private readonly personalityStore: PersonalityStore;
+  // Not private: `local-agent-personality-extensions.ts` reads both through
+  // `LocalAgentPersonalityTarget`, the same way `local-agent-lifecycle.ts` reads `sessionStore` and
+  // `lifecycleAbortController` above. A field a sibling module needs is part of this class's
+  // implementation surface, and saying so beats handing it over as a closure.
+  personalityRegistry: PersonalityRegistry | undefined;
+  readonly personalityStore: PersonalityStore;
   /** T0.1 — telemetry handle shared with sendLocked + memory recall path. */
   private readonly _telemetry: TelemetryHandle;
 
@@ -168,13 +186,14 @@ export class LocalAgent implements SDKAgent {
     this.pluginsManager = sub.pluginsManager;
     if (sub.plugins !== undefined) this.plugins = sub.plugins;
 
-    this.hooksExecutor = new HooksExecutor(this.workspaceCwd);
-    this.memoryGlue = new LocalAgentMemory(options, this.workspaceCwd, this.agentId);
-    // SDK 2.0 Phase 1 physical Stage 2b — iter 19+: build the adapter
-    // alongside the legacy glue. Same underlying rich impl; the adapter
-    // exposes it through the MemoryProvider port. NOT YET wired into
-    // send() — agent-loop still consumes `memoryGlue` directly via
-    // `inputs.memoryTools` + `activeMemorySummary` concat path.
+    // #526 — an unrecognised key here used to be accepted in silence, so a typo and an SDK too old
+    // to know the option produced the identical result: the default, and no complaint.
+    reportUnknownLocalOptions(options.local as Record<string, unknown> | undefined);
+    const compatSources = options.local?.compatSources ?? [];
+    // #524 — the flip is silent from inside the repository: the hook file is there, executable, and
+    // not running. Reported here, once per workspace, on the interceptable channel.
+    reportUndeclaredSources(this.workspaceCwd, compatSources);
+    this.hooksExecutor = new HooksExecutor(this.workspaceCwd, compatSources);
     this.defaultMemoryProviderForLoop = createLocalAgentMemoryProvider({
       agentOptions: options,
       workspaceCwd: this.workspaceCwd,
@@ -213,6 +232,7 @@ export class LocalAgent implements SDKAgent {
       this.workspaceCwd,
       this.settingSourcesIncludeProject,
       this.options.agents,
+      this.options.local?.compatSources ?? [],
     );
     // SE40 — hydrate persisted session history from the native transcript so a
     // resumed agent sees the conversation from the previous process.
@@ -320,21 +340,9 @@ export class LocalAgent implements SDKAgent {
       return;
     }
     // T3.2: opt-in Task wrapping (ADRs D363/D374).
-    // biome-ignore format: one-liner to stay under G8 LoC budget.
     if (options.task !== undefined) registerRunAsTask(run, this.agentId, options.task, userText);
     resolve(run);
     try {
-      // SDK 2.0 Phase 1 physical Stage 3 prep — iter 28: thread the
-      // resolved memoryProvider into post-run-lifecycle so the
-      // recordSessionSummary port method can be invoked (when defined).
-      // Consumer-supplied `options.memoryProvider` always wins; otherwise
-      // when port path is active, the auto-installed adapter takes over.
-      // When neither: undefined → legacy writeSessionSummary path runs.
-      const postRunProvider = resolveMemoryProviderForLoop(
-        this.options.memoryProvider,
-        this.defaultMemoryProviderForLoop,
-        shouldUsePortMemoryPath(),
-      );
       await runPostRunLifecycle({
         run,
         userText,
@@ -347,10 +355,13 @@ export class LocalAgent implements SDKAgent {
         ...(this.options.apiKey !== undefined ? { apiKey: this.options.apiKey } : {}),
         ...(options.onRunEvent !== undefined ? { onRunEvent: options.onRunEvent } : {}),
         hooksExecutor: this.hooksExecutor,
-        memoryGlue: this.memoryGlue,
         // usetheokit/theokit-sdk#382 — the transcript write reads this and nothing else.
         memory: this.options.memory,
-        ...(postRunProvider !== undefined ? { memoryProvider: postRunProvider } : {}),
+        // A consumer-supplied provider wins; otherwise the auto-installed adapter over
+        // `LocalAgentMemory`. Since the kernel flip there is no third case, so this is passed
+        // unconditionally — the `!== undefined` spread that used to guard it could not be false,
+        // and `recordSessionSummary` is now always reached through the port.
+        memoryProvider: this.options.memoryProvider ?? this.defaultMemoryProviderForLoop,
       });
     } finally {
       sendSpan.end();
@@ -370,25 +381,33 @@ export class LocalAgent implements SDKAgent {
         applyModelOverride: (m) => this.applyModelOverride(m),
         options: this.options,
         pluginManagerCode: this.pluginManagerCode,
-        memoryGlue: this.memoryGlue,
         defaultMemoryProviderForLoop: this.defaultMemoryProviderForLoop,
         workspaceCwd: this.workspaceCwd,
         telemetry: this._telemetry,
         lifecycleAbortController: this.lifecycleAbortController,
         runPreHook: (ut) => this.runPreHook(ut),
-        // biome-ignore format: G8 budget — callbacks wire to private methods.
         resolveSystemPromptForSend: (ut, o, mf) => this.resolveSystemPrompt(ut, o, mf),
-        assembleSystemPromptForSend: (ut, bp, mf, ams, cp) =>
-          assembleSystemPromptForSendHelper(this.assemblyInputs(), ut, bp, mf, ams, cp),
-        dispatchRun: (msg, o, sp, mf, pm, mt, mp) => this.dispatchRun(msg, o, sp, mf, pm, mt, mp),
+        assembleSystemPromptForSend: (request) =>
+          assembleSystemPromptForSendHelper({ ...request, inputs: this.assemblyInputs() }),
+        dispatchRun: (args) => this.dispatchRun(args),
       },
       message,
       options,
     );
   }
 
-  // biome-ignore format: G8 budget — thin accessor for the assembly inputs.
-  private assemblyInputs(): LocalAssemblyInputs { return { agentId: this.agentId, workspaceCwd: this.workspaceCwd, model: this.model, options: this.options, context: this.context, skillsManager: this.skillsManager, settingSourcesIncludeProject: this.settingSourcesIncludeProject, systemPromptPipeline: this.systemPromptPipeline }; }
+  private assemblyInputs(): LocalAssemblyInputs {
+    return {
+      agentId: this.agentId,
+      workspaceCwd: this.workspaceCwd,
+      model: this.model,
+      options: this.options,
+      context: this.context,
+      skillsManager: this.skillsManager,
+      settingSourcesIncludeProject: this.settingSourcesIncludeProject,
+      systemPromptPipeline: this.systemPromptPipeline,
+    };
+  }
 
   private async resolveSystemPrompt(
     userText: string,
@@ -410,8 +429,13 @@ export class LocalAgent implements SDKAgent {
   }
 
   /** @internal — read-only personality lookup (composes the helper, honors fork ALS). */
-  // biome-ignore format: keep one-liner so the personality lookup stays under G8.
-  private activePreset(): PersonalityPreset | undefined { return resolveActivePersonalityPreset({ agentId: this.agentId, personalityStore: this.personalityStore, personalityRegistry: this.personalityRegistry }); }
+  private activePreset(): PersonalityPreset | undefined {
+    return resolveActivePersonalityPreset({
+      agentId: this.agentId,
+      personalityStore: this.personalityStore,
+      personalityRegistry: this.personalityRegistry,
+    });
+  }
 
   private applyModelOverride(overrideModel: ModelSelection | undefined): void {
     if (overrideModel === undefined) return;
@@ -433,15 +457,15 @@ export class LocalAgent implements SDKAgent {
     }
   }
 
-  private dispatchRun(
-    message: string | SDKUserMessage,
-    options: SendOptions,
-    systemPrompt: string | undefined,
-    memoryFacts: ReadonlyArray<MemoryFact>,
-    priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
-    memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
-    memoryProviderOverride?: import("../runtime/memory/memory-provider.js").MemoryProvider,
-  ): Promise<Run> {
+  private dispatchRun({
+    message,
+    options,
+    systemPrompt,
+    memoryFacts,
+    priorMessages,
+    memoryTools,
+    memoryProviderOverride,
+  }: DispatchRunArgs): Promise<Run> {
     // SDK 2.0 Phase 1 physical Stage 2b — iter 23 KERNEL FLIP:
     // When `memoryProviderOverride` is supplied (env-flag path), inject
     // it via a shallow-cloned `agentOptions` so agent-loop's iter 18
@@ -492,10 +516,18 @@ export class LocalAgent implements SDKAgent {
     return this.dispose();
   }
 
-  // biome-ignore format: multi-line layout would push file past G8 LoC cap.
   /** T3.2 / ADR D94 — public `invalidateCache` API. @internal */
   invalidateCache = (reason: string, opts: { applyNow?: boolean } = {}): Promise<void> =>
-    invalidateCacheImpl(this.agentId, reason, opts, this.disposed, () => this.dispose(), (p) => { this.invalidationPending = p; });
+    invalidateCacheImpl(
+      this.agentId,
+      reason,
+      opts,
+      this.disposed,
+      () => this.dispose(),
+      (p) => {
+        this.invalidationPending = p;
+      },
+    );
 
   /**
    * Activate a personality preset (Hermes #26, ADRs D160-D164).
@@ -514,34 +546,53 @@ export class LocalAgent implements SDKAgent {
     name: string,
     opts?: { save?: boolean; reset?: boolean },
   ): Promise<PersonalityPreset | null> {
-    return localAgentUsePersonality({
-      agentId: this.agentId,
-      workspaceCwd: this.workspaceCwd,
-      disposed: this.disposed,
-      personalityStore: this.personalityStore,
-      personalityRegistry: this.personalityRegistry,
-      invalidateCache: (reason) => this.invalidateCache(reason),
-      onRegistryLoaded: (reg) => {
-        this.personalityRegistry = reg;
-      },
-      name,
-      ...(opts !== undefined ? { opts } : {}),
-    });
+    if (this.disposed) throw new Error("Agent has been disposed");
+    return localAgentUsePersonality(this, name, opts);
   }
 
-  // biome-ignore format: G8 budget — artifact stubs (local agents have no artifacts); kept 1-line each.
-  listArtifacts(): Promise<SDKArtifact[]> { return Promise.resolve([]); }
-  // biome-ignore format: G8 budget — see listArtifacts.
-  downloadArtifact(_path: string): Promise<Buffer> { return Promise.reject(new UnsupportedRunOperationError("Artifacts are not supported for local agents", "downloadArtifact")); }
+  // The two operations `local-agent-capabilities.ts` is ABOUT: their runtime answers live beside the
+  // static answer `supports()` gives, so a change to one cannot drift from the other.
+  listArtifacts(): Promise<SDKArtifact[]> {
+    return localAgentCapabilities.listArtifacts();
+  }
 
-  // biome-ignore format: G8 budget — delegates to `local-agent-runtime-extensions.ts`; kept 1-line.
-  runUntil(goal?: string, options?: import("../../types/goal-events.js").GoalOptions): import("../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options); }
-  // biome-ignore format: G8 budget — see runUntil comment above.
-  fork(options: import("../runtime/lifecycle/fork-agent.js").ForkOptions): Promise<import("../runtime/lifecycle/fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options, personalitySlugSnapshot: this.personalityStore.active(this.agentId) }, options); }
-  // biome-ignore format: G8 budget — see runUntil comment above.
-  runToCompletion(message: string, options?: import("../../types/run.js").RunToCompletionOptions): Promise<import("../../types/run.js").RunToCompletionResult> { return localAgentRunToCompletion(this, message, options); }
-  // biome-ignore format: G8 budget — see runUntil comment above.
-  streamToCompletion(message: string, options?: import("../../types/run.js").RunToCompletionOptions): AsyncGenerator<import("../../types/messages.js").SDKMessage, import("../../types/run.js").StreamToCompletionResult> { return localAgentStreamToCompletion(this, message, options); }
+  downloadArtifact(_path: string): Promise<Buffer> {
+    return localAgentCapabilities.downloadArtifact();
+  }
+
+  runUntil(
+    goal?: string,
+    options?: import("../../types/goal-events.js").GoalOptions,
+  ): import("../../types/goal-events.js").RunUntilIterator {
+    return localAgentRunUntil(this, goal, options);
+  }
+  fork(
+    options: import("../runtime/lifecycle/fork-agent.js").ForkOptions,
+  ): Promise<import("../runtime/lifecycle/fork-agent.js").ForkResult> {
+    return localAgentFork(
+      {
+        agentId: this.agentId,
+        options: this.options,
+        personalitySlugSnapshot: this.personalityStore.active(this.agentId),
+      },
+      options,
+    );
+  }
+  runToCompletion(
+    message: string,
+    options?: import("../../types/run.js").RunToCompletionOptions,
+  ): Promise<import("../../types/run.js").RunToCompletionResult> {
+    return localAgentRunToCompletion(this, message, options);
+  }
+  streamToCompletion(
+    message: string,
+    options?: import("../../types/run.js").RunToCompletionOptions,
+  ): AsyncGenerator<
+    import("../../types/messages.js").SDKMessage,
+    import("../../types/run.js").StreamToCompletionResult
+  > {
+    return localAgentStreamToCompletion(this, message, options);
+  }
 }
 
 function resolveCwd(cwd: string | string[] | undefined): string {

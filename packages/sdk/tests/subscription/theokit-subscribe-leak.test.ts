@@ -1,7 +1,7 @@
 /**
  * B-131 — the transport-cleanup counterpart to `leaky-generators.test.ts` (B-105).
  *
- * `tests/load/1000-concurrent-sse.test.ts` asserted "does not leak CLOSE_WAIT sockets" by shelling
+ * `tests/load/concurrent-sse-1000.test.ts` asserted "does not leak CLOSE_WAIT sockets" by shelling
  * `ss -tnp` against a raw `node:net` driver with no `src/` code in it at all. Measured (B-131):
  * deleting the driver's own `client.socket.destroy()` entirely left CLOSE_WAIT at 0 at both 100 and
  * 1000 concurrency, because Node's `net.Socket` defaults to `allowHalfOpen: false` (completes the FIN

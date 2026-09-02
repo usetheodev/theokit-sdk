@@ -24,6 +24,7 @@ import type { OpenAIClient } from "../../../src/internal/llm/openai.js";
 import { RetryingLlmClient } from "../../../src/internal/llm/retrying-client.js";
 import {
   _resetNoAuthApiKeyWarnings,
+  _resolveApiKeyForTests,
   resolveProviderChain,
 } from "../../../src/internal/llm/router.js";
 import type { LlmClient } from "../../../src/internal/llm/types.js";
@@ -31,6 +32,7 @@ import {
   _resetBuiltinsRegistered,
   registerBuiltins,
 } from "../../../src/internal/providers/builtin/index.js";
+import { OPENROUTER } from "../../../src/internal/providers/builtin/openrouter.js";
 import {
   _resetProvidersForTests,
   registerProvider,
@@ -107,17 +109,55 @@ describe("router (T4.3)", () => {
       fallbackModels: ["anthropic.claude-3-haiku-20240307-v1:0"],
     });
     process.env.AWS_ACCESS_KEY_ID = "fake";
+    // Was `/transport plugin/`, which pinned a message telling the user to install
+    // `@theokit-transport-{apiMode}` — a package with nothing to plug into, since no
+    // `registerTransport` exists anywhere in this package. Asserting the CODE and the failing mode
+    // survives a rewording of the advice; asserting the advice pinned the wrong advice in place.
     expect(() => resolveProviderChain({ primary: "bedrock-needs-transport" })).toThrow(
-      /transport plugin/,
+      /no transport for/,
     );
+    try {
+      resolveProviderChain({ primary: "bedrock-needs-transport" });
+    } catch (err) {
+      expect((err as { code?: string }).code).toBe("transport_unavailable");
+    }
   });
 
-  it("EC-10: envVars first match wins (only OPENAI_API_KEY set)", () => {
-    // openrouter profile envVars: [OPENROUTER_API_KEY, OPENAI_API_KEY]
+  it("EC-10: the fallback env var resolves when the preferred one is absent", () => {
+    // Renamed to what it proves. Under its old name — "first match wins" — it set ONE of the two env
+    // vars, so there was no ordering to observe: `chain.length === 1` shows the fallback is consulted
+    // and would survive the profile's list being reversed. The ordering claim is the test below.
     process.env.OPENAI_API_KEY = "openai-key";
     const chain = resolveProviderChain({ primary: "openrouter" });
-    // Resolved (key found via fallback in env list).
     expect(chain).toHaveLength(1);
+  });
+
+  it("EC-10: with BOTH env vars set, the one the profile declares first wins", () => {
+    // The openrouter profile declares `envVars: ["OPENROUTER_API_KEY", "OPENAI_API_KEY"]` with the
+    // source comment "Ordered fallback (EC-10): OPENROUTER_API_KEY preferred, OPENAI_API_KEY as
+    // compat". Nothing anywhere set both, so that preference had no test at all.
+    //
+    // Asserted through `_resolveApiKeyForTests`, the seam over the private resolver, and against the
+    // profile's OWN envVars array rather than a literal — so reordering the profile fails this, which
+    // is the whole point. The other observable place is the Authorization header at stream time, and
+    // reaching it for a BUILTIN profile means a real network call: measured, the first version of this
+    // test sent a request to openrouter and came back 401.
+    process.env.OPENROUTER_API_KEY = "preferred-openrouter-key";
+    process.env.OPENAI_API_KEY = "compat-openai-key";
+
+    const profile = OPENROUTER;
+    expect(profile.envVars, "the fixture is the real profile, not a copy of it").toEqual([
+      "OPENROUTER_API_KEY",
+      "OPENAI_API_KEY",
+    ]);
+    expect(_resolveApiKeyForTests(profile.envVars)).toBe("preferred-openrouter-key");
+
+    // And the other direction, so the assertion above cannot pass by coincidence.
+    process.env.OPENROUTER_API_KEY = "";
+    expect(
+      _resolveApiKeyForTests(profile.envVars),
+      "an empty value is not a credential — it falls through to the next var",
+    ).toBe("compat-openai-key");
   });
 
   it("EC-C (D187): authType: 'none' + apiKeys populated → no-op transport + one-shot warn", () => {

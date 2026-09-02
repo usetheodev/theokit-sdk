@@ -20,6 +20,7 @@
 
 import type { SDKAgent } from "../../../types/agent.js";
 import { diag } from "../../diagnostics.js";
+import { globalSingleton } from "../../global-singleton.js";
 
 export type EvictReason = "lru" | "idle" | "explicit";
 
@@ -280,5 +281,16 @@ export class LiveAgentRegistry {
   }
 }
 
-/** Process-wide singleton (ADR D310). */
-export const liveAgentRegistry = new LiveAgentRegistry();
+/**
+ * Process-wide singleton (ADR D310).
+ *
+ * Through `globalSingleton`, not a bare module-level `const`. A module-level const is a singleton per
+ * MODULE INSTANCE, and a package can be loaded more than once in a process — two copies in
+ * `node_modules`, ESM and CJS side by side, a monorepo with distinct versions. This is the PUBLIC one
+ * of the package's module-level singleton states, so two copies of it mean two views of which agents
+ * are live, and a caller reading the wrong one sees none.
+ */
+export const liveAgentRegistry = globalSingleton(
+  "theokit-sdk.runtime.live-agents",
+  () => new LiveAgentRegistry(),
+);

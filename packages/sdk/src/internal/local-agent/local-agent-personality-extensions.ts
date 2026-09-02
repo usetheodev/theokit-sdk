@@ -87,6 +87,30 @@ export function applyPersonalityOverlay(
 }
 
 /**
+ * What `localAgentUsePersonality` needs from the agent — the narrow-target shape
+ * `LocalAgentDisposeTarget` established in `local-agent-lifecycle.ts`.
+ *
+ * It replaced an eleven-member args bag carrying TWO callbacks bound straight back to the caller's
+ * own members: `invalidateCache` and an `onRegistryLoaded` whose only job was to write
+ * `personalityRegistry` back. An extraction that hands its dependencies back as closures has
+ * relocated text without reducing coupling — the defect this file's own sibling avoids by taking
+ * the agent. `personalityRegistry` is mutable here on purpose: the lazy load assigns it directly,
+ * which is what the write-back callback was simulating.
+ *
+ * `disposed` is deliberately absent: the CALLER owns that flag and checks it, the same division
+ * `disposeLocalAgentSession` states — "the caller owns the `disposed` flag (idempotence guard)".
+ * Reaching into a private field to re-ask a question the caller already answered is what forced the
+ * bag to carry it.
+ */
+export interface LocalAgentPersonalityTarget {
+  readonly agentId: string;
+  readonly workspaceCwd: string;
+  readonly personalityStore: PersonalityStore;
+  personalityRegistry: PersonalityRegistry | undefined;
+  invalidateCache(reason: string): Promise<void>;
+}
+
+/**
  * Full `Agent.usePersonality(...)` implementation extracted from
  * `LocalAgent`. Loads the registry lazily, then delegates to
  * `performPersonalitySwitch` under the per-agent send mutex (EC-E).
@@ -97,40 +121,33 @@ export function applyPersonalityOverlay(
  *
  * @internal
  */
-export async function localAgentUsePersonality(args: {
-  agentId: string;
-  workspaceCwd: string;
-  disposed: boolean;
-  personalityStore: PersonalityStore;
-  personalityRegistry: PersonalityRegistry | undefined;
-  invalidateCache: (reason: string) => Promise<void>;
-  onRegistryLoaded: (reg: PersonalityRegistry) => void;
-  name: string;
-  opts?: { save?: boolean; reset?: boolean };
-}): Promise<PersonalityPreset | null> {
-  if (args.disposed) throw new Error("Agent has been disposed");
+
+export async function localAgentUsePersonality(
+  agent: LocalAgentPersonalityTarget,
+  name: string,
+  opts?: { save?: boolean; reset?: boolean },
+): Promise<PersonalityPreset | null> {
   // ADR D168 / EC-A — inside a fork, usePersonality is a no-op.
   if (currentPersonalityContext() !== undefined) {
-    warnPersonalitySwitchInsideFork(args.agentId);
+    warnPersonalitySwitchInsideFork(agent.agentId);
     return null;
   }
-  let registry = args.personalityRegistry;
-  if (registry === undefined) {
-    registry = await PersonalityRegistry.load(args.workspaceCwd);
-    args.onRegistryLoaded(registry);
+  if (agent.personalityRegistry === undefined) {
+    agent.personalityRegistry = await PersonalityRegistry.load(agent.workspaceCwd);
   }
+  const registry = agent.personalityRegistry;
   // EC-E: serialize against in-flight `send` via the per-agent send mutex.
-  return withCwdMutex(`agent-send:${args.agentId}`, () =>
+  return withCwdMutex(`agent-send:${agent.agentId}`, () =>
     performPersonalitySwitch({
-      agentId: args.agentId,
-      prevSlug: args.personalityStore.active(args.agentId),
-      requestedName: args.name,
-      registry: registry as PersonalityRegistry,
-      store: args.personalityStore,
-      invalidateCache: (reason) => args.invalidateCache(reason),
-      appendSessionMessage: (msg) => appendSessionMessage(args.agentId, msg),
-      clearSession: () => clearSession(args.agentId),
-      opts: args.opts ?? {},
+      agentId: agent.agentId,
+      prevSlug: agent.personalityStore.active(agent.agentId),
+      requestedName: name,
+      registry,
+      store: agent.personalityStore,
+      invalidateCache: (reason) => agent.invalidateCache(reason),
+      appendSessionMessage: (msg) => appendSessionMessage(agent.agentId, msg),
+      clearSession: () => clearSession(agent.agentId),
+      opts: opts ?? {},
     }),
   );
 }

@@ -23,7 +23,7 @@ import { lstatSync, readlinkSync, realpathSync, type Stats } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
-import { atOrInsideRoot } from "../runtime/context/path-containment.js";
+import { atOrInsideRoot } from "./path-containment.js";
 
 /**
  * Thrown when a path operation would escape its allowed base directory.

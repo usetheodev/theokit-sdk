@@ -1,5 +1,6 @@
 import type { MemoryEmbeddingProviderAdapter } from "../embedding-adapter.js";
 import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
+import { OPENAI_EMBEDDING_DIMENSIONS } from "./openai-embedding.js";
 
 /**
  * T4.10 — Azure OpenAI embedding adapter. Uses the OpenAI-compatible
@@ -17,11 +18,12 @@ import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
 
 export const DEFAULT_AZURE_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 
-const DIMENSION_BY_MODEL: Record<string, number> = {
-  "text-embedding-3-small": 1536,
-  "text-embedding-3-large": 3072,
-  "text-embedding-ada-002": 1536,
-};
+/**
+ * Azure hosts the same OpenAI models, so the widths come FROM the OpenAI adapter rather than being
+ * restated. Azure-only deployment names, if any are ever needed, go on top of the spread — which is
+ * what makes this a shared fact with a local extension point rather than a copy.
+ */
+const DIMENSION_BY_MODEL: Record<string, number> = { ...OPENAI_EMBEDDING_DIMENSIONS };
 
 export const azureOpenAiMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "azure-openai",

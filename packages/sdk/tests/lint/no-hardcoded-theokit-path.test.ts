@@ -15,17 +15,25 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { expectScopeCovered } from "./_scope-sentinel.js";
 
 const SRC_ROOT = join(__dirname, "..", "..", "src");
 
 /**
  * Files allowed to mention `.theokit` literally:
  *   - `internal/persistence/paths.ts` is the canonical resolver.
+ *   - `internal/runtime/compat/foreign-config-sources.ts` DECLARES the literal, as one third of what
+ *     a configuration dialect is — the directory, the parse, and the runtime contract its commands
+ *     presume. It moved there from `paths.ts` in #522, where the third had gone unwritten and a
+ *     Claude Code hook was executed without `$CLAUDE_PROJECT_DIR`. `paths.ts` imports it.
  *   - Documented migration debt (per-file comment explaining why).
  *
  * As callers migrate to `getTheokitHome(cwd)`, entries leave this list.
  */
-const ALLOWLIST = new Set<string>(["internal/persistence/paths.ts"]);
+const ALLOWLIST = new Set<string>([
+  "internal/persistence/paths.ts",
+  "internal/runtime/compat/foreign-config-sources.ts",
+]);
 
 interface Offender {
   file: string;
@@ -50,6 +58,7 @@ async function walk(dir: string, out: string[] = []): Promise<string[]> {
 describe("lint: no hardcoded .theokit paths in src/", () => {
   it("all `.theokit` literals are either in paths.ts or explicitly allowed", async () => {
     const files = await walk(SRC_ROOT);
+    expectScopeCovered(files, "index.ts", SRC_ROOT);
     const offenders: Offender[] = [];
 
     for (const file of files) {
@@ -59,10 +68,17 @@ describe("lint: no hardcoded .theokit paths in src/", () => {
       const lines = content.split("\n");
       lines.forEach((line, idx) => {
         // Match `.theokit` only inside string/template literals.
-        // Skip single-line `//` and `*` comment lines so JSDoc examples
-        // are not false positives.
+        // Skip comment lines so JSDoc examples are not false positives.
+        //
+        // `/**` was missing from this list and a one-line docblock — `/** reads `.theokit/` only.
+        // */` — counted as a hardcoded path. It is the very case the exemption was written for: a
+        // JSDoc mentioning the literal it documents. The filter already skips every other comment
+        // form, and no executable statement can begin with `/**`, so the gap admitted false
+        // positives without admitting one real offender.
         const trimmed = line.trim();
-        if (trimmed.startsWith("//") || trimmed.startsWith("*")) return;
+        if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/**")) {
+          return;
+        }
         if (/['"`]\.theokit/.test(line)) {
           offenders.push({ file: rel, line: idx + 1, text: trimmed });
         }
@@ -83,9 +99,25 @@ describe("lint: no hardcoded .theokit paths in src/", () => {
       );
     }
 
-    // Soft assertion: don't fail the build, just log. The migration is
-    // tracked separately; this test ensures the count never regresses.
-    expect(offenders.length).toBeLessThanOrEqual(60);
+    // A RATCHET, pinned to the measured count. It used to say "this test ensures the count never
+    // regresses" and assert `<= 60` against a real count of 28 — so it tolerated 32 NEW hardcoded
+    // literals before it could fail. It did not ensure the count never regresses; it ensured it
+    // never tripled, while reading as the former.
+    //
+    // Pinned exactly, so the next literal added fails here. When the migration removes some, LOWER
+    // this number in the same commit — a ratchet that is only ever loosened is a budget.
+    //
+    // 28 → 23 when `/**` joined the comment filter (#524): five of the twenty-eight were one-line
+    // docblocks naming the literal they document, never code. The ratchet moved DOWN, which is the
+    // direction it is allowed to move without an argument.
+    expect(
+      offenders.length,
+      offenders.length > 23
+        ? `${offenders.length} hardcoded \`.theokit\` literals, up from the pinned 23. Use ` +
+            "getTheokitHome() instead of writing the path."
+        : `${offenders.length} literals remain, below the pinned 23 — lower the number in this file ` +
+            "to lock the ground in.",
+    ).toBe(23);
   });
 
   it("the canonical resolver paths.ts is present", async () => {

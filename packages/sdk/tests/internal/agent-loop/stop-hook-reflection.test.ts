@@ -6,7 +6,7 @@ import {
   reflectAfterStop,
 } from "../../../src/internal/agent-loop/loop.js";
 import type { LoopContext } from "../../../src/internal/agent-loop/loop-context-init.js";
-import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
+import type { AgentLoopInputs } from "../../../src/internal/agent-loop/types.js";
 import type { HookExecutionResult } from "../../../src/internal/runtime/hooks/hooks-executor.js";
 
 /**

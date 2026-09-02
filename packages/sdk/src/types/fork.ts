@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/runtime/lifecycle/` (1 of 1 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Fork primitive public type contracts (T1.2, ADRs D110-D114).
  *
  * Extracted into a leaf type module (arch-review ADR 0001) so the public

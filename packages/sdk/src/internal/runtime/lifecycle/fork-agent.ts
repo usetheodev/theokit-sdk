@@ -18,9 +18,9 @@ import type { AgentOptions, SDKAgent } from "../../../types/agent.js";
 // so `types/agent.ts` can reference them without importing this implementation
 // module (which would form a type-only cycle). Re-exported here for back-compat.
 import type { ForkOptions, ForkResult } from "../../../types/fork.js";
+import { withToolWhitelist } from "../../concurrency/async-local-storage.js";
 import { isCodePlugin } from "../../plugins/plugin-guards.js";
 import type { Plugin } from "../../plugins/types.js";
-import { withToolWhitelist } from "../concurrency/async-local-storage.js";
 
 export type { ForkOptions, ForkResult } from "../../../types/fork.js";
 

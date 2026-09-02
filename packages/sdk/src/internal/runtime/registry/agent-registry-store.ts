@@ -15,6 +15,7 @@ import { join } from "node:path";
 
 import type { AgentOptions } from "../../../types/agent.js";
 import type { ModelSelection } from "../../../types/agent-prims.js";
+import { sweepStaleAtomicTemps } from "../../persistence/atomic-write.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
 import { readVersionedJson, writeVersionedJson } from "../../persistence/schema-version.js";
 import { asPluginsSettings } from "../../plugins/enabled-names.js";
@@ -252,6 +253,13 @@ function registryPath(cwd: string): string {
  * @internal
  */
 export async function loadRegistry(cwd: string): Promise<Record<string, SerializedAgent>> {
+  // Collect leftover atomic-write temps before reading. A crash — or a test runner killing a worker
+  // — between the write and the rename leaves `registry.json.<pid>.<hex>.tmp` behind, and nothing
+  // swept them: 1,984 had accumulated in this package's own `.theokit/agents/` over three months.
+  // Load is the right moment: it is the one place that already knows this path, it runs before any
+  // write that could add another, and it is off the hot path. Failures are ignored by construction
+  // — housekeeping must never fail the read it was attached to.
+  void sweepStaleAtomicTemps(registryPath(cwd)).catch(() => undefined);
   return readVersionedJson<Record<string, SerializedAgent>>({
     path: registryPath(cwd),
     currentVersion: SCHEMA_VERSION,

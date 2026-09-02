@@ -21,7 +21,7 @@ import {
   type SessionRecord,
   SessionTranscript,
 } from "../persistence/session-transcript.js";
-import type { SessionMessage, SessionMessagePart } from "./session-types.js";
+import type { SessionMessage, SessionMessagePart } from "./types.js";
 
 /**
  * Seed a {@link SessionTranscript} from the already-on-disk records so a new

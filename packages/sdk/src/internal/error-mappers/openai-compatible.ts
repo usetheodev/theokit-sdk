@@ -24,7 +24,7 @@ import {
   type TheokitAgentError,
   UnknownAgentError,
 } from "../../errors.js";
-import { buildErrorMetadata } from "./shared.js";
+import { buildErrorMetadata, httpStatusToErrorCode } from "./shared.js";
 
 interface MapOpenAiErrorArgs {
   providerId: string;
@@ -74,7 +74,6 @@ function extractOpenAiErrorCode(body: unknown): string | undefined {
   return undefined;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: explicit branch table is clearer than splitting
 function mapOpenAiStatusToCode(status: number, body: unknown): ErrorCode {
   const rawCode = extractOpenAiErrorCode(body)?.toLowerCase() ?? "";
 
@@ -100,25 +99,16 @@ function mapOpenAiStatusToCode(status: number, body: unknown): ErrorCode {
   ) {
     return "model_unavailable";
   }
-  // T3.7 — OpenAI 402 / OpenRouter "Insufficient credits" / `insufficient_quota`
-  // body code now flow to canonical `quota_exceeded`. Pre-T3.7 we returned
-  // `invalid_request` because the ErrorCode union lacked the bucket; T3.7
-  // added it. AgentRunError.code (KnownAgentRunErrorCode, post-T1.1) has
-  // always carried this value; this fix closes the metadata.code surface.
-  if (
-    status === 402 ||
-    rawCode.includes("insufficient_quota") ||
-    rawCode.includes("quota_exceeded")
-  ) {
+  // T3.7 — OpenRouter "Insufficient credits" / `insufficient_quota` in the BODY.
+  // The status-402 half of this rule moved to the shared ladder, where it now
+  // reaches all four mappers instead of this one; what stays here is the part
+  // that is genuinely a body dialect.
+  if (rawCode.includes("insufficient_quota") || rawCode.includes("quota_exceeded")) {
     return "quota_exceeded";
   }
 
-  if (status === 401 || status === 403) return "auth_failed";
-  if (status === 429) return "rate_limit";
-  if (status === 408) return "timeout";
-  if (status === 400) return "invalid_request";
-  if (status >= 500 && status < 600) return "server_error";
-  return "unknown";
+  // Everything below the body dialect is RFC 9110 and lives once, in shared.ts.
+  return httpStatusToErrorCode(status);
 }
 
 function formatMessage(providerId: string, status: number, code: ErrorCode): string {

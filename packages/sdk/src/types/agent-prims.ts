@@ -1,4 +1,7 @@
 /**
+ * Owner: `internal/agent-loop/` (3 of 11 importers). Derived from the import graph, not
+ * declared — `tests/lint/types-name-their-owner.test.ts` re-derives it.
+ *
  * Type-leaf — primitives shared between `agent.ts`, `run.ts`, and
  * `messages.ts`. Extracted to break LOW type-only cycles #5 and #7
  * (audit `architecture-output/final_report.md`) per plan
@@ -124,3 +127,22 @@ export interface CustomTool {
     | import("./content-blocks.js").ToolResultContentBlock[]
     | Promise<string | import("./content-blocks.js").ToolResultContentBlock[]>;
 }
+
+/**
+ * How the permission engine treats the UNMATCHED verdict.
+ *
+ * - `default` — ask.
+ * - `plan` — read-only.
+ * - `acceptEdits` — auto-approve the unmatched verdict, but still honour an explicit `ask` rule.
+ * - `bypass` (alias `bypassPermissions`, the Anthropic-exact name) — everything allowed EXCEPT an
+ *   explicit `deny`. Never asks.
+ *
+ * G7 / DIP — defined in this type leaf rather than in `permission-engine.ts`, which is a RUNTIME
+ * module. `types/agent.ts`, `types/run.ts` and `types/plugin.ts` all need the union, and each one
+ * used to reach into the engine for it: three of the nine violations the `types-dont-import-runtime`
+ * rule reported the moment it was able to see type-only edges at all. The engine re-exports it, so
+ * `import type { PermissionMode } from "@theokit/sdk"` is unchanged.
+ *
+ * @public
+ */
+export type PermissionMode = "default" | "plan" | "acceptEdits" | "bypass" | "bypassPermissions";
