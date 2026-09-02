@@ -1,6 +1,5 @@
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-
+import { listMarkdownIn } from "./list-markdown.js";
 import type { MemoryRoot } from "./memory-root.js";
 
 /**
@@ -34,27 +33,8 @@ export function wikiDir(root: MemoryRoot): string {
  * with `source="wiki"`, so `memory_search({ corpus: "wiki" })` can scope to them.
  */
 export async function discoverWikiFiles(root: MemoryRoot): Promise<WikiFile[]> {
-  let entries: string[];
-  try {
-    entries = await readdir(wikiDir(root));
-  } catch {
-    return [];
-  }
-  return entries
-    .filter((entry) => entry.endsWith(".md"))
-    .map((entry) => ({
-      absolutePath: join(wikiDir(root), entry),
-      relPath: join("wiki", entry),
-    }))
-    .map((file) => ({
-      absolutePath: file.absolutePath,
-      relPath: relativeToRoot(root, file.absolutePath),
-    }));
-}
-
-function relativeToRoot(root: string, absolutePath: string): string {
-  // memory root is e.g. /tmp/x/.theokit/memory; wiki file is /tmp/x/.theokit/memory/wiki/foo.md
-  // Strip the root + "/" prefix to get "wiki/foo.md".
-  if (absolutePath.startsWith(`${root}/`)) return absolutePath.slice(root.length + 1);
-  return absolutePath;
+  // The first `.map` here built a relPath the second `.map` then threw away — dead work that only
+  // survived because the two copies of this function drifted apart. See `listMarkdownIn` for why
+  // the hand-rolled `relativeToRoot` it used is gone.
+  return await listMarkdownIn(wikiDir(root), root);
 }
