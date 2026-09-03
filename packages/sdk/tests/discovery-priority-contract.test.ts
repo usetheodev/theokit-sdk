@@ -38,6 +38,12 @@ describe("B-127 — the published priorities are a contract", () => {
       // that cost is recorded rather than discovered.
       ["claude-rules", 47],
       ["theokit-context", 50],
+      // The ninth default (usetheokit/theokit-sdk#531) — THEO.md.root, so a project-root THEO.md is
+      // finally read like AGENTS.md/GEMINI.md/CLAUDE.md already are. 55 sits between 50 and the
+      // existing THEO.md at 60, which did not move: a project already using .theokit/THEO.md keeps
+      // its exact position. A consumer who had chosen 55 collides, and that cost is recorded here
+      // rather than discovered, same as claude-rules above.
+      ["THEO.md.root", 55],
       ["THEO.md", 60],
     ]);
   });
