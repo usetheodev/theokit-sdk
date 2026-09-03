@@ -115,6 +115,56 @@ export function adaptersFor(kinds: readonly string[]): ConfigSourceAdapter[] {
 }
 
 /**
+ * A surface a foreign source may be admitted to. The four the SDK reads a project directory for.
+ *
+ * They are listed separately because they carry very different risk, which is the whole reason
+ * #524 asks for per-surface control: a skill is text that enters the system prompt, a hook is
+ * command execution, a plugin is code loading. A consumer who wants their skills back has no
+ * reason to be handed the other two along with them.
+ */
+export type CompatSurface = "hooks" | "plugins" | "skills" | "subagents";
+
+const COMPAT_SURFACES: readonly CompatSurface[] = ["hooks", "plugins", "skills", "subagents"];
+
+/**
+ * A declared foreign source: a bare kind, or a kind with the surfaces it may be read for.
+ */
+export type CompatSourceDeclaration =
+  | string
+  | { readonly kind: string; readonly import?: readonly string[] };
+
+/**
+ * The adapters admitted to ONE surface.
+ *
+ * Three rules, and each one fails closed:
+ *
+ * - A bare string admits every surface. It is what `5.0.0-next.1` published, so narrowing it
+ *   silently would turn a working opt-in into a no-op — the exact defect #524 is about, one level
+ *   up.
+ * - An object with no `import` admits nothing. The issue's own rule, and safe to apply strictly
+ *   because the object form is new and nobody can be depending on it.
+ * - An unrecognised surface name is dropped rather than matched loosely, for the same reason an
+ *   unrecognised KIND is dropped in {@link adaptersFor}: a typo must not silently widen access.
+ */
+export function adaptersForSurface(
+  sources: readonly CompatSourceDeclaration[],
+  surface: CompatSurface,
+): ConfigSourceAdapter[] {
+  const admitted: string[] = [];
+  for (const source of sources) {
+    if (typeof source === "string") {
+      admitted.push(source);
+      continue;
+    }
+    const wanted = source.import ?? [];
+    if (wanted.some((s) => s === surface && COMPAT_SURFACES.includes(s as CompatSurface))) {
+      admitted.push(source.kind);
+    }
+  }
+  return adaptersFor(admitted);
+}
+
+/**
  * The adapter whose directory an absolute config path sits under, or `undefined` for a path that
  * belongs to no registered dialect.
  *
@@ -197,8 +247,17 @@ const reported = new Set<string>();
  *
  * So it goes on the interceptable channel, for the reader holding the question it answers.
  */
-export function reportUndeclaredSources(cwd: string, declared: readonly string[]): void {
-  const declaredKinds = new Set(adaptersFor(declared).map((a) => a.kind));
+export function reportUndeclaredSources(
+  cwd: string,
+  declared: readonly CompatSourceDeclaration[],
+): void {
+  // A kind named with a NARROW import list has still been declared: the consumer knows the
+  // directory is there and chose which surfaces to admit. Warning them anyway would be the noise
+  // that gets a warning ignored, and this one has exactly one job — telling somebody who does NOT
+  // know the directory is being skipped.
+  const declaredKinds = new Set(
+    adaptersFor(declared.map((d) => (typeof d === "string" ? d : d.kind))).map((a) => a.kind),
+  );
   for (const adapter of FOREIGN_SOURCES) {
     if (declaredKinds.has(adapter.kind)) continue;
     const dir = join(cwd, adapter.dirName);

@@ -30,7 +30,12 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { adaptersFor, THEOKIT_DIR_LITERAL } from "../runtime/compat/foreign-config-sources.js";
+import {
+  adaptersForSurface,
+  type CompatSourceDeclaration,
+  type CompatSurface,
+  THEOKIT_DIR_LITERAL,
+} from "../runtime/compat/foreign-config-sources.js";
 
 // The directory names live with the dialect registry that owns them — a name is one third of what a
 // configuration dialect is, and keeping the three together is what stops the next one shipping
@@ -92,10 +97,14 @@ export function getTheokitHome(cwd: string): string {
  * Semver-exempt: reachable via the `@theokit/sdk/internal/persistence` sub-path, which the package
  * declares in `exports` but does NOT cover with its semver contract.
  */
-export function projectConfigRoots(cwd: string, sources: readonly string[] = []): string[] {
+export function projectConfigRoots(
+  cwd: string,
+  sources: readonly CompatSourceDeclaration[],
+  surface: CompatSurface,
+): string[] {
   return [
     join(cwd, THEOKIT_DIR_LITERAL),
-    ...adaptersFor(sources).map((adapter) => join(cwd, adapter.dirName)),
+    ...adaptersForSurface(sources, surface).map((adapter) => join(cwd, adapter.dirName)),
   ];
 }
 
@@ -112,8 +121,16 @@ export function projectConfigRoots(cwd: string, sources: readonly string[] = [])
  * reading a project's configuration, and guessing at someone's enablement would run code they
  * turned off.
  */
-export function pluginBundleRoots(cwd: string, sources: readonly string[] = []): string[] {
-  return projectConfigRoots(cwd, sources).map((root) => join(root, "plugins"));
+export function pluginBundleRoots(
+  cwd: string,
+  sources: readonly CompatSourceDeclaration[],
+): string[] {
+  // Always the `plugins` surface, including when the caller wants the SKILLS a bundle carries.
+  // A bundle is code, and its skills arrive attached to it: admitting `skills` alone must not
+  // reach inside a foreign plugin directory, or the narrower permission would silently grant the
+  // wider one. `skills-manager` and `subagents-loader` both read bundle contents and both go
+  // through here, so the rule holds in one place rather than three.
+  return projectConfigRoots(cwd, sources, "plugins").map((root) => join(root, "plugins"));
 }
 
 /**

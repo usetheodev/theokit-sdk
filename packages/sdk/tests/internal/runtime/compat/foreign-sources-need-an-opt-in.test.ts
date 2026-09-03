@@ -50,13 +50,13 @@ function workspaceWithOnlyClaude(): string {
 
 describe("a foreign configuration source is not read until it is declared", () => {
   it("resolves only the native root by default", () => {
-    expect(projectConfigRoots("/w")).toEqual([join("/w", ".theokit")]);
+    expect(projectConfigRoots("/w", [], "hooks")).toEqual([join("/w", ".theokit")]);
   });
 
   it("resolves a declared source, native first for precedence", () => {
     // On a name collision the native definition wins: it is the one the project wrote for THIS
     // runtime. `subagents-loader` documents first-occurrence-wins, so order is the contract.
-    expect(projectConfigRoots("/w", ["claude-code"])).toEqual([
+    expect(projectConfigRoots("/w", ["claude-code"], "hooks")).toEqual([
       join("/w", ".theokit"),
       join("/w", ".claude"),
     ]);
@@ -65,7 +65,7 @@ describe("a foreign configuration source is not read until it is declared", () =
   it("ignores an unknown source rather than inventing a directory for it", () => {
     // A typo must fail closed. Reading `<cwd>/.codex` because someone wrote "codex" before the
     // adapter exists would import a dialect nothing knows how to parse.
-    expect(projectConfigRoots("/w", ["codex" as never])).toEqual([join("/w", ".theokit")]);
+    expect(projectConfigRoots("/w", ["codex" as never], "hooks")).toEqual([join("/w", ".theokit")]);
   });
 
   it("does not register subagents from an undeclared .claude/", async () => {

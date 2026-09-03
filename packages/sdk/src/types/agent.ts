@@ -64,7 +64,41 @@ export type SettingSource = "project" | "user" | "team" | "mdm" | "plugins" | "a
  *
  * @public
  */
-export type CompatSource = "claude-code";
+export type CompatSource = "claude-code" | CompatSourceAdapter;
+
+/**
+ * A surface a foreign configuration source may be admitted to.
+ *
+ * They are named separately because they carry very different risk. A skill is TEXT that enters the
+ * system prompt; a subagent is a definition; a plugin is CODE LOADING; a hook is COMMAND EXECUTION.
+ * Reusing the skills you already wrote for another product is a reasonable thing to want, and it is
+ * not a reason to hand that product's directory the right to run commands.
+ *
+ * @public
+ */
+export type CompatSurface = "hooks" | "plugins" | "skills" | "subagents";
+
+/**
+ * A foreign source admitted to named surfaces only.
+ *
+ * ```ts
+ * local: { compatSources: [{ kind: "claude-code", import: ["skills", "subagents"] }] }
+ * ```
+ *
+ * `import` is not optional in spirit even though it is in the type: an adapter that omits it
+ * imports NOTHING. That is deliberate and it is the fail-closed rule this whole option exists to
+ * serve — a typo in a surface name must narrow access, never widen it.
+ *
+ * The bare `"claude-code"` string keeps meaning every surface. It is what `5.0.0-next.1` published,
+ * and silently narrowing it would turn a working opt-in into a no-op that says nothing — which is
+ * the defect usetheokit/theokit-sdk#524 reports, one level up.
+ *
+ * @public
+ */
+export interface CompatSourceAdapter {
+  readonly kind: "claude-code";
+  readonly import?: readonly CompatSurface[];
+}
 
 /**
  * A tool the SDK declares to the model on its own initiative — not one the consumer passed in

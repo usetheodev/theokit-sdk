@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { diag } from "../../diagnostics.js";
 import { projectConfigRoots } from "../../persistence/paths.js";
+import type { CompatSourceDeclaration } from "../compat/foreign-config-sources.js";
 import { pluginBundleDirs } from "../plugin-loader/plugin-bundles.js";
 import { discoverSkills, type Skill } from "./discover-skills.js";
 import { stripSkillFrontmatter } from "./skill-frontmatter.js";
@@ -69,7 +70,7 @@ export class SkillsManager {
      * SYSTEM PROMPT, so importing skills from a directory this SDK does not own is a
      * prompt-injection surface, not a convenience.
      */
-    private readonly compatSources: readonly string[] = [],
+    private readonly compatSources: readonly CompatSourceDeclaration[] = [],
   ) {
     void _enabled;
   }
@@ -96,7 +97,9 @@ export class SkillsManager {
     const roots =
       this.skillsDir === undefined
         ? [
-            ...projectConfigRoots(this.cwd, this.compatSources).map((root) => join(root, "skills")),
+            ...projectConfigRoots(this.cwd, this.compatSources, "skills").map((root) =>
+              join(root, "skills"),
+            ),
             ...(await pluginBundleDirs(this.cwd, this.compatSources)).map((b) => join(b, "skills")),
           ]
         : [this.skillsDir];

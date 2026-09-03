@@ -5,6 +5,7 @@ import { ConfigurationError } from "../../../errors.js";
 import { loadMarkdownEntities } from "../../persistence/markdown-config-loader.js";
 import { pluginBundleRoots } from "../../persistence/paths.js";
 import { safePathJoin } from "../../security/path-guard.js";
+import type { CompatSourceDeclaration } from "../compat/foreign-config-sources.js";
 import { readWorkspaceDir } from "../config/workspace-dir.js";
 import { warnOnce } from "../hooks/hooks-source.js";
 import { type PluginFrontmatter, PluginFrontmatterSchema } from "./plugin-frontmatter.js";
@@ -41,7 +42,7 @@ export class PluginsManager {
     private readonly cloud: boolean,
     private readonly localPaths: string[] | undefined,
     /** Declared foreign dialects (#524). Empty reads `.theokit/plugins` only. */
-    private readonly compatSources: readonly string[] = [],
+    private readonly compatSources: readonly CompatSourceDeclaration[] = [],
   ) {}
 
   async initialize(): Promise<void> {

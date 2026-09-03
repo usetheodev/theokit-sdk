@@ -11,6 +11,7 @@ import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { pluginBundleRoots } from "../../persistence/paths.js";
+import type { CompatSourceDeclaration } from "../compat/foreign-config-sources.js";
 
 /**
  * Every plugin folder under the project's plugin roots.
@@ -25,7 +26,7 @@ import { pluginBundleRoots } from "../../persistence/paths.js";
 export async function pluginBundleDirs(
   cwd: string,
   /** Declared foreign dialects (#524). Empty reads `.theokit/plugins` only. */
-  compatSources: readonly string[] = [],
+  compatSources: readonly CompatSourceDeclaration[] = [],
 ): Promise<string[]> {
   const dirs: string[] = [];
   for (const root of pluginBundleRoots(cwd, compatSources)) {
