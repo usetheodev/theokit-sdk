@@ -1,5 +1,713 @@
 # Changelog
 
+## 5.0.0-next.1
+
+### Major Changes
+
+- 667bd3d: **BREAKING:** a project's `.claude/` directory is no longer read unless the consumer declares it.
+  Pass `local: { compatSources: ["claude-code"] }` to restore today's behaviour.
+  
+  Four subsystems — hooks, skills, subagents and plugin bundles — resolved `<cwd>/.claude` alongside
+  `<cwd>/.theokit` with no opt-in anywhere. A directory containing only `.claude/`, and no
+  configuration of this SDK at all, had its hooks executed, its subagents registered, and its skill
+  text folded into the system prompt.
+  
+  **Trust is not consent.** A consumer's trust gate answers "do I trust the code in this directory?",
+  and it was doing double duty as the answer to a different question: "do I want another product's
+  configuration imported into this one?" Those come apart in the ordinary case — `.claude/` is
+  populated in exactly the repository one trusts most, for a different tool, under a different
+  contract, often by a teammate who never heard of this SDK. The measured cost of conflating them was
+  the defect fixed one commit earlier: every turn denied by a `PreToolUse` hook nobody had declared.
+  
+  The skills path is the quieter half. A skill's text enters the system prompt, so importing prompt
+  content from a directory this SDK does not own is a prompt-injection surface that no consumer opted
+  into and none could see.
+  
+  A workspace holding an undeclared `.claude/` now says so once, on the diagnostics channel, naming
+  the directory and the line that turns it back on. It goes there rather than to stderr because
+  ignoring an undeclared directory is the intended behaviour, not a failure — every repository that
+  has Claude Code set up and does *not* want it imported would otherwise pay a line on a TUI host's
+  render surface for behaving as instructed.
+  
+  An unrecognised name in `compatSources` is dropped rather than turned into `<cwd>/<name>`: a typo
+  must fail closed, since a directory name was never enough to describe a dialect.
+
+### Minor Changes
+
+- edfa59c: `Agent` can now be asked which operations it supports, instead of being told by an exception.
+  
+  `SDKAgent` is one handle over two runtimes that do not offer the same operations, and the type did
+  not model the difference. `downloadArtifact` is a **required** member that rejects for every input on
+  a local agent; `listArtifacts` is required and returns `[]` for every state, so "no artifacts" and
+  "this runtime has no artifacts" were the same value. On a cloud agent, five members declared
+  _optional_ are present-but-throwing — so `typeof agent.fork === "function"` is `true` and calling it
+  throws. Neither requiredness nor optionality expresses "exists here, not there", which left a caller
+  no way to branch except a `try`/`catch` around a call it did not want to make.
+  
+  Two additive members answer the question first, mirroring `Run.supports(op)` /
+  `Run.unsupportedReason(op)`, which already solved this one layer down:
+  
+  ```ts
+  if (agent.supports("downloadArtifact")) {
+    await agent.downloadArtifact(id);
+  } else {
+    logger.info(agent.unsupportedReason("downloadArtifact"));
+  }
+  ```
+  
+  The new `AgentOperation` union is exported. Nothing was removed and no signature changed, so a
+  caller that never asks behaves exactly as before.
+  
+  This is a mitigation. The structural fix is to split `SDKAgent` into a common core plus
+  `LocalCapableAgent` / `CloudCapableAgent`, so the compiler refuses the call rather than the runtime.
+  That is breaking on a published 4.x surface and is deliberately not done here.
+- 912e3b9: Three silent downgrades now tell you they happened. Behaviour is unchanged; visibility is not.
+  
+  **A failing `MemoryProvider` no longer disappears quietly.** `initLoopContext` caught every provider
+  failure into an empty value: an `init` failure meant no memory tool was registered, a `buildTools`
+  failure meant no provider tools, an `activePass` failure meant no recalled context in the system
+  prompt. The agent answered without the memory it was configured with, and nothing recorded it. There
+  is now a `memory_degraded` run event — new `RunMemoryDegradedEvent`, carrying the stage and the
+  provider's own message — alongside a stderr diagnostic, so a host can show "memory degraded" instead
+  of a healthy run. Degrading to a working agent is still what happens.
+  
+  **The memory FTS fallback is gated on the case it was written for.** Any SQL failure used to become a
+  `LIKE '%query%'` scan over the whole table, returning plausible hits at a fixed score — so a corrupt
+  database, a missing FTS table and a disk error all looked like a successful search with worse
+  relevance. The fallback still runs, and a non-CJK failure now reports that the index may be missing
+  or corrupt.
+  
+  **A `@theokit/sdk-memory` peer that fails to load says so.** Absent is expected and stays silent;
+  present-but-unloadable — a module-format interop failure, a broken native dependency, a bundler
+  rewrite — is reported instead of falling back to the legacy path in silence.
+- 16a996f: Every error this SDK throws is now catchable as `TheokitAgentError`.
+  
+  The README tells you to catch `TheokitAgentError`, and twenty-four exported error classes were not
+  one — they extended bare `Error`, so that catch silently missed them and none of them told you
+  whether the failure was worth retrying. Among them: `GenerateObjectError`, `StreamObjectError`,
+  `FileNotFoundError` and its four siblings, `SandboxSecurityError`, `SandboxNotAvailableError`, the
+  three `Auth*Error`s, `A2ARequestTimeoutError`, `MaxDelegationDepthError`, `WorkflowToolError`, and the
+  two errors on the `./interactive` subpath.
+  
+  All twenty-four now extend `TheokitAgentError`, carry a `code`, and answer `isRetryable`. The answer
+  was decided per class rather than defaulted, and the reasoning is in the source. Two are retryable —
+  `A2ARequestTimeoutError` (a peer that missed one deadline may answer the next) and
+  `CompressionFailedError` (a single LLM call that failed or came back empty) — plus `FilesystemError`,
+  where the underlying I/O failure genuinely can be transient. The rest are not, and say why.
+  
+  This is additive: `instanceof Error` still holds, every `code` value is unchanged, and no signature
+  moved. Code that already caught these by their specific class keeps working.
+  
+  `generateObject` and `streamObject` also stop declaring the same failure contract twice with
+  byte-identical messages. They share one internal base class and keep their two distinct public names,
+  so `streamObjectError instanceof GenerateObjectError` remains false.
+- 374dd5f: The `MemoryProvider` port is now the only memory path. `THEOKIT_PORT_MEMORY_PATH`
+  is gone, and the adapter over the built-in memory runs by default; a
+  consumer-supplied `memoryProvider` still takes precedence.
+  
+  No typed API was removed — the flag was internal and never appeared in your
+  TypeScript types — but three behaviours change:
+  
+  - **Recalled memory is now escaped before it reaches the model.** The port path
+    concatenated the recall summary into the system prompt raw, while the assembly
+    pipeline has always wrapped it as `<active-memory>` with XML escaping. A recalled
+    fact containing `</active-memory>` could close the block early and have everything
+    after it read as a system instruction. Both paths now wrap and escape.
+  - **Memory tools receive the run's abort signal and transcript projection.** They
+    arrive through the same channel as your own tools, so a long memory search is now
+    cancellable with the run.
+  - **`.theokit/memory` is no longer created by a send that never reaches the agent
+    loop** — a fixture-mode send with a `theo_test_*` key used to leave an empty
+    SQLite index behind. Real runs are unchanged: the index is created and searchable
+    exactly as before.
+- 374dd5f: `MemoryProvider.buildTools(handle, agent)` now declares its second parameter as
+  `MemoryProviderAgentRef` — `{ agentId, model }` — which is all the SDK has ever
+  passed it.
+  
+  It declared `SDKAgent`, a 33-member interface, and satisfied that with a cast over
+  a two-field object. Any implementation reaching for one of the other 31 members —
+  `send()`, `fork()`, `dispose()` — got `undefined is not a function` at runtime, with
+  no compile-time warning, because the cast removed exactly that check.
+  
+  Non-breaking in both directions: an `SDKAgent` still satisfies the new type, and an
+  existing implementation typed `agent: SDKAgent` still compiles. `MemoryProviderAgentRef`
+  is exported from the package root so you can name it.
+- 618cd02: `ctx.on(...)` now returns a disposer, so a plugin can detach one hook.
+  
+  It returned `void`, which made the plugin Observer a one-way door: a handler attached through
+  `initialize()` had no removal path and ran for the life of the process. The only documented dynamic
+  case — a permission plugin re-installed on every prompt — worked because the registry keys plugins by
+  name, so re-registering the whole plugin was the only way to remove one hook.
+  
+  ```ts
+  const off = ctx.on("pre_tool_call", handler);
+  // ...later
+  off();
+  ```
+  
+  The disposer detaches the registration it was given — attaching the same function twice and disposing
+  once leaves one — and is idempotent. A handler the SDK refused (a non-function, which is warned and
+  ignored) still returns a working no-op disposer, so a caller never has to branch on whether the
+  registration took.
+  
+  Two observers in the SDK already worked this way (`Run.onDidChangeStatus`, `MessageBus.unregister`);
+  this closes the gap. The new `PluginHookDisposer` type is exported.
+- 31fea8f: `Retry.run(fn, options)` is the new name for `Retry.create(fn, options)`.
+  
+  `create` never created anything — it runs `fn` with retry and resolves to `fn`'s
+  result — and the name said otherwise. It is deprecated, still honoured, and
+  removed in the next major.
+- 691d8e6: `SandboxBackend`'s derived `glob`, `grep` and `listDir` now throw when the command could not run.
+  
+  They returned `[]` on any non-zero exit, so a search that could not execute reported the same thing as
+  a search that found nothing — opposite facts, one normal and one meaning the agent is looking at a
+  filesystem it cannot read. That is the failure a backend whose `execute` is not a POSIX shell hits,
+  which the class docblock warns about in prose and could not enforce.
+  
+  A genuine no-match still returns `[]`, and the distinction is the one the tools themselves draw:
+  `grep` exits 1 for no match and ≥2 for an error, `find` exits 0 with empty output.
+  
+  If you have a custom backend that is not a POSIX shell and relied on these silently returning nothing,
+  they now throw a `ConfigurationError` with code `sandbox_derived_helper_failed`, telling you to
+  override them — which the docblock already asked for.
+- 0ceeddc: `sanitizeToolInput` now reaches values inside arrays.
+  
+  It never did. `{ tag: "  a  " }` came back trimmed and `{ tags: ["  a  "] }` came back untouched, with
+  nothing in the type or the documentation distinguishing them — the `@public` docblock on `deep` said
+  "recurse into nested objects/arrays", and array elements were not reached by any rung, including
+  `trim`, which is on by default.
+  
+  Elements follow the same rules as fields: a string element is sanitized by whichever rungs are on, an
+  object element is descended only under `deep`. Array descent itself is not gated by `deep`, because a
+  value does not stop being a string by sitting in a list; `maxDepth` counts every hop and is what
+  bounds it. Arrays stay arrays.
+  
+  If you were relying on array contents passing through a sanitizer untouched, they no longer do.
+- 558dd30: `SessionStore` declares the three lifecycle hooks the SDK was already calling.
+  
+  The port declared two methods, and the SDK probed for `acquire`, `release` and `dispose` through
+  `as unknown` casts. They worked — but nothing in the interface mentioned them, so a store author
+  implementing the documented two-method contract got no writer lease, no release and no disposal, with
+  no way to discover that those hooks existed.
+  
+  They are now optional members with their contracts written down, including the one that matters:
+  a rejection from `acquire` whose `name` is `SessionBusyError` **propagates to the caller**, because
+  another process holding the session is a decision the caller has to make. Every other rejection is
+  treated as "no lease here" and the turn proceeds.
+  
+  Optional means optional: an existing two-method store keeps working unchanged. What changes is that
+  the capability is now readable in the type you implement.
+- 94722e8: `StructuredOutputError` distinguishes the causes it already knew apart.
+  
+  Three different failures reported `no_tool_call`: an agent run that errored
+  before producing an answer, a run that was cancelled, and a tool-only completion
+  with no text to structure. Only the free-text message differed, so a caller could
+  not branch on which had happened without parsing English.
+  
+  They are now `upstream_run_failed`, `run_cancelled` and `no_text_answer`.
+  `no_tool_call` keeps its original meaning — the model did not call the forced
+  output tool — and `parse_failed` is unchanged.
+  
+  BEHAVIOUR CHANGE for a caller matching `no_tool_call`: three of the five cases it
+  used to catch now carry their own code. A caller that branched on it for a
+  cancelled run was branching on a defect, but the string it matched does change.
+  
+  The union is exported as `StructuredOutputErrorCode`.
+- 266ffc8: Nine failures that used to arrive as a bare `Error` now carry a type and a code.
+  
+  `docs/error-codes.md` says to branch on `code`, never on the message — messages carry context and
+  change with it. These nine gave you no code to branch on:
+  
+  - `MessageBus.send` / `request` against an unregistered peer now reject with the new
+    `A2APeerNotRegisteredError` (`a2a_peer_not_registered`), carrying `to`. The timeout branch of those
+    same two methods was typed under #380; this was the branch above it.
+  - The ChatGPT provider's missing-credential path now throws `AuthenticationError`
+    (`missing_credential`), matching the router path that handles the same condition.
+  - `createSkill`, `createTokenLimiter`, `defineSkillReadTool`, the two `Workflow` builder guards, and
+    `Security.addPattern` now throw `ConfigurationError` with a code each.
+  
+  Because `isTransientError` is `err instanceof TheokitAgentError && err.isRetryable`, a bare `Error`
+  was also permanently invisible to retry logic. These now answer the question.
+
+### Patch Changes
+
+- 667bd3d: A hook or lifecycle command that exits without reading its stdin no longer raises an uncaught
+  `EPIPE` in the SDK's own process.
+  
+  `spawnAndCollect` writes the JSON payload to the child's stdin. A child that never reads it —
+  `exit 1`, a hook that only inspects the environment, any command that ignores the payload — closes
+  the pipe first, and the write then raises `EPIPE` on a stream with no `error` listener, which Node
+  promotes to an uncaught exception. The child was behaving perfectly legitimately; the host process
+  took the fault.
+  
+  The error is swallowed rather than surfaced: the child's exit code and stderr are the result, and
+  both are collected either way. A payload nobody read is not a failure of the spawn.
+- 4415f83: An unrecognised key under `local` is now reported on the diagnostics channel instead of being
+  accepted in silence.
+  
+  Measured before this: `Agent.create({ local: { compatSourcess: [...] } })` — one letter wrong —
+  created the agent with no throw, no warning, and nothing anywhere. That made two very different
+  failures identical: a typo and an SDK too old to know the option both produced the default
+  behaviour and no complaint.
+  
+  It is the reason `usetheokit/theokit#634` is blocked rather than merely unimplemented — a forward
+  of `compatSources` written against a published SDK would be inert, and no consumer could tell.
+  The same shape produced the `$CLAUDE_PROJECT_DIR` defect and motivated the `compatSources` opt-in:
+  a surface that accepts input and does nothing with it, where the absence of a complaint reads as
+  acceptance.
+  
+  The message names the key and the nearest known one, so one letter wrong is one line to read
+  rather than a trip to the documentation. It is a warning, never a refusal: rejecting an unknown key
+  would break every consumer passing a forward-compatible extra — the ordinary way to write code that
+  runs against two SDK versions — and turn a diagnostic problem into an outage. A correct
+  configuration emits nothing, and there is a test for that, because a warning that fires on valid
+  input stops being read.
+- 9181434: A failed atomic write no longer leaves its temp file behind.
+  
+  `replaceFileAtomic` — which backs the agent registry, session transcripts, MCP token storage and
+  everything else the SDK persists — cleaned up its `.tmp` on a rename failure and on no other. A
+  failure between the open and the rename, meaning a write error, a full disk, or an fsync failure,
+  closed the file handle and propagated with the temp still on disk.
+  
+  Every failure after the open now removes it. A process killed mid-write still leaves one, which no
+  code inside that process can prevent; `sweepStaleAtomicTemps` reaps those on the next registry load.
+- edfa59c: `Agent.batch(prompts, { task })` now rejects when the batch task fails, instead of resolving with an
+  empty array.
+  
+  The task-wrapped path assigned its results inside the task's `work` callback and then returned that
+  variable unconditionally, so three different failures produced one indistinguishable value: the work
+  threw, the task was cancelled, or a fixed 5000-iteration poll budget elapsed. Each returned `[]` on
+  a **resolved** promise — which a caller cannot tell apart from `Agent.batch([])` on empty input.
+  Nothing threw and nothing was logged, and the registry's own `{ code, message }` for the failure was
+  discarded by a loop that read only the task's `state`.
+  
+  The poll is gone. The wait is now the task's terminal event, which carries the failure detail:
+  
+  - work threw → rejects with `code: "batch_task_failed"`, the registry's code on `protoErrorCode`
+  - cancelled → rejects with `code: "batch_task_cancelled"` and the reason, when one was given
+  
+  The removed budget was not a safety net: 5000 iterations of a 5 ms sleep is roughly 25 seconds, so a
+  batch legitimately longer than that would trip it and return `[]`. The bound generated the failure
+  it appeared to guard against.
+  
+  If you were checking `results.length === 0` to detect a failed batch, catch the rejection instead —
+  an empty array now means only what it says.
+- edfa59c: Corrected the published JSDoc for `AgentOptions.budgetTracker` and `AgentOptions.memoryProvider`,
+  which told consumers the opposite of what the SDK does.
+  
+  Both carried a paragraph stating the option was "wired to the type surface only" and that a consumer
+  supplying one "gets the type guarantee but NOT runtime enforcement". Neither has been true for some
+  time. `budgetTracker` is read by the agent loop before every iteration (`evaluateBudgetGate`),
+  advanced with `nextIteration()`, and charged with `track(...)` after each completion.
+  `memoryProvider` has its full lifecycle driven — `init`, `buildTools`, `runActivePass`, `sync`,
+  `dispose`.
+  
+  No behaviour changes here; the code was already correct. What changes is what the published `.d.ts`
+  tells you, and it was wrong in the expensive direction: a consumer reading it was told the SDK would
+  not enforce their cost ceiling, so the rational response was to build a second control outside the
+  SDK, or to stop passing the option at all.
+  
+  Six occurrences of the claim were corrected across `types/agent.ts`, `index.ts` and the loop's own
+  input types, and a lint now requires any "not implemented yet" note to carry a tracking reference and
+  a date, so the next one expires instead of outliving the work it describes.
+- 4be7411: `Budget.create` now refuses `scope: "agent"` and `scope: "call"` with a
+  `ConfigurationError` (`unimplemented_budget_scope`).
+  
+  Only `"process"` was ever implemented. Nothing outside the registry read `scope`,
+  so the other two were accepted and silently ignored: a caller asking for
+  per-agent accounting got process-wide accounting with no signal. A cost control
+  that reports the wrong number is worse than a missing feature.
+  
+  `FnStep.compensate` is marked deprecated. It was never implemented — setting it
+  arms `WorkflowCompensateNotImplementedError`, so the step fails at run time.
+  
+  `AgentLoopInputs` declares `maxConsecutiveToolErrors` and `maxConcurrentTools`,
+  which were read through inline casts and appeared in no type. A typo in either
+  name now fails to compile instead of silently taking the default.
+- 24fb692: `Cron.create()` now reports when the job will actually next fire.
+  
+  It reported `now + 1 hour` for every expression. The function behind it read neither the cron
+  expression nor the timezone — a `@yearly` job said it would run within the hour, and so did a
+  `*/5 * * * *` one. Its own docstring scoped it to fixture mode ("real scheduling uses a proper
+  evaluator wired in by the local scheduler"), and its only caller was `Cron.create()`.
+  
+  The local scheduler overwrote the value for jobs it picked up, which is why this survived: the wrong
+  number was visible between creating a job and the scheduler reaching it, and permanently for a job
+  the scheduler never runs — a job created against a cloud runtime, or created while the scheduler is
+  stopped.
+  
+  `nextRunAt` is now computed with croner, which was already a dependency and already doing exactly
+  this inside the scheduler. When an expression has no next run — `0 0 30 2 *`, a date that never
+  occurs — the field is absent rather than filled with a number, which is what the optional
+  `CronJob.nextRunAt` already meant.
+- edfa59c: Two abstractions with no implementers and no consumers are gone. Nothing published changes.
+  
+  `internal/security/secret-redactor.ts` declared a `SecretRedactor` interface that `redactSecrets`
+  happened to satisfy. It was added to raise the module's abstractness out of a coupling metric's "zone
+  of pain", and nothing ever held it — no implementer, no consumer, absent from every barrel. An
+  interface nobody holds does not change what any module depends on, so the number it was added to move
+  could not have moved either. Its README section now records that, and keeps the reasoning that
+  rejects chasing the metric in the first place.
+  
+  `server/adapter/express.ts`, `fastify.ts` and `hono.ts` were byte-identical below their docblocks:
+  two imports and a one-line delegation each, with no framework type imported or adapted anywhere. They
+  are replaced by a single `server/adapter/index.ts` whose docblock says what the function actually
+  returns — a route descriptor the host binds itself, not middleware. The three per-framework docblocks
+  claimed an adaptation that did not exist, which is the half of this that could mislead a reader.
+  
+  Their three test files, which had quietly drifted into three different levels of coverage, are one
+  file carrying the union of their cases plus one new case asserting the descriptor contract directly.
+- 374dd5f: Embedding requests now retry with the same jittered exponential backoff the rest of
+  the SDK uses, and honour the provider's `Retry-After` header.
+  
+  They used to back off linearly at `50ms * attempt` and ignore `Retry-After`, so two
+  clients hitting a rate-limited embedding endpoint retried in lockstep and neither
+  waited as long as the provider asked. The delay is tuned tighter than the LLM
+  transport's — 250ms base, 4s cap rather than 500ms/32s — because an embedding retry
+  sits inside a memory write on the run's critical path.
+- 63617cd: Hooks imported from `.claude/settings.json` now run with `$CLAUDE_PROJECT_DIR` defined, so a
+  repository that also uses Claude Code stops denying every turn.
+  
+  Reading that file is a deliberate compatibility decision, but the commands inside it are written for
+  Claude Code's runtime, which defines that variable and whose documentation tells hook authors to
+  reach project files through it. This SDK did not define it, so `sh` expanded it to the empty string
+  and `bash "$CLAUDE_PROJECT_DIR/.claude/hooks/guard.sh"` ran as `bash "/.claude/hooks/guard.sh"` — a
+  file that does not exist, which a hook runner correctly reads as a refusal. The result was every
+  tool call denied, in any repository whose only unusual property was having Claude Code set up, with
+  a message naming a script that was present and executable all along.
+  
+  A denial caused by an undefined variable now names the variable. `$CLAUDE_PLUGIN_ROOT` and the rest
+  of that runtime's surface are still not supplied — inventing a value would send a script somewhere
+  real and wrong — but a hook that needs one fails saying which, instead of reporting a path that
+  failed ten characters later.
+- edfa59c: HTTP 408 is now classified as a retryable timeout instead of a configuration error.
+  
+  `mapHttpStatusToError` in `internal/http.ts` had no arm for 408, so a Request Timeout fell through
+  to the generic `4xx` branch and came back as a `ConfigurationError` — `isRetryable: false`. Every
+  one of the four provider-specific mappers already did the opposite: `openai-compatible`, `anthropic`,
+  `bedrock` and `vertex` all map 408 to a `NetworkError` carrying a `timeout` code, which is retryable.
+  The generic ladder is a fifth copy of the same knowledge and it was the copy that drifted.
+  
+  The failure was silent and pointed the wrong way. Nothing threw: a caller branching on
+  `isTransientError` simply refused to retry a request that would very likely have succeeded, and did
+  so only on the paths that went through the generic mapper rather than a provider one.
+  
+  If you were catching `ConfigurationError` to handle 408 specifically, catch `NetworkError` instead —
+  or branch on `code`, which is what `docs/error-codes.md` asks for.
+- edfa59c: The HTTP status ladder now has one definition instead of four, and two drifted copies are repaired.
+  
+  `401/403 → auth_failed`, `402 → quota_exceeded`, `408 → timeout`, `429 → rate_limit`,
+  `400 → invalid_request`, `5xx → server_error` is RFC 9110 semantics, not a vendor contract: a 429
+  means the same thing whichever provider sent it. It was nevertheless written out in all four
+  provider mappers, and the copies had already diverged in two ways that reached users:
+  
+  - **HTTP 402 reached one mapper of four.** `quota_exceeded` was wired into the OpenAI-compatible
+    mapper only, so a Bedrock, Vertex or Anthropic endpoint answering 402 fell through every arm and
+    surfaced as `unknown`. The canonical bucket existed and three of four mappers could not reach it.
+  - **The server arm had two different upper bounds.** Anthropic and OpenAI-compatible guarded
+    `>= 500 && < 600`; Bedrock and Vertex guarded `>= 500` with no ceiling, so a malformed or
+    proxy-injected 6xx was `server_error` in two mappers and `unknown` in the other two.
+  
+  The ladder now lives once, in `internal/error-mappers/shared.ts`, beside the other dialect-agnostic
+  helpers. Each mapper keeps its own body dialect — Anthropic's `context_too_long`, OpenAI's
+  `insufficient_quota`, Bedrock's AWS `__type` strings and 404 rule, Vertex's `google.rpc` enum with
+  its finer `unauthenticated`/`permission` split — because those *are* per-vendor contracts. The
+  shape is now `classifyVendorBody(body) ?? httpStatusToErrorCode(status)`.
+  
+  Visible changes: 402 now yields `quota_exceeded` (was `unknown`) on Anthropic, Bedrock and Vertex,
+  and a status of 600 or above now yields `unknown` (was `server_error`) on Bedrock and Vertex. HTTP
+  404 is deliberately unchanged everywhere.
+- 926cb81: Removed `LanceMemoryAdapter.unwrap()`, which handed callers the raw `LanceIndex`
+  behind the adapter. It had no callers anywhere in the monorepo — including the
+  migration tool and benchmark script its own docblock named, both of which open a
+  `LanceIndex` directly and never go through the adapter.
+  
+  A caller that needs `addFacts` / `countFacts` / `removeFacts` needs a
+  `LanceIndex`, and opening one is the honest way to get it.
+- 7f91326: The Lance memory backend now honours `SearchOptions.vectorWeight` and
+  `textWeight`. It blended hits with hard-coded 0.7 / 0.3 literals and never read
+  the options, so a caller that tuned the weights had its tuning applied on the
+  SQLite backend and silently dropped on Lance.
+  
+  Unweighted Lance results shift slightly as a consequence: the shared defaults are
+  0.6 / 0.4, and one of the two hard-coded numbers was never the contract's.
+  
+  Workflow step logging (`ctx.log.debug` / `.info` / `.warn`) now goes through the
+  SDK's diagnostics channel instead of `console`, so a host that installs a
+  diagnostics sink — a TUI, for instance — receives it instead of having its frame
+  written over.
+- edfa59c: Two internal modules moved to the layer they belong to. No public API changed.
+  
+  `src/errors.ts` is the package's leaf — fifteen files under `internal/runtime/` import the typed
+  error hierarchy from it — and it imported back up into `internal/runtime/retry/` for one helper. The
+  helper encodes which error codes are retriable, which is a property of the error taxonomy rather
+  than of the retry runtime, so it now lives in `internal/error-mappers/` beside the other mapping
+  knowledge. One import path changed; the file itself was moved, not rewritten.
+  
+  `internal/security/` is the most-depended-upon module in the tree and held node builtins and
+  `errors.js` and one exception: a path-containment primitive it reached for in
+  `internal/runtime/context/`. That primitive had four consumers and only two were in the folder it
+  sat in — it lived there because that is where it was extracted from, not because it belonged there.
+  It is now `internal/security/path-containment.ts`, and all four consumers import downward into
+  `security/`, the direction the rest of the tree already runs.
+- 243bd2c: The live-agent registry and the session cache survive a package loaded twice.
+  
+  `liveAgentRegistry` and the session cache's two maps were plain module-level `const`s, which are
+  singletons per module INSTANCE. A package can be loaded more than once in one process — two copies in
+  `node_modules`, ESM and CJS side by side, a monorepo with distinct versions — and each copy then gets
+  its own registry. For the live-agent registry, the public one, that means two views of which agents
+  are running, and a caller reading the wrong one sees none.
+  
+  All three now go through the same `Symbol.for`-keyed helper the rest of the SDK uses.
+  
+  The session cache's docblock asserted that the instances "remain the only ones in the process, because
+  an ES module is a singleton". That is the claim the helper exists to refute; the docblock now says so.
+- edfa59c: `LiveSessionError` from `@theokit/sdk/persistence` is renamed to `LiveTranscriptError`. The old name
+  still works and is deprecated.
+  
+  Two different classes were called `LiveSessionError`, exported from two declared subpaths that one
+  consumer can hold at once. They have incompatible shapes: the root barrel's is
+  `new LiveSessionError(sessionId, reason)` with a `reason` field and no `code`; the persistence one
+  was `new LiveSessionError(path)` with a `path` field and `code: "live_session_protected"`.
+  
+  The failure was quiet in the way that costs most. `instanceof` is class identity, so a `catch`
+  checking the class imported from the root silently did not match the one thrown from persistence, and
+  the fallback ran for a condition the code believed it had handled. A `name` check looked like it
+  worked — `err.name === "LiveSessionError"` matched *both* — and then read `err.reason`, which only
+  one of them has.
+  
+  The names now say what each refusal is about: refusing to destroy a **session**, and refusing to
+  overwrite a **transcript** file. `LiveSessionError` remains exported from `@theokit/sdk/persistence`
+  as a deprecated alias so existing imports keep working; it will be removed in the next major.
+- ba6549f: An MCP client with a tight `requestTimeoutMs` can reconnect after a drop.
+  
+  `reconnect()` recovers by spawning a fresh child and running the `initialize` handshake, and that
+  handshake was bounded by the same `requestTimeoutMs` the caller set for ordinary requests. Setting a
+  tight request budget — an ordinary thing to do for a latency SLO — silently made a client unable to
+  recover: every reconnect attempt spawned a process that could not finish inside a steady-state budget,
+  the bounded loop exhausted, and the client surfaced `mcp_disconnected`. That is the wedge the bounded
+  loop exists to prevent.
+  
+  The reconnect handshake now takes `max(requestTimeoutMs, 10s)`.
+  
+  The **first** connect is unchanged and keeps your budget exactly. The difference is which failure is
+  visible: a `requestTimeoutMs` too small to connect at all fails at the call you made, immediately, and
+  is yours to correct. The reconnect is the SDK's own recovery, which you never sized and never see
+  until a drop happens.
+- edfa59c: `MemoryIndex.sync()` and `.status()` now say whether their numbers were measured.
+  
+  `MemoryIndex` has two implementations. `IndexManager` walks a markdown corpus and counts rows with
+  `SELECT COUNT(*)`. The Lance backend has no corpus — it is a vector store fed by explicit writes —
+  and it answered with a frozen all-zeros `SyncResult` and a hardcoded `filesIndexed: 0,
+  chunksIndexed: 0`. Those are indistinguishable from a real sync that found nothing to do and a real
+  index that is empty, and the comment above them stated that as the goal: *"Returns zero counts so
+  callers' existing logging does not break."*
+  
+  The consequence was a false negative rather than a crash. A caller deciding "is the index
+  populated?" from `chunksIndexed > 0` got `false` on every Lance run, however many rows the table
+  held.
+  
+  Two required fields make the difference visible:
+  
+  - `SyncResult.supported` — `true` from `IndexManager`, `false` from Lance
+  - `IndexStatus.countsExact` — `true` when counted, `false` when the number is a placeholder
+  
+  The counts stay zero. Inventing a number would have traded one false claim for another; what changed
+  is that a caller can no longer read a placeholder as a measurement. Both fields are also on the
+  public `MemoryIndexHandle`, so a consumer holding the handle can see them. If you need the real Lance
+  count, `unwrap().countFacts()` still returns it.
+- 21be5cb: `migrateSqliteToLance` now rejects a `batchSize` its loop cannot advance with,
+  before touching the workspace.
+  
+  A `0` or a negative made the migration spin forever, calling `addFacts([])` and
+  logging a progress line every iteration. `NaN` — which `Number("abc")` produces —
+  made it migrate nothing and report "Validation FAILED. SQLite preserved.",
+  blaming the migration for a typo. Both now raise a `ConfigurationError` with code
+  `invalid_batch_size`, naming the value received.
+- edfa59c: A dropped connection to Ollama is now retried instead of surfacing on the first attempt.
+  
+  `OllamaNativeClient` rethrew the raw `fetch` rejection when its own body-dialect mapper did not
+  recognise the failure, and threw a bare `new Error` for any HTTP status the dialect did not cover.
+  Both land outside the SDK error hierarchy, and that decides retry behaviour by contract rather than
+  by chance: `isTransientError` is `err instanceof TheokitAgentError && err.isRetryable === true`, and
+  the router wraps every resolved client in `RetryingLlmClient`. A foreign error is therefore
+  non-transient by definition — so the most ordinary failure a local Ollama can produce, a dropped
+  connection, was never retried.
+  
+  The repository had already found and fixed this for the other transports; `openai.ts` records the
+  measurement and names Ollama as the one still carrying it. Transport failures now go through
+  `wrapTransportError` (which passes `AbortError` and any already-mapped SDK error through untouched,
+  so nothing gets relabelled), and unrecognised statuses go through the shared HTTP status ladder
+  rather than a bare `Error`.
+  
+  Visible change: these two paths now reject with `NetworkError` (`code: "transport_failure"`) and a
+  typed error carrying the status, instead of a `TypeError` and an `Error`. A caller branching on
+  `instanceof Error` is unaffected; a caller branching on `isTransientError` starts getting retries.
+- 5d174f2: Three pieces of duplicated logic now have one owner each. One internal error message improves.
+  
+  The `~4 chars per token` estimate had two `@public` implementations reachable from two entry points —
+  `built-in-processors.ts` with a named constant, `compaction.ts` with the ratio inlined. Tuning it, or
+  switching to code points instead of UTF-16 units (a caveat both docblocks already carried), would have
+  silently diverged them. It lives in `compaction.ts` now, with `CHARS_PER_TOKEN` exported beside it;
+  `built-in-processors.ts` re-exports both under the same names, so nothing published changes.
+  
+  The error-body reader duplicated character-for-character in the Bedrock and Vertex mappers is one
+  `parseErrorBody` in their shared module. It describes how `fetch` surfaces a body, which is the same
+  whoever sent it.
+  
+  `abortError` had three copies — including inside the two files the extraction's own docblock named as
+  the ones that should stop having one. **One of the three behaved differently**: the pool-aware client
+  discarded a non-`Error` abort reason and raised a generic `"AbortError"`. All three are now the shared
+  implementation, which carries the caller's reason through. If you cancel with
+  `controller.abort("shutting down")` and the pool-aware client is in the path, the rejection message is
+  now `shutting down` rather than `AbortError`.
+- 0c4df84: The `PermissionRule` documentation described a bug that was fixed, and told you to work around it.
+  
+  The public docblock warned that a predicate matcher is invoked with `undefined` when the call omitted
+  the argument — so an allow-rule written to narrow would authorize an argument-less call, and a
+  deny-rule would throw a `TypeError` out of the permission gate. It closed by telling you to guard the
+  parameter in every predicate you write.
+  
+  None of that has been true since `argMatches` started checking for a missing argument first, for
+  every matcher form. **A rule that declares an argument the call did not supply does not match, and
+  the predicate is not invoked.** You do not need the hand-written guards.
+  
+  The fixed behaviour also had no test — deleting the guard left the entire suite green — so three
+  cases now cover it, including the two the old docblock described.
+- edfa59c: The Responses-API transport's SSE state machine is a class, and the eight event kinds it handles are
+  now covered by tests.
+  
+  `ResponsesApiClient.stream` inlined the whole dispatch: one 165-line generator, ten mutable locals
+  and eight `else if` arms, carrying a suppression that described it as "mirroring
+  `OpenAIStreamAccumulator.consume`". It mirrored what that method does, not how it is organised —
+  `consume` is seven lines delegating to small private methods. The state machine now lives in a
+  `ResponsesStreamAccumulator` shaped like its sibling, the suppression is gone, and every function in
+  the file is under the complexity threshold the project sets for itself.
+  
+  The refactor is behaviour-preserving, and that claim was measured rather than asserted. Each arm of
+  the dispatch was mutated in turn before the change: three of eight killed a test, five did not — the
+  reasoning deltas, the incremental tool-argument accumulation, `response.incomplete` → `max_tokens`,
+  the reasoning/cache token counters, and the in-stream failure path. Notably, a comment in the
+  existing suite claimed the argument deltas were exercised "because the parsed input below can only
+  be right if they were accumulated"; deleting the accumulation left that suite green, because the
+  recorded fixture repeats the full arguments on the terminal event.
+  
+  Eight characterisation tests close those gaps, and re-running the battery after the extraction kills
+  all eleven mutants. Two behaviours documented for the first time by that battery: the tool name is
+  taken from the frame that announced the call when the completion frame omits it, and frames sent
+  after `[DONE]` are ignored.
+  
+  No public API changed.
+- d1182ae: A resumed session now replays its history as structured tool calls instead of flat text, so the
+  model stops learning to type `[tool call] <name>` as prose.
+  
+  Hydration has always produced two projections of each stored turn: `text`, in which a tool call
+  folds to the marker `[tool call] NAME`, and structured `parts`, which carries the call id, the tool
+  name and the arguments. The replay read `text` alone. So a resumed session showed the model its own
+  prior turn as prose containing the marker, and the model did the reasonable thing with a pattern it
+  is shown — it wrote the marker instead of calling the tool. Downstream that surfaced as an assistant
+  message ending `"…report its output.[tool call] run_shell"` with no tool call behind it: the tool
+  did not run, nothing errored, and the transcript read as the model narrating an action it never took.
+  
+  A turn with no `parts` replays exactly as before, so sessions stored by an older SDK keep the
+  behaviour they were written under. Tool results replay as a user message, which is the convention
+  the live loop already uses.
+  
+  **An already-affected session recovers on its next turn.** No need to start a new one or delete
+  anything: the stored `parts` were always correct — only the `text` projection carried the marker —
+  so reading structure instead of prose heals a contaminated transcript rather than merely stopping
+  new contamination. Verified against a session that had accumulated seven occurrences of the marker.
+- 1499923: `@theokit/sdk/sandbox` marks `resetInteractiveWarnLatch` and `resetSandboxWarnLatch`
+  as deprecated. Both are test seams for WARN-once latches that were re-exported
+  under plain camelCase, reading like ordinary API. They still work and are removed
+  in the next major; there is no replacement, because production code has no reason
+  to reset a warn-once latch.
+  
+  `resetBwrapMemo` is NOT deprecated and now documents why it is public: it is the
+  companion to `detectBwrapMemoized`, and the only way to make a long-lived host
+  re-probe after `bwrap` is installed.
+- f64ab2b: `SessionManager` gains an optional `getCookieSecret()`, the member `defineAuth`
+  uses to encrypt the OAuth transaction cookie.
+  
+  It is additive: a manager without it falls back to `THEOKIT_OAUTH_TX_SECRET`
+  exactly as before. What changes is that the orchestrator no longer casts its own
+  port away to read an undeclared `secret` field — a shape no conforming
+  implementation could supply.
+- 6aeeadb: Telemetry auto-instrumentation now logs what each adapter actually wired.
+  
+  Five of the seven adapters install something concrete — an OTel span processor,
+  an event processor, a vendor client. Braintrust and LangSmith cannot: those
+  vendors auto-instrument from an env var, so loading the module is the whole
+  contribution. Both are legitimate, but the registry printed
+  `Braintrust auto-instrumented.` for the second kind, which read as a wired
+  telemetry pipeline when nothing had been installed.
+  
+  `register()` now returns what it wired and the registry reports that instead of
+  asserting a single outcome for all seven. A vendor that is detected but cannot
+  be wired says so too, rather than being logged as instrumented.
+- 7f2bce4: Test-only: the MCP token-store fixtures create their temporary directories atomically.
+  
+  CodeQL reported an insecure temporary file at high severity, and the report was right. The
+  directories were built from a predictable name — `theokit-mcp-tokens-${hrtime}` under a
+  world-writable `/tmp` — and one of them was created world-writable and populated afterwards. On a
+  shared machine another local user can predict the path, win the race to create it, and plant a file
+  the test is about to trust; the restrictive mode passed to `mkdirSync` arrives after the name has
+  already been claimed.
+  
+  `mkdtempSync` creates with a random suffix and mode 0700 in one atomic step. The one fixture whose
+  loose modes ARE the subject — the case proving the gate refuses a world-writable store — creates
+  restricted and loosens with `chmod`, so the state under test is identical and the window is closed.
+  
+  No production code is affected and no assertion changed.
+- edfa59c: The "no transport" error no longer tells you to install a package that cannot exist.
+  
+  When a provider declares an `apiMode` the SDK has no transport for, the thrown `ConfigurationError`
+  advised: *"Install a third-party transport plugin (`@theokit-transport-{apiMode}`)"*. There is no
+  plugin mechanism to install into — `registerTransport` and `transportRegistry` appear nowhere in the
+  package, and the only other mention of `theokit-transport` was a docblock describing that very
+  message. Someone could publish the package; nothing would load it.
+  
+  The message now says transports are a built-in, closed set, and names all four of them —
+  `chat_completions`, `anthropic_messages`, `bedrock_anthropic`, `responses_api` — instead of two. The
+  `transport_unavailable` code is unchanged, so anything branching on `code` is unaffected.
+- e0a1ab9: Three public failure paths now carry a type and a code instead of a sentence.
+  
+  `normalizeSchema` threw bare `Error` for both of its failures — a missing
+  `@valibot/to-json-schema` peer and an unsupported schema — so a caller could
+  branch on nothing but the message. Both are `ConfigurationError` now, with codes
+  `valibot_converter_missing` and `unsupported_schema`. It also detects the missing
+  peer from `err.code === "ERR_MODULE_NOT_FOUND"` before falling back to matching
+  the message text.
+  
+  Resuming an agent whose persisted workspace path exists but is a file now says
+  so, instead of reporting it as "missing or inaccessible".
+  
+  Subscription error frames carry the server error's own `code` over the wire, and
+  the WebSocket client prefers it over its blanket `ws_server_error`. A caller can
+  tell an invalid input from a disconnect without parsing English.
+- edfa59c: Workflow errors now carry `code` and `isRetryable`, so the SDK's own retry helper can see them.
+  
+  Eleven public workflow error classes extended plain `Error`. `isTransientError` is
+  `err instanceof TheokitAgentError && err.isRetryable === true`, and it is the default predicate of
+  `Retry.create` — so a class outside the hierarchy is permanent *by contract*, whatever it actually
+  represents. Wrapping `workflow.run()` in the SDK's own retry helper therefore got `false` for every
+  workflow failure, including `WorkflowAlreadyRunningError`, which is precisely the
+  try-again-in-a-moment condition.
+  
+  They now extend `TheokitAgentError`, each with a stable `code`:
+  
+  | code | retryable |
+  |---|---|
+  | `workflow_already_running` | **yes** — another run holds the single-flight lock |
+  | `workflow_duplicate_step_id`, `workflow_input_invalid`, `workflow_output_invalid`, `workflow_state_invalid`, `workflow_nested_failed`, `workflow_snapshot_not_found`, `workflow_max_iterations_exceeded`, `workflow_not_serializable`, `workflow_resume_step_not_found`, `workflow_compensate_not_implemented` | no |
+  
+  Source-compatible: `TheokitAgentError extends Error`, so `instanceof Error` and `err.name` are
+  unchanged, and every existing field (`stepId`, `workflowName`, `detail`, …) stays where it was.
+  
+  `WorkflowParallelError` is deliberately unchanged — it extends `AggregateError`, and the standard
+  `errors` array is why callers catch it. It stays outside the hierarchy, and therefore stays
+  non-retryable; inspect `err.errors` and decide per branch.
+
 ## 4.63.4-next.0
 
 ### Patch Changes
