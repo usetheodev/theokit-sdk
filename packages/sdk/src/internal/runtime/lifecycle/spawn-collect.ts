@@ -74,6 +74,14 @@ export function spawnAndCollect(options: SpawnCollectOptions): Promise<SpawnColl
       settle({ stdout, stderr, exitCode: code, timedOut });
     });
     if (options.stdin !== undefined && child.stdin !== null) {
+      // A child that exits without reading its stdin — `exit 1`, a hook that only checks the
+      // environment, any command that ignores the payload — closes the pipe first, and the write
+      // then raises EPIPE on the stream. Unhandled, that is an uncaught exception in the SDK's own
+      // process, from a child behaving perfectly legitimately.
+      //
+      // Swallowed rather than surfaced: the child's exit code and stderr are the result, and they
+      // are collected either way. A payload nobody read is not a failure of the spawn.
+      child.stdin.on("error", () => {});
       child.stdin.end(options.stdin);
     }
   });

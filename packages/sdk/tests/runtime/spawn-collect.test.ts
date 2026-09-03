@@ -307,3 +307,44 @@ describe("spawnAndCollect — environment", () => {
     expect(result.stdout).toBe("explicit");
   });
 });
+
+describe("a child that never reads its stdin", () => {
+  /**
+   * Backport regression for the `EPIPE` half of `667bd3d1`.
+   *
+   * A hook that only checks the environment, or any command that ends with `exit 1`, closes its
+   * stdin before the parent finishes writing. The write then raises `EPIPE` on a stream with no
+   * `error` listener, which in Node is an UNCAUGHT exception in the SDK's own process — thrown by a
+   * child that did nothing wrong.
+   *
+   * It surfaced here as a real failure rather than a theory: `foreign-hook-runtime-contract.test.ts`
+   * came over in the #522 cherry-pick, and the coverage run reported "Vitest caught 1 unhandled
+   * error" against it. The fix was one line inside the 5.x MAJOR commit, so the backport carried the
+   * test that trips the defect and left the defect in place.
+   *
+   * The payload must exceed the pipe buffer (64 KiB on Linux). Below it the write lands in the
+   * kernel buffer and returns before the child is gone, so a smaller string passes with or without
+   * the listener and would assert nothing.
+   */
+  it("does not raise an uncaught EPIPE in this process", async () => {
+    const uncaught: Error[] = [];
+    const onUncaught = (err: Error): void => {
+      uncaught.push(err);
+    };
+    process.on("uncaughtException", onUncaught);
+    try {
+      const result = await spawnAndCollect({
+        command: NODE,
+        args: ["-e", "process.exit(1)"],
+        cwd: process.cwd(),
+        stdin: "x".repeat(256 * 1024),
+      });
+
+      // The child's own outcome is still collected — a payload nobody read is not a failed spawn.
+      expect(result.exitCode).toBe(1);
+      expect(uncaught.map((e) => e.message)).toEqual([]);
+    } finally {
+      process.off("uncaughtException", onUncaught);
+    }
+  });
+});
