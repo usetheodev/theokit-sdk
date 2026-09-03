@@ -8,15 +8,21 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 4.x]
   # Both promotion legs of the flow are PRs — workspace -> develop and
   # develop -> main — so both bases must be listed here. Until 2026-08-17 only
   # `main` was, which left the workspace -> develop PR with no CI at all: the
   # leg every change passes through was gated solely by the local pre-push hook,
   # which proves the author ran the gates on their machine, not that the merge
   # result is green, and which `--no-verify` skips.
+  #
+  # `4.x` is the maintenance line, and it is listed for the same reason, one step
+  # more sharply: it has no promotion PR to inherit a verdict from. It publishes
+  # straight to the `latest` dist-tag, so without this entry a release reaching
+  # every `^4` consumer would rest on one machine's pre-push hook — the situation
+  # the paragraph above describes as the defect, not the design.
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, 4.x]
 
 permissions:
   contents: read
@@ -24,10 +30,13 @@ permissions:
 # A branch that receives three pushes in a minute ran three full matrices, each
 # ~6 minutes across two Node legs, and only the last one could still matter.
 # Superseded runs are cancelled; `main` and `develop` are excluded because a
-# cancelled run there would leave a release commit with no verdict at all.
+# cancelled run there would leave a release commit with no verdict at all — which
+# is true of `4.x` too, since it releases without passing through either.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+  cancel-in-progress: >-
+    ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop'
+        && github.ref != 'refs/heads/4.x' }}
 
 jobs:
   validate:
