@@ -1,5 +1,72 @@
 # Changelog
 
+## 4.63.4
+
+### Patch Changes
+
+- ff121b5: A hook or lifecycle command that exits without reading its stdin no longer raises an uncaught
+  `EPIPE` in the SDK's own process.
+
+  `spawnAndCollect` writes the JSON payload to the child's stdin. A child that never reads it —
+  `exit 1`, a hook that only inspects the environment, any command that ignores the payload — closes
+  the pipe first, and the write then raises `EPIPE` on a stream with no `error` listener, which Node
+  promotes to an uncaught exception. The child was behaving perfectly legitimately; the host process
+  took the fault.
+
+  The error is swallowed rather than surfaced: the child's exit code and stderr are the result, and
+  both are collected either way. A payload nobody read is not a failure of the spawn.
+
+- f9e12e2: An unrecognised key under `local` is now reported on the diagnostics channel instead of being
+  accepted in silence.
+
+  Measured before this: `Agent.create({ local: { settingSourcess: [...] } })` — one letter wrong —
+  created the agent with no throw, no warning, and nothing anywhere. That made two very different
+  failures identical: a typo and an SDK too old to know the option both produced the default
+  behaviour and no complaint. The second half is the expensive one, because it is invisible from
+  inside a correct-looking call site.
+
+  The message names the key and the nearest known one, so one letter wrong is one line to read
+  rather than a trip to the documentation. It is a warning, never a refusal: rejecting an unknown key
+  would break every consumer passing a forward-compatible extra — the ordinary way to write code that
+  runs against two SDK versions — and turn a diagnostic problem into an outage. A correct
+  configuration emits nothing, and there is a test for that, because a warning that fires on valid
+  input stops being read.
+
+  The original of this change is on the 5.x line, where it was measured against `compatSources`, an
+  option this line does not have. What is backported here is the behaviour, over the options that do
+  exist on 4.x.
+
+- a890b8c: Hooks imported from `.claude/settings.json` now run with `$CLAUDE_PROJECT_DIR` defined, so a
+  repository that also uses Claude Code stops denying every turn.
+
+  Reading that file is a deliberate compatibility decision, but the commands inside it are written for
+  Claude Code's runtime, which defines that variable and whose documentation tells hook authors to
+  reach project files through it. This SDK did not define it, so `sh` expanded it to the empty string
+  and `bash "$CLAUDE_PROJECT_DIR/.claude/hooks/guard.sh"` ran as `bash "/.claude/hooks/guard.sh"` — a
+  file that does not exist, which a hook runner correctly reads as a refusal. The result was every
+  tool call denied, in any repository whose only unusual property was having Claude Code set up, with
+  a message naming a script that was present and executable all along.
+
+  A denial caused by an undefined variable now names the variable. `$CLAUDE_PLUGIN_ROOT` and the rest
+  of that runtime's surface are still not supplied — inventing a value would send a script somewhere
+  real and wrong — but a hook that needs one fails saying which, instead of reporting a path that
+  failed ten characters later.
+
+- 8dbda42: A resumed session now replays its history as structured tool calls instead of flat text, so the
+  model stops learning to type `[tool call] <name>` as prose.
+
+  Hydration has always produced two projections of each stored turn: `text`, in which a tool call
+  folds to the marker `[tool call] NAME`, and structured `parts`, which carries the call id, the tool
+  name and the arguments. The replay read `text` alone. So a resumed session showed the model its own
+  prior turn as prose containing the marker, and the model did the reasonable thing with a pattern it
+  is shown — it wrote the marker instead of calling the tool. Downstream that surfaced as an assistant
+  message ending `"…report its output.[tool call] run_shell"` with no tool call behind it: the tool
+  did not run, nothing errored, and the transcript read as the model narrating an action it never took.
+
+  A turn with no `parts` replays exactly as before, so sessions stored by an older SDK keep the
+  behaviour they were written under. Tool results replay as a user message, which is the convention
+  the live loop already uses.
+
 ## 4.63.3
 
 ### Patch Changes
