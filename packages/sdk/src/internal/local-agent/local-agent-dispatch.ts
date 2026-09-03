@@ -11,6 +11,7 @@ import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { MemoryToolSpec } from "../agent-loop/types.js";
 import { resolveApiKey } from "../env.js";
+import { theokitConfigRoot } from "../persistence/paths.js";
 import type { PersonalityPreset } from "../personality/types.js";
 import type { PluginManager } from "../plugins/manager.js";
 import { shouldUseRealLocalRuntime } from "../runtime/fixtures/fixture-mode.js";
@@ -129,7 +130,7 @@ export async function dispatchLocalRun(args: {
 }
 
 async function readProjectMcpServers(cwd: string): Promise<Record<string, unknown>> {
-  const path = join(cwd, ".theokit", "mcp.json");
+  const path = join(theokitConfigRoot(cwd), "mcp.json");
   try {
     const raw = await readFile(path, "utf8");
     const parsed = JSON.parse(raw) as { servers?: Record<string, unknown> };

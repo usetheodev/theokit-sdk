@@ -20,7 +20,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ConfigurationError } from "../../../errors.js";
 import { diag } from "../../diagnostics.js";
-import { projectConfigRoots } from "../../persistence/paths.js";
+import { projectConfigRoots, theokitConfigRoot } from "../../persistence/paths.js";
 import type { CompatSourceDeclaration } from "../compat/foreign-config-sources.js";
 
 /** The five lifecycle events the SDK runtime actually fires. */
@@ -102,7 +102,7 @@ export async function loadHookConfig(
     // command came to be run without Claude Code's runtime (#522).
     mergeInto(merged, stampSource(await readHookFile(path), path));
   }
-  if (!sawAny && existsSync(join(cwd, ".theokit", "hooks"))) {
+  if (!sawAny && existsSync(join(theokitConfigRoot(cwd), "hooks"))) {
     warnOnce(
       "hooks-md-unsupported",
       "[theokit-sdk] .theokit/hooks/*.md hooks are no longer supported (ADR 0016) — migrate to a Claude-Code-shaped .theokit/hooks.json",

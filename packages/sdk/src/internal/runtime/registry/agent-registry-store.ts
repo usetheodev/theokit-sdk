@@ -17,6 +17,7 @@ import type { AgentOptions } from "../../../types/agent.js";
 import type { ModelSelection } from "../../../types/agent-prims.js";
 import { sweepStaleAtomicTemps } from "../../persistence/atomic-write.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
+import { theokitConfigRoot } from "../../persistence/paths.js";
 import { readVersionedJson, writeVersionedJson } from "../../persistence/schema-version.js";
 import { asPluginsSettings } from "../../plugins/enabled-names.js";
 import { normalizeModel } from "../model-selection.js";
@@ -25,7 +26,8 @@ import type { AgentRuntime, RegisteredAgent } from "./agent-registry-contract.js
 /** Current numeric schema version for the agent registry (ADR D62). */
 const SCHEMA_VERSION = 1;
 const LEGACY_SCHEMA_VERSION_STRING = "1.0";
-const REGISTRY_RELATIVE_PATH = join(".theokit", "agents", "registry.json");
+// Kept as a project-relative SUFFIX: theokitConfigRoot(cwd) supplies the cwd-anchored root.
+const REGISTRY_RELATIVE_SUFFIX = join("agents", "registry.json");
 
 /** Legacy on-disk shape (pre-D62 — `schemaVersion` string field + flat `agents`). */
 interface LegacyRegistryFile {
@@ -242,7 +244,7 @@ export interface SerializedAgentOptions {
 }
 
 function registryPath(cwd: string): string {
-  return join(cwd, REGISTRY_RELATIVE_PATH);
+  return join(theokitConfigRoot(cwd), REGISTRY_RELATIVE_SUFFIX);
 }
 
 /**

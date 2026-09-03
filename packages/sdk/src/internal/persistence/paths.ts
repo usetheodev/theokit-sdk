@@ -97,13 +97,31 @@ export function getTheokitHome(cwd: string): string {
  * Semver-exempt: reachable via the `@theokit/sdk/internal/persistence` sub-path, which the package
  * declares in `exports` but does NOT cover with its semver contract.
  */
+/**
+ * The project's own configuration root: `<cwd>/.theokit`, always — never `THEOKIT_HOME`.
+ *
+ * `THEOKIT_HOME` relocates cwd-anchored SDK STATE (sessions, credentials). A project's
+ * CONFIGURATION belongs to the repository: hooks, MCP servers, context sources, subagents, the
+ * personal registry a project declares, all committed to git and shared by a team. Following the
+ * override for any of them would move where a project's declared capabilities come from — a
+ * behaviour change wearing the costume of a refactor, which is exactly what this function exists
+ * to make impossible to do by accident: every config-class reader calls this instead of writing
+ * `join(cwd, ".theokit")` by hand.
+ *
+ * NOT for the `.claude/`-style foreign roots {@link adaptersForSurface} adds — those are additive,
+ * opt-in, and each has its own directory name.
+ */
+export function theokitConfigRoot(cwd: string): string {
+  return join(cwd, THEOKIT_DIR_LITERAL);
+}
+
 export function projectConfigRoots(
   cwd: string,
   sources: readonly CompatSourceDeclaration[],
   surface: CompatSurface,
 ): string[] {
   return [
-    join(cwd, THEOKIT_DIR_LITERAL),
+    theokitConfigRoot(cwd),
     ...adaptersForSurface(sources, surface).map((adapter) => join(cwd, adapter.dirName)),
   ];
 }
