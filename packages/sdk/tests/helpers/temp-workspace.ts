@@ -1,7 +1,8 @@
-import { rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { afterAll, beforeAll, type MockInstance, vi } from "vitest";
 
 export interface TempWorkspace {
   cwd: string;
@@ -69,4 +70,42 @@ export async function createTempWorkspace(fixtureName?: string): Promise<TempWor
       await removeTempDirRobust(cwd);
     },
   };
+}
+
+/**
+ * Make this test file's `process.cwd()` report a throwaway directory.
+ *
+ * `Agent.create` and `Agent.getOrCreate` resolve their workspace to `process.cwd()` when given
+ * neither `local` nor `cloud`, and during a vitest run that is `packages/sdk` itself — so a test
+ * that creates an agent without saying where persists real session state into the repository.
+ * Measured 2026-09-01: 22,671 agent directories, 82,684 session files and 1,984 orphaned
+ * atomic-write temps, 540 MB, spanning the whole life of the checkout. `.gitignore` excludes
+ * `.theokit/`, so none of it ever appeared in `git status`, in a diff, or in CI.
+ *
+ * `THEOKIT_HOME` does not help: the per-project store is `join(cwd, ".theokit")` and
+ * `internal/persistence/paths.ts` says the two defaults differ on purpose.
+ *
+ * SPIES ON `process.cwd` RATHER THAN CALLING `process.chdir`. The first version of this helper used
+ * the real syscall and `tests/lint/no-process-chdir.test.ts` failed it immediately — correctly.
+ * B-093 records why that gate exists: `chdir` is process-wide and THROWS under vitest's `threads`
+ * pool ("not supported in workers"), while the default `forks` pool happens to allow it, so the
+ * breakage would not surface until something ran the suite under a different pool — Stryker's
+ * mutation dry run, for instance. Three files had reached for it independently before the gate was
+ * written; this would have been the fourth. The spy is what `withMockedCwd` already does for a
+ * single call; this is the file-scoped form.
+ *
+ * Call it at file scope, outside any `describe`. On the 5.x line a global setup fails the run when
+ * a file that needed it forgot; this line has no such gate, so the call is a discipline here.
+ */
+export function useTempCwd(prefix = "theokit-test-cwd-"): void {
+  let dir: string | undefined;
+  let spy: MockInstance<typeof process.cwd> | undefined;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), prefix));
+    spy = vi.spyOn(process, "cwd").mockReturnValue(dir);
+  });
+  afterAll(() => {
+    spy?.mockRestore();
+    if (dir !== undefined) removeTempDirRobustSync(dir);
+  });
 }
