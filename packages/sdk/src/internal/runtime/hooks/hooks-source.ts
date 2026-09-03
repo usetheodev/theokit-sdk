@@ -128,15 +128,6 @@ function hookConfigCandidates(cwd: string): string[] {
 }
 
 /**
- * Append one source's commands onto the accumulator, per event.
- *
- * MERGED, not first-wins, and the distinction is deliberate. An agent or a skill is a NAMED
- * declaration: two files claiming one name collide, and the explicit namespace should win. Hooks are
- * unnamed lists — two files declaring `PreToolUse` are two sets of commands an operator wrote, and
- * keeping only one drops the other in silence, which is the failure class this package guards
- * against everywhere else.
- */
-/**
  * Record which file each command came from.
  *
  * A command already carrying a `sourcePath` keeps it: nothing produces that today, and a nested
@@ -155,6 +146,15 @@ function stampSource(config: HookConfig, sourcePath: string): HookConfig {
   return { hooks };
 }
 
+/**
+ * Append one source's commands onto the accumulator, per event.
+ *
+ * MERGED, not first-wins, and the distinction is deliberate. An agent or a skill is a NAMED
+ * declaration: two files claiming one name collide, and the explicit namespace should win. Hooks are
+ * unnamed lists — two files declaring `PreToolUse` are two sets of commands an operator wrote, and
+ * keeping only one drops the other in silence, which is the failure class this package guards
+ * against everywhere else.
+ */
 function mergeInto(target: HookConfig, source: HookConfig): void {
   for (const [event, commands] of Object.entries(source.hooks ?? {}) as [
     HookEvent,
