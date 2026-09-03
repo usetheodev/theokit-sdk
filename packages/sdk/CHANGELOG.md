@@ -1,5 +1,167 @@
 # Changelog
 
+## 5.0.0-next.2
+
+### Minor Changes
+
+- 88e87d0: A foreign configuration source can now be admitted to some surfaces and not others.
+  
+  `compatSources: ["claude-code"]` was all-or-nothing: declaring it admitted `.claude/` to hooks,
+  plugins, skills AND subagents at once. The four carry very different risk — a skill is text that
+  enters the system prompt, a plugin is code loading, a hook is command execution — so a consumer who
+  wanted to reuse the skills they had already written was handed arbitrary command execution along
+  with them, and had no way to say otherwise.
+  
+  ```ts
+  local: {
+    compatSources: [{ kind: "claude-code", import: ["skills", "subagents"] }],
+  }
+  ```
+  
+  Hooks and plugins then resolve `.theokit/` alone. `CompatSurface` and `CompatSourceAdapter` are
+  exported.
+  
+  Three rules, each failing closed:
+  
+  - **The bare `"claude-code"` string still admits every surface.** It is what `5.0.0-next.1`
+    published, and narrowing it silently would turn a working opt-in into a no-op that says nothing —
+    the defect this option exists to fix, one level up.
+  - **An adapter with no `import` list admits nothing.** Safe to apply strictly because the object
+    form is new and nobody can be relying on it yet.
+  - **An unrecognised surface name is dropped**, exactly as an unrecognised `kind` already is. A typo
+    must narrow access, never widen it.
+  
+  The `plugins` surface governs reading a foreign plugin directory even when the caller wants the
+  SKILLS a bundle carries: a bundle is code, and its skills arrive attached to it, so admitting
+  `skills` alone must not reach inside one. Otherwise the narrower permission would silently grant
+  the wider one.
+  
+  Closes the per-surface half of usetheokit/theokit-sdk#524. The visibility half — skills, subagents
+  and plugins carrying the root they came from, the way hooks already carry `sourcePath` — and the
+  declarative `.theokit/config.toml` form are not in this change.
+- 33aa170: A project can now declare its foreign compat sources in `.theokit/config.json`, instead of only in
+  code.
+  
+  ```json
+  {
+    "compat": {
+      "adapters": [{ "kind": "claude-code", "import": ["skills", "subagents"] }]
+    }
+  }
+  ```
+  
+  The DECLARATIVE half usetheokit/theokit-sdk#524 asked for, in a `## Sketch` written against TOML.
+  It ships as JSON: this SDK already reads JSON everywhere a project declares something
+  (`settings.json`, `mcp.json`, `context.json`) and carries no TOML parser or dependency for one —
+  adding one for a single optional section would be the opposite of what #522/#524 are about, reading
+  in a new format nobody asked this SDK to speak. The shape is unchanged: `compat.adapters` accepts
+  exactly what `local.compatSources` already does in code — a bare kind string, or `{ kind, import }`.
+  
+  **Precedence, decided here because the issue does not state it:** explicit `local.compatSources` in
+  code wins over the file. The file is the default for a caller who declared nothing. A test or a
+  one-off script can therefore always override the file without editing or deleting it.
+  
+  Read with `readFileSync`, not this package's usual async reader: the caller is `Agent`'s
+  synchronous constructor, which resolves `compatSources` before any submanager exists to await a
+  promise. `existsSync` already runs in the same constructor for the same reason.
+  
+  One resolver, `resolveCompatSources(options, cwd)`, replaces five call sites that each wrote
+  `options.local?.compatSources ?? []` by hand — the same duplication `theokitConfigRoot` closed one
+  layer down, closed here one layer up, so the file form reaches all four surfaces (hooks, skills,
+  plugins, subagents) through the one place rather than needing five separate edits that could drift.
+  
+  Closes the declarative half of #524. `#524` itself stays open until it is verified in an installed
+  release, per this project's issue-lifecycle convention.
+- e7cf2dd: A skill, subagent or plugin now says which directory it was read from.
+  
+  usetheokit/theokit-sdk#524 asks for it in one line — *"whatever is imported should be reportable […]
+  silent inheritance is what made this take a debugging session to notice"* — and a consumer listing
+  its own skills could not tell that one had arrived from `.claude/skills/` rather than the project's
+  own directory.
+  
+  What is new is not the data. It existed on all three and did not reach the caller:
+  
+  - `Skill.source` was already the absolute path to the `SKILL.md`, and the projection that builds
+    `agent.skills` mapped it away along with the body. The projection is right to drop the BODY —
+    that is what `get()` is for — and dropping the PATH with it answered a question nobody asked.
+  - `agent.plugins.list()` has always returned `source` at runtime; the internal type's own docblock
+    says it carries provenance "so callers can audit where the plugin came from". `SDKPluginMetadata`
+    simply never declared it, so the caller received the field and the compiler denied it existed.
+  - `readSubagentsFrom` computes the file path on the line it reads the file, then dropped it.
+    `AgentDefinition.source` keeps it.
+  
+  `source` is optional on all three, and absence means something specific: declared in code, not read
+  from disk. A subagent passed through `AgentOptions.subagents` has no file and `source` is absent.
+  An inline `createSkill` skill has no file either, but already carried the synthetic `inline://<name>`
+  marker before this change (`create-skill.ts`) — so a skill's `source` is now populated for every
+  entry `list()` returns, either a disk path or that marker, and a first version of this fix wrongly
+  described it as absent for that case. An existing regression test (`agent-skills-get.test.ts`,
+  SE21) asserted `list()` must NOT carry `source` at all; it predates #524 and is updated here to
+  assert the marker instead, while still proving the skill's body and references never leak.
+  
+  `SkillsHandle.list` is now typed as the public `SystemPromptSkillRef` instead of restating
+  `{ name; description }` inline. The two had drifted, and an internal handle declaring a narrower
+  shape than the contract it serves silently deletes fields the projection produces — which is exactly
+  how `source` reached the caller at runtime while not existing to the compiler.
+  
+  Closes the visibility half of #524. The declarative `.theokit/config.toml` form is not in this
+  change.
+
+### Patch Changes
+
+- 070ee92: A foreign plugin's entry file is now checked against the root it was actually discovered under.
+  
+  `refresh()` iterates every root a compat source admits — `.theokit/plugins`, and `.claude/plugins`
+  once `compatSources` names the `plugins` surface — and checks each plugin's declared `entry` file
+  exists. That check reconstructed the plugin's directory as `.theokit/plugins/<folder>`
+  unconditionally, regardless of which root the plugin was actually found under.
+  
+  A plugin discovered at `.claude/plugins/my-plugin/` was therefore checked against
+  `.theokit/plugins/my-plugin/` — a directory it never lived in. With nothing there, a legitimate
+  foreign plugin was refused as "entry file is missing." Had a same-named folder existed under
+  `.theokit/plugins/` instead, its entry file would have been read in place of the real one — a path
+  confusion the ADR D79-D80 traversal guard this check calls does not catch, because the guard runs
+  against the wrong root rather than against none.
+  
+  This was reachable through the bare `compatSources: ["claude-code"]` form, which has always admitted
+  the `plugins` surface — not something the per-surface work landing alongside this introduced.
+  
+  Found while testing the per-surface admission work for usetheokit/theokit-sdk#524.
+- 131ab8b: A foreign plugin's `source` field is now a real relative path instead of a single character.
+  
+  Both manifest loaders (Claude Code's `.claude-plugin/plugin.json` form and this SDK's own
+  `PLUGIN.md`/`plugin.json`) built `source` by searching the manifest path for the literal substring
+  `.theokit/` and slicing from there. A manifest read from `.claude/plugins/<name>/…` contains no such
+  substring: `indexOf` returns `-1`, and `.slice(-1)` silently returned the manifest path's LAST
+  CHARACTER — `"n"` from `.json`, `"d"` from `PLUGIN.md` — instead of a path.
+  
+  `source` is exactly the audit trail the visibility half of usetheokit/theokit-sdk#524 exists to
+  provide, and this was broken for precisely the case that matters most: a plugin admitted from a
+  foreign root. Replaced the substring search with `path.relative(cwd, manifestPath)` — the stdlib
+  does this correctly, and it is what the substring search was trying to approximate.
+  
+  Found alongside the entry-file root confusion, testing the same per-surface admission work.
+- 7b4063b: One resolver now answers "where does this project's configuration live?" — `theokitConfigRoot(cwd)`,
+  in `internal/persistence/paths.ts`, semver-exempt.
+  
+  Five readers hand-rolled `join(cwd, ".theokit", ...)` independently: `mcp.json`, the context
+  directory + `context.json`, the hooks-root fallback check, `registry.json`, and the personality
+  `PROJECT_SUBDIR`. `projectConfigRoots` (hooks/skills/subagents/plugins, per usetheokit/theokit-sdk#524)
+  already resolved its native root the same way, inline, making six independent copies of one
+  constant.
+  
+  No filename, format or resulting path changes — this is a pure consolidation, and the project's own
+  lint gate (`no-hardcoded-theokit-path.test.ts`, ratcheted 23 → 14) is the proof: every literal this
+  change removed was already flagged as migration debt, and the full suite is unchanged.
+  
+  Deliberately does NOT touch homedir-anchored state (sessions, credentials, the personality
+  `USER_SUBDIR`, provider discovery) — those follow `getTheokitHome`/`THEOKIT_HOME` by design, and
+  folding them into this resolver would be the exact silent behaviour change
+  `theokitConfigRoot`'s own docblock warns against: a project's committed configuration must never
+  follow an operator's relocated state directory. A regression test pins this — swapping the
+  resolver's body for `getTheokitHome`'s would move all six readers under `THEOKIT_HOME` at once, in
+  one line, with no caller-side signal.
+
 ## 5.0.0-next.1
 
 ### Major Changes
