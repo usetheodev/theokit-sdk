@@ -65,8 +65,18 @@ jobs:
             exit 1
           fi
 
-          if [ "${HEAD_REF}" != "workspace" ]; then
-            echo "::error::develop only accepts the promotion from 'workspace' (rules/git-safety.md § 1); this pull request's head is '${HEAD_REF}'. Land the work on workspace first, then promote."
+          # The changesets bot opens its OWN pull request into develop — 'changeset-release/develop',
+          # named by changesets/action itself, never by a human. It is not the promotion this gate
+          # exists to guard (rules/git-safety.md § 1 is about where WORK originates); it is generated
+          # tooling output that legitimately targets develop under a different contract. Exempted by
+          # exact name, not a prefix match, and only reachable after the fork check above already
+          # confirmed HEAD_REPO == BASE_REPO — a fork cannot forge this repository's own bot branch.
+          #
+          # Found 2026-09-03 (usetheokit/theokit-sdk#535): every Version Packages PR against develop
+          # failed this check unconditionally, because no exemption existed. GitHub's branch
+          # protection refused even an admin override — the only real fix was here.
+          if [ "${HEAD_REF}" != "workspace" ] && [ "${HEAD_REF}" != "changeset-release/develop" ]; then
+            echo "::error::develop only accepts the promotion from 'workspace' (rules/git-safety.md § 1) or the changesets bot's 'changeset-release/develop'; this pull request's head is '${HEAD_REF}'. Land the work on workspace first, then promote."
             exit 1
           fi
 
