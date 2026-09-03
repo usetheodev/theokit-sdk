@@ -99,7 +99,7 @@ export class PluginsManager {
         );
       }
       if (this.enabled === undefined || this.enabled.includes(metadata.name)) {
-        await this.assertEntryFileExists(metadata, folderName);
+        await this.assertEntryFileExists(metadata, folderName, pluginsRoot);
         this.plugins.push(metadata);
       }
     }
@@ -109,7 +109,11 @@ export class PluginsManager {
     return Promise.resolve(this.plugins);
   }
 
-  private async assertEntryFileExists(metadata: PluginMetadata, folderName: string): Promise<void> {
+  private async assertEntryFileExists(
+    metadata: PluginMetadata,
+    folderName: string,
+    pluginsRoot: string,
+  ): Promise<void> {
     const entry = metadata.entry;
     if (entry === undefined) return;
     // ADRs D79-D80 (path-guard): safePathJoin resolves THEN prefix-checks,
@@ -117,7 +121,12 @@ export class PluginsManager {
     // Replaces the inline T3.2 markdown-config-migration guard that only handled
     // the literal cases. PathTraversalError extends ConfigurationError (code:
     // "path_traversal") so consumers catching ConfigurationError still see it.
-    const pluginRoot = join(this.cwd, ".theokit", "plugins", folderName);
+    //
+    // `pluginsRoot` is the root `refreshRoot` was called with — NOT reconstructed as
+    // `.theokit/plugins` unconditionally. A plugin discovered under a foreign root
+    // (`.claude/plugins/<name>`, admitted via compatSources) was checked against
+    // `.theokit/plugins/<name>` instead, which is a directory it never lived in.
+    const pluginRoot = join(pluginsRoot, folderName);
     const entryPath = safePathJoin(pluginRoot, entry);
     try {
       await readFile(entryPath, "utf8");
