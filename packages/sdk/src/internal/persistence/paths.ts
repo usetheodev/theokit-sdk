@@ -71,11 +71,33 @@ export function getTheokitHome(cwd: string): string {
 }
 
 /**
+ * The project's own configuration root: `<cwd>/.theokit`, always — never `THEOKIT_HOME`.
+ *
+ * `THEOKIT_HOME` relocates cwd-anchored SDK STATE (sessions, credentials). A project's
+ * CONFIGURATION belongs to the repository: hooks, MCP servers, context sources, subagents, the
+ * personality a project declares, all committed to git and shared by a team. Following the
+ * override for any of them would move where a project's declared capabilities come from — a
+ * behaviour change wearing the costume of a refactor, which is exactly what this function exists
+ * to make impossible to do by accident: every config-class reader calls this instead of writing
+ * `join(cwd, ".theokit")` by hand.
+ *
+ * NOT for the `.claude/`-style foreign roots {@link adaptersForSurface} adds — those are additive,
+ * opt-in, and each has its own directory name.
+ *
+ * Semver-exempt: reachable via the `@theokit/sdk/internal/persistence` sub-path, which the package
+ * declares in `exports` but does NOT cover with its semver contract.
+ */
+export function theokitConfigRoot(cwd: string): string {
+  return join(cwd, THEOKIT_DIR_LITERAL);
+}
+
+/**
  * Every directory a project's configuration may be read from, in precedence order.
  *
- * `.theokit` first, then `.claude`. The order is the whole contract: a project that declares a
- * skill, agent or rule in both means the explicit namespace to win, and a caller merging these
- * roots must therefore keep the FIRST occurrence of a name rather than the last.
+ * `.theokit` first — via {@link theokitConfigRoot}, so it is NEVER affected by `THEOKIT_HOME` for
+ * the reason documented there — then `.claude`. The order is the whole contract: a project that
+ * declares a skill, agent or rule in both means the explicit namespace to win, and a caller merging
+ * these roots must therefore keep the FIRST occurrence of a name rather than the last.
  *
  * `.claude` is read because the formats already agree and only the location did not. Measured
  * 2026-08-26: the SKILL.md frontmatter this SDK requires (`name` + `description`) is exactly what
@@ -85,36 +107,11 @@ export function getTheokitHome(cwd: string): string {
  * NOT a rename of `.theokit`, and not a migration. Both are read, so nothing that works today stops
  * working — which is why this returns a LIST and not a single resolved answer.
  *
- * Deliberately NOT affected by `THEOKIT_HOME`, and this is the one thing to remember about it.
- * That variable relocates cwd-anchored SDK *state* — sessions, the credential store. A project's
- * *configuration* is a property of the repository, not of where this SDK keeps its state, and the
- * loaders that read these directories have always anchored on `cwd` directly. Honouring the
- * override here would silently move where a project's agents and skills come from, which is a
- * behaviour change wearing the costume of a refactor.
- *
  * Creates nothing and checks nothing; either path may not exist, and the caller owns that.
  *
  * Semver-exempt: reachable via the `@theokit/sdk/internal/persistence` sub-path, which the package
  * declares in `exports` but does NOT cover with its semver contract.
  */
-/**
- * The project's own configuration root: `<cwd>/.theokit`, always — never `THEOKIT_HOME`.
- *
- * `THEOKIT_HOME` relocates cwd-anchored SDK STATE (sessions, credentials). A project's
- * CONFIGURATION belongs to the repository: hooks, MCP servers, context sources, subagents, the
- * personal registry a project declares, all committed to git and shared by a team. Following the
- * override for any of them would move where a project's declared capabilities come from — a
- * behaviour change wearing the costume of a refactor, which is exactly what this function exists
- * to make impossible to do by accident: every config-class reader calls this instead of writing
- * `join(cwd, ".theokit")` by hand.
- *
- * NOT for the `.claude/`-style foreign roots {@link adaptersForSurface} adds — those are additive,
- * opt-in, and each has its own directory name.
- */
-export function theokitConfigRoot(cwd: string): string {
-  return join(cwd, THEOKIT_DIR_LITERAL);
-}
-
 export function projectConfigRoots(
   cwd: string,
   sources: readonly CompatSourceDeclaration[],
