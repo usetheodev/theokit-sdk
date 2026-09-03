@@ -40,7 +40,7 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "prepublish:guards": "pnpm run build && node tools/check-publish-no-workspace.mjs && pnpm run validate:published-imports",
-    "release": "pnpm run prepublish:guards && changeset publish",
+    "release": "pnpm run prepublish:guards && changeset publish && node tools/verify-release-published.mjs",
     "release:snapshot": "pnpm run prepublish:guards && changeset publish --tag \"${SNAPSHOT_TAG:?SNAPSHOT_TAG must be set}\" --no-git-tag",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "quality:dead-internal": "node tools/check-internal-deadcode.mjs",
