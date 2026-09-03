@@ -23,6 +23,7 @@ import { PersonalityStore } from "../personality/store.js";
 import type { PersonalityPreset } from "../personality/types.js";
 import { PluginManager } from "../plugins/manager.js";
 import { extractCodePlugins } from "../plugins/plugin-guards.js";
+import { resolveCompatSources } from "../runtime/compat/compat-config-file.js";
 import { reportUndeclaredSources } from "../runtime/compat/foreign-config-sources.js";
 import type { ProvidersManagerImpl } from "../runtime/config/providers-manager.js";
 import type { FileContextManager } from "../runtime/context/context-manager.js";
@@ -189,7 +190,7 @@ export class LocalAgent implements SDKAgent {
     // #526 — an unrecognised key here used to be accepted in silence, so a typo and an SDK too old
     // to know the option produced the identical result: the default, and no complaint.
     reportUnknownLocalOptions(options.local as Record<string, unknown> | undefined);
-    const compatSources = options.local?.compatSources ?? [];
+    const compatSources = resolveCompatSources(options, this.workspaceCwd);
     // #524 — the flip is silent from inside the repository: the hook file is there, executable, and
     // not running. Reported here, once per workspace, on the interceptable channel.
     reportUndeclaredSources(this.workspaceCwd, compatSources);
@@ -232,7 +233,7 @@ export class LocalAgent implements SDKAgent {
       this.workspaceCwd,
       this.settingSourcesIncludeProject,
       this.options.agents,
-      this.options.local?.compatSources ?? [],
+      resolveCompatSources(this.options, this.workspaceCwd),
     );
     // SE40 — hydrate persisted session history from the native transcript so a
     // resumed agent sees the conversation from the previous process.

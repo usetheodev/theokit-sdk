@@ -25,18 +25,18 @@ describe("projectConfigRoots", () => {
   });
 
   it("test_only_the_native_directory_is_searched_by_default", () => {
-    expect(projectConfigRoots("/work")).toEqual([join("/work", ".theokit")]);
+    expect(projectConfigRoots("/work", [], "hooks")).toEqual([join("/work", ".theokit")]);
   });
 
   it("test_a_declared_foreign_directory_is_searched_after_the_native_one", () => {
-    expect(projectConfigRoots("/work", ["claude-code"])).toEqual([
+    expect(projectConfigRoots("/work", ["claude-code"], "hooks")).toEqual([
       join("/work", ".theokit"),
       join("/work", ".claude"),
     ]);
   });
 
   it("test_the_explicit_namespace_is_searched_first_so_it_wins_a_collision", () => {
-    expect(projectConfigRoots("/work")[0]).toBe(join("/work", ".theokit"));
+    expect(projectConfigRoots("/work", [], "hooks")[0]).toBe(join("/work", ".theokit"));
   });
 
   // THEOKIT_HOME relocates cwd-anchored SDK STATE (sessions, credentials). A project's
@@ -45,7 +45,7 @@ describe("projectConfigRoots", () => {
   // from, which is a behaviour change wearing the costume of a refactor.
   it("test_the_theokit_home_override_does_not_move_project_configuration", () => {
     process.env.THEOKIT_HOME = "/elsewhere";
-    expect(projectConfigRoots("/work", ["claude-code"])).toEqual([
+    expect(projectConfigRoots("/work", ["claude-code"], "hooks")).toEqual([
       join("/work", ".theokit"),
       join("/work", ".claude"),
     ]);

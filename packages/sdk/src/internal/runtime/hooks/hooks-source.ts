@@ -20,7 +20,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ConfigurationError } from "../../../errors.js";
 import { diag } from "../../diagnostics.js";
-import { projectConfigRoots } from "../../persistence/paths.js";
+import { projectConfigRoots, theokitConfigRoot } from "../../persistence/paths.js";
+import type { CompatSourceDeclaration } from "../compat/foreign-config-sources.js";
 
 /** The five lifecycle events the SDK runtime actually fires. */
 export type HookEvent = "preRun" | "postRun" | "preToolUse" | "postToolUse" | "stop";
@@ -89,7 +90,7 @@ export function _resetWarnOnceForTests(): void {
  */
 export async function loadHookConfig(
   cwd: string,
-  compatSources: readonly string[] = [],
+  compatSources: readonly CompatSourceDeclaration[] = [],
 ): Promise<HookConfig> {
   const merged: HookConfig = {};
   let sawAny = false;
@@ -101,7 +102,7 @@ export async function loadHookConfig(
     // command came to be run without Claude Code's runtime (#522).
     mergeInto(merged, stampSource(await readHookFile(path), path));
   }
-  if (!sawAny && existsSync(join(cwd, ".theokit", "hooks"))) {
+  if (!sawAny && existsSync(join(theokitConfigRoot(cwd), "hooks"))) {
     warnOnce(
       "hooks-md-unsupported",
       "[theokit-sdk] .theokit/hooks/*.md hooks are no longer supported (ADR 0016) — migrate to a Claude-Code-shaped .theokit/hooks.json",
@@ -121,8 +122,11 @@ export async function loadHookConfig(
  * The shape never needed translating: `parseClaudeCodeConfig` reads the `hooks` key off whatever
  * object it is given, and a settings file is that same object with other keys alongside.
  */
-function hookConfigCandidates(cwd: string, compatSources: readonly string[]): string[] {
-  const roots = projectConfigRoots(cwd, compatSources);
+function hookConfigCandidates(
+  cwd: string,
+  compatSources: readonly CompatSourceDeclaration[],
+): string[] {
+  const roots = projectConfigRoots(cwd, compatSources, "hooks");
   return [
     ...roots.map((root) => join(root, "hooks.json")),
     ...roots.map((root) => join(root, "settings.json")),

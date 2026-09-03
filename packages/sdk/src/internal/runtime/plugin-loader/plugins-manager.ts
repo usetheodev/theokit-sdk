@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { ConfigurationError } from "../../../errors.js";
 import { loadMarkdownEntities } from "../../persistence/markdown-config-loader.js";
 import { pluginBundleRoots } from "../../persistence/paths.js";
 import { safePathJoin } from "../../security/path-guard.js";
+import type { CompatSourceDeclaration } from "../compat/foreign-config-sources.js";
 import { readWorkspaceDir } from "../config/workspace-dir.js";
 import { warnOnce } from "../hooks/hooks-source.js";
 import { type PluginFrontmatter, PluginFrontmatterSchema } from "./plugin-frontmatter.js";
@@ -41,7 +42,7 @@ export class PluginsManager {
     private readonly cloud: boolean,
     private readonly localPaths: string[] | undefined,
     /** Declared foreign dialects (#524). Empty reads `.theokit/plugins` only. */
-    private readonly compatSources: readonly string[] = [],
+    private readonly compatSources: readonly CompatSourceDeclaration[] = [],
   ) {}
 
   async initialize(): Promise<void> {
@@ -72,7 +73,7 @@ export class PluginsManager {
       // is canonical where it came from.
       const cliPath = join(pluginsRoot, folderName, ".claude-plugin", "plugin.json");
       if (existsSync(cliPath)) {
-        const cliMetadata = await loadPluginManifestFromJson(cliPath, folderName);
+        const cliMetadata = await loadPluginManifestFromJson(this.cwd, cliPath, folderName);
         if (this.enabled === undefined || this.enabled.includes(cliMetadata.name)) {
           this.plugins.push(cliMetadata);
         }
@@ -82,8 +83,8 @@ export class PluginsManager {
       const mdPath = join(pluginsRoot, folderName, "PLUGIN.md");
       const jsonPath = join(pluginsRoot, folderName, "plugin.json");
       const metadata = existsSync(mdPath)
-        ? await loadPluginManifestFromMarkdown(pluginsRoot, folderName)
-        : await loadPluginManifestFromJson(jsonPath, folderName);
+        ? await loadPluginManifestFromMarkdown(this.cwd, pluginsRoot, folderName)
+        : await loadPluginManifestFromJson(this.cwd, jsonPath, folderName);
       if (existsSync(mdPath) && existsSync(jsonPath)) {
         warnOnce(
           `plugin-${folderName}-both`,
@@ -98,7 +99,7 @@ export class PluginsManager {
         );
       }
       if (this.enabled === undefined || this.enabled.includes(metadata.name)) {
-        await this.assertEntryFileExists(metadata, folderName);
+        await this.assertEntryFileExists(metadata, folderName, pluginsRoot);
         this.plugins.push(metadata);
       }
     }
@@ -108,7 +109,11 @@ export class PluginsManager {
     return Promise.resolve(this.plugins);
   }
 
-  private async assertEntryFileExists(metadata: PluginMetadata, folderName: string): Promise<void> {
+  private async assertEntryFileExists(
+    metadata: PluginMetadata,
+    folderName: string,
+    pluginsRoot: string,
+  ): Promise<void> {
     const entry = metadata.entry;
     if (entry === undefined) return;
     // ADRs D79-D80 (path-guard): safePathJoin resolves THEN prefix-checks,
@@ -116,7 +121,12 @@ export class PluginsManager {
     // Replaces the inline T3.2 markdown-config-migration guard that only handled
     // the literal cases. PathTraversalError extends ConfigurationError (code:
     // "path_traversal") so consumers catching ConfigurationError still see it.
-    const pluginRoot = join(this.cwd, ".theokit", "plugins", folderName);
+    //
+    // `pluginsRoot` is the root `refreshRoot` was called with — NOT reconstructed as
+    // `.theokit/plugins` unconditionally. A plugin discovered under a foreign root
+    // (`.claude/plugins/<name>`, admitted via compatSources) was checked against
+    // `.theokit/plugins/<name>` instead, which is a directory it never lived in.
+    const pluginRoot = join(pluginsRoot, folderName);
     const entryPath = safePathJoin(pluginRoot, entry);
     try {
       await readFile(entryPath, "utf8");
@@ -155,6 +165,7 @@ export class PluginsManager {
 }
 
 async function loadPluginManifestFromJson(
+  cwd: string,
   manifestPath: string,
   folderName: string,
 ): Promise<PluginMetadata> {
@@ -187,7 +198,10 @@ async function loadPluginManifestFromJson(
   const capabilities = Array.isArray(record.capabilities)
     ? record.capabilities.filter((cap): cap is string => typeof cap === "string")
     : [];
-  const source = manifestPath.slice(manifestPath.indexOf(".theokit/"));
+  // Relative to cwd, via the stdlib rather than a literal ".theokit/" substring search: that
+  // search returns -1 for a manifest read from a FOREIGN root (`.claude/plugins/...`), and
+  // `.slice(-1)` silently produced the manifest path's last character instead of a path.
+  const source = relative(cwd, manifestPath);
   const metadata: PluginMetadata = { name, version, capabilities, source };
   if (typeof record.entry === "string") metadata.entry = record.entry;
   return metadata;
@@ -195,6 +209,7 @@ async function loadPluginManifestFromJson(
 
 /** Load PLUGIN.md from a plugin folder via shared markdown-config-loader. */
 async function loadPluginManifestFromMarkdown(
+  cwd: string,
   pluginsRoot: string,
   folderName: string,
 ): Promise<PluginMetadata> {
@@ -225,7 +240,7 @@ async function loadPluginManifestFromMarkdown(
     });
   }
   const fm: PluginFrontmatter = entity.frontmatter;
-  const source = mdPath.slice(mdPath.indexOf(".theokit/"));
+  const source = relative(cwd, mdPath);
   const metadata: PluginMetadata = {
     name: fm.name ?? folderName,
     version: fm.version ?? "0.0.0",

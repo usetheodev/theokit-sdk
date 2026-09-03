@@ -20,6 +20,7 @@ import { join } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
 import { loadMarkdownEntities } from "../persistence/markdown-config-loader.js";
+import { theokitConfigRoot } from "../persistence/paths.js";
 import { warnOnce } from "../runtime/hooks/hooks-source.js";
 import {
   type PersonalityFrontmatter,
@@ -28,7 +29,8 @@ import {
   RESERVED_CLEAR_SLUGS,
 } from "./types.js";
 
-const PROJECT_SUBDIR = ".theokit/personalities";
+// PROJECT and USER intentionally share this relative suffix under two different roots.
+const PERSONALITIES_SUFFIX = "personalities";
 const USER_SUBDIR = ".theokit/personalities";
 
 /**
@@ -52,7 +54,7 @@ export class PersonalityRegistry {
    * @internal
    */
   static async load(cwd: string): Promise<PersonalityRegistry> {
-    const projectDir = join(cwd, PROJECT_SUBDIR);
+    const projectDir = join(theokitConfigRoot(cwd), PERSONALITIES_SUFFIX);
     const userDir = join(homedir(), USER_SUBDIR);
 
     const [userEntities, projectEntities] = await Promise.all([

@@ -1,4 +1,5 @@
 import type { AgentOptions, ModelSelection, SystemPromptContext } from "../../../types/agent.js";
+import { resolveCompatSources } from "../compat/compat-config-file.js";
 import type { FileContextManager } from "../context/context-manager.js";
 import type { MemoryFact } from "../memory-glue/memory-store.js";
 import { SkillsManager } from "../skills/skills-manager.js";
@@ -56,7 +57,7 @@ export async function resolveSendSkills(
     inputs.settingSourcesIncludeProject,
     settings.skillsDir,
     settings.inline,
-    inputs.options.local?.compatSources ?? [],
+    resolveCompatSources(inputs.options, inputs.workspaceCwd),
   );
   // `initialize()` skips the filesystem scan when project sources are off (fast
   // path — inline-only), so a per-send resolver is cheap for inline skills.

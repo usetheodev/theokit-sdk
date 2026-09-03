@@ -1,7 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { SystemPromptSkillRef } from "../../../types/sdk-agent.js";
 import { diag } from "../../diagnostics.js";
 import { projectConfigRoots } from "../../persistence/paths.js";
+import type { CompatSourceDeclaration } from "../compat/foreign-config-sources.js";
 import { pluginBundleDirs } from "../plugin-loader/plugin-bundles.js";
 import { discoverSkills, type Skill } from "./discover-skills.js";
 import { stripSkillFrontmatter } from "./skill-frontmatter.js";
@@ -33,11 +35,16 @@ export interface SkillDetail {
 /** SE20 — the internal `agent.skills` handle shape (list + get), shared by the runtime wiring. @internal */
 export interface SkillsHandle {
   /**
-   * Lean listing — name + description ONLY. Inline skills carry their body +
-   * references on the underlying object; the public handle projects them away so
-   * `agent.skills.list()` never leaks a body. Full bodies come only via `get`.
+   * Lean listing — metadata only, never a body. Inline skills carry their body + references on the
+   * underlying object; the public handle projects them away so `agent.skills.list()` never leaks
+   * one. Full bodies come only via `get`.
+   *
+   * Typed as the PUBLIC {@link SystemPromptSkillRef} rather than restating its shape inline: the
+   * two had drifted, and a handle declaring a narrower shape than the contract it serves silently
+   * deletes fields the projection produces — which is how `source` reached the caller at runtime
+   * and did not exist to the compiler (#524).
    */
-  list: () => Promise<Array<{ name: string; description: string }>>;
+  list: () => Promise<SystemPromptSkillRef[]>;
   get: (name: string) => Promise<SkillDetail | undefined>;
 }
 
@@ -69,7 +76,7 @@ export class SkillsManager {
      * SYSTEM PROMPT, so importing skills from a directory this SDK does not own is a
      * prompt-injection surface, not a convenience.
      */
-    private readonly compatSources: readonly string[] = [],
+    private readonly compatSources: readonly CompatSourceDeclaration[] = [],
   ) {
     void _enabled;
   }
@@ -96,7 +103,9 @@ export class SkillsManager {
     const roots =
       this.skillsDir === undefined
         ? [
-            ...projectConfigRoots(this.cwd, this.compatSources).map((root) => join(root, "skills")),
+            ...projectConfigRoots(this.cwd, this.compatSources, "skills").map((root) =>
+              join(root, "skills"),
+            ),
             ...(await pluginBundleDirs(this.cwd, this.compatSources)).map((b) => join(b, "skills")),
           ]
         : [this.skillsDir];
