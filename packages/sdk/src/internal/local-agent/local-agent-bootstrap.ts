@@ -10,6 +10,7 @@
 
 import type { AgentOptions, ModelSelection } from "../../types/agent.js";
 import { asPluginsSettings, enabledPluginNames } from "../plugins/enabled-names.js";
+import { resolveCompatSources } from "../runtime/compat/compat-config-file.js";
 import { ProvidersManagerImpl } from "../runtime/config/providers-manager.js";
 import { FileContextManager } from "../runtime/context/context-manager.js";
 import { normalizeModel } from "../runtime/model-selection.js";
@@ -88,7 +89,7 @@ function buildSkills(args: BootstrapArgs, out: BootstrappedSubmanagers): void {
     staticSkills?.inline,
     // #524 — the same declaration the per-send manager reads. Omitting it here would make
     // `agent.skills` disagree with the system prompt about which skills exist.
-    args.options.local?.compatSources ?? [],
+    resolveCompatSources(args.options, args.workspaceCwd),
   );
   const localSkills = out.skillsManager;
   out.skills = {
@@ -117,7 +118,7 @@ function buildPlugins(args: BootstrapArgs, out: BootstrappedSubmanagers): void {
     args.settingSourcesIncludePlugins,
     false,
     undefined,
-    args.options.local?.compatSources ?? [],
+    resolveCompatSources(args.options, args.workspaceCwd),
   );
   const localPlugins = out.pluginsManager;
   out.plugins = { list: () => localPlugins.list() };
