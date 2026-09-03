@@ -155,6 +155,29 @@ export const DEFAULT_DISCOVERY_SPECS: ReadonlyArray<DiscoverySpec> = [
     priority: 50,
   },
   {
+    // usetheokit/theokit-sdk#531 — THEO.md was the only context file that could not live at the
+    // project root: every sibling here is `git-root-walk`, and this one was `cwd-only` pointed
+    // at `.theokit/THEO.md` specifically, with no warning that a root THEO.md was inert.
+    //
+    // ADDED rather than moving the existing entry below: a project already using
+    // `.theokit/THEO.md` keeps working unchanged. 55 sits between `theokit-context` (50) and the
+    // existing `THEO.md` (60), leaving room on both sides — the numbering discipline
+    // `claude-rules` (47) already established for this array.
+    //
+    // `followImports: true`, unlike the existing entry (`false`) and unlike `AGENTS.md`. This is
+    // a DELIBERATE divergence between the two THEO.md specs, not an inconsistency: a root-level
+    // file is edited by the same people, in the same place, as CLAUDE.md/GEMINI.md — the two
+    // other root-level, human-facing files that both carry `followImports: true` — so it belongs
+    // in their category rather than AGENTS.md's vendor-neutral, import-free one. Because this is a
+    // NEW spec, choosing `true` here changes nothing for `.theokit/THEO.md`, which keeps `false`.
+    id: "THEO.md.root",
+    pattern: "THEO.md",
+    scope: "git-root-walk",
+    parser: "plain-markdown",
+    followImports: true,
+    priority: 55,
+  },
+  {
     id: "THEO.md",
     pattern: ".theokit/THEO.md",
     scope: "cwd-only",
