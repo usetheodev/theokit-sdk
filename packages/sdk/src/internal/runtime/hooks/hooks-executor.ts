@@ -1,3 +1,4 @@
+import type { CompatSourceDeclaration } from "../compat/foreign-config-sources.js";
 import { adapterForConfigPath, undefinedVariablesIn } from "../compat/foreign-config-sources.js";
 import { spawnAndCollect } from "../lifecycle/spawn-collect.js";
 import { loadHookConfig } from "./hooks-source.js";
@@ -66,7 +67,7 @@ export class HooksExecutor {
   constructor(
     private readonly cwd: string,
     /** Declared foreign dialects (#524). Empty reads `.theokit/` only. */
-    private readonly compatSources: readonly string[] = [],
+    private readonly compatSources: readonly CompatSourceDeclaration[] = [],
   ) {}
 
   async initialize(settingSourcesIncludeProject: boolean): Promise<void> {

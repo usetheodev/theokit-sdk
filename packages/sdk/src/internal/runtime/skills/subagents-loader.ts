@@ -6,6 +6,7 @@ import type { AgentDefinition } from "../../../types/agent.js";
 import type { ModelSelection } from "../../../types/agent-prims.js";
 import { diag } from "../../diagnostics.js";
 import { projectConfigRoots } from "../../persistence/paths.js";
+import type { CompatSourceDeclaration } from "../compat/foreign-config-sources.js";
 import { readWorkspaceDir } from "../config/workspace-dir.js";
 import { type FrontmatterValue, parseSimpleYaml } from "../context/yaml-frontmatter.js";
 import { pluginBundleDirs } from "../plugin-loader/plugin-bundles.js";
@@ -24,7 +25,7 @@ export async function loadSubagents(
   settingSourcesIncludeProject: boolean,
   inline: Record<string, AgentDefinition> | undefined,
   /** Declared foreign dialects (#524). Empty reads `.theokit/` only. */
-  compatSources: readonly string[] = [],
+  compatSources: readonly CompatSourceDeclaration[] = [],
 ): Promise<Record<string, AgentDefinition>> {
   const result: Record<string, AgentDefinition> = {};
   if (settingSourcesIncludeProject) {
@@ -49,10 +50,10 @@ export async function loadSubagents(
  */
 async function readProjectSubagents(
   cwd: string,
-  compatSources: readonly string[],
+  compatSources: readonly CompatSourceDeclaration[],
 ): Promise<Record<string, AgentDefinition>> {
   const subagents: Record<string, AgentDefinition> = {};
-  for (const configRoot of projectConfigRoots(cwd, compatSources)) {
+  for (const configRoot of projectConfigRoots(cwd, compatSources, "subagents")) {
     await readSubagentsFrom(join(configRoot, "agents"), subagents);
   }
   // A Claude Code plugin is a BUNDLE, and its `agents/` is what it exists to contribute. Read after
@@ -86,7 +87,9 @@ async function readSubagentsFrom(
     }
     const definition = parseSubagentMarkdown(raw, entry.name);
     if (subagents[definition.name] === undefined) {
-      subagents[definition.name] = definition.definition;
+      // `path` is computed above to read the file and was then dropped. Keeping it is the whole
+      // visibility fix (#524): without it a listing cannot say which root an agent came from.
+      subagents[definition.name] = { ...definition.definition, source: path };
     }
   }
 }

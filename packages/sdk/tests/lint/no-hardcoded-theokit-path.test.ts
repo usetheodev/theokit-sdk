@@ -1,9 +1,18 @@
 /**
  * Lint test (T6.2) — bans hardcoded `.theokit` string literals in `src/`.
  *
- * Forces callers to use `getTheokitHome(cwd)` from
- * `internal/persistence/paths.ts` (ADR D60). Without this discipline,
- * tests cannot isolate state via `THEOKIT_HOME` env override.
+ * Forces callers onto a named resolver in `internal/persistence/paths.ts` (ADR D60) — and there are
+ * TWO, not one, because a project's declared CONFIGURATION and the SDK's runtime STATE answer a
+ * different question about `THEOKIT_HOME`:
+ *
+ *   - `theokitConfigRoot(cwd)` — hooks, MCP servers, context sources, subagents, the personality a
+ *     project declares. Always `<cwd>/.theokit`. These are committed to git and shared by a team;
+ *     following the override would move where a project's declared capabilities come from.
+ *   - `getTheokitHome(cwd)` — sessions, credentials: state that legitimately relocates when an
+ *     operator sets `THEOKIT_HOME`, and which tests need to isolate via the same override.
+ *
+ * Migrating a CONFIG-class literal to `getTheokitHome` is not a fix — it is the exact silent
+ * behaviour change this file exists to prevent, aimed at the wrong target.
  *
  * The audit is informational at v1.3 (allowlist covers the long migration
  * tail). Each entry that lands in the allowlist must justify itself in a
@@ -94,7 +103,7 @@ describe("lint: no hardcoded .theokit paths in src/", () => {
       // `getTheokitHome(cwd)`. Existing callers migrate per ADR D60 §4.
       process.stderr.write(
         `[lint:no-hardcoded-theokit-path] ${offenders.length} legacy literal(s) found ` +
-          "(use getTheokitHome instead):\n" +
+          "(use theokitConfigRoot() for project config, getTheokitHome() for SDK state):\n" +
           `${summary}\n`,
       );
     }
@@ -110,14 +119,19 @@ describe("lint: no hardcoded .theokit paths in src/", () => {
     // 28 → 23 when `/**` joined the comment filter (#524): five of the twenty-eight were one-line
     // docblocks naming the literal they document, never code. The ratchet moved DOWN, which is the
     // direction it is allowed to move without an argument.
+    //
+    // 23 → 14 when the CONFIG-class readers — mcp.json, the context dir + context.json, the hooks
+    // fallback check, registry.json, the personality PROJECT_SUBDIR — moved onto the new
+    // `theokitConfigRoot(cwd)` (#524 follow-up). `USER_SUBDIR` in the same file stayed: it is
+    // homedir-anchored, a different resolver's job, not this one's.
     expect(
       offenders.length,
-      offenders.length > 23
-        ? `${offenders.length} hardcoded \`.theokit\` literals, up from the pinned 23. Use ` +
-            "getTheokitHome() instead of writing the path."
-        : `${offenders.length} literals remain, below the pinned 23 — lower the number in this file ` +
+      offenders.length > 14
+        ? `${offenders.length} hardcoded \`.theokit\` literals, up from the pinned 14. Use ` +
+            "theokitConfigRoot() (project config) or getTheokitHome() (SDK state) instead."
+        : `${offenders.length} literals remain, below the pinned 14 — lower the number in this file ` +
             "to lock the ground in.",
-    ).toBe(23);
+    ).toBe(14);
   });
 
   it("the canonical resolver paths.ts is present", async () => {

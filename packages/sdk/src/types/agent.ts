@@ -64,7 +64,41 @@ export type SettingSource = "project" | "user" | "team" | "mdm" | "plugins" | "a
  *
  * @public
  */
-export type CompatSource = "claude-code";
+export type CompatSource = "claude-code" | CompatSourceAdapter;
+
+/**
+ * A surface a foreign configuration source may be admitted to.
+ *
+ * They are named separately because they carry very different risk. A skill is TEXT that enters the
+ * system prompt; a subagent is a definition; a plugin is CODE LOADING; a hook is COMMAND EXECUTION.
+ * Reusing the skills you already wrote for another product is a reasonable thing to want, and it is
+ * not a reason to hand that product's directory the right to run commands.
+ *
+ * @public
+ */
+export type CompatSurface = "hooks" | "plugins" | "skills" | "subagents";
+
+/**
+ * A foreign source admitted to named surfaces only.
+ *
+ * ```ts
+ * local: { compatSources: [{ kind: "claude-code", import: ["skills", "subagents"] }] }
+ * ```
+ *
+ * `import` is not optional in spirit even though it is in the type: an adapter that omits it
+ * imports NOTHING. That is deliberate and it is the fail-closed rule this whole option exists to
+ * serve — a typo in a surface name must narrow access, never widen it.
+ *
+ * The bare `"claude-code"` string keeps meaning every surface. It is what `5.0.0-next.1` published,
+ * and silently narrowing it would turn a working opt-in into a no-op that says nothing — which is
+ * the defect usetheokit/theokit-sdk#524 reports, one level up.
+ *
+ * @public
+ */
+export interface CompatSourceAdapter {
+  readonly kind: "claude-code";
+  readonly import?: readonly CompatSurface[];
+}
 
 /**
  * A tool the SDK declares to the model on its own initiative — not one the consumer passed in
@@ -215,6 +249,20 @@ export interface CloudOptions {
 export interface AgentDefinition {
   description: string;
   prompt: string;
+  /**
+   * Absolute path to the `.md` this subagent was read from, when it came from disk.
+   *
+   * ABSENT for a subagent declared in code through {@link AgentOptions.subagents} — "you passed
+   * this one in" is a different fact from "read from disk", and one value for both would trade one
+   * silence for another.
+   *
+   * It exists so a listing can answer which root a subagent came from, which
+   * usetheokit/theokit-sdk#524 asks for by name: a consumer could not tell that an agent arrived
+   * from `.claude/agents/` rather than its own directory, and silent inheritance is what made that
+   * take a debugging session to notice. `HookCommand.sourcePath` and `Skill.source` already
+   * answered it for the other two surfaces.
+   */
+  source?: string;
   model?: ModelSelection | "inherit";
   mcpServers?: Array<string | Record<string, McpServerConfig>>;
   /**

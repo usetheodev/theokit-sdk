@@ -18,11 +18,28 @@ import type { Run, SDKUserMessage, SendOptions } from "./run.js";
 export interface SystemPromptSkillRef {
   name: string;
   description: string;
+  /**
+   * Where this skill came from: the absolute path to its `SKILL.md` for a skill read from disk,
+   * or the synthetic `inline://<name>` marker `createSkill` stamps on a code-defined one (see
+   * `create-skill.ts`) — there is no third case, so this is populated for every skill `list()`
+   * returns.
+   *
+   * It is the ORIGIN and NOT the body: `list()` stays lean by contract, and a skill's instructions
+   * are reachable only through {@link SDKAgentSkills.get}. What this adds is the answer to
+   * usetheokit/theokit-sdk#524's visibility question — which root a skill came from, so a listing
+   * can show that one arrived from `.claude/skills/` rather than the project's own directory, or
+   * that it was never on disk at all.
+   *
+   * Typed optional rather than required because {@link SystemPromptSkillRef} is the shape any
+   * future skill producer returns, and this SDK should not assert every one of them can name an
+   * origin.
+   */
+  source?: string;
 }
 
 /**
  * A skill resolved WITH its body, returned by {@link SDKAgentSkills.get}. Unlike
- * {@link SystemPromptSkillRef} (name + description only), this carries the full
+ * {@link SystemPromptSkillRef}, which carries metadata only, this carries the full
  * `instructions` — read from the SKILL.md for filesystem skills or the inline
  * `createSkill` body. @public
  */
@@ -68,6 +85,16 @@ export interface SDKAgentSkills {
 export interface SDKPluginMetadata {
   name: string;
   description?: string;
+  /**
+   * Absolute path the plugin manifest was read from.
+   *
+   * The runtime has ALWAYS returned this — `agent.plugins.list()` hands back the internal
+   * `PluginMetadata`, whose own docblock says it carries provenance "so callers can audit where the
+   * plugin came from". This type simply did not declare it, so the caller received the field and
+   * the compiler denied it existed. Declaring it is what makes the audit usetheokit/theokit-sdk#524
+   * asks for reachable in typed code.
+   */
+  source?: string;
 }
 
 /**

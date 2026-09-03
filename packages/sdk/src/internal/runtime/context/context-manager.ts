@@ -11,6 +11,7 @@ import type {
   SDKContextManager,
 } from "../../../types/context.js";
 import { loadMarkdownEntities } from "../../persistence/markdown-config-loader.js";
+import { theokitConfigRoot } from "../../persistence/paths.js";
 import { insideRoot } from "../../security/path-containment.js";
 import { warnOnce } from "../hooks/hooks-source.js";
 import {
@@ -194,8 +195,8 @@ export class FileContextManager implements SDKContextManager {
  * @internal
  */
 async function loadContextConfig(cwd: string): Promise<FileContextConfig> {
-  const mdDir = join(cwd, ".theokit", "context");
-  const jsonPath = join(cwd, ".theokit", "context.json");
+  const mdDir = join(theokitConfigRoot(cwd), "context");
+  const jsonPath = join(theokitConfigRoot(cwd), "context.json");
 
   const mdEntities = await loadMarkdownEntities({
     dir: mdDir,

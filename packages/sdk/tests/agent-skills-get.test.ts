@@ -89,11 +89,17 @@ describe("agent.skills.get (SE20)", () => {
 
     const list = await agent.skills?.list();
     const entry = list?.find((s) => s.name === "release");
-    // The public contract (SystemPromptSkillRef) is name + description ONLY — the
-    // body and references are reachable exclusively through get().
-    expect(entry).toEqual({ name: "release", description: "Release checklist" });
+    // The public contract (SystemPromptSkillRef) is name + description + source — the BODY and
+    // REFERENCES are reachable exclusively through get(). `source` was excluded here entirely
+    // until usetheokit/theokit-sdk#524 asked for it: a consumer could not tell a skill came from
+    // code rather than disk. `createSkill` already marks that with the synthetic `inline://<name>`
+    // value (see create-skill.ts) — it is not new data, it was simply not reaching this contract.
+    expect(entry).toEqual({
+      name: "release",
+      description: "Release checklist",
+      source: "inline://release",
+    });
     expect(entry).not.toHaveProperty("instructions");
     expect(entry).not.toHaveProperty("references");
-    expect(entry).not.toHaveProperty("source");
   });
 });
