@@ -249,6 +249,20 @@ export interface CloudOptions {
 export interface AgentDefinition {
   description: string;
   prompt: string;
+  /**
+   * Absolute path to the `.md` this subagent was read from, when it came from disk.
+   *
+   * ABSENT for a subagent declared in code through {@link AgentOptions.subagents} — "you passed
+   * this one in" is a different fact from "read from disk", and one value for both would trade one
+   * silence for another.
+   *
+   * It exists so a listing can answer which root a subagent came from, which
+   * usetheokit/theokit-sdk#524 asks for by name: a consumer could not tell that an agent arrived
+   * from `.claude/agents/` rather than its own directory, and silent inheritance is what made that
+   * take a debugging session to notice. `HookCommand.sourcePath` and `Skill.source` already
+   * answered it for the other two surfaces.
+   */
+  source?: string;
   model?: ModelSelection | "inherit";
   mcpServers?: Array<string | Record<string, McpServerConfig>>;
   /**

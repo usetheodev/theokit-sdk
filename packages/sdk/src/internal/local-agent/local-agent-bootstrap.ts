@@ -96,7 +96,13 @@ function buildSkills(args: BootstrapArgs, out: BootstrappedSubmanagers): void {
     // their body + references on the object; `list()` must never leak them —
     // the body is reachable exclusively through `get()`.
     list: async () =>
-      (await localSkills.list()).map((s) => ({ name: s.name, description: s.description })),
+      (await localSkills.list()).map((s) => ({
+        name: s.name,
+        description: s.description,
+        // The PATH, never the body. Dropping it with the body answered a question nobody asked and
+        // silenced the one #524 is about: which root did this skill come from.
+        ...(s.source === undefined ? {} : { source: s.source }),
+      })),
     get: (name) => localSkills.get(name),
   };
 }

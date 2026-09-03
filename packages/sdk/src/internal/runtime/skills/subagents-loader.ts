@@ -87,7 +87,9 @@ async function readSubagentsFrom(
     }
     const definition = parseSubagentMarkdown(raw, entry.name);
     if (subagents[definition.name] === undefined) {
-      subagents[definition.name] = definition.definition;
+      // `path` is computed above to read the file and was then dropped. Keeping it is the whole
+      // visibility fix (#524): without it a listing cannot say which root an agent came from.
+      subagents[definition.name] = { ...definition.definition, source: path };
     }
   }
 }
