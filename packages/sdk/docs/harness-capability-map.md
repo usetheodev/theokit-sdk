@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1187 export(s) across 46 entry point(s).
+1189 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -116,6 +116,8 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `CloudOptions` | interface | Cloud agent configuration. |
 | `CloudRepo` | interface | Repo to clone into a cloud agent's VM. |
 | `CompatSource` | type | A foreign configuration dialect this SDK can read.  |
+| `CompatSourceAdapter` | interface | A foreign source admitted to named surfaces only.  |
+| `CompatSurface` | type | A surface a foreign configuration source may be admitted to.  |
 | `CompletionCheck` | interface | SE34 — the per-send completion criterion (see {@link SendOptions.completionCheck } ). |
 | `CompletionCheckResult` | interface | SE34 — the resolved per-send completion verdict (see {@link RunResult.completionCheck } ). |
 | `computeCost` | function | Returns CostBreakdown with `status="estimated"`, `"unknown"`, or `"included"`.  |
