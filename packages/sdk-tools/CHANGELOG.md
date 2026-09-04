@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.27.4
+
 ## 0.27.4-next.1
 
 ### Patch Changes

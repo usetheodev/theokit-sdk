@@ -1,5 +1,7 @@
 # Changelog — @theokit/sdk-memory
 
+## 0.5.2
+
 ## 0.5.2-next.1
 
 ### Patch Changes

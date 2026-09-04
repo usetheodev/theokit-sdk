@@ -1,5 +1,7 @@
 # Changelog — @theokit/sdk-budget
 
+## 0.3.5
+
 ## 0.3.5-next.1
 
 ### Patch Changes
