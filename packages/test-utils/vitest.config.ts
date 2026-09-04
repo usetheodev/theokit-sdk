@@ -1,8 +1,7 @@
-import { defineConfig } from "vitest/config";
+import { createVitestConfig } from "@theokit/shared-test-config/vitest";
 
-export default defineConfig({
+export default createVitestConfig({
   test: {
     globals: true,
-    environment: "node",
   },
 });
