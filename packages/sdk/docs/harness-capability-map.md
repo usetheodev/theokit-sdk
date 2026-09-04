@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1191 export(s) across 46 entry point(s).
+1193 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -623,6 +623,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `MemoryFileEntry` | interface | Lightweight reference to a markdown file in the memory corpus.  |
 | `MemoryGetToolOptions` | interface | Options for {@link createMemoryGetTool } .  |
 | `MemoryIndex` | interface | The four operations both backends implement, and the type every consumer should hold.  |
+| `memoryIndexRoot` | function | Where the search index belongs for this configuration (theokit-sdk#554).  |
 | `MemoryLocationConfig` | type | Only `directory` is read; the full config is accepted so callers pass what they already hold. |
 | `memoryMdPath` | function | Path to `MEMORY.md`, the index that points at the per-memory files — and, in stores written before #389, the flat `## Facts` list itself.  |
 | `MemoryReadResult` | interface | Result of `reader.readFile`.  |
@@ -1051,6 +1052,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `lanceStoragePath` | function | `<memory root>/lance`.  |
 | `MEMORY_INDEX_MAX_BYTES` | const | The byte limit the Claude Code CLI applies when it loads a `MEMORY.md`, whichever it reaches first.  |
 | `MEMORY_INDEX_MAX_LINES` | const | The line limit the Claude Code CLI applies when it loads a `MEMORY.md`.  |
+| `memoryIndexRoot` | function | Where the search index belongs for this configuration (theokit-sdk#554).  |
 | `MemoryLocationConfig` | type | Only `directory` is read; the full config is accepted so callers pass what they already hold. |
 | `memoryMdPath` | function | Path to `MEMORY.md`, the index that points at the per-memory files — and, in stores written before #389, the flat `## Facts` list itself.  |
 | `memoryReadRoots` | function | Every directory a read must cover, deduplicated and in precedence order.  |
