@@ -12,6 +12,6 @@ export function createVectorIndex(config?: Record<string, any>) {
   };
 }
 
-export function queryVectorIndex(index: any, query: number[]) {
+export function queryVectorIndex(_index: any, _query: number[]) {
   return [];
 }

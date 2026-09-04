@@ -12,6 +12,6 @@ export function createMemoryFile(path: string, content = "") {
   };
 }
 
-export function saveMemoryFile(file: any) {
+export function saveMemoryFile(_file: any) {
   // Placeholder
 }

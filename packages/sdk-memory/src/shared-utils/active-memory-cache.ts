@@ -4,7 +4,7 @@
  * @internal
  */
 
-export function createActiveMemoryCache(ttl = 3600) {
+export function createActiveMemoryCache(_ttl = 3600) {
   const cache = new Map();
   return {
     get: (key: string) => cache.get(key),
