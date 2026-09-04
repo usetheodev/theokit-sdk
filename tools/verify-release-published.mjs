@@ -47,6 +47,28 @@ function publishablePackages() {
     });
 }
 
+/**
+ * Get the unpackedSize of a package from the registry, for backoff scaling.
+ * Large packages (>5MB) indicate slower propagation on the npm registry.
+ */
+function getUnpackedSize({ name, version }) {
+  try {
+    const out = execFileSync(
+      "npm",
+      ["view", `${name}@${version}`, "dist.unpackedSize", "--prefer-online"],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    const size = Number(out.trim());
+    return Number.isFinite(size) ? size : undefined;
+  } catch {
+    // If we cannot get the size, we do not scale the backoff; proceed with default delays.
+    return undefined;
+  }
+}
+
 function registryState({ name, version }) {
   try {
     // `--prefer-online` because `npm view` will otherwise answer from the local metadata cache,
@@ -122,11 +144,39 @@ for (const pkg of packages) {
 
 for (const delay of RETRY_DELAYS_MS) {
   if (pending.length === 0) break;
+
+  // Scale backoff for large packages: npm registry eventual consistency
+  // is slower for multi-megabyte tarballs. Observed: @theokit/sdk (12.9MB)
+  // failed twice while smaller packages (276KB–1.25MB) succeeded in the same
+  // batch. Backoff is scaled proportionally to dist.unpackedSize.
+  let maxScaledDelay = delay;
+  const scaledDelays = new Map();
+  for (const pkg of pending) {
+    const size = getUnpackedSize(pkg);
+    let scaledDelay = delay;
+    if (size !== undefined && size > 5_000_000) {
+      // Scale by (size / 5MB), capped at 4x for packages >20MB
+      const scale = Math.min(4, size / 5_000_000);
+      scaledDelay = Math.round(delay * scale);
+      scaledDelays.set(pkg.name, { size, scale: scale.toFixed(1), scaledDelay });
+      maxScaledDelay = Math.max(maxScaledDelay, scaledDelay);
+    }
+  }
+
+  if (scaledDelays.size > 0) {
+    for (const [name, info] of scaledDelays) {
+      console.log(
+        `… ${name}: ${String(info.size)} bytes (${info.scale}x backoff multiplier) → ` +
+          `${String(info.scaledDelay)}ms`,
+      );
+    }
+  }
+
   console.log(
     `… ${String(pending.length)} version(s) not visible yet; the registry is eventually ` +
-      `consistent, so waiting ${String(delay)}ms and re-reading before calling them unpublished`,
+      `consistent, so waiting ${String(maxScaledDelay)}ms and re-reading before calling them unpublished`,
   );
-  await sleep(delay);
+  await sleep(maxScaledDelay);
   const stillPending = [];
   for (const pkg of pending) {
     if (registryState(pkg) === "published") {
