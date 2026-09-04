@@ -151,3 +151,6 @@ reports/
 # 48, and Biome failed the commit on them. Ignoring the path is what makes an
 # interrupted run merely slow instead of a defect in the next commit.
 .api-drift-probe/
+
+# tsup writes a transient bundled config next to tsup.config.ts
+packages/*/tsup.config.bundled_*.mjs
