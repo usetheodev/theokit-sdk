@@ -15,3 +15,5 @@ export * from "./temp-directory.js";
 export * from "./test-data-builders.js";
 
 export * from "./edit-file-helpers.js";
+export * from "./agent-qa-helpers.js";
+export * from "./agent-describe-helpers.js";
