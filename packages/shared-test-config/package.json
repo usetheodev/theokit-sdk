@@ -16,8 +16,8 @@
     "dev": "tsup src/index.ts src/vitest.ts --format esm,cjs --dts --watch"
   },
   "devDependencies": {
-    "tsup": "workspace:*",
+    "tsup": "^4.0.0",
     "typescript": "workspace:*",
-    "vitest": "workspace:*"
+    "vitest": "^2.0.0"
   }
 }
