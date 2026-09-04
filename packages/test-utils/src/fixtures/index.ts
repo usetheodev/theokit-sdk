@@ -31,3 +31,7 @@ export * from "./registry-cache-helpers.js";
 export * from "./inspect-helpers.js";
 export * from "./anthropic-tools-helpers.js";
 export * from "./entry-resolver-helpers.js";
+
+export { buildPostRunLifecycleTestCase } from "./post-run-lifecycle-helpers.js";
+export { buildLangfuseAdapterConfig } from "./langfuse-adapter-helpers.js";
+export { buildSubagentDelegationTestCase } from "./subagent-delegation-helpers.js";
