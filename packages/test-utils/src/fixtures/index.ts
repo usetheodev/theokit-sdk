@@ -21,3 +21,7 @@ export * from "./anthropic-vision-helpers.js";
 export * from "./config-json-helpers.js";
 export * from "./anthropic-client-helpers.js";
 export * from "./golden-test-helpers.js";
+export * from "./acp-helpers.js";
+export * from "./jsonl-helpers.js";
+export * from "./wire-contract-helpers.js";
+export * from "./claude-compat-helpers.js";
