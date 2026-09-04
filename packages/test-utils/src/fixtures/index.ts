@@ -17,3 +17,7 @@ export * from "./test-data-builders.js";
 export * from "./edit-file-helpers.js";
 export * from "./agent-qa-helpers.js";
 export * from "./agent-describe-helpers.js";
+export * from "./anthropic-vision-helpers.js";
+export * from "./config-json-helpers.js";
+export * from "./anthropic-client-helpers.js";
+export * from "./golden-test-helpers.js";
