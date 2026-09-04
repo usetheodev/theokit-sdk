@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1189 export(s) across 46 entry point(s).
+1191 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -291,6 +291,8 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `ProviderTransform` | interface | M41 — the one OPTIONAL behavior seam on a provider profile.  |
 | `ProviderTransformContext` | interface | M41 (agent-builder provider framework) — the context a provider's `transform` receives per request.  |
 | `RateLimitError` | class | Too many requests or usage limits exceeded. |
+| `readSessionMessages` | function | Read the messages a session already contains, for a surface that needs to re-render it.  |
+| `ReadSessionMessagesOptions` | interface | Which session to read, in the terms a host already has. |
 | `ReapableArtifact` | interface | One artifact the caller is considering deleting, described well enough to decide about.  |
 | `ReapPlan` | interface | The decision, as three disjoint buckets whose union is exactly the input.  |
 | `ReapPlanInput` | interface | Everything `planReaping` needs: the candidates, the policy, and the current time.  |
