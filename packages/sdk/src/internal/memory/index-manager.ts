@@ -12,7 +12,7 @@ import { MemoryIndexRepository } from "./index-repository.js";
 import type { SyncResult } from "./memory-index.js";
 import { type MemoryIndex, parseSearchOptions } from "./memory-index.js";
 import { loadSqliteVecExtension } from "./sqlite-vec-loader.js";
-import { type MemoryRoot, projectMemoryDir, resolveMemoryRoot } from "./storage/memory-root.js";
+import { type MemoryRoot, memoryIndexRoot, resolveMemoryRoot } from "./storage/memory-root.js";
 
 // T4.1 — query-vector LRU cache (DR4 finding #1). Keyed by
 // sha256(query); caches the embedding vector so repeated search
@@ -95,12 +95,18 @@ export class IndexManager implements MemoryIndex {
   /** Internal SQLite-path open. Renamed from previous public `open`. */
   private static async openSqliteInternal(opts: OpenIndexOptions): Promise<IndexManager> {
     const memoryRoot = opts.memoryRoot ?? resolveMemoryRoot(opts.cwd);
-    // What gets INDEXED and where the DATABASE lives are two decisions, and they diverge on
-    // purpose. The corpus is the configured root; the database stays in the project store, because
-    // `memory.directory` may name the directory the Claude Code CLI manages and that CLI has no
-    // index format (`docs/memory-decisions.md` § 1). Collapsing them writes a binary the partner
-    // does not understand into a directory it owns.
-    const filePath = opts.filePath ?? defaultIndexPath(projectMemoryDir(opts.cwd));
+    // What gets INDEXED and where the DATABASE lives are two decisions, and they diverge —
+    // for one directory, not for every directory (theokit-sdk#554).
+    //
+    // The database stays in the project store when `memory.directory` names the directory the
+    // Claude Code CLI manages, because that CLI has no index format and a binary there is an
+    // artefact the partner does not understand inside a directory it owns
+    // (`docs/memory-decisions.md` § 1). That argument covers exactly that directory.
+    //
+    // It does not reach a plain directory, and treating every root as if it did leaked: the index
+    // holds `chunks.text` — the fact TEXT, which FTS5 needs — so leaving it in `<cwd>` while the
+    // facts move writes one operator's personal store into every repository the agent runs in.
+    const filePath = opts.filePath ?? defaultIndexPath(memoryIndexRoot(opts.cwd, memoryRoot));
     const db = await openMemoryDb({ filePath });
     const manager = new IndexManager(memoryRoot, db, opts.embedding);
     if (opts.embedding !== undefined) await manager.initVectorBackend(opts.embedding);

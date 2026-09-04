@@ -48,20 +48,31 @@ function publishablePackages() {
 }
 
 /**
- * Get the unpackedSize of a package from the registry, for backoff scaling.
- * Large packages (>5MB) indicate slower propagation on the npm registry.
+ * The published size of a package, for backoff scaling. Large packages (>5MB) propagate slower
+ * on the npm registry.
+ *
+ * Asked WITHOUT a version, and that is the whole point. This is only ever called for a version
+ * the registry has just answered 404 for — that is what put it in `pending` — so asking for
+ * `name@version` 404s for the same reason, the size comes back `undefined`, and the scaling this
+ * function exists to drive never engages. It was unreachable by construction: in the loop below
+ * it could not return anything else. Three releases (`5.0.0-next.2`, `.3`, `.4`) hit the default
+ * 30s window and reported a false "was NOT published" with the mitigation supposedly in place.
+ *
+ * The bare name resolves the published `latest`, which by definition exists. Its size is a proxy
+ * for the version being published, and a good one: measured 2026-09-04 on @theokit/sdk, `latest`
+ * was 12_369_860 bytes against the pending version's 12_940_376 — 4% apart, and both land on the
+ * same multiplier. A package with no published version at all still yields `undefined`, which is
+ * the honest answer: nothing was measured, so nothing is scaled.
  */
-function getUnpackedSize({ name, version }) {
+function getUnpackedSize({ name }) {
   try {
-    const out = execFileSync(
-      "npm",
-      ["view", `${name}@${version}`, "dist.unpackedSize", "--prefer-online"],
-      {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    const size = Number(out.trim());
+    const out = execFileSync("npm", ["view", name, "dist.unpackedSize", "--prefer-online"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    // A package with several published versions answers one line per version; the sizes are
+    // within a few percent of each other, so the first is as good a proxy as any.
+    const size = Number(out.trim().split("\n")[0]);
     return Number.isFinite(size) ? size : undefined;
   } catch {
     // If we cannot get the size, we do not scale the backoff; proceed with default delays.
