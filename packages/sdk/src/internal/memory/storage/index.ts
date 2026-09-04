@@ -54,6 +54,7 @@ export {
   MEMORY_INDEX_MAX_LINES,
   type MemoryLocationConfig,
   type MemoryRoot,
+  memoryIndexRoot,
   memoryReadRoots,
   projectMemoryDir,
   resolveMemoryRoot,

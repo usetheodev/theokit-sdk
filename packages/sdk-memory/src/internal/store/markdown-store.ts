@@ -37,6 +37,7 @@ export {
   MEMORY_INDEX_MAX_LINES,
   type MemoryLocationConfig,
   type MemoryRoot,
+  memoryIndexRoot,
   memoryMdPath,
   memoryReadRoots,
   notesDir,

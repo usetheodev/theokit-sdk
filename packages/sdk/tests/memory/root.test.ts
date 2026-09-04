@@ -120,20 +120,25 @@ describe("a fact written into a configured memory directory", () => {
     expect(files.map((f) => f.absolutePath)).toContain(join(dir, "moved-fact.md"));
   });
 
-  // The DATABASE deliberately does NOT follow the configured root, and this is the one place where
-  // "one root" stops. `memory.directory` may name the directory the Claude Code CLI manages; that
-  // CLI has no index format, so a binary artefact it does not understand does not belong there.
-  // The facts are what a user would lose — the index is derived and rebuildable
-  // (`docs/memory-decisions.md` § 1). What IS indexed is the configured root; only the file moves.
-  it("test_the_index_database_stays_in_the_project_store_even_when_the_facts_move", async () => {
+  // The DATABASE follows the store into a plain directory, and stops only at the Claude Code CLI's
+  // own — see the sibling case below and `docs/memory-decisions.md` § 1.
+  //
+  // This assertion used to be the reverse, with `dir` a plain tmpdir, which pinned the § 1
+  // behaviour for EVERY directory when § 1's argument reaches exactly one. The index holds
+  // `chunks.text` — the fact text, which FTS5 needs to search — so keeping it in `<cwd>` while the
+  // facts move wrote one operator's personal store into every repository the agent ran in
+  // (theokit-sdk#554). A test that fixes a behaviour more widely than its own reason supports is
+  // how the leak stayed invisible: it read as the decision being enforced.
+  it("test_the_index_database_follows_the_facts_into_a_plain_directory", async () => {
     const { IndexManager } = await import("../../src/internal/memory/index-manager.js");
     const index = await IndexManager.open({
       cwd,
       memoryRoot: resolveMemoryRoot(cwd, config),
     });
     try {
-      expect(existsSync(join(projectMemoryDir(cwd), ".index", "memory.sqlite"))).toBe(true);
-      expect(existsSync(join(dir, ".index", "memory.sqlite"))).toBe(false);
+      expect(existsSync(join(dir, ".index", "memory.sqlite"))).toBe(true);
+      // Nothing of this store is left behind in the project that merely read it.
+      expect(existsSync(join(projectMemoryDir(cwd), ".index", "memory.sqlite"))).toBe(false);
     } finally {
       index.close?.();
     }

@@ -192,6 +192,29 @@ function claudeProjectMemoryDirFor(root: string): string {
 }
 
 /**
+ * Where the search index belongs for this configuration (theokit-sdk#554).
+ *
+ * Not always the same root the FACTS use, and the divergence is narrow on purpose.
+ *
+ * The index is not a pointer — `chunks.text` holds the fact text, because FTS5/BM25 needs it to
+ * search. A copy of the index is therefore a copy of the memory. Leaving it in `<cwd>` while the
+ * facts move writes one operator's personal store into every repository the agent runs in,
+ * untracked and readable with `strings`.
+ *
+ * So the index follows the store — EXCEPT into the Claude Code CLI's own directory, which is the
+ * case `docs/memory-decisions.md` § 1 reasons about and settles: that CLI has no index format, so
+ * a binary there is an artefact the partner does not understand inside a directory it manages. The
+ * decision keeps exactly the scope its own argument covers, and no more; every other directory is
+ * a plain directory this SDK is free to own.
+ */
+export function memoryIndexRoot(cwd: string, store: MemoryRoot): MemoryRoot {
+  // Decidable from the path alone — the same test `indexBudgetWarning` relies on. Takes the
+  // RESOLVED store rather than the config, because every caller has already resolved it once and
+  // resolving twice is how the index and the writer end up looking at different directories (#463).
+  return claudeProjectMemoryDirFor(store) === "" ? store : projectMemoryDir(cwd);
+}
+
+/**
  * Every directory a read must cover, deduplicated and in precedence order.
  *
  * WRITE ONE, READ ALL — this is what keeps a configured `directory` from orphaning anything. The
