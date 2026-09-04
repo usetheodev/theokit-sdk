@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-import { diag } from "../../diagnostics.js";
+import { diagFailure } from "../../diagnostics.js";
 
 /*
  * The foreign configuration dialects this SDK can read, and what each one PRESUMES.
@@ -238,14 +238,37 @@ const reported = new Set<string>();
  * executable, and it does not run. The only remaining way to learn why is a CHANGELOG entry for a
  * version the reader may not know they crossed.
  *
- * ## Why `diag` rather than `diagFailure`
+ * ## Why `diagFailure` rather than `diag` (#563)
  *
- * `diagFailure` falls back to stderr, and this is not a failure: ignoring an undeclared foreign
- * directory is precisely what #524 asked for. Every repository that has Claude Code set up and does
- * NOT want it imported would pay a stderr line at every agent start — on a TUI host's render
- * surface — for behaving as instructed. That is the corruption `diagnostics.ts` exists to prevent.
+ * This used `diag`, on the reasoning that ignoring an undeclared directory is not a failure and
+ * that a repository which does NOT want the import should not pay a stderr line for behaving as
+ * instructed. The reasoning was sound and rested on a premise nobody checked: that a host would
+ * have installed a sink.
  *
- * So it goes on the interceptable channel, for the reader holding the question it answers.
+ * Measured against the published `5.0.0`. `diag` returns without doing anything when no sink is
+ * installed. The SDK installs none — `currentSink()` reads a `globalThis` slot only
+ * `setDiagnosticsSink` fills. Neither observable host installs one either: `theocode` renamed the
+ * key, and `theokit` exports `installDiagnosticSink` and never calls it. Two hosts out of two, and
+ * the SDK itself. So the message the CHANGELOG promised — "says so once, on the diagnostics
+ * channel" — reached nobody, while the consumer lost hooks, skills, subagents and plugins.
+ *
+ * A mitigation announced in release notes for a silent loss of capability is not a diagnostic. It
+ * is the error path of the breaking change itself, and `diagFailure` exists for exactly the message
+ * that must not be swallowed.
+ *
+ * The cost the old reasoning named is real and is now paid: a repository that wants the directory
+ * ignored sees a line. What makes that acceptable — ONCE per directory per process, not per turn
+ * (`reported` below); and before #524 that repository was having `.claude/` imported anyway, so the
+ * line it now sees confirms the fix it wanted. The asymmetry is one line of text against silently
+ * losing four subsystems.
+ *
+ * A host that installs a sink still owns its render surface: `diagFailure` prefers the sink and
+ * only falls back to stderr when there is none.
+ *
+ * NOT solved here: there is no way to say "I know, and I want none". `compatSources: []` would be
+ * the natural spelling, but `resolveCompatSources` collapses it into the same `[]` an absent option
+ * produces, so this function cannot tell them apart. If the noise turns out to matter, threading
+ * that distinction through is the shape of the fix.
  */
 export function reportUndeclaredSources(
   cwd: string,
@@ -264,7 +287,7 @@ export function reportUndeclaredSources(
     if (!existsSync(dir)) continue;
     if (reported.has(dir)) continue;
     reported.add(dir);
-    diag(
+    diagFailure(
       `[theokit] ${adapter.dirName}/ is present but not declared, so its hooks, skills, subagents ` +
         `and plugins are ignored. To read it, pass ` +
         `local: { compatSources: ["${adapter.kind}"] } (usetheokit/theokit-sdk#524).\n`,
