@@ -1,7 +1,7 @@
 {
   "name": "theokit-sdk-monorepo",
   "private": true,
-  "releaseChannel": "next",
+  "releaseChannel": "latest",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
