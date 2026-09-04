@@ -3,7 +3,7 @@
  * @internal
  */
 
-export function buildCustomToolsHelpersTestCase(overrides?: Record<string, any>) {
+export function buildCustomToolsHelpersTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "test-case",
     ...overrides,

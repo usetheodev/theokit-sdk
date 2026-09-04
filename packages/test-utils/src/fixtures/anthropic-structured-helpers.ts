@@ -3,7 +3,9 @@
  * @internal
  */
 
-export function buildAnthropicStructuredHelpersTestCase(overrides?: Record<string, any>) {
+export function buildAnthropicStructuredHelpersTestCase(
+  overrides?: Partial<Record<string, unknown>>,
+) {
   return {
     name: "test-case",
     ...overrides,

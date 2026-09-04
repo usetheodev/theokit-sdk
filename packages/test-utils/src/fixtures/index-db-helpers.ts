@@ -3,7 +3,7 @@
  * @internal
  */
 
-export function buildIndexDbHelpersTestCase(overrides?: Record<string, any>) {
+export function buildIndexDbHelpersTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "test-case",
     ...overrides,

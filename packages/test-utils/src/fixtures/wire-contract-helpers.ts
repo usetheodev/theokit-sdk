@@ -3,7 +3,7 @@
  * Consolidates 192L from wire-contract.test.ts (3 sites).
  * @internal
  */
-export function buildWireContractTestCase(overrides?: Record<string, any>) {
+export function buildWireContractTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     input: { type: "wire", data: {} },
     expectedOutput: { type: "wire", data: {} },

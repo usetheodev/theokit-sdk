@@ -3,7 +3,7 @@
  * Consolidates 162L from inspect.test.ts (4 sites).
  * @internal
  */
-export function buildInspectTestTarget(overrides?: Record<string, any>) {
+export function buildInspectTestTarget(overrides?: Partial<Record<string, unknown>>) {
   return {
     target: "agent",
     depth: 2,

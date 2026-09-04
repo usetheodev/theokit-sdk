@@ -3,7 +3,7 @@
  * @internal
  */
 
-export function buildArtifactHelpersTestCase(overrides?: Record<string, any>) {
+export function buildArtifactHelpersTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "test-case",
     ...overrides,

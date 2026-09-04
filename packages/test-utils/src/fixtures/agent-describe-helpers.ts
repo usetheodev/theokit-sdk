@@ -26,7 +26,7 @@ export function buildDescribeTestTool(): CustomTool {
 /**
  * Build test subagent for describe tests.
  */
-export function buildDescribeTestSubagent(overrides?: Record<string, any>) {
+export function buildDescribeTestSubagent(overrides?: Partial<Record<string, unknown>>) {
   return {
     description: "Reviews a diff",
     prompt: "You are a strict reviewer.",

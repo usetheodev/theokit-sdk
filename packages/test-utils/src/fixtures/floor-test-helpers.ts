@@ -3,7 +3,7 @@
  * @internal
  */
 
-export function buildFloorTestHelpersTestCase(overrides?: Record<string, any>) {
+export function buildFloorTestHelpersTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "test-case",
     ...overrides,

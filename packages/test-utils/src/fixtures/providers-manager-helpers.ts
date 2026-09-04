@@ -3,7 +3,7 @@
  * @internal
  */
 
-export function buildProvidersManagerHelpersTestCase(overrides?: Record<string, any>) {
+export function buildProvidersManagerHelpersTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "test-case",
     ...overrides,

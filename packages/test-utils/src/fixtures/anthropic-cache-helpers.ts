@@ -3,7 +3,7 @@
  * @internal
  */
 
-export function buildAnthropicCacheHelpersTestCase(overrides?: Record<string, any>) {
+export function buildAnthropicCacheHelpersTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "test-case",
     ...overrides,

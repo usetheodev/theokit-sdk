@@ -3,7 +3,9 @@
  * @internal
  */
 
-export function buildSubagentDelegationHooksHelpersTestCase(overrides?: Record<string, any>) {
+export function buildSubagentDelegationHooksHelpersTestCase(
+  overrides?: Partial<Record<string, unknown>>,
+) {
   return {
     name: "test-case",
     ...overrides,

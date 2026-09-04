@@ -12,7 +12,7 @@
  * Consolidated custom tool for tests.
  * Consolidates duplicated SEARCH_DOCS / TEST_TOOL patterns across SDK tests.
  */
-export function buildCustomTool(overrides?: Record<string, any>) {
+export function buildCustomTool(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "search_docs",
     description: "Search the documentation",
@@ -30,7 +30,7 @@ export function buildCustomTool(overrides?: Record<string, any>) {
  * Consolidated Agent creation options for tests.
  * Consolidates repeated Agent.create({ apiKey, model, ... }) patterns.
  */
-export function buildAgentOptions(overrides?: Record<string, any>) {
+export function buildAgentOptions(overrides?: Partial<Record<string, unknown>>) {
   return {
     apiKey: "theo_test_agent",
     model: { id: "claude-sonnet-4-6" },
@@ -42,7 +42,7 @@ export function buildAgentOptions(overrides?: Record<string, any>) {
  * Consolidated logger configuration for tests.
  * Consolidates console/no-op logger setup repeated across test suites.
  */
-export function buildTestLogger(overrides?: Record<string, any>) {
+export function buildTestLogger(overrides?: Partial<Record<string, unknown>>) {
   return {
     debug: () => {},
     info: () => {},
@@ -56,7 +56,7 @@ export function buildTestLogger(overrides?: Record<string, any>) {
  * Consolidated runtime config for OpenAI-compatible services.
  * Consolidates repeated CONFIG / RUNTIME_CONFIG patterns.
  */
-export function buildRuntimeConfig(overrides?: Record<string, any>) {
+export function buildRuntimeConfig(overrides?: Partial<Record<string, unknown>>) {
   return {
     baseURL: "http://localhost:8000/v1",
     apiKey: "test-key",

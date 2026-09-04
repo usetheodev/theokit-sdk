@@ -6,13 +6,11 @@
  * @internal
  */
 
-import type { Agent, RegisteredAgent } from "@theokit/sdk";
-
 /**
  * Build a QA test agent with common configuration.
  * Consolidates repeated Agent.create() patterns.
  */
-export function buildQAAgent(overrides?: Record<string, any>): any {
+export function buildQAAgent(overrides?: Partial<Record<string, unknown>>): any {
   return {
     apiKey: "test_qa_agent",
     model: { id: "claude-opus-4-1" },
@@ -24,7 +22,7 @@ export function buildQAAgent(overrides?: Record<string, any>): any {
 /**
  * QA test scenario builder.
  */
-export function buildQAScenario(overrides?: Record<string, any>) {
+export function buildQAScenario(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "qa-scenario",
     description: "QA test scenario",

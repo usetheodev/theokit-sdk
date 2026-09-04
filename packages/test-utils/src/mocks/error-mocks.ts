@@ -3,7 +3,7 @@
  * @internal
  */
 
-export function buildTestError(overrides?: Record<string, any>) {
+export function buildTestError(_overrides?: Record<string, any>) {
   return new Error("Test error");
 }
 

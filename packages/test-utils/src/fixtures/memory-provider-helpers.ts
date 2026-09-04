@@ -3,7 +3,7 @@
  * Consolidates 162L from memory-provider-integration.test.ts (4 sites).
  * @internal
  */
-export function buildMemoryProviderConfig(overrides?: Record<string, any>) {
+export function buildMemoryProviderConfig(overrides?: Partial<Record<string, unknown>>) {
   return {
     type: "memory",
     capacity: 1000,

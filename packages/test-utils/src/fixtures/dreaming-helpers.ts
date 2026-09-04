@@ -3,7 +3,7 @@
  * @internal
  */
 
-export function buildDreamingHelpersTestCase(overrides?: Record<string, any>) {
+export function buildDreamingHelpersTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "test-case",
     ...overrides,

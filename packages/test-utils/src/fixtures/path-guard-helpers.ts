@@ -3,7 +3,7 @@
  * @internal
  */
 
-export function buildPathGuardHelpersTestCase(overrides?: Record<string, any>) {
+export function buildPathGuardHelpersTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "test-case",
     ...overrides,

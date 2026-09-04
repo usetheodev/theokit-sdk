@@ -3,7 +3,7 @@
  * @internal
  */
 
-export function buildBedrockMapperHelpersTestCase(overrides?: Record<string, any>) {
+export function buildBedrockMapperHelpersTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "test-case",
     ...overrides,

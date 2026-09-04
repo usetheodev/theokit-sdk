@@ -3,7 +3,7 @@
  * @internal
  */
 
-export function buildEvalPersistHelpersTestCase(overrides?: Record<string, any>) {
+export function buildEvalPersistHelpersTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "test-case",
     ...overrides,

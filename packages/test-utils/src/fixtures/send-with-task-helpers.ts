@@ -3,7 +3,7 @@
  * @internal
  */
 
-export function buildSendWithTaskHelpersTestCase(overrides?: Record<string, any>) {
+export function buildSendWithTaskHelpersTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     name: "test-case",
     ...overrides,

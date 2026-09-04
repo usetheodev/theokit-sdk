@@ -3,7 +3,7 @@
  * Consolidates 140+ duplicated lines from anthropic-client.golden.test.ts (3 sites).
  * @internal
  */
-export function buildAnthropicClientConfig(overrides?: Record<string, any>) {
+export function buildAnthropicClientConfig(overrides?: Partial<Record<string, unknown>>) {
   return {
     apiKey: "test-api-key",
     baseURL: "http://localhost:3000",

@@ -4,7 +4,7 @@
  * and other .golden.test.ts files.
  * @internal
  */
-export function buildGoldenTestCase(overrides?: Record<string, any>) {
+export function buildGoldenTestCase(overrides?: Partial<Record<string, unknown>>) {
   return {
     input: {},
     expectedOutput: {},
