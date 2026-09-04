@@ -3,12 +3,8 @@ import { join } from "node:path";
 
 import { ConfigurationError } from "@theokit/sdk/errors";
 import { redactSecrets } from "../memory-types.js";
-import {
-  lanceStoragePath,
-  readAllSqliteFacts,
-  resolveMemoryRoot,
-} from "../store/markdown-store.js";
-import { LanceIndex } from "./lance-index.js";
+import { readAllSqliteFacts, resolveMemoryRoot } from "../store/markdown-store.js";
+import { LanceIndex, lanceStoragePath } from "./lance-index.js";
 
 /**
  * Migrate Memory.index from SQLite to LanceDB (ADR D44).

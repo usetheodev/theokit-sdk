@@ -121,6 +121,7 @@ packages/acp/tests/_smoke-entry.mjs
 .claude/knowledge-base/reference/claude-code-transcripts/
 system-design-output/
 cross-validation-output/
+duplication-output/
 
 # loop-deadcode-audit plugin output (transient, regenerable)
 deadcode-output/

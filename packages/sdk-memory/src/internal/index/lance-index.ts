@@ -4,7 +4,15 @@ import { createRequire } from "node:module";
 import { ConfigurationError } from "@theokit/sdk/errors";
 
 import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
-import { lanceStoragePath, type MemoryRoot, resolveMemoryRoot } from "../store/markdown-store.js";
+import {
+  lanceStoragePath as _lanceStoragePath,
+  type MemoryRoot,
+  resolveMemoryRoot,
+} from "../store/markdown-store.js";
+
+export type { MemoryRoot };
+// Re-export for public API surface (iter 68)
+export { _lanceStoragePath as lanceStoragePath };
 
 /**
  * LanceDB-backed memory index (ADR D43). Implements the same logical
@@ -163,7 +171,7 @@ export class LanceIndex {
   static async open(opts: OpenLanceOptions): Promise<LanceIndex> {
     const lance = requireLance();
     const storagePath =
-      opts.storagePath ?? lanceStoragePath(opts.memoryRoot ?? resolveMemoryRoot(opts.cwd));
+      opts.storagePath ?? _lanceStoragePath(opts.memoryRoot ?? resolveMemoryRoot(opts.cwd));
     mkdirSync(storagePath, { recursive: true });
     const conn = await lance.connect(storagePath);
     const dim = opts.embedding.dimension;
