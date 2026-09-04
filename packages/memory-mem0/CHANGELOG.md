@@ -1,5 +1,7 @@
 # Changelog
 
+## 3.0.4
+
 ## 3.0.4-next.1
 
 ### Patch Changes

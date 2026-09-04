@@ -1,5 +1,7 @@
 # @theokit/sdk-pty
 
+## 0.3.6
+
 ## 0.3.6-next.1
 
 ### Patch Changes
