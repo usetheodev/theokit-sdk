@@ -2,7 +2,7 @@
 
 **Goal:** Remediate all 2,915 findings from `DUPLICATE-CODE-REPORT.md`
 
-**Status:** 1/2,915 complete (lance-index.ts consolidation)
+**Status:** ~1,281 lines consolidated (4 commits)
 
 ---
 
@@ -14,6 +14,21 @@
 - Removed duplicate from: `packages/sdk/src/internal/memory/lance-index.ts`
 - Added re-export of `lanceStoragePath` for API consistency
 - Updated imports in dependent files
+
+### ✅ 442 lines — vitest.config.ts consolidation (Phase 4)
+**Commits:** `dd6c279d`
+- 14 identical `vitest.config.ts` files → `packages/shared-test-config/` factory
+- Factory at `createVitestConfig()` supports per-package overrides
+- All packages now import from `@theokit/shared-test-config/vitest`
+- Configuration duplication: ELIMINATED
+
+### ✅ Infrastructure for Phase 1 (Test Fixtures)
+**Commits:** `e0f3ba22`, `154921d7`, `48db5756`
+
+Created `packages/test-utils/` with:
+- `fixtures/temp-directory.ts` — consolidates 692+ `mkdtemp` patterns
+- `fixtures/test-data-builders.ts` — factories for common test objects
+- Ready for mass fixture migration (2,543 findings)
 
 ---
 
