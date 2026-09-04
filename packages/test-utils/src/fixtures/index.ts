@@ -2,10 +2,9 @@
  * Test fixtures — shared data, builders, and test data factories.
  *
  * Consolidates duplicated fixtures from all Theo test suites.
- * To be populated with extracted fixtures during Phase 1 remediation.
+ * Part of duplicate-code remediation Phase 1 (test fixtures = 2,543 findings).
  *
  * @internal
  */
 
-// Placeholder: fixtures to be migrated here
-export {};
+export * from "./temp-directory.js";
