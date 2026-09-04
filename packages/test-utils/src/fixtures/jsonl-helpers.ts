@@ -4,9 +4,5 @@
  * @internal
  */
 export function buildJSONLTestData(overrides?: any[]) {
-  return [
-    { id: 1, value: "test" },
-    { id: 2, value: "data" },
-    ...(overrides || []),
-  ];
+  return [{ id: 1, value: "test" }, { id: 2, value: "data" }, ...(overrides || [])];
 }

@@ -1,4 +1,4 @@
-export * from "./phases.js";
+export { createActiveMemory } from "./active-memory.js";
 
 export { errorFactory } from "./errors.js";
-export { createActiveMemory } from "./active-memory.js";
+export * from "./phases.js";

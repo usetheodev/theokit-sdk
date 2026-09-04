@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach } from "vitest";
@@ -44,9 +44,7 @@ export function useTempDirectory(prefix = "theo-test-") {
  * Manual mkdtemp — when you need direct control over temp directory lifecycle.
  * Consolidates repeated `mkdtemp(join(tmpdir(), prefix))` patterns.
  */
-export async function createTempDirectory(
-  prefix = "theo-test-",
-): Promise<string> {
+export async function createTempDirectory(prefix = "theo-test-"): Promise<string> {
   return mkdtemp(join(tmpdir(), prefix));
 }
 

@@ -8,5 +8,4 @@
  */
 
 // Placeholder: mocks to be migrated here
-export {};
 export * from "./error-mocks.js";
