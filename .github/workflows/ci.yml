@@ -409,6 +409,24 @@ jobs:
         run: |
           node tools/check-no-reconsumed-changesets.mjs "origin/${BASE_REF}" "${HEAD_SHA}"
 
+      # #565 — the other half of the same moment. The check above asks whether this branch would
+      # RE-publish something; this one asks whether it would publish a version whose CHANGELOG
+      # section says nothing.
+      #
+      # It rides this job rather than getting its own because it shares every precondition: no
+      # install, no build, both refs, and `fetch-depth: 0` for the same reason — it reads a diff,
+      # and a shallow clone has no merge-base, which would report zero added sections and pass.
+      #
+      # On an ordinary pull request it finds no added section and says so. It has teeth on the
+      # changesets "Version Packages" pull request, where the sections are written and are still
+      # editable — the last moment the record can be fixed before it becomes immutable on npm.
+      - name: Check that no version would publish with an empty CHANGELOG section
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node tools/check-changelog-section-content.mjs "origin/${BASE_REF}" "${HEAD_SHA}"
+
   # SonarQube Cloud, from CI rather than Automatic Analysis.
   #
   # Automatic Analysis cannot import coverage — "code coverage information is not supported" in
