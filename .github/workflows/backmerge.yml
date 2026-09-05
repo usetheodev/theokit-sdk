@@ -1,128 +1,29 @@
-name: Back-merge main into the long-lived branches
-
-# B-109 — carry the release bump back, without needing anyone to notice that it did not happen.
+# `main` must not leave the long-lived branch behind after a release.
 #
-# `changesets/action` runs on `push: [main]` and opens a "Version Packages" PR into `main`. That PR
-# is what consumes the `.changeset/*.md` files and bumps every `package.json` — and nothing carries
-# either back. So a long-lived branch falls one release further behind on every cut, silently, and
-# the drift is only visible to whoever happens to run `git rev-list --count`.
+# The job itself lives in `usetheokit/shared-workflows` and is called by ref, so a change to the
+# POLICY reaches every repository that calls it. It was copied into three repositories under two
+# file names until 2026-09-05 — which is also why a grep for one name reported two instances
+# instead of three.
 #
-# It reached 10 commits and three already-consumed changesets on 2026-08-11, during a SECURITY
-# release, which is when a process defect is most expensive. Four back-merges were opened by hand
-# that day (#193, #196, #200, #204). This workflow opens the fifth one and every one after it.
-#
-# WHY BOTH BRANCHES, and not just `develop` (#485). This covered `develop` alone, and `workspace` is
-# the other permanent branch — `rules/git-safety.md` makes it the one where all work is BORN, never
-# deleted and never recreated. It drifted exactly the same way and nothing said so: measured
-# 2026-08-31, `workspace` sat 10 commits behind `main` at 4.63.1 while `main` was at 4.63.3, still
-# carrying the two changesets those releases had consumed. `grep -c workspace` on this file returned
-# 0, and no PR had ever been opened with `base=workspace` — it only ever advanced by a local push.
-#
-# The first signal was a promotion FAILING on `no-reconsumed-changesets`, which is the right gate in
-# the right place — between the version cut and the publish is the only point where re-releasing
-# shipped work is catchable. But by then the work is written, the PR is open and a CI run is spent.
-# This moves the signal earlier without weakening the gate: it opens a PR, the gate still refuses.
-#
-# WHY `workspace` ONLY, and not `develop` too (#496). This opened `main → develop` as well until
-# 2026-08-31, and 48 of those were merged — while `rules/git-safety.md` § 1 says `develop`
-# "advances only by promoting `workspace`" and "never merge anything other than `workspace` into
-# it", and `hooks/validate-command.sh` blocks exactly that. The rule forbade it, the hook blocked
-# it, this workflow did it, and nobody noticed because the hook watches `git merge` on a local
-# checkout while every one of the 48 went through `gh pr merge`, server-side, where no hook runs.
-#
-# Two resolutions were possible: write an exception into the rule, or stop doing it. This is the
-# second. The first needs an exception phrased precisely enough not to grow into "this merge does
-# not introduce anything new either", which is how exceptions to an absolute rule grow.
-#
-# Dropping the leg costs nothing, which is the part worth stating: `main → workspace` followed by
-# the ordinary `workspace → develop` promotion is the path a human already has to take, so `develop`
-# still receives everything — it just receives it through the gate instead of around it. Confirmed
-# by `theokit-gateways`, whose workflow was built this way from the start and whose forty-three
-# merges into `develop` all came from `workspace`.
-#
-# It opens the PR and stops there. Merging stays a human action, consistent with how every other
-# branch advances here — the friction this removes is REMEMBERING, not reviewing. A CI job
-# (`no-reconsumed-changesets`) independently refuses a `develop → main` PR that would re-release
-# shipped work, so forgetting to merge one is caught rather than compounded.
+# WHY A PULL REQUEST AND NOT A DIRECT PUSH, decided by measurement rather than preference. The
+# objection to the push is that it bypasses review; measured across all ten consumers, `workspace`
+# carries NO branch protection anywhere, so neither mechanism bypasses anything. What decided it
+# was the opposite worry: a pull request only helps if somebody merges it. Twelve back-merge pull
+# requests, twelve merged, ten of them the same day — so the reviewable record costs nothing.
+name: Back-merge
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# One at a time: two pushes to main in quick succession would otherwise race to open the same PR.
-concurrency: backmerge-${{ github.ref }}
-
 permissions:
   contents: read
   pull-requests: write
 
 jobs:
-  open-backmerge-pr:
-    name: Open main → ${{ matrix.branch }} PR when it is behind
-    runs-on: ubuntu-latest
-    strategy:
-      # `workspace` only, as of #496. The `develop` leg was removed rather than kept — see the
-      # header. The matrix survives a single entry so re-adding a target is one line, and
-      # `fail-fast: false` stays for the same reason.
-      fail-fast: false
-      matrix:
-        branch: [workspace]
-    # The job is two git counts and at most one `gh pr create`; it has finished in
-    # 8-11s on every run so far. A ceiling this tight turns a hang into a fast,
-    # obvious failure instead of a runner held for GitHub's 6-hour default.
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          # The PR is opened through `gh`, which authenticates from GH_TOKEN in the
-          # step below. Nothing here uses the git credential, so it does not need to
-          # stay behind in .git/config.
-          persist-credentials: false
-
-      - name: Open or report the back-merge PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          target="${{ matrix.branch }}"
-          behind="$(git rev-list --count "origin/${target}..origin/main")"
-          echo "${target} is ${behind} commit(s) behind main"
-
-          # The steady state. Saying so explicitly keeps a green run from being read as "the job
-          # did not run".
-          if [ "${behind}" -eq 0 ]; then
-            echo "✓ nothing to back-merge"
-            exit 0
-          fi
-
-          existing="$(gh pr list --base "${target}" --head main --state open --json number \
-            --jq '.[0].number // empty')"
-          if [ -n "${existing}" ]; then
-            echo "✓ PR #${existing} is already open and will pick these commits up"
-            exit 0
-          fi
-
-          # `workspace` is a LIVE checkout, unlike `develop`. Opening the PR touches no working
-          # tree, but whoever merges it may need a clean one, and saying so in the body costs a
-          # line and saves a confusing refusal.
-          note=""
-          if [ "${target}" = "workspace" ]; then
-            note=$'\n\n`workspace` is where work is born and is usually checked out somewhere with\nuncommitted changes. Opening this PR touches nothing; merging it may need a clean tree.'
-          fi
-
-          gh pr create \
-            --base "${target}" \
-            --head main \
-            --title "chore: back-merge main into ${target}" \
-            --body "Opened automatically after a push to \`main\` (B-109).
-
-          The release bump and the consumed \`.changeset/*.md\` deletions live only on \`main\` until
-          this lands. While it is open, \`${target}\` still declares the previous version and still
-          holds changesets that have already shipped — so a promotion cut from that state would
-          re-release them.
-
-          The \`no-reconsumed-changesets\` CI job refuses exactly that, so nothing breaks if this
-          sits for a while. It just needs to land before the next release is cut.${note}"
+  backmerge:
+    uses: usetheokit/shared-workflows/.github/workflows/backmerge.yml@v1 # zizmor: ignore[unpinned-uses]
+    permissions:
+      contents: read
+      pull-requests: write
