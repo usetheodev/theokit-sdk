@@ -287,10 +287,22 @@ export function reportUndeclaredSources(
     if (!existsSync(dir)) continue;
     if (reported.has(dir)) continue;
     reported.add(dir);
+    // THE FILE IS NAMED FIRST because it is the entry point this message's reader can use.
+    //
+    // #524 gives the declaration two entry points for one shape: `.theokit/config.json`'s
+    // `compat.adapters`, and `local.compatSources` in code. Until this change the warning named
+    // only the second — and `local` is an argument the SDK's EMBEDDER passes, not something the
+    // person reading the line can reach. Reported by the `theocode` session against 5.0.1: a user
+    // of a host that embeds this SDK is told to pass an option that does not exist on their
+    // surface, which is advice that is true about the mechanism and unusable as an action.
+    //
+    // The file is writable by anyone holding the workspace, which is exactly who sees this line.
     diagFailure(
       `[theokit] ${adapter.dirName}/ is present but not declared, so its hooks, skills, subagents ` +
-        `and plugins are ignored. To read it, pass ` +
-        `local: { compatSources: ["${adapter.kind}"] } (usetheokit/theokit-sdk#524).\n`,
+        `and plugins are ignored. To read it, add ` +
+        `{"compat":{"adapters":["${adapter.kind}"]}} to .theokit/config.json — or, if you embed ` +
+        `this SDK, pass local: { compatSources: ["${adapter.kind}"] } ` +
+        `(usetheokit/theokit-sdk#524).\n`,
     );
   }
 }

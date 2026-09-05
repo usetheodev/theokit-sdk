@@ -78,6 +78,28 @@ describe("#563 — an undeclared .claude/ tells the consumer, with or without a 
     expect(stderrText()).toContain('compatSources: ["claude-code"]');
   });
 
+  it("names the FILE, which is the entry point its reader can actually use", () => {
+    reportUndeclaredSources(withClaudeDir(), []);
+
+    // #524 gives the declaration two entry points for one shape: `.theokit/config.json`'s
+    // `compat.adapters`, and `local.compatSources` in code. The first version of this warning
+    // named only the second — and `local` is an argument the SDK's EMBEDDER passes, not something
+    // the person reading the line can reach.
+    //
+    // Reported by the `theocode` session against 5.0.1, running as a host that embeds this SDK:
+    // its users were told to pass an option that does not exist on their surface. True about the
+    // mechanism, unusable as an action.
+    //
+    // Asserting BOTH halves, because dropping the code option would break the embedder for whom
+    // it is the right answer. The defect was naming one of the two, not naming the wrong one.
+    const out = stderrText();
+    expect(
+      out,
+      "the file entry point is missing, so a non-embedding reader has no action",
+    ).toContain('{"compat":{"adapters":["claude-code"]}}');
+    expect(out, "the file the reader must edit is not named").toContain(".theokit/config.json");
+  });
+
   it("still prefers an installed sink, and does not also write to stderr", () => {
     const seen: string[] = [];
     setDiagnosticsSink((m) => seen.push(m));
