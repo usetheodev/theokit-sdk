@@ -38,7 +38,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 // internal loader accepts. What travels here is what the parent already resolved, so it is typed
 // against the option it came from and the option it is handed to. Typing it loosely and casting at
 // the destination would hide exactly the mismatch the compiler caught on the first attempt.
-import type { CompatSource, SettingSource } from "../../types/agent.js";
+import type { BuiltinToolName, CompatSource, SettingSource } from "../../types/agent.js";
 import type { ModelSelection } from "../../types/agent-prims.js";
 import type { Plugin } from "../plugins/types.js";
 
@@ -93,6 +93,29 @@ export interface InheritedCredentials {
   readonly settingSources?: readonly SettingSource[];
   /** @see {@link InheritedCredentials.settingSources} — carried together, same reasoning. */
   readonly compatSources?: readonly CompatSource[];
+  /**
+   * #580 — the builtin tools the parent removed from its catalog, handed down so a delegated child
+   * cannot recover one its parent revoked.
+   *
+   * This is the third field here that hands down a RESTRICTION, and it was the one that crossed no
+   * carrier at all: measured, a parent with `withheldBuiltinTools: ["shell"]` produced a child whose
+   * value was `undefined`, so the child got the shell back. Delegation widened authority the operator
+   * had revoked — the inverse of #578 and materially worse, because there the child was merely
+   * over-restricted.
+   *
+   * It bites because of a documented default (`types/agent.ts` § LocalOptions): a `shell` tool is
+   * ALWAYS registered on a local agent, including when `tools: []` is passed. Withholding is the only
+   * mechanism that removes it, so a withholding that does not survive delegation leaves no other way
+   * for a child to be without a shell.
+   *
+   * ## The union rule
+   *
+   * A child's own list is UNIONED with this one, never substituted for it — see
+   * {@link buildChildWithheldBuiltins}. Every other field on this interface lets the role's own value
+   * win, and copying that here would let a child un-withhold what its parent revoked: the bug,
+   * reintroduced by its own fix.
+   */
+  readonly withheldBuiltinTools?: readonly BuiltinToolName[];
 }
 
 const credentialsStore = new AsyncLocalStorage<InheritedCredentials>();
