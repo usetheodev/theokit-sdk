@@ -17,7 +17,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -123,5 +123,43 @@ describe("#537 — the size-proportional backoff actually engages", () => {
     const { status } = runVerify();
 
     expect(status, "a version absent after every retry is still a failure").not.toBe(0);
+  });
+});
+
+describe("#574 — the budget covers the lag that was actually measured", () => {
+  // The defect was not the shape of the backoff, which #537 got right — it was the size of the
+  // budget. Measured on the 5.0.1 release (run 33971302112):
+  //
+  //   14:26:34  changeset reported the publish succeeded
+  //   14:28:03  the verifier gave up and exited 1
+  //   14:29:36  npm registered @theokit/sdk@5.0.1
+  //
+  // 182 s from publish to registration for a 13 MB package, against a 78 s scaled budget. The
+  // release had worked and the pipeline called it failed; 5.0.0 did the same the day before.
+  //
+  // This pins the NUMBER rather than the behaviour, because a number is what regressed and a
+  // shorter ladder would pass every other test in this file.
+  const OBSERVED_LAG_MS = 182_000;
+  const SDK_UNPACKED_BYTES = 13_018_300;
+
+  /** The ladder the script uses when the environment does not override it. */
+  function defaultLadder(): number[] {
+    const src = readFileSync(script, "utf8");
+    const match = /THEOKIT_RELEASE_VERIFY_DELAYS_MS \?\? "([\d,]+)"/.exec(src);
+    if (match === null) throw new Error("could not find the default delay ladder in the script");
+    return match[1]!.split(",").map(Number);
+  }
+
+  it("the scaled budget for the 13MB package exceeds the lag observed in production", () => {
+    // Same scaling the script applies: Math.min(4, size / 5_000_000).
+    const scale = Math.min(4, SDK_UNPACKED_BYTES / 5_000_000);
+    const budget = defaultLadder().reduce((sum, d) => sum + Math.round(d * scale), 0);
+
+    expect(
+      budget,
+      `the ladder gives a ${SDK_UNPACKED_BYTES}-byte package ${budget}ms, and npm took ` +
+        `${OBSERVED_LAG_MS}ms to register it on 2026-09-05. A budget below the measurement ` +
+        "reports a successful release as failed (#574).",
+    ).toBeGreaterThan(OBSERVED_LAG_MS);
   });
 });
