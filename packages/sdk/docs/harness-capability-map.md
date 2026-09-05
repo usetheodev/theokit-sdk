@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1194 export(s) across 46 entry point(s).
+1197 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -1198,6 +1198,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `ForkTranscriptOptions` | interface | Options for {@link forkTranscript } . |
 | `isCorruptionError` | function | True when an open error indicates an unreadable / corrupt database file. |
 | `JsonlParseError` | class | Raised when a JSONL line is not valid JSON or is not a JSON object.  |
+| `legacyTranscriptPath` | function | The path this session used BEFORE #400 made transcript filenames UUIDs.  |
 | `LiveSessionError` | class | M81 — the target is a protected session (live pointer / most-recent transcript / active entry).  |
 | `LiveTranscriptError` | class | M81 — the target is a protected session (live pointer / most-recent transcript / active entry).  |
 | `loadJsonl` | function | Parse a JSONL file into rows.  |
@@ -1213,6 +1214,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `SessionArtifact` | type | The kinds of file this SDK leaves in a project's transcript directory.  |
 | `SessionBusyError` | class | M81 — another process already holds the writer lease for this session.  |
 | `sessionHasWriter` | function | Does the session have a writer **right now**?  |
+| `sessionUuidFor` | function | The transcript filename for an agent id — always a UUID.  |
 | `SessionWriterLease` | interface | A held writer lease.  |
 | `TranscriptBlock` | type | A content block inside {@link TranscriptMessage } . |
 | `TranscriptMessage` | interface | The message body of a {@link SessionRecord } .  |
@@ -1334,6 +1336,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `discoverSkills` | function | Discover `SKILL.md` skills under an arbitrary directory.  |
 | `DiscoverSkillsOptions` | interface | Options for {@link discoverSkills } . |
 | `InvalidSkillInfo` | interface | Information passed to `onInvalidSkill` when a `SKILL.md` is present but its frontmatter is malformed (missing required field or invalid YAML). |
+| `loadSkillInstructions` | function | Read the BODY of a discovered skill — everything after its frontmatter.  |
 | `Skill` | interface | A discovered skill's metadata.  |
 
 ## `@theokit/sdk/subagents`
