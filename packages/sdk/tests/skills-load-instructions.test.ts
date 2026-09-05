@@ -66,7 +66,8 @@ describe("loadSkillInstructions", () => {
     rmSync(join(dir, "gone"), { recursive: true, force: true });
 
     // Discovery skips what it cannot read; a caller naming ONE skill asked about that skill, and an
-    // empty string would answer a different question.
-    await expect(loadSkillInstructions(skill!)).rejects.toThrow();
+    // empty string would answer a different question. The code is MEASURED, not inferred: it is a
+    // plain `Error` carrying `ENOENT` from `readFile`, not a typed SDK error.
+    await expect(loadSkillInstructions(skill!)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
