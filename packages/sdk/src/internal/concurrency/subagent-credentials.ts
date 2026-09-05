@@ -34,6 +34,11 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
+// The PUBLIC, validated shapes — `CompatSource`, not the loose `CompatSourceDeclaration` the
+// internal loader accepts. What travels here is what the parent already resolved, so it is typed
+// against the option it came from and the option it is handed to. Typing it loosely and casting at
+// the destination would hide exactly the mismatch the compiler caught on the first attempt.
+import type { CompatSource, SettingSource } from "../../types/agent.js";
 import type { ModelSelection } from "../../types/agent-prims.js";
 import type { Plugin } from "../plugins/types.js";
 
@@ -67,6 +72,27 @@ export interface InheritedCredentials {
    * third-party tool `ctx`.
    */
   readonly plugins?: readonly Plugin[];
+  /**
+   * #578 — the parent's RESOLVED `local.settingSources` / `local.compatSources`, handed down so a
+   * delegated child can see the configuration surfaces its parent was declared to read.
+   *
+   * `compatSources` arrived with #524 and neither carrier was updated, so a parent declaring
+   * `compatSources: ["claude-code"]` read `.claude/agents/` and its child did not: a team could
+   * delegate TO a role by name and the child could not resolve the rest of the team.
+   *
+   * ## Why inheriting is safe here, unlike widening
+   *
+   * Every other field on this interface hands DOWN a restriction (the sandbox posture, the
+   * permission plugins) and the danger is a child escaping it. These two are the mirror image: the
+   * child is currently MORE restricted than its parent, so the failure is a missing capability
+   * rather than an open door. Inheritance cannot widen — the child receives what the parent already
+   * resolved, and it runs in the parent's cwd, so it reads no directory the parent could not.
+   *
+   * A role's explicit value still wins; these are the fallback, exactly as `model` and `sandbox` are.
+   */
+  readonly settingSources?: readonly SettingSource[];
+  /** @see {@link InheritedCredentials.settingSources} — carried together, same reasoning. */
+  readonly compatSources?: readonly CompatSource[];
 }
 
 const credentialsStore = new AsyncLocalStorage<InheritedCredentials>();

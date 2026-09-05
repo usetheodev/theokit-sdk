@@ -269,10 +269,38 @@ async function collectChildToolResults(run: Run): Promise<string> {
 }
 
 /**
+ * The child's `local` slice, accumulated ONCE from all three contributors — or `undefined` when the
+ * parent declared none of them, so the pre-#578 shape (no `local` key at all) is preserved.
+ *
+ * #578 — this exists as a function rather than three spreads in the return, and the reason is a
+ * hazard rather than tidiness. `local` is a single object: the old code wrote it whole from the
+ * sandbox posture alone, so adding a second `...{ local: … }` spread beside it would have silently
+ * DROPPED that posture — turning a missing-capability bug into a default-open one, which is the
+ * wrong direction to trade. One accumulator makes that collision impossible to reintroduce.
+ *
+ * The configuration surfaces are the parent's RESOLVED values. Inheriting cannot widen: the child
+ * receives what the parent already resolved and runs in the parent's cwd, so it reads no directory
+ * the parent could not. Without this, a parent declaring `compatSources: ["claude-code"]` saw
+ * `.claude/agents/` and its child did not — a team could delegate TO a role by name while the child
+ * could not resolve the rest of the team.
+ */
+function buildChildLocalOptions(
+  sandbox: boolean | undefined,
+  inherited: InheritedCredentials | undefined,
+): AgentOptions["local"] | undefined {
+  const local: NonNullable<AgentOptions["local"]> = {};
+  if (sandbox !== undefined) local.sandboxOptions = { enabled: sandbox };
+  if (inherited?.settingSources !== undefined) local.settingSources = [...inherited.settingSources];
+  if (inherited?.compatSources !== undefined) local.compatSources = [...inherited.compatSources];
+  return Object.keys(local).length > 0 ? local : undefined;
+}
+
+/**
  * Build the child agent's `Agent.create` options: the child inherits the parent's
  * apiKey (else `Agent.create` throws "Missing API key"), its model (unless the spec
- * overrides it), and — #55 — the parent's plugins (permission gate/guards) so the
- * child's inner tool calls run under the same policy.
+ * overrides it), — #55 — the parent's plugins (permission gate/guards) so the
+ * child's inner tool calls run under the same policy, and — #578 — the configuration
+ * surfaces the parent was declared to read (see {@link buildChildLocalOptions}).
  */
 export function buildChildCreateOptions(
   spec: SubAgentSpec,
@@ -291,10 +319,11 @@ export function buildChildCreateOptions(
   // M33 — the role's own `sandbox` wins; when it omits the field, inherit the parent's posture. A role's
   // explicit `sandbox: false` therefore confines-OFF a child of a sandboxed parent (distinct from absent).
   const sandbox = spec.sandbox ?? inherited?.sandbox;
+  const local = buildChildLocalOptions(sandbox, inherited);
   return {
     ...(inherited?.apiKey !== undefined ? { apiKey: inherited.apiKey } : {}),
     ...(model !== undefined ? { model } : {}),
-    ...(sandbox !== undefined ? { local: { sandboxOptions: { enabled: sandbox } } } : {}),
+    ...(local !== undefined ? { local } : {}),
     ...(inherited?.plugins !== undefined ? { plugins: inherited.plugins } : {}),
     systemPrompt: spec.instructions,
     tools: spec.tools ?? [],

@@ -297,6 +297,20 @@ export function reportUndeclaredSources(
     // surface, which is advice that is true about the mechanism and unusable as an action.
     //
     // The file is writable by anyone holding the workspace, which is exactly who sees this line.
+    //
+    // WHAT THIS LINE CANNOT KNOW, and it is a real limit rather than a caveat for form's sake. It
+    // reports one fact: this SDK is ignoring the directory because nothing declared it. A HOST
+    // embedding the SDK may be withholding the same directory for its own reasons — `theocode`
+    // gates repository configuration on a trust posture — and the SDK cannot see that gate.
+    //
+    // So in a host that is also withholding, following this advice makes the warning stop and
+    // changes nothing the user can do. That silence is honest about the SDK (it did stop ignoring
+    // the directory) and uninformative about the outcome. Measured by the `theocode` session with
+    // the control that settles it: a NATIVE `.theokit/` hook does not fire there either, so the
+    // host's gate — not this declaration — is what holds the capability back.
+    //
+    // Nothing here can fix that. If a host ever gains a way to say "I am withholding this too",
+    // this is the line where that belongs.
     diagFailure(
       `[theokit] ${adapter.dirName}/ is present but not declared, so its hooks, skills, subagents ` +
         `and plugins are ignored. To read it, add ` +

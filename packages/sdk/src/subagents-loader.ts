@@ -21,9 +21,16 @@
  */
 
 import { ConfigurationError } from "./errors.js";
+import type { CompatSourceDeclaration } from "./internal/runtime/compat/foreign-config-sources.js";
 import { loadSubagents } from "./internal/runtime/skills/subagents-loader.js";
 import type { AgentDefinition } from "./types/agent.js";
 
+/**
+ * Re-exported for the same reason `AgentDefinition` is: a consumer passing `compatSources`
+ * must be able to NAME the value without importing from `types/agent`, which no subpath
+ * publishes. An option whose type is unreachable is an option only `any` can call.
+ */
+export type { CompatSourceDeclaration } from "./internal/runtime/compat/foreign-config-sources.js";
 /**
  * The parsed subagent definition this module hands back.
  *
@@ -50,6 +57,32 @@ export interface DiscoverSubagentsOptions {
    * established trust in `cwd` can decline the read rather than filter its result.
    */
   readonly settingSources?: readonly SubagentSource[];
+
+  /**
+   * Foreign configuration dialects to read alongside `.theokit/agents/` (#524). Defaults to none,
+   * so this reads `.theokit/` only unless a caller declares otherwise.
+   *
+   * SEPARATE FROM `settingSources`, and the separation is the contract. That option answers *which
+   * sources* — project, and one day user or team. This one answers *which dialects* within them.
+   * Folding `"claude-code"` into `SubagentSource` would conflate the two, and the internal loader
+   * has kept them apart since #524 precisely because they are orthogonal.
+   *
+   * ## Why this exists
+   *
+   * The reader underneath already accepted it; this entry point simply never passed it, so
+   * `discoverSubagents` was `.theokit/`-only while the agent's own subagent registry — which goes
+   * through `settingSources` + `compatSources` — could see the same files. Measured by the
+   * `theocode` session on `5.0.1`, both arms in fresh trusted directories with the same task:
+   *
+   *     roles in .theokit/agents/            delegate_to_team works
+   *     the SAME files in .claude/agents/    "the `explorer` role is not configured"
+   *
+   * So a repository adopting the product could delegate TO a `.claude/agents/` subagent by name and
+   * could not define its team's roles there — one dialect, two answers, depending on which selector
+   * asked. That asymmetry was an omission rather than a decision: the plumbing existed and the
+   * public signature did not reach it.
+   */
+  readonly compatSources?: readonly CompatSourceDeclaration[];
 }
 
 // Validated at the boundary (error-handling.md § 2): the union is erased at runtime, so a JS
@@ -79,7 +112,7 @@ export async function discoverSubagents(
   options?: DiscoverSubagentsOptions,
 ): Promise<Record<string, AgentDefinition>> {
   const sources = resolveSources(options);
-  return loadSubagents(cwd, sources.includes("project"), undefined);
+  return loadSubagents(cwd, sources.includes("project"), undefined, options?.compatSources ?? []);
 }
 
 /**

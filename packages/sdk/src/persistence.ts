@@ -56,8 +56,28 @@ export {
 // `types/session-store.ts`, which says so in the same words. These helpers
 // describe where the DEFAULT `FsSessionStore` writes; a consumer supplying
 // `local.sessionStore` is not bound by them.
+// #577 — the way BACK. Every helper above goes id → path; a consumer that enumerates
+// `projects/<encoded-cwd>/*.jsonl` — which is how you list sessions without a registry — got
+// filenames it could not relate to any agent id it held.
+//
+// The naming scheme is deliberately one-way (a UUIDv8 over SHA-256, so the CLI can `--continue` a
+// session this SDK wrote), and the CHANGELOG says "nothing has to be persisted to map one back to
+// the other". That is true of the SCHEME and was not true in PRACTICE: the function computing it
+// lived in zero `.d.ts`, so the only way to match a filename was to reimplement the hash — an SDK
+// internal, in a consumer, silently wrong the day the scheme moves.
+//
+// So what crosses is the FORWARD mapping, not an inverse. `sessionUuidFor(id)` is what a caller
+// matches its own ids against; a true path → id inverse cannot exist and promising one would be a
+// lie about a hash. `legacyTranscriptPath` crosses with it because a directory written before #400
+// holds both spellings, and a consumer matching only the new one reports old sessions as missing —
+// the same false absence, one rename later.
+//
+// Measured on `@theokit/agents` 4.x against 5.0.1: 29 unit tests failing from this one cause, seen
+// from four angles (listing, protection, GC, deletion).
 export {
   encodeProjectDir,
+  legacyTranscriptPath,
+  sessionUuidFor,
   transcriptPath,
   // M94 — the transcript state's root. Exported because the consumer duplicated it in
   // THREE files, and all three copies ignored `THEOKIT_HOME` along with this one.

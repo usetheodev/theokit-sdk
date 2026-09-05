@@ -104,6 +104,9 @@ function serializeLocal(local: AgentOptions["local"]): SerializedAgentOptions["l
   const out: SerializedAgentOptions["local"] = {};
   if (typeof local.cwd === "string") out.cwd = local.cwd;
   if (Array.isArray(local.settingSources)) out.settingSources = [...local.settingSources];
+  // #578 — same reason as `settingSources` beside it: the declaration is the operator's, and a
+  // resume that forgets it degrades the agent without anybody having asked for that.
+  if (Array.isArray(local.compatSources)) out.compatSources = [...local.compatSources];
   // Sandbox config — not a secret; needs to survive resume so that
   // safe-by-default doesn't silently regress to unsandboxed on restart.
   if (local.sandboxOptions !== undefined) {
@@ -206,6 +209,12 @@ export interface SerializedAgentOptions {
   local?: {
     cwd?: string;
     settingSources?: ReadonlyArray<string>;
+    // #578 — a resumed agent must keep reading the foreign configuration surfaces it was created to
+    // read. Dropped here ever since #524 introduced the field, so resume silently stopped honouring
+    // a declaration the operator made: the agent's `.claude/` hooks, skills and subagents just
+    // stopped being visible. Not a secret. Shaped rather than typed, because this is the
+    // serialization boundary and the stored JSON outlives any one version of the declaration type.
+    compatSources?: ReadonlyArray<unknown>;
     sandboxOptions?: { enabled: boolean };
   };
   cloud?: {
