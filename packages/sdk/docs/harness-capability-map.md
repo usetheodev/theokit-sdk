@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1193 export(s) across 46 entry point(s).
+1194 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -1348,6 +1348,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | Symbol | Kind | Summary |
 |---|---|---|
 | `AgentDefinition` | interface | Subagent definition.  |
+| `CompatSourceDeclaration` | type | A declared foreign source: a bare kind, or a kind with the surfaces it may be read for. |
 | `discoverSubagents` | function | Discover the subagents defined under `<cwd>/.theokit/agents/*.md`.  |
 | `DiscoverSubagentsOptions` | interface | Options for {@link discoverSubagents } / {@link loadSubagentDefinition } . |
 | `loadSubagentDefinition` | function | Load ONE subagent definition by name, or `undefined` when it is not defined on disk.  |
