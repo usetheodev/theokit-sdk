@@ -29,6 +29,7 @@ import { getAgentFacade } from "../internal/runtime/registry/agent-factory-regis
 import type {
   AgentDefinition,
   AgentOptions,
+  BuiltinToolName,
   CustomTool,
   ToolContextMessage,
 } from "../types/agent.js";
@@ -151,6 +152,24 @@ export interface SubAgentSpec {
   tools?: CustomTool[];
   /** Per-subagent shell sandbox toggle (M33). `true` ⇒ child `local.sandboxOptions.enabled`. */
   sandbox?: boolean;
+  /**
+   * #580 — builtin tools this role removes from its child's catalog, UNIONED with whatever the
+   * parent already withheld.
+   *
+   * A role declared read-only in prose is not read-only: a `shell` tool is always registered on a
+   * local agent, including when `tools: []` is passed, so withholding is the only mechanism that
+   * removes it — and until #580 a spec could not ask for it and a parent's withholding did not
+   * survive delegation either.
+   *
+   * ## Union, not override — and this is the one field here that works that way
+   *
+   * `model` and `sandbox` let the role's own value WIN, including `sandbox: false` turning
+   * confinement off for a child of a confined parent. That asymmetry is deliberate: a posture is
+   * declared, whereas withholding removes a capability from the catalog. Letting a role override a
+   * withholding would let a child recover a tool its parent revoked, which is the defect #580
+   * reports — so a child may only ever ADD to the set.
+   */
+  withheldBuiltinTools?: readonly BuiltinToolName[];
   /**
    * Maximum length of the delegation CHAIN rooted at this tool, counted at dispatch
    * (default 3). Depth 1 is this subagent; a subagent it delegates to is depth 2.
@@ -296,6 +315,26 @@ function buildChildLocalOptions(
 }
 
 /**
+ * The builtins withheld from the child: the UNION of the parent's set and the role's own — or
+ * `undefined` when neither withheld anything.
+ *
+ * #580 — union rather than override, and that is the security property rather than a preference.
+ * The role's own value wins for `model` and for `sandbox`; copying that here would let a child
+ * un-withhold what its parent revoked, which is the defect being fixed, reintroduced by its own fix.
+ * **A restriction may be tightened by a child and never loosened.** So `withheldBuiltinTools: []` on
+ * a role subtracts nothing — it is an empty contribution to a union, not a reset.
+ */
+function buildChildWithheldBuiltins(
+  spec: SubAgentSpec,
+  inherited: InheritedCredentials | undefined,
+): readonly BuiltinToolName[] | undefined {
+  const own = spec.withheldBuiltinTools;
+  const parent = inherited?.withheldBuiltinTools;
+  if (own === undefined && parent === undefined) return undefined;
+  return [...new Set([...(parent ?? []), ...(own ?? [])])];
+}
+
+/**
  * Build the child agent's `Agent.create` options: the child inherits the parent's
  * apiKey (else `Agent.create` throws "Missing API key"), its model (unless the spec
  * overrides it), — #55 — the parent's plugins (permission gate/guards) so the
@@ -320,10 +359,12 @@ export function buildChildCreateOptions(
   // explicit `sandbox: false` therefore confines-OFF a child of a sandboxed parent (distinct from absent).
   const sandbox = spec.sandbox ?? inherited?.sandbox;
   const local = buildChildLocalOptions(sandbox, inherited);
+  const withheld = buildChildWithheldBuiltins(spec, inherited);
   return {
     ...(inherited?.apiKey !== undefined ? { apiKey: inherited.apiKey } : {}),
     ...(model !== undefined ? { model } : {}),
     ...(local !== undefined ? { local } : {}),
+    ...(withheld !== undefined ? { withheldBuiltinTools: withheld } : {}),
     ...(inherited?.plugins !== undefined ? { plugins: inherited.plugins } : {}),
     systemPrompt: spec.instructions,
     tools: spec.tools ?? [],

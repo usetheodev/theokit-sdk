@@ -70,6 +70,11 @@ export function resolveInheritedCredentials(agentOptions: AgentOptions): Inherit
   // the parent's cwd, so it reaches no directory the parent could not.
   const parentSettingSources = agentOptions.local?.settingSources;
   const parentCompatSources = agentOptions.local?.compatSources;
+  // #580 — the builtins the parent removed from its catalog. Unlike the two above, this crossed no
+  // carrier at all: a parent withholding `shell` produced a child that had `shell`, so delegation
+  // WIDENED authority the operator revoked. It is a restriction, so it is handed down like the
+  // sandbox posture rather than like a capability.
+  const parentWithheld = agentOptions.withheldBuiltinTools;
   return {
     ...(agentOptions.apiKey !== undefined ? { apiKey: agentOptions.apiKey } : {}),
     ...(typeof agentOptions.model === "object" ? { model: agentOptions.model } : {}),
@@ -77,6 +82,7 @@ export function resolveInheritedCredentials(agentOptions: AgentOptions): Inherit
     ...(parentSandbox !== undefined ? { sandbox: parentSandbox } : {}),
     ...(parentSettingSources !== undefined ? { settingSources: parentSettingSources } : {}),
     ...(parentCompatSources !== undefined ? { compatSources: parentCompatSources } : {}),
+    ...(parentWithheld !== undefined ? { withheldBuiltinTools: parentWithheld } : {}),
   };
 }
 

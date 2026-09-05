@@ -129,6 +129,11 @@ export async function judgeCallImpl(
       model: { id: judgeModel },
       tools: [],
       local: {},
+      // #581 — `tools: []` READS as "no tools" and is not: a `shell` tool is always registered on a
+      // local agent, this line included. This judge is sandboxed (unlike the scorer's), so the
+      // exposure is smaller — but it still held a capability it never asked for, and whose absence
+      // the line above appears to declare. Withholding is what actually declares it.
+      withheldBuiltinTools: ["shell"],
       metadata: { forkOrigin: "judge" },
     } as AgentOptions);
     const run = await auxAgent.send(prompt);
