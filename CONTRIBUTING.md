@@ -509,6 +509,60 @@ So, as discipline:
   and line that would swallow it. An unanchored pattern in `.gitignore` matches at every depth, and
   the failure is silent in the only direction that matters.
 
+## Prerelease mode goes on a branch that is not the release line
+
+`changeset pre enter` is a mode, not a command: once `.changeset/pre.json` exists on a branch, every
+`changeset version` on it produces `-next.N` versions and every entry is written into the
+prerelease section. Exiting is what hurts, and it hurts three ways at once.
+
+This repository entered prerelease mode **on `main`** on 2026-08-31 and exited on 2026-09-04. Four
+days, and each of the following was measured rather than predicted:
+
+| What broke | Mechanism |
+|---|---|
+| Ten of twelve packages shipped `5.0.0` with an **empty CHANGELOG section** (#565) | on exit, the stable version inherits the number and none of the content — the entries stay in the `-next.N` section one line below |
+| Cutting `5.0.1` would have published **`6.0.0`** (#566) | while `mode: pre`, the CLI ignores `.changeset/pre/`; on exit it reads that directory again, so all 54 archived changesets — including the major behind `5.0.0` — became live |
+| The **snapshot path stopped working**, silently | `changeset version --snapshot` refuses outright in pre mode, in a path nothing runs on a schedule, so nothing reported it for four days |
+
+The third is the one worth sitting with. Prerelease mode and snapshot releases are alternatives to
+each other, and turning one on turned the other off without saying so.
+
+### What everyone else does
+
+Six repositories that publish multi-package monorepos with changesets, read from their committed
+configs and workflows on 2026-09-05:
+
+| Repository | Stable line | Prerelease lives on | `pre.json` on the stable branch |
+|---|---|---|---|
+| `withastro/astro` | `main` | `next` / `*-legacy` branches, plus `pkg-pr-new` previews per PR label | no |
+| `apollographql/apollo-client` | `main` | `release-*` branches, with `prerelease.yml`, `exit-prerelease.yml`, `change-prerelease-tag.yml` | no |
+| `sveltejs/kit` | `main` — 2.70.3 | `version-3` — 3.0.0-next.26, permanently `{"mode":"pre","tag":"next"}` | no |
+| `emotion-js/emotion` | `main` | — | no |
+| `chakra-ui/chakra-ui` | `main` | — | no |
+| `radix-ui/primitives` | `main` | — | no |
+
+Not one runs prerelease mode on the branch that carries its stable line. `sveltejs/kit` is the
+sharpest case: it stays in pre mode *indefinitely*, and still keeps `main` free of it, because the
+2.x line has to keep releasing while 3.x is in `next`.
+
+The `next` and `release-*` branches do not exist in those repositories today — they are created for
+a version line and deleted when it ships, while the workflows stay configured, waiting. The
+changesets documentation says the same thing in the other direction: it *"thoroughly recommends only
+running prereleases from a branch other than the default branch"*, because otherwise prerelease mode
+*"will block other changes until you exit"*.
+
+### So
+
+- **A prerelease line gets its own branch.** `next`, `v6`, `release-6.0` — a name, and `release.yml`
+  listing it beside `main`. Never `pre enter` on the branch the current line releases from.
+- **For "I need this on the registry to test it", use the snapshot path**, not prerelease mode. It
+  already exists — `workflow_dispatch` with a `snapshot` dist-tag — publishes under a tag that is
+  never `latest`, and leaves no trace in the repository. That is what prerelease mode was being used
+  for here, and it is the cheaper tool for it.
+- **If a prerelease line is genuinely needed, expect the exit to be an event**, not a formality:
+  `.changeset/pre/` reactivates, and the stable sections inherit empty. Read `changeset status`
+  before the cut — that is what caught the accidental `6.0.0`.
+
 ## Quality gates
 
 The push is gated locally by `.githooks/pre-push`, and again in CI. Every gate is one tool, and the rule is **fix the code, not the threshold**:
