@@ -36,9 +36,16 @@ restriction may be tightened by a child and never loosened.
 Verified with a negative control: 6 of the 7 new tests fail against the pre-fix sources, and the one
 that passes is the control asserting unchanged behaviour.
 
-**Known limit, stated rather than implied:** a consumer whose layer re-exports `Agent` under a
-narrowed option type cannot pass this field even though the runtime accepts it. That narrowing lives
-outside this package and is not addressed here.
+**There is no known limit on reaching this field from a wrapping layer.** An earlier draft of this
+entry claimed one — that a layer re-exporting `Agent` under a narrowed type could not pass it — and
+that was wrong. Checked against the published declaration: such a narrowing is written as
+`Omit<typeof Agent, 'list'> & { list(…) }`, which narrows only `list`, so `create` keeps this
+package's signature and the field crosses with types and without a cast. The claim came from
+searching a wrapper's `.d.ts` for the field NAME, which is absent there because the type composes by
+reference rather than redeclaring it — the wrong artefact for the question.
+
+It is corrected here rather than deleted because a false limit recorded upstream is worse than none:
+a reader takes it as settled and stops trying.
 
 Found by the `theocode` session, which discovered its own "read-only" role holding a `shell` by
 enumerating the tool catalog — after two probes that asked the model instead, and got answers that

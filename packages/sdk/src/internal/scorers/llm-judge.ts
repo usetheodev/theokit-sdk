@@ -69,6 +69,21 @@ async function callJudge(
       apiKey: options.apiKey,
       model: options.model,
       local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },
+      // #581 — a `shell` tool is ALWAYS registered on a local agent, including when `tools: []` is
+      // passed, so this judge held one it never asked for. `sandboxOptions: { enabled: false }` is
+      // not a mitigation for that and reads like one: it does not restrict the shell, it removes the
+      // sandbox around it.
+      //
+      // A judge is the worst place for it. Its entire job is to read content produced by the thing
+      // under evaluation, so anything able to influence that content was talking to a process that
+      // held an unsandboxed shell in `process.cwd()`. `types/agent.ts` § LocalOptions records the
+      // case that already happened: a working directory holding the benchmark's answer key, and two
+      // transcripts showing the model citing it.
+      //
+      // Withholding rather than sandboxing, because this judge needs no shell at all — removing it
+      // from the catalog beats confining it. The line above is left as it was: with no shell there
+      // is nothing for it to govern, and changing it would be a second, unrelated decision.
+      withheldBuiltinTools: ["shell"],
       ...(options.providers !== undefined ? { providers: options.providers } : {}),
     });
     if (result.status === "finished") return { ok: true, text: result.result ?? "" };
