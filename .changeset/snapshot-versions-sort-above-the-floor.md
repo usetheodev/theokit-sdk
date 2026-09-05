@@ -22,8 +22,13 @@ the feature was switched off** — silently for anyone not reading stderr, and p
 the snapshot existed to deliver.
 
 `snapshot.useCalculatedVersion: true` bases the snapshot on the version the pending changesets
-would produce, so the same cut becomes `5.0.2-compat-580-…`: still a prerelease, still off `latest`,
-still never resolved by a caret range — and now correctly ordered against the floor.
+would produce. Measured on the first cut after the change: `5.1.0-compat-581-20260905211819` — still
+a prerelease, still off `latest`, still never resolved by a caret range, and now correctly ordered
+against the floor.
+
+(An earlier draft of this entry illustrated the result as `5.0.2-…`. That digit was invented rather
+than derived: the pending changesets include a `minor`, so the calculated base is `5.1.0`. The number
+above is the one the publish actually printed.)
 
 Reported by the `theocode` session, which caught it in the only way it was catchable: its first run
 piped the output through `tail -3`, which cut the warning off, and the second kept the whole thing.
