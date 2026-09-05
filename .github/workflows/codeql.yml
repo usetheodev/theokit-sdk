@@ -64,3 +64,30 @@ jobs:
         uses: github/codeql-action/analyze@c16c0f3f2812ec4bb3750a5ed64873fe2ce0fbef # codeql-bundle-v2.26.3
         with:
           category: /language:${{ matrix.language }}
+
+  # A fan-in, so ONE required status check stands for every matrix leg.
+  #
+  # Branch protection requires checks BY NAME, and this workflow's names carry the matrix leg:
+  # measured 2026-09-05, `develop` here requires `analyze (javascript-typescript)` AND
+  # `analyze (actions)` individually. That works until a language is added — the new leg runs,
+  # reports, and is advisory, because nobody edited the protection list. A leg that does not
+  # block is indistinguishable from a leg that passed.
+  #
+  # `theokit` already solved this for its own CodeQL with a `SAST status` job and requires that
+  # instead of the legs. This is the same shape, using the shared action that `ci-ok` in this
+  # repository already calls, so the required name stops being a list somebody maintains and
+  # becomes a property of the workflow.
+  #
+  # `if: always()` is not optional. Without it GitHub skips this job when a dependency fails, a
+  # skipped required check never reports, and the pull request waits forever on a green light
+  # that cannot arrive.
+  sast-status:
+    name: SAST status
+    needs: analyze
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: usetheokit/shared-workflows/actions/checks-pass@v1 # zizmor: ignore[unpinned-uses]
+        with:
+          needs: ${{ toJSON(needs) }}
