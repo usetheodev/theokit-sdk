@@ -34,6 +34,9 @@ importers:
       '@biomejs/biome':
         specifier: ^2.4.0
         version: 2.4.15
+      '@changesets/changelog-github':
+        specifier: ^1.0.1
+        version: 1.0.1
       '@changesets/cli':
         specifier: ^3.0.1
         version: 3.0.1
@@ -1033,6 +1036,10 @@ packages:
     resolution: {integrity: sha512-3Dst2Ime2Op5nd4XmWJLPIgp11ZFqJqSkVug9izK6TDcIV4YlhPS4ECbEVR+eGI0bk0r1ItogD4j2Oli87bJrA==}
     engines: {node: ^22.11 || ^24 || >=26}
 
+  '@changesets/changelog-github@1.0.1':
+    resolution: {integrity: sha512-QUcrV7878yHlWPXXPA6gqSxNKwtVHCd1K22L7ZAoJw2yGy8K4QvjwOStD75+1Q9KD9ZSUgGS94HuYdd7HOVtpA==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
   '@changesets/cli@3.0.1':
     resolution: {integrity: sha512-3IVpRSgiKDj2aRbBHKtWTXSRH2/iR3bWxau9iQUoEsZjDhRIj9nhl90k7FWMxZAJvLgJBbgMq8+qS0xQsenYsQ==}
     engines: {node: ^22.11 || ^24 || >=26, npm: '>=10.9.0', pnpm: '>=10.0.0', yarn: '>=4.5.2'}
@@ -1052,6 +1059,10 @@ packages:
 
   '@changesets/get-dependents-graph@3.0.0':
     resolution: {integrity: sha512-ji/t5wFA1zREKXRUePE6Qi+Qu2UgxCeSSGQrphezwvQZrp49B7sJ+8+wvM0tA7zPeSxYKCojDy3WWgrl+s+awg==}
+    engines: {node: ^22.11 || ^24 || >=26}
+
+  '@changesets/get-github-info@1.0.1':
+    resolution: {integrity: sha512-ifLQCky/ZtDgZ4xCiUMjnLZSJ8xk52iIzMJbBBPlZWjr2CiTNTaTDddIVWKicrUAdWuLWL7PUw2fNa1yPwLpIg==}
     engines: {node: ^22.11 || ^24 || >=26}
 
   '@changesets/git@4.0.0':
@@ -2991,6 +3002,9 @@ packages:
   data-uri-to-buffer@4.0.1:
     resolution: {integrity: sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A==}
     engines: {node: '>= 12'}
+
+  dataloader@2.2.3:
+    resolution: {integrity: sha512-y2krtASINtPFS1rSDjacrFgn1dcUuoREVabwlOGOe4SdxenREqwjwjElAdwvbGM7kgZz9a3KVicWR7vcz8rnzA==}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -6551,6 +6565,11 @@ snapshots:
     dependencies:
       '@changesets/types': 7.0.0
 
+  '@changesets/changelog-github@1.0.1':
+    dependencies:
+      '@changesets/get-github-info': 1.0.1
+      '@changesets/types': 7.0.0
+
   '@changesets/cli@3.0.1':
     dependencies:
       '@changesets/apply-release-plan': 8.0.0
@@ -6594,6 +6613,10 @@ snapshots:
     dependencies:
       '@changesets/types': 7.0.0
       semver: 7.8.5
+
+  '@changesets/get-github-info@1.0.1':
+    dependencies:
+      dataloader: 2.2.3
 
   '@changesets/git@4.0.0':
     dependencies:
@@ -7886,7 +7909,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/coverage-v8@4.1.8)(vite@7.3.6(@types/node@26.4.0)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0))
+      vitest: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(@vitest/coverage-v8@4.1.8)(vite@7.3.6(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0))
 
   '@vitest/expect@4.1.8':
     dependencies:
@@ -8393,6 +8416,8 @@ snapshots:
 
   data-uri-to-buffer@4.0.1:
     optional: true
+
+  dataloader@2.2.3: {}
 
   debug@4.4.3:
     dependencies:

@@ -273,26 +273,42 @@ jobs:
           # it is what makes the Version Packages pull request run its required checks — so it
           # moves here rather than being dropped. Measured on the release after #512.
           github-token: ${{ steps.app-token.outputs.token }}
-          # WHY THIS STEP SETS NO ENVIRONMENT AT ALL:
-          # AUTHENTICATION IS OIDC, NOT A TOKEN, as of this change. Each of the
-          # twelve packages carries a Trusted Publisher connection on npmjs.com
-          # naming this repository and THIS FILE. npm mints a short-lived
-          # credential for the individual job, scoped to that package; it cannot be
-          # exported or replayed, and it cannot expire between releases.
-          #
-          # That last property is the reason. This publish step failed twice on an
-          # expired NPM_TOKEN (E404 on PUT, 2026-07-24 and 2026-08-11) and both
-          # releases were finished by hand from a laptop. A credential that does not
-          # exist cannot expire.
-          #
-          # NPM_TOKEN is not merely unnecessary here — it is harmful. The npm CLI
-          # prefers token auth over the OIDC token from `id-token: write`, so
-          # setting it silently disables the trusted-publisher binding and takes
-          # provenance with it.
-          #
-          # NPM_CONFIG_PROVENANCE is gone for the same reason it left the other
-          # repositories: `publishConfig.provenance: true` now sits in all twelve
-          # manifests, so provenance is declared beside the package it describes.
+        # THE ONE ENVIRONMENT VARIABLE THIS STEP SETS, and it is not an npm credential.
+        #
+        # `.changeset/config.json` uses `@changesets/changelog-github`, which turns each entry
+        # into a PR link, a commit link and an author attribution instead of a bare hash. It
+        # reaches the GitHub GraphQL API and reads `GITHUB_TOKEN` from the ENVIRONMENT — an input
+        # cannot reach it, because `version-script` runs it in a child process.
+        #
+        # EVERY failure path in that package throws: missing token, network error, GraphQL
+        # `errors`, or a response with no `data` (`get-github-info/src/dataloader.ts`). There is no
+        # degraded mode, so an absent variable does not produce a plainer changelog — it fails
+        # `changeset version` and the release stops with nothing published.
+        #
+        # It is the SAME token as the `github-token` input above, and that is load-bearing rather
+        # than tidy. `changesets/action` v2 throws when `process.env.GITHUB_TOKEN` is set AND
+        # differs from the input (`src/index.ts:35`). Equal passes; a second token would break the
+        # step before it starts.
+        #
+        # WHY NO npm CREDENTIAL IS HERE, unchanged by the above:
+        # AUTHENTICATION IS OIDC, NOT A TOKEN. Each of the twelve packages carries a Trusted
+        # Publisher connection on npmjs.com naming this repository and THIS FILE. npm mints a
+        # short-lived credential for the individual job, scoped to that package; it cannot be
+        # exported or replayed, and it cannot expire between releases.
+        #
+        # That last property is the reason. This publish step failed twice on an expired
+        # NPM_TOKEN (E404 on PUT, 2026-07-24 and 2026-08-11) and both releases were finished by
+        # hand from a laptop. A credential that does not exist cannot expire.
+        #
+        # NPM_TOKEN is not merely unnecessary here — it is harmful. The npm CLI prefers token auth
+        # over the OIDC token from `id-token: write`, so setting it silently disables the
+        # trusted-publisher binding and takes provenance with it.
+        #
+        # NPM_CONFIG_PROVENANCE is gone for the same reason it left the other repositories:
+        # `publishConfig.provenance: true` now sits in all twelve manifests, so provenance is
+        # declared beside the package it describes.
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
       # ── The snapshot path ──────────────────────────────────────────────────
       #
