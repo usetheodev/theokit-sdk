@@ -269,12 +269,6 @@ async function collectChildToolResults(run: Run): Promise<string> {
 }
 
 /**
- * Build the child agent's `Agent.create` options: the child inherits the parent's
- * apiKey (else `Agent.create` throws "Missing API key"), its model (unless the spec
- * overrides it), and — #55 — the parent's plugins (permission gate/guards) so the
- * child's inner tool calls run under the same policy.
- */
-/**
  * The child's `local` slice, accumulated ONCE from all three contributors — or `undefined` when the
  * parent declared none of them, so the pre-#578 shape (no `local` key at all) is preserved.
  *
@@ -301,6 +295,13 @@ function buildChildLocalOptions(
   return Object.keys(local).length > 0 ? local : undefined;
 }
 
+/**
+ * Build the child agent's `Agent.create` options: the child inherits the parent's
+ * apiKey (else `Agent.create` throws "Missing API key"), its model (unless the spec
+ * overrides it), — #55 — the parent's plugins (permission gate/guards) so the
+ * child's inner tool calls run under the same policy, and — #578 — the configuration
+ * surfaces the parent was declared to read (see {@link buildChildLocalOptions}).
+ */
 export function buildChildCreateOptions(
   spec: SubAgentSpec,
   inherited: InheritedCredentials | undefined,
