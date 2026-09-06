@@ -208,6 +208,14 @@ export type {
   EvictReason,
   LiveAgentRegistry,
 } from "./internal/runtime/registry/live-agent-registry.js";
+// #583 — the instrument for "what tools does this agent actually have", which nothing offered. Pure,
+// synchronous and credential-free, so a test can assert a role is as narrow as it claims BEFORE the
+// agent runs. See the module docblock for why it does not return a bare array.
+export {
+  type EffectiveToolCatalog,
+  effectiveToolNames,
+  type UnresolvedToolSource,
+} from "./internal/runtime/validation/effective-tools.js";
 // The bundled root `.d.ts` has always declared these two as VALUES, because the
 // DTS rollup hoists them out of `types/task.ts` along with the task types. The
 // runtime bundle emitted neither, so `import { isValidTaskId } from "@theokit/sdk"`
