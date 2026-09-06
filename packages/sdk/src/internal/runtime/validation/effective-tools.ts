@@ -34,6 +34,7 @@
  * @public
  */
 
+import { ConfigurationError } from "../../../errors.js";
 import type { AgentOptions, BuiltinToolName } from "../../../types/agent.js";
 
 /** The builtins this SDK registers, and the option that governs each. */
@@ -70,7 +71,41 @@ export interface EffectiveToolCatalog {
  * ```
  */
 export function effectiveToolNames(options: AgentOptions): EffectiveToolCatalog {
+  refuseCreatedTool(options);
   return { names: resolvableNames(options), unresolved: unresolvableSources(options) };
+}
+
+/**
+ * Refuse a created tool where options were expected.
+ *
+ * Every field on `AgentOptions` is optional, so `SubAgent.create()`'s return — a `CustomTool`,
+ * `{ name, description, inputSchema, handler }` — satisfies the type **by vacuity**, with no cast.
+ * Measured: `@ts-expect-error` on that call is reported unused (`TS2578`), so the compiler genuinely
+ * does not refuse it.
+ *
+ * What came back was worse than a wrong number: `{ names: ["shell"], unresolved: [] }` — the empty
+ * `unresolved` claiming COMPLETENESS about an object the function never understood. A caller reads
+ * that as "this subagent still announces a shell" and either disbelieves a fix that worked, or
+ * "fixes" something on the strength of it. That is the #583 defect one function further on, and the
+ * same argument that made this return `{ names, unresolved }` instead of a bare array forbids it.
+ *
+ * The detection is exact rather than heuristic: `AgentOptions` declares neither `handler` nor
+ * `inputSchema`, so an object carrying both is a tool, not options. Throwing rather than answering,
+ * because a wrong argument is a programming error and any answer here would be a second half-truth.
+ *
+ * Reported by the `theocode` session, against advice of mine that was wrong — I told them the
+ * workaround of keeping the spec separate was no longer needed. It is.
+ */
+function refuseCreatedTool(options: AgentOptions): void {
+  const candidate = options as { handler?: unknown; inputSchema?: unknown; name?: unknown };
+  if (candidate.handler === undefined || candidate.inputSchema === undefined) return;
+  throw new ConfigurationError(
+    `effectiveToolNames received a created tool${typeof candidate.name === "string" ? ` ("${candidate.name}")` : ""}, not AgentOptions. ` +
+      "`SubAgent.create()` returns a CustomTool and closes its spec inside the handler, so the spec " +
+      "cannot be recovered from it. Pass the spec you built it from — keep it in a variable, or " +
+      "extract it into a function the test can call.",
+    { code: "effective_tools_expected_options" },
+  );
 }
 
 /**
