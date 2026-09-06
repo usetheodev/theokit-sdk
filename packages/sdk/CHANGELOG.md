@@ -1,5 +1,272 @@
 # Changelog
 
+## 5.1.0
+
+### Minor Changes
+
+- [#579](https://github.com/usetheokit/theokit-sdk/pull/579) [`f08b330`](https://github.com/usetheokit/theokit-sdk/commit/f08b330fd6ca03049dd5fded5d76250263972691) Thanks [@usetheodev](https://github.com/usetheodev)! - `discoverSubagents` can read a declared foreign dialect, closing an asymmetry against the agent's own registry
+  
+  `[#524](https://github.com/usetheokit/theokit-sdk/issues/524)` made foreign configuration opt-in and reached the agent's subagent registry — which resolves
+  through `settingSources` + `compatSources` — but not `discoverSubagents`, the public selector over
+  the same material. The reader underneath already accepted `compatSources`; this entry point simply
+  never passed it.
+  
+  Measured by the `theocode` session on `5.0.1`, both arms in fresh trusted directories with the same
+  task:
+  
+  ```
+  roles in .theokit/agents/            delegate_to_team works
+  the SAME files in .claude/agents/    "the `explorer` role is not configured"
+  ```
+  
+  So a repository adopting the product could **delegate to** a `.claude/agents/` subagent by name and
+  could **not define its team's roles** there. One dialect, two answers, depending on which selector
+  asked.
+  
+  ```ts
+  await discoverSubagents(cwd, { compatSources: ["claude-code"] });
+  ```
+  
+  `compatSources` is a **separate option from `settingSources`**, deliberately. That one answers
+  *which sources* (project, and one day user or team); this one answers *which dialects* within them.
+  Folding `"claude-code"` into `SubagentSource` would conflate two orthogonal axes, and the internal
+  loader has kept them apart since `[#524](https://github.com/usetheokit/theokit-sdk/issues/524)` for exactly that reason.
+  
+  **The opt-in still holds**: with nothing declared, `.claude/agents/` is not read. That is covered by
+  a test whose only job is to fail if the option ever became a no-op.
+  
+  `CompatSourceDeclaration` is re-exported from `@theokit/sdk/subagents-loader` for the same reason
+  `AgentDefinition` is — an option whose type is unreachable is an option only `any` can call.
+
+- [#579](https://github.com/usetheokit/theokit-sdk/pull/579) [`8a59217`](https://github.com/usetheokit/theokit-sdk/commit/8a592174f76ea85f8d75d7446ebd1ea5e3094d50) Thanks [@usetheodev](https://github.com/usetheodev)! - `@theokit/sdk/persistence` exposes `sessionUuidFor` and `legacyTranscriptPath` ([#577](https://github.com/usetheokit/theokit-sdk/issues/577))
+  
+  Every transcript helper on this entry point went **id → path**. Nothing went the other way, and
+  nothing let a caller compute the forward mapping to match against — so a consumer enumerating
+  `projects/<encoded-cwd>/*.jsonl`, which is how you list sessions without a registry, received
+  filenames it could not relate to any agent id it held.
+  
+  The naming scheme is deliberately one-way: a UUIDv8 over SHA-256, so the Claude Code CLI can
+  `--continue` a session this SDK wrote. The 5.0.0 notes say *"nothing has to be persisted to map one
+  back to the other"* — true of the scheme, and not true in practice, because `sessionUuidFor` lived
+  in the compiled JS and in zero `.d.ts`. The only route left was to reimplement the hash: an SDK
+  internal, copied into a consumer, silently wrong the day the scheme moves.
+  
+  ```ts
+  import { sessionUuidFor, transcriptRoot } from "@theokit/sdk/persistence";
+  
+  const wanted = `${sessionUuidFor(agentId)}.jsonl`;
+  const mine = (await readdir(dir)).filter((f) => f === wanted);
+  ```
+  
+  **What crosses is the forward mapping, not an inverse.** A path → id function cannot exist over a
+  hash, and shipping one would be a lie about it. `legacyTranscriptPath` crosses alongside because a
+  directory written before [#400](https://github.com/usetheokit/theokit-sdk/issues/400) holds both spellings, and a consumer matching only the new one
+  reports its own history as missing — the same false absence, one rename later.
+  
+  Measured on `@theokit/agents` 4.x against `5.0.1`: 29 unit tests failing from this single cause,
+  seen from four angles — listing, protection, GC and deletion.
+
+- [#579](https://github.com/usetheokit/theokit-sdk/pull/579) [`b182d84`](https://github.com/usetheokit/theokit-sdk/commit/b182d847725038ed173423d64106024d149e5984) Thanks [@usetheodev](https://github.com/usetheodev)! - `loadSkillInstructions` — turn a discovered skill into an inline one without a second parser
+  
+  `SkillsSettings.inline` requires `instructions`, and `discoverSkills` returns only the frontmatter
+  fields plus `source`. So a consumer wanting to feed discovered skills back in had one route: open
+  `source` and split the frontmatter by hand.
+  
+  That is a second implementation of this module's own convention — the thing
+  `@theokit/sdk/subagents-loader` was published to end — and it fails **silently** if the format ever
+  moves: the frontmatter lands inside the instructions and nothing says so.
+  
+  ```ts
+  import { discoverSkills, loadSkillInstructions } from "@theokit/sdk/skills";
+  
+  const skills = await discoverSkills(dir);
+  const inline = await Promise.all(
+    skills.map(async (s) => ({ ...s, instructions: await loadSkillInstructions(s) })),
+  );
+  ```
+  
+  **`Skill` is unchanged**, deliberately. Its docblock says *"the skill BODY is never included"* — a
+  written contract whose reason is not written down, and the likely one (a catalog you can put in a
+  prompt without carrying every body) is worth keeping intact. The body was never expensive to
+  obtain: discovery already reads each file in full and discards all but the frontmatter. What was
+  missing was a door that hands it over, which is what this is — the same relationship
+  `loadSubagentDefinition` has to `discoverSubagents`.
+  
+  It **throws** on an unreadable `source`, unlike discovery, which skips what it cannot read. A caller
+  naming one skill has asked about that skill, and an empty string would answer a question it did not
+  ask.
+  
+  Reported by the `theocode` session, which needed an operator's `~/.theokit/skills/` to reach an
+  agent through this SDK's parser rather than a copy of it.
+
+### Patch Changes
+
+- [#579](https://github.com/usetheokit/theokit-sdk/pull/579) [`0894dda`](https://github.com/usetheokit/theokit-sdk/commit/0894ddad430b1ac5b1e2ba222a9527c1143d9722) Thanks [@usetheodev](https://github.com/usetheodev)! - `local.compatSources` survives delegation and resume ([#578](https://github.com/usetheokit/theokit-sdk/issues/578))
+  
+  `[#524](https://github.com/usetheokit/theokit-sdk/issues/524)` added `compatSources` to `AgentOptions["local"]`, so a project can declare that `.claude/`
+  hooks, skills, subagents and plugins may be read. Two places carry a parent's `local` config across
+  a hop, and **neither was updated**:
+  
+  | Carrier | Was missing |
+  |---|---|
+  | `buildChildCreateOptions` — parent → delegated child | `settingSources`, `compatSources` |
+  | `serializeLocal` — agent → registry → resumed agent | `compatSources` |
+  
+  So a parent declaring `compatSources: ["claude-code"]` read `.claude/agents/` and its delegated
+  child did not: a team could delegate TO a role by name while the child could not resolve the rest of
+  the team. And an agent resumed from the registry silently stopped reading the surfaces it was
+  created to read.
+  
+  Both the field and the code that carries it landed on the same day, which is what an omission looks
+  like rather than a decision — and `serializeLocal` documents the one inclusion that *was* decided,
+  right beside the gap.
+  
+  **Inheriting is safe here, and it is the opposite direction from every other inherited field.** The
+  others hand down a restriction (the sandbox posture, the permission plugins) and the hazard is a
+  child escaping it. Here the child is *more* restricted than its parent, so the failure is a missing
+  capability rather than an open door. Inheritance cannot widen: the child gets what the parent
+  already resolved and runs in the parent's cwd, so it reaches no directory the parent could not. A
+  role's explicit value still wins.
+  
+  **The one hazard in the fix, since it is the kind that trades a bug for a worse bug:**
+  `buildChildCreateOptions` used to write `local` whole from the sandbox posture alone, so adding a
+  second `local` spread beside it would have silently dropped that posture — turning a
+  missing-capability defect into a default-open one. `local` is now accumulated once from all three
+  contributors, and a test asserts the sandbox posture survives inheritance.
+  
+  Reported by the `theocode` session. Its measurement also narrowed who is affected: a consumer that
+  rebuilds agent options per invocation never reaches `serializeLocal` and is exposed only to the
+  delegation half.
+
+- [#582](https://github.com/usetheokit/theokit-sdk/pull/582) [`95a2e9d`](https://github.com/usetheokit/theokit-sdk/commit/95a2e9de364df5a161671fa0c845e0b6a8208392) Thanks [@usetheodev](https://github.com/usetheodev)! - The built-in judges no longer hold a `shell` they never asked for ([#581](https://github.com/usetheokit/theokit-sdk/issues/581))
+  
+  `internal/scorers/llm-judge.ts` and `internal/judge/judge-call.ts` each create a short-lived agent to
+  score or adjudicate. Neither wants a tool. One passed no `tools` at all; the other passed `tools: []`.
+  
+  Neither is enough: **a `shell` tool is always registered on a local agent, including when `tools: []`
+  is passed.** Withholding is the only mechanism that removes it, and neither judge used it.
+  
+  The scorer was the worse of the two, because it also carried `sandboxOptions: { enabled: false }` —
+  which reads like a restriction and is the opposite of one. It does not restrict the shell; it removes
+  the sandbox around it. So the scorer held an **unsandboxed** shell in `process.cwd()` while reading
+  content produced by the very thing it was evaluating. `types/agent.ts` § LocalOptions records the
+  case that already happened to somebody: the working directory held the benchmark's answer key, and
+  two transcripts show the model citing it.
+  
+  Both now pass `withheldBuiltinTools: ["shell"]`. The scorer's `sandboxOptions` line is left as it
+  was: with no shell there is nothing for it to govern, and changing it would be a second, unrelated
+  decision.
+  
+  Neither line had a recorded reason — `git log -S` puts both inside large feature commits whose
+  messages never mention the sandbox, the shell, or a tool surface. If either was deliberate, this
+  commit and [#581](https://github.com/usetheokit/theokit-sdk/issues/581) are the trail back.
+
+- [#584](https://github.com/usetheokit/theokit-sdk/pull/584) [`69e8dda`](https://github.com/usetheokit/theokit-sdk/commit/69e8dda6be4489f462a031166bdc1f6f06cbe7ac) Thanks [@usetheodev](https://github.com/usetheodev)! - Snapshot versions now sort ABOVE the release they are cut from
+  
+  `changeset version --snapshot` defaults to a `0.0.0-` base, so every snapshot this repository has
+  ever published was `0.0.0-<tag>-<timestamp>` — which **sorts below every real release**, because
+  semver compares `major.minor.patch` numerically before it looks at a prerelease suffix.
+  
+  Any consumer with a version floor therefore read a snapshot as older than the release it was cut
+  from. Measured by the `theokit/agents` layer against `0.0.0-compat-580-20260905204608`, on every
+  run:
+  
+  ```
+  `compatSources` was declared, but @theokit/sdk@0.0.0-compat-580-… does not know that option and
+  will ignore it — the foreign configuration root will NOT be read. It landed in 5.0.0.
+  ```
+  
+  The code in that snapshot knew the option perfectly well. **The version number said it did not, so
+  the feature was switched off** — silently for anyone not reading stderr, and precisely the feature
+  the snapshot existed to deliver.
+  
+  `snapshot.useCalculatedVersion: true` bases the snapshot on the version the pending changesets
+  would produce, so the same cut becomes `5.0.2-compat-580-…`: still a prerelease, still off `latest`,
+  still never resolved by a caret range — and now correctly ordered against the floor.
+  
+  Reported by the `theocode` session, which caught it in the only way it was catchable: its first run
+  piped the output through `tail -3`, which cut the warning off, and the second kept the whole thing.
+
+- [#576](https://github.com/usetheokit/theokit-sdk/pull/576) [`945e999`](https://github.com/usetheokit/theokit-sdk/commit/945e99906180bdd83d9d40845988907e22a08ec4) Thanks [@usetheodev](https://github.com/usetheodev)! - The undeclared-`.claude/` warning now names the file you can edit, not only the option your host passes
+  
+  `5.0.1` made this warning reach stderr regardless of any diagnostics sink ([#563](https://github.com/usetheokit/theokit-sdk/issues/563)), which was the
+  right fix and created a smaller problem underneath it: the message told you to pass
+  `local: { compatSources: ["claude-code"] }`, and `local` is an argument **the code embedding this
+  SDK** passes. If you are using a tool built on the SDK rather than calling it yourself, that option
+  does not exist on your surface — so the line was true about the mechanism and unusable as an action.
+  
+  Reported by the `theocode` session running `5.0.1` as an embedding host, and their framing is the
+  one worth keeping: *"correct about the mechanism and misleading about the action — it sends the
+  person looking for an option that is not on their surface."*
+  
+  [#524](https://github.com/usetheokit/theokit-sdk/issues/524) gives the declaration **two entry points for one shape**, and the warning named only one:
+  
+  | entry point | who can use it |
+  |---|---|
+  | `.theokit/config.json` → `{"compat":{"adapters":["claude-code"]}}` | anyone holding the workspace |
+  | `local: { compatSources: ["claude-code"] }` | whoever embeds the SDK in code |
+  
+  The message now names the file first, because that is the entry point its reader can reach, and
+  keeps the code option for the embedder for whom it is the right answer. Nothing about the
+  behaviour changes — only what the line tells you to do.
+  
+  ## Still open, and worth knowing
+  
+  There is no way to say *"I know, and I want none"*. `compatSources: []` would be the natural
+  spelling, but `resolveCompatSources` collapses it into the same `[]` an absent option produces, so
+  the two cannot be told apart. `theocode` measured one warning per process, and a CLI invocation is
+  a process — so a shell loop prints one line per iteration. They explicitly did not ask for a change
+  on the volume; if it starts to matter, threading that distinction through is the shape of the fix.
+
+- [#582](https://github.com/usetheokit/theokit-sdk/pull/582) [`1b088c4`](https://github.com/usetheokit/theokit-sdk/commit/1b088c4be2b895b7c442b00055fc34a6c9bf4eb4) Thanks [@usetheodev](https://github.com/usetheodev)! - A delegated child can no longer recover a builtin tool its parent withheld ([#580](https://github.com/usetheokit/theokit-sdk/issues/580))
+  
+  **This is a security fix.** Measured before the change:
+  
+  ```
+  parent: withheldBuiltinTools: ["shell"]
+  child:  undefined
+  ```
+  
+  `withheldBuiltinTools` crossed no carrier at all — not `InheritedCredentials`, not
+  `buildChildCreateOptions` — so delegation **widened** authority the operator had revoked. That is the
+  inverse of [#578](https://github.com/usetheokit/theokit-sdk/issues/578) and materially worse: there the child was merely over-restricted.
+  
+  It bites because of a documented default: a `shell` tool is always registered on a local agent,
+  *including when you pass `tools: []`*. Withholding is the only mechanism that removes it, so a
+  withholding that does not survive delegation leaves a child no way to be without a shell. Nor is
+  `sandboxOptions` a substitute — `{ enabled: false }` does not restrict the shell, it removes the
+  sandbox around it.
+  
+  Two changes:
+  
+  - The parent's withheld set is carried to the child.
+  - `SubAgentSpec` accepts `withheldBuiltinTools`, so a role declared read-only can actually be one.
+  
+  **The child's list is the UNION of its own and the parent's, never a replacement.** Every other field
+  on the spec lets the role's value win — `model`, and `sandbox` (an explicit `sandbox: false` really
+  does turn confinement off for a child of a confined parent, which is documented and intended). That
+  asymmetry is deliberate: a posture is declared, whereas withholding removes a capability from the
+  catalog, and the failure is silent. So `withheldBuiltinTools: []` on a role subtracts nothing — a
+  restriction may be tightened by a child and never loosened.
+  
+  Verified with a negative control: 6 of the 7 new tests fail against the pre-fix sources, and the one
+  that passes is the control asserting unchanged behaviour.
+  
+  **There is no known limit on reaching this field from a wrapping layer.** An earlier draft of this
+  entry claimed one — that a layer re-exporting `Agent` under a narrowed type could not pass it — and
+  that was wrong. Checked against the published declaration: such a narrowing is written as
+  `Omit<typeof Agent, 'list'> & { list(…) }`, which narrows only `list`, so `create` keeps this
+  package's signature and the field crosses with types and without a cast. The claim came from
+  searching a wrapper's `.d.ts` for the field NAME, which is absent there because the type composes by
+  reference rather than redeclaring it — the wrong artefact for the question.
+  
+  It is corrected here rather than deleted because a false limit recorded upstream is worse than none:
+  a reader takes it as settled and stops trying.
+  
+  Found by the `theocode` session, which discovered its own "read-only" role holding a `shell` by
+  enumerating the tool catalog — after two probes that asked the model instead, and got answers that
+  contradicted it.
+
 ## 5.0.1
 
 ### Patch Changes
