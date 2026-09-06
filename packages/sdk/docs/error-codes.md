@@ -6,7 +6,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 
 **Transport codes vs the rest.** `ErrorCode` in `errors.ts` is the small canonical union a provider failure maps onto — the codes marked *transport* below. Everything else is raised by a specific subsystem at a specific place, and a `catch` that only handles the union will meet them anyway.
 
-240 distinct code(s).
+241 distinct code(s).
 
 | Code | Kind | Raised by | Sites |
 |---|---|---|---|
@@ -60,6 +60,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `cron_workflow_message` | domain | ConfigurationError | `packages/sdk/src/cron.ts:227` |
 | `duplicate_skill_name` | domain | ConfigurationError | `packages/sdk/src/define-skill-read-tool.ts:72` |
 | `duplicate_tool_name` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/validate-agent-options.ts:201` |
+| `effective_tools_expected_options` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/validation/effective-tools.ts:102` +1 |
 | `embedding_dimension_mismatch` | domain | ConfigurationError | `packages/sdk/src/internal/memory/lance-index.ts:146` +1 |
 | `embedding_invalid_response` | domain | NetworkError | `packages/sdk/src/internal/memory/adapters/openai-compatible.ts:399` |
 | `embedding_missing_api_key` | domain | AuthenticationError | `packages/sdk/src/internal/memory/adapters/openai-compatible.ts:141` |
