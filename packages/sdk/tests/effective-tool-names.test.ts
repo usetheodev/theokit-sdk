@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { SubAgent } from "../src/a2a/subagent.js";
 import { effectiveToolNames } from "../src/index.js";
 import type { AgentOptions, CustomTool } from "../src/types/agent.js";
 
@@ -73,5 +74,26 @@ describe("effectiveToolNames", () => {
     expect(
       effectiveToolNames({ tools: [], plugins: [] } as unknown as AgentOptions).unresolved,
     ).toEqual([]);
+  });
+
+  it("refuses a created tool instead of answering confidently about it", () => {
+    // Every AgentOptions field is optional, so `SubAgent.create()`'s CustomTool satisfies the type by
+    // vacuity — measured: `@ts-expect-error` on that call is reported UNUSED (TS2578). Before the
+    // guard it answered `{ names: ["shell"], unresolved: [] }`: an empty `unresolved` claiming
+    // completeness about an object it never understood. A caller reads that as "this subagent still
+    // announces a shell" and disbelieves a fix that worked.
+    const created = SubAgent.create({ name: "analyst", description: "d", instructions: "i" });
+
+    expect(() => effectiveToolNames(created as unknown as AgentOptions)).toThrowError(
+      /created tool \("analyst"\), not AgentOptions/,
+    );
+  });
+
+  it("still accepts ordinary options — the guard needs BOTH tool fields", () => {
+    // The control: refusing on `handler` alone would reject an options object that happens to carry
+    // some unrelated field, and the detection has to stay exact rather than become a heuristic.
+    expect(
+      effectiveToolNames({ tools: [], handler: () => {} } as unknown as AgentOptions).names,
+    ).toEqual(["shell"]);
   });
 });
