@@ -119,7 +119,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `local_provider_http_error` | domain | ConfigurationError | `packages/sdk/src/internal/catalog/local-models.ts:61` |
 | `local_provider_unreachable` | domain | ConfigurationError | `packages/sdk/src/internal/catalog/local-models.ts:46` |
 | `malformed_api_key` | domain | AuthenticationError | `packages/sdk/src/internal/agent/helpers.ts:224` +1 |
-| `max_delegation_depth` | domain | MaxDelegationDepthError | `packages/sdk/src/a2a/subagent.ts:220` +1 |
+| `max_delegation_depth` | domain | MaxDelegationDepthError | `packages/sdk/src/a2a/subagent.ts:239` +1 |
 | `mcp_buffer_overflow` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:332` |
 | `mcp_closed` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:307` |
 | `mcp_crashed` | domain | NetworkError | `packages/sdk/src/internal/mcp/client.ts:222` |
@@ -202,7 +202,7 @@ Branch on `code`, never on the message: messages carry context (an id, a path, a
 | `subagent_reasoning_effort_without_model` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/skills/subagents-loader.ts:193` |
 | `subagent_sandbox_not_boolean` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/skills/subagents-loader.ts:213` |
 | `subagent_unknown_field` | domain | ConfigurationError | `packages/sdk/src/internal/runtime/skills/subagents-loader.ts:158` |
-| `subagent_unknown_setting_source` | domain | ConfigurationError | `packages/sdk/src/subagents-loader.ts:63` |
+| `subagent_unknown_setting_source` | domain | ConfigurationError | `packages/sdk/src/subagents-loader.ts:96` |
 | `subscribe_baseUrl_missing` | domain | SubscriptionError | `packages/sdk/src/subscription/theokit-subscribe.ts:77` |
 | `subscribe_name_invalid` | domain | SubscriptionError | `packages/sdk/src/subscription/theokit-subscribe.ts:72` |
 | `subscription_descriptor_invalid` | domain | SubscriptionError | `packages/sdk/src/subscription/internal/server-integration.ts:172` |

@@ -356,6 +356,25 @@ jobs:
         with:
           tag: ${{ inputs.snapshot }}
           publish-command: pnpm run release:snapshot
+        # This path runs `changeset version --snapshot`, and adopting
+        # `@changesets/changelog-github` made THAT command reach the GitHub API to resolve a commit
+        # to its pull request. The release path was given the token in the same change; this one was
+        # not, because nothing here says the two are coupled. Measured on the first snapshot after
+        # the switch:
+        #
+        #   The following error was encountered while generating changelog entries
+        #   We have escaped applying the changesets, and no files should have been affected
+        #   Error: Please create a GitHub personal access token … as the GITHUB_TOKEN
+        #
+        # It failed CLOSED — nothing published, nothing was written — which is the only reason this
+        # is a wasted run rather than a half-versioned tree.
+        #
+        # Unlike the `changesets/action` step above, there is no conflict to avoid here: that action
+        # throws when `GITHUB_TOKEN` is set in the environment AND differs from its `github-token`
+        # input. This is a composite action running `pnpm` directly, so it takes no such input and
+        # the environment is the only channel.
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
       - name: verify release refs reached the remote
         if: steps.changesets.outputs.published == 'true'

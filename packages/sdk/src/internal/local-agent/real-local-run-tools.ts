@@ -59,11 +59,30 @@ export function resolveInheritedCredentials(agentOptions: AgentOptions): Inherit
   // M33 — hand down the parent's sandbox posture so a child of a sandboxed parent stays sandboxed unless
   // its role opts out. A role's own `sandbox` (spec.sandbox) overrides this in buildChildCreateOptions.
   const parentSandbox = agentOptions.local?.sandboxOptions?.enabled;
+  // #578 — hand down the configuration surfaces the parent was declared to read, so a child can
+  // resolve a role its parent can see. Without this a parent with `compatSources: ["claude-code"]`
+  // read `.claude/agents/` and its child did not, which let a team delegate TO a role by name while
+  // the child could not resolve the rest of the team.
+  //
+  // The direction is the opposite of every other field here: those hand down a RESTRICTION and the
+  // hazard is a child escaping it, whereas the child is currently more restricted than its parent.
+  // Inheriting therefore cannot widen — the child gets what the parent already resolved and runs in
+  // the parent's cwd, so it reaches no directory the parent could not.
+  const parentSettingSources = agentOptions.local?.settingSources;
+  const parentCompatSources = agentOptions.local?.compatSources;
+  // #580 — the builtins the parent removed from its catalog. Unlike the two above, this crossed no
+  // carrier at all: a parent withholding `shell` produced a child that had `shell`, so delegation
+  // WIDENED authority the operator revoked. It is a restriction, so it is handed down like the
+  // sandbox posture rather than like a capability.
+  const parentWithheld = agentOptions.withheldBuiltinTools;
   return {
     ...(agentOptions.apiKey !== undefined ? { apiKey: agentOptions.apiKey } : {}),
     ...(typeof agentOptions.model === "object" ? { model: agentOptions.model } : {}),
     ...(parentPlugins !== undefined ? { plugins: parentPlugins } : {}),
     ...(parentSandbox !== undefined ? { sandbox: parentSandbox } : {}),
+    ...(parentSettingSources !== undefined ? { settingSources: parentSettingSources } : {}),
+    ...(parentCompatSources !== undefined ? { compatSources: parentCompatSources } : {}),
+    ...(parentWithheld !== undefined ? { withheldBuiltinTools: parentWithheld } : {}),
   };
 }
 

@@ -287,10 +287,36 @@ export function reportUndeclaredSources(
     if (!existsSync(dir)) continue;
     if (reported.has(dir)) continue;
     reported.add(dir);
+    // THE FILE IS NAMED FIRST because it is the entry point this message's reader can use.
+    //
+    // #524 gives the declaration two entry points for one shape: `.theokit/config.json`'s
+    // `compat.adapters`, and `local.compatSources` in code. Until this change the warning named
+    // only the second — and `local` is an argument the SDK's EMBEDDER passes, not something the
+    // person reading the line can reach. Reported by the `theocode` session against 5.0.1: a user
+    // of a host that embeds this SDK is told to pass an option that does not exist on their
+    // surface, which is advice that is true about the mechanism and unusable as an action.
+    //
+    // The file is writable by anyone holding the workspace, which is exactly who sees this line.
+    //
+    // WHAT THIS LINE CANNOT KNOW, and it is a real limit rather than a caveat for form's sake. It
+    // reports one fact: this SDK is ignoring the directory because nothing declared it. A HOST
+    // embedding the SDK may be withholding the same directory for its own reasons — `theocode`
+    // gates repository configuration on a trust posture — and the SDK cannot see that gate.
+    //
+    // So in a host that is also withholding, following this advice makes the warning stop and
+    // changes nothing the user can do. That silence is honest about the SDK (it did stop ignoring
+    // the directory) and uninformative about the outcome. Measured by the `theocode` session with
+    // the control that settles it: a NATIVE `.theokit/` hook does not fire there either, so the
+    // host's gate — not this declaration — is what holds the capability back.
+    //
+    // Nothing here can fix that. If a host ever gains a way to say "I am withholding this too",
+    // this is the line where that belongs.
     diagFailure(
       `[theokit] ${adapter.dirName}/ is present but not declared, so its hooks, skills, subagents ` +
-        `and plugins are ignored. To read it, pass ` +
-        `local: { compatSources: ["${adapter.kind}"] } (usetheokit/theokit-sdk#524).\n`,
+        `and plugins are ignored. To read it, add ` +
+        `{"compat":{"adapters":["${adapter.kind}"]}} to .theokit/config.json — or, if you embed ` +
+        `this SDK, pass local: { compatSources: ["${adapter.kind}"] } ` +
+        `(usetheokit/theokit-sdk#524).\n`,
     );
   }
 }

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { ConfigurationError } from "../../../errors.js";
 import { assertNoSymlinkEscape, safePathJoin } from "../../security/path-guard.js";
 import { readWorkspaceDir } from "../config/workspace-dir.js";
-import { parseSkillFrontmatter } from "./skill-frontmatter.js";
+import { parseSkillFrontmatter, stripSkillFrontmatter } from "./skill-frontmatter.js";
 
 /**
  * A discovered skill's metadata. The skill BODY is never included — only the
@@ -140,4 +140,42 @@ function tryParseSkill(
     }
     throw cause;
   }
+}
+
+/**
+ * Read the BODY of a discovered skill — everything after its frontmatter.
+ *
+ * A thin selector over {@link discoverSkills} rather than a second reader, which is the same
+ * relationship `loadSubagentDefinition` has to `discoverSubagents` in the sibling domain: one
+ * parser is the point.
+ *
+ * ## Why this exists rather than a field on `Skill`
+ *
+ * `Skill` documents that *"the skill BODY is never included"*. That is a written contract with no
+ * written reason, and widening it on a guess about the reason is not a trade worth making — a
+ * catalog you can put in a prompt without carrying every body is the likely intent, and this keeps
+ * that shape intact for whoever relied on it.
+ *
+ * The body was never expensive to obtain: `discoverSkills` already reads each file in full and
+ * discards everything but the frontmatter. What was missing was a door that hands it over.
+ *
+ * ## What it is for
+ *
+ * Turning a discovered skill into an inline one — `SkillsSettings.inline` requires `instructions`,
+ * and without this the only route was to open `source` and split the frontmatter by hand. That is a
+ * second implementation of this module's own convention, and it would fail SILENTLY if the format
+ * moved: the frontmatter would land inside the instructions and nothing would say so.
+ *
+ * Reported by the `theocode` session, which needed exactly that to give an operator's
+ * `~/.theokit/skills/` to an agent through the SDK's own parser.
+ *
+ * @param skill - a record returned by {@link discoverSkills}; its `source` is read.
+ * @returns the trimmed body. A file that is all frontmatter yields an empty string.
+ * @throws if `source` is unreadable — unlike discovery, which skips what it cannot read, a caller
+ *   naming ONE skill has asked about that skill and an empty string would answer a question it did
+ *   not ask.
+ * @public
+ */
+export async function loadSkillInstructions(skill: Skill): Promise<string> {
+  return stripSkillFrontmatter(await readFile(skill.source, "utf8"));
 }

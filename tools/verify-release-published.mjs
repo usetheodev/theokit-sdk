@@ -127,12 +127,39 @@ if (packages.length === 0) {
 
 /**
  * npmjs is eventually consistent: a publish that has already succeeded can answer E404 on the read
- * path for a few seconds, and `npm view` reports that identically to a version nobody published. So
- * `absent` is retried before it is believed. `unknown` is not: an unreachable registry is an
- * infrastructure fault, and the honest response is to say so now rather than after half a minute of
- * waiting for a network that is down.
+ * path, and `npm view` reports that identically to a version nobody published. So `absent` is
+ * retried before it is believed. `unknown` is not: an unreachable registry is an infrastructure
+ * fault, and the honest response is to say so now rather than after minutes of waiting for a
+ * network that is down.
+ *
+ * ## Why the ladder reaches 64 s (#574)
+ *
+ * "A few seconds" was the original estimate and it was wrong by an order of magnitude. Measured on
+ * the `5.0.1` release, run 33971302112:
+ *
+ *   14:26:34  changeset: ◇ Successfully published @theokit/sdk@5.0.1, @theokit/sdk-memory@0.5.3
+ *   14:28:03  this script: ✗ was NOT published, exit 1
+ *   14:28:09  npm registers @theokit/sdk-memory@0.5.3   ← 6 s after we gave up
+ *   14:29:36  npm registers @theokit/sdk@5.0.1          ← 93 s after we gave up
+ *
+ * Both were on the registry; `latest` moved to `5.0.1`. The publish had worked and this script
+ * called it failed. `5.0.0` failed the same way the day before, on four packages — two of the last
+ * twelve release runs were false failures.
+ *
+ * The old ladder `2000,4000,8000,16000` scaled by 2.6 for the 13 MB package gave it 78 s of budget
+ * against 182 s of real lag. Adding `32000,64000` takes the scaled budget to 328 s, which covers
+ * the measurement with margin.
+ *
+ * IT COSTS NOTHING ON A FAST RELEASE. Each step returns the moment the version appears, so the
+ * extra rungs are only reached by a release that would otherwise have been reported as failed.
+ *
+ * WHAT WAS DELIBERATELY NOT DONE: softening the verdict to a warning. The reason this script exists
+ * is #537 — a publish that silently did not happen, reported green. What was wrong here is the
+ * budget, not the strictness, and a warning would trade a false failure for a false success.
  */
-const RETRY_DELAYS_MS = (process.env.THEOKIT_RELEASE_VERIFY_DELAYS_MS ?? "2000,4000,8000,16000")
+const RETRY_DELAYS_MS = (
+  process.env.THEOKIT_RELEASE_VERIFY_DELAYS_MS ?? "2000,4000,8000,16000,32000,64000"
+)
   .split(",")
   .map((n) => Number(n.trim()))
   .filter((n) => Number.isFinite(n) && n >= 0);

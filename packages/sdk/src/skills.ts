@@ -20,6 +20,7 @@ export {
   type DiscoverSkillsOptions,
   discoverSkills,
   type InvalidSkillInfo,
+  loadSkillInstructions,
   type Skill,
 } from "./internal/runtime/skills/discover-skills.js";
 export { buildSkillsBlock } from "./internal/runtime/skills/skills-block.js";
