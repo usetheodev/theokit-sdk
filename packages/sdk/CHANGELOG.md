@@ -1,5 +1,93 @@
 # Changelog
 
+## 5.2.0
+
+### Minor Changes
+
+- [#585](https://github.com/usetheokit/theokit-sdk/pull/585) [`86bf6c1`](https://github.com/usetheokit/theokit-sdk/commit/86bf6c1ab90438835df5bb0d4a791596c58004ba) Thanks [@usetheodev](https://github.com/usetheodev)! - `effectiveToolNames` — ask what tools an agent will actually have ([#583](https://github.com/usetheokit/theokit-sdk/issues/583))
+  
+  `Agent.describe()` was the only reflection surface, and it builds its catalog as
+  `(options.tools ?? [])` — literally the array the caller passed. The SDK's own builtins were never in
+  it, so the two states that matter most were indistinguishable:
+  
+  ```
+  Agent.create({ tools: [] })                    describe().tools = []   ← holds a shell
+  the same + withheldBuiltinTools: ["shell"]     describe().tools = []   ← holds nothing
+  ```
+  
+  A consumer confirming that a role declared read-only really is one had no instrument. What they did
+  instead, measured in a real session: ask the agent to enumerate its own catalog — needs a credential,
+  needs the network, and returns the list the *model* decided to write. That same session recorded a
+  subagent answering *"I can't run shell commands in this environment"* while its catalog listed
+  `shell`. An attempt measures the model's disposition; the catalog measures its authority.
+  
+  ```ts
+  import { effectiveToolNames } from "@theokit/sdk";
+  
+  const { names, unresolved } = effectiveToolNames({ tools: [], withheldBuiltinTools: ["shell"] });
+  // names: []          — the shell is genuinely gone
+  // unresolved: []     — nothing else could contribute, so [] is the whole catalog
+  ```
+  
+  **Options in, not an agent id** — synchronous, credential-free, answerable *before* the agent runs,
+  so a test can compare what it declared against what the runtime will declare. `describe()` needs a
+  registered agent and answers too late for that.
+  
+  **Not a bare array**, deliberately. MCP tools need a live connection; plugin tools and the reasoning
+  `think` tool are assembled per run. Returning `string[]` would rebuild the original defect one
+  function over. `unresolved` names the sources that are configured and could not be enumerated, and is
+  empty when none are — which is the only condition under which `names` may be read as complete.
+  
+  Requested, with this exact shape and rationale, by the `theocode` session after it had to work around
+  the gap by extracting a subagent spec into a separate function just to assert on it.
+
+### Patch Changes
+
+- Correct a version number in the 5.1.0 release notes
+  
+  The 5.1.0 entry *"Snapshot versions now sort ABOVE the release they are cut from"* illustrates the
+  result as `5.0.2-compat-580-…`. **That digit was invented rather than derived.** The pending
+  changesets included a `minor`, so the calculated base was `5.1.0`, and the first cut after the change
+  printed:
+  
+  ```
+  5.1.0-compat-581-20260905211819
+  ```
+  
+  A correction was written before the release and did not reach it: it lived in a pull request that had
+  not merged when `changeset version` consumed the changeset, so the uncorrected text shipped.
+  
+  Recorded as a new entry rather than by editing the published one, per this project's changelog
+  discipline — a released entry is a record of what was said at the time, and rewriting it hides that
+  the correction happened.
+  
+  **Why a wrong digit was worth two entries:** the property that mattered — sorting above `5.0.0` —
+  held with either number. An invented value that does not change the conclusion is the kind that stays
+  uncorrected forever, and a reader comparing the changelog against what they installed would have
+  found an unexplained discrepancy and rightly concluded one of the two was lying.
+
+- [#585](https://github.com/usetheokit/theokit-sdk/pull/585) [`86bf6c1`](https://github.com/usetheokit/theokit-sdk/commit/86bf6c1ab90438835df5bb0d4a791596c58004ba) Thanks [@usetheodev](https://github.com/usetheodev)! - `CompatSurface` is declared once ([#586](https://github.com/usetheokit/theokit-sdk/issues/586))
+  
+  It was declared twice, independently — `types/agent.ts` (public, typing
+  `AgentOptions.local.compatSources`) and `internal/runtime/compat/foreign-config-sources.ts` (typing
+  the admission logic and `persistence/paths.ts`). Neither imported the other.
+  
+  Measured: adding a member to one alone produced **zero** type errors. Structurally identical unions
+  compare equal, so the two halves of one public contract could stop agreeing about which surfaces
+  exist, silently. Widen the public type and a caller declares a surface the admission logic ignores;
+  widen the internal one and the loader admits a surface no public caller can name. Both produce a
+  declaration that reads as honoured and is not.
+  
+  `types/` is a leaf by design, so the public declaration stays and the internal module imports it.
+  
+  The runtime list `COMPAT_SURFACES` cannot be derived from a type, so it remains a second copy of the
+  members — and a compile-time exhaustiveness check now pairs the two, in both directions.
+  
+  **The first version of that check was decorative and this is worth recording:** annotating the list
+  `readonly CompatSurface[]` widens each entry back to `CompatSurface`, so the check compared a type
+  against itself and passed on any drift. It was caught by testing the guard rather than trusting it —
+  a member added to the public type produced zero errors. `as const satisfies` keeps the literals.
+
 ## 5.1.0
 
 ### Minor Changes
