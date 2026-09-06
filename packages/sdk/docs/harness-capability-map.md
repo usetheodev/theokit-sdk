@@ -4,7 +4,7 @@ Every public symbol the TheoKit workspace publishes, and the exact specifier to 
 
 A symbol listed under two specifiers is reachable from both, but that does NOT make the two interchangeable: a class emitted separately into a subpath entry is a distinct nominal type from the one in the root bundle, so passing one where the other is expected fails on a private field. When a symbol appears twice, import it and everything it is passed to from the SAME specifier.
 
-1197 export(s) across 46 entry point(s).
+1200 export(s) across 46 entry point(s).
 
 ## `@theokit/acp`
 
@@ -162,6 +162,8 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `DoomLoopThresholds` | interface | Doom-loop guard thresholds (see {@link SendOptions.doomLoop } ).  |
 | `DreamingSweepOptions` | interface | Inputs for {@link Memory.runDreamingSweep } .  |
 | `DreamingSweepResult` | interface | What one dreaming sweep did.  |
+| `EffectiveToolCatalog` | interface | The result of {@link effectiveToolNames } . |
+| `effectiveToolNames` | function | The tool names an agent created with `options` will offer the model, as far as the options can say.  |
 | `emitRunEvent` | function | SE2 — emit a {@link RunEvent } to an optional sink, swallowing any sink error so observability can never break the run (fail-safe, mirrors the EventBus EC-2 contract).  |
 | `EnvOptOut` | interface | A key deliberately left off the environment, with the reason and what would reverse it. |
 | `EnvReachabilityAudit` | interface | The two failures, reported separately because they have opposite fixes.  |
@@ -444,6 +446,7 @@ A symbol listed under two specifiers is reachable from both, but that does NOT m
 | `UnicodeNormalizer` | class | SE36 — `UnicodeNormalizer.create` replaces `createUnicodeNormalizer` (ADR 0015). |
 | `UnicodeNormalizerOptions` | interface | Options for {@link createUnicodeNormalizer } . |
 | `UnknownAgentError` | class | Catch-all for unclassified server or runtime errors. |
+| `UnresolvedToolSource` | type | A tool source that is configured but cannot be enumerated without running the agent. |
 | `UnsupportedBudgetOperationError` | class | Thrown when a budget operation is requested on a `CloudAgent` (D388).  |
 | `UnsupportedRunOperationError` | class | Thrown when a {@link Run } or agent operation is not available on the current runtime.  |
 | `UnsupportedTaskOperationError` | class | Thrown when `CloudAgent` is asked to wrap a task (D370).  |

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-
+import type { CompatSurface } from "../../../types/agent.js";
 import { diagFailure } from "../../diagnostics.js";
 
 /*
@@ -115,16 +115,53 @@ export function adaptersFor(kinds: readonly string[]): ConfigSourceAdapter[] {
 }
 
 /**
- * A surface a foreign source may be admitted to. The four the SDK reads a project directory for.
+ * #586 — re-exported from `types/agent.ts` rather than declared here, which is what it used to be.
  *
- * They are listed separately because they carry very different risk, which is the whole reason
- * #524 asks for per-surface control: a skill is text that enters the system prompt, a hook is
- * command execution, a plugin is code loading. A consumer who wants their skills back has no
- * reason to be handed the other two along with them.
+ * Two independent declarations of one public contract: `AgentOptions.local.compatSources` was typed
+ * by the public one, `persistence/paths.ts` by this one, and neither imported the other. Measured:
+ * adding a member to one alone produced ZERO type errors, because structurally-identical unions
+ * compare equal and the two halves would simply stop agreeing about which surfaces exist.
+ *
+ * Neither direction of that drift raises anything. Widen the public type and a caller declares a
+ * surface the admission logic ignores; widen this one and the loader admits a surface no public
+ * caller can name. Both produce a declaration that reads as honoured and is not — the failure #524
+ * exists to prevent, one layer down.
+ *
+ * `types/` is a leaf by design (theokit#146), so the public declaration is the one that stays and
+ * this module imports it. The docblock that lived here — a skill is text entering the system prompt,
+ * a hook is command execution, a plugin is code loading — is on the declaration in `types/agent.ts`.
  */
-export type CompatSurface = "hooks" | "plugins" | "skills" | "subagents";
+export type { CompatSurface };
 
-const COMPAT_SURFACES: readonly CompatSurface[] = ["hooks", "plugins", "skills", "subagents"];
+/**
+ * The runtime list. A type cannot be enumerated at runtime, so this is the one place the members are
+ * written twice by necessity — and {@link assertCompatSurfacesExhaustive} below is what stops that
+ * second copy from being a second source of truth.
+ *
+ * `as const satisfies` rather than an annotation, and the difference is the whole guard: annotating
+ * it `readonly CompatSurface[]` widens each entry back to `CompatSurface`, so the check below
+ * compares a type against itself and passes on any drift. Measured on the first attempt — a member
+ * added to the public type alone produced zero errors. `satisfies` keeps the literals while still
+ * rejecting an entry that is not a surface, which is both directions at once.
+ */
+const COMPAT_SURFACES = [
+  "hooks",
+  "plugins",
+  "skills",
+  "subagents",
+] as const satisfies readonly CompatSurface[];
+
+/**
+ * Compile-time guard: adding a member to {@link CompatSurface} without adding it to
+ * {@link COMPAT_SURFACES} fails `tsc` here.
+ *
+ * Never called. It exists so the pairing is checked by the compiler rather than by whoever
+ * remembers — which is the entire lesson of #586, applied to the copy that could not be removed.
+ */
+function assertCompatSurfacesExhaustive(surface: CompatSurface): (typeof COMPAT_SURFACES)[number] {
+  return surface;
+}
+void assertCompatSurfacesExhaustive;
 
 /**
  * A declared foreign source: a bare kind, or a kind with the surfaces it may be read for.
